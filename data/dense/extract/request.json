@@ -1,0 +1,20 @@
+{
+  "description": "Structured extraction sample for the dense Qwen model.",
+  "endpoint": "/v1/chat/completions",
+  "body": {
+    "messages": [
+      {
+        "role": "system",
+        "content": "You extract entities and relationships from engineering incident text. Return compact JSON only with keys: entities, relationships, summary."
+      },
+      {
+        "role": "user",
+        "content": "Incident summary: During the 03:15 UTC deploy, the checkout-api in eu-central-1 started timing out against neo4j-cluster after the schema-migrator job changed the customer edge index. Platform engineer Marta rolled back the migrator. Customer impact lasted 11 minutes and affected cart-to-order conversion. Extract services, people, regions, jobs, incidents, and relationships."
+      }
+    ],
+    "temperature": 0.1,
+    "max_tokens": 220,
+    "stream": false
+  }
+}
+

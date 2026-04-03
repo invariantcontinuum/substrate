@@ -1,0 +1,20 @@
+{
+  "description": "Small code-improvement sample for the coding model.",
+  "endpoint": "/v1/chat/completions",
+  "body": {
+    "messages": [
+      {
+        "role": "system",
+        "content": "You are a pragmatic senior engineer. Answer concisely with improved code first, then one short explanation."
+      },
+      {
+        "role": "user",
+        "content": "Refactor this Python function to avoid repeated dictionary lookups and handle missing keys safely:\\n\\n```python\\ndef build_user_summary(row):\\n    return {\\n        'id': row['id'],\\n        'name': row['profile']['name'],\\n        'email': row['profile']['email'],\\n        'team': row['meta']['team'],\\n        'active': row['flags']['active'],\\n    }\\n```"
+      }
+    ],
+    "temperature": 0.2,
+    "max_tokens": 220,
+    "stream": false
+  }
+}
+
