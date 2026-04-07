@@ -38,7 +38,7 @@
   "users": [
     {
       "username": "admin",
-      "email": "admin@your-domain.com",
+      "email": "admin@invariantcontinuum.io",
       "enabled": true,
       "emailVerified": true,
       "firstName": "Admin",
