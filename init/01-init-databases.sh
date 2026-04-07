@@ -21,6 +21,15 @@ EOSQL
 
 echo "✓ Created database: ${KC_DB_NAME} with user: ${KC_DB_USER}"
 
+# Create minio database and user (for future use)
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
+    CREATE USER ${MINIO_DB_USER:-minio} WITH PASSWORD '${MINIO_DB_PASSWORD:-changeme}';
+    CREATE DATABASE ${MINIO_DB_NAME:-minio} OWNER ${MINIO_DB_USER:-minio};
+    GRANT ALL PRIVILEGES ON DATABASE ${MINIO_DB_NAME:-minio} TO ${MINIO_DB_USER:-minio};
+EOSQL
+
+echo "✓ Created database: ${MINIO_DB_NAME:-minio} with user: ${MINIO_DB_USER:-minio}"
+
 # Create schema for n8n (n8n requires a specific schema)
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$N8N_DB_NAME" <<-EOSQL
     CREATE SCHEMA IF NOT EXISTS ${N8N_DB_NAME} AUTHORIZATION ${N8N_DB_USER};
