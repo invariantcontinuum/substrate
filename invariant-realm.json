@@ -22,6 +22,24 @@
   "quickLoginCheckMilliSeconds": 1000,
   "maxDeltaTimeSeconds": 43200,
   "failureFactor": 5,
+  "identityProviders": [
+    {
+      "alias": "github",
+      "displayName": "GitHub",
+      "providerId": "github",
+      "enabled": true,
+      "trustEmail": true,
+      "storeToken": false,
+      "addReadTokenRoleOnCreate": false,
+      "authenticateByDefault": false,
+      "linkOnly": false,
+      "config": {
+        "clientId": "Ov23ctcU11mTA7Um2zqQ",
+        "clientSecret": "bab59f9dd43b2ae549c193248e1c2e30794ca608",
+        "useJwksUrl": "true"
+      }
+    }
+  ],
   "roles": {
     "realm": [
       {
@@ -47,108 +65,13 @@
       "credentials": [
         {
           "type": "password",
-          "value": "changeme",
+          "value": "invariant",
           "temporary": false
         }
       ]
     }
   ],
-  "clients": [
-    {
-      "clientId": "n8n",
-      "name": "n8n Workflow Automation",
-      "description": "OAuth client for n8n",
-      "enabled": true,
-      "clientAuthenticatorType": "client-secret",
-      "secret": "n8n-client-secret",
-      "redirectUris": [
-        "http://n8n.invariantcontinuum.io/rest/oauth2-credential/callback",
-        "http://localhost:5678/rest/oauth2-credential/callback"
-      ],
-      "webOrigins": ["+"],
-      "standardFlowEnabled": true,
-      "implicitFlowEnabled": false,
-      "directAccessGrantsEnabled": true,
-      "serviceAccountsEnabled": false,
-      "publicClient": false,
-      "protocol": "openid-connect",
-      "attributes": {
-        "oidc.ciba.grant.enabled": "false",
-        "backchannel.logout.session.required": "true",
-        "post.logout.redirect.uris": "+"
-      },
-      "protocolMappers": [
-        {
-          "name": "email",
-          "protocol": "openid-connect",
-          "protocolMapper": "oidc-usermodel-property-mapper",
-          "consentRequired": false,
-          "config": {
-            "userinfo.token.claim": "true",
-            "user.attribute": "email",
-            "id.token.claim": "true",
-            "access.token.claim": "true",
-            "claim.name": "email",
-            "jsonType.label": "String"
-          }
-        },
-        {
-          "name": "username",
-          "protocol": "openid-connect",
-          "protocolMapper": "oidc-usermodel-property-mapper",
-          "consentRequired": false,
-          "config": {
-            "userinfo.token.claim": "true",
-            "user.attribute": "username",
-            "id.token.claim": "true",
-            "access.token.claim": "true",
-            "claim.name": "preferred_username",
-            "jsonType.label": "String"
-          }
-        }
-      ]
-    },
-    {
-      "clientId": "pgadmin",
-      "name": "PgAdmin Database Admin",
-      "description": "OAuth client for PgAdmin",
-      "enabled": true,
-      "clientAuthenticatorType": "client-secret",
-      "secret": "pgadmin-client-secret",
-      "redirectUris": [
-        "http://pgadmin.invariantcontinuum.io/oauth2/callback",
-        "http://localhost:5050/oauth2/callback"
-      ],
-      "webOrigins": ["+"],
-      "standardFlowEnabled": true,
-      "implicitFlowEnabled": false,
-      "directAccessGrantsEnabled": true,
-      "serviceAccountsEnabled": false,
-      "publicClient": false,
-      "protocol": "openid-connect",
-      "attributes": {
-        "oidc.ciba.grant.enabled": "false",
-        "backchannel.logout.session.required": "true",
-        "post.logout.redirect.uris": "+"
-      },
-      "protocolMappers": [
-        {
-          "name": "email",
-          "protocol": "openid-connect",
-          "protocolMapper": "oidc-usermodel-property-mapper",
-          "consentRequired": false,
-          "config": {
-            "userinfo.token.claim": "true",
-            "user.attribute": "email",
-            "id.token.claim": "true",
-            "access.token.claim": "true",
-            "claim.name": "email",
-            "jsonType.label": "String"
-          }
-        }
-      ]
-    }
-  ],
-  "clientScopes": [],
-  "scopeMappings": []
+  "scopeMappings": [],
+  "clients": [],
+  "clientScopes": []
 }
