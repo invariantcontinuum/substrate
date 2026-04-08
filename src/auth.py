@@ -43,6 +43,11 @@ class JWKSClient:
             jwks = resp.json()
         self._keys = {}
         for key_data in jwks.get("keys", []):
-            jwk = PyJWK(key_data)
-            self._keys[key_data["kid"]] = jwk.key
+            if key_data.get("use") == "enc":
+                continue
+            try:
+                jwk = PyJWK(key_data)
+                self._keys[key_data["kid"]] = jwk.key
+            except Exception as e:
+                logger.warning("jwks_key_skip", kid=key_data.get("kid"), error=str(e))
         logger.info("jwks_refreshed", key_count=len(self._keys))
