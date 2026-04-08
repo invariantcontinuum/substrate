@@ -24,7 +24,8 @@ export interface GraphEdge {
 
 interface GraphState {
   selectedNodeId: string | null;
-  selectNode: (id: string | null) => void;
+  selectedNodeData: Record<string, unknown> | null;
+  selectNode: (id: string | null, data?: Record<string, unknown>) => void;
 
   filters: {
     types: Set<string>;
@@ -52,7 +53,8 @@ interface GraphState {
 
 export const useGraphStore = create<GraphState>((set) => ({
   selectedNodeId: null,
-  selectNode: (id) => set({ selectedNodeId: id }),
+  selectedNodeData: null,
+  selectNode: (id, data) => set({ selectedNodeId: id, selectedNodeData: data ?? null }),
 
   filters: {
     types: new Set(["service", "database", "cache", "external"]),

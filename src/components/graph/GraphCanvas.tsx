@@ -69,11 +69,14 @@ export function GraphCanvas() {
   const handleZoomLabels = useCallback((cy: cytoscape.Core) => {
     cy.on("zoom", () => {
       const zoom = cy.zoom();
-      const showLabels = zoom > 0.7;
-      cy.nodes().style({
-        "font-size": showLabels ? undefined : "0px",
-        label: showLabels ? "data(label)" : "",
-      });
+      // Scale font size with zoom: hide below 0.3, shrink between 0.3-0.7, normal above 0.7
+      if (zoom < 0.3) {
+        cy.nodes().style({ label: "" });
+      } else if (zoom < 0.7) {
+        cy.nodes().style({ label: "data(label)", "font-size": "8px" });
+      } else {
+        cy.nodes().style({ label: "data(label)", "font-size": undefined });
+      }
     });
   }, []);
 
@@ -89,7 +92,10 @@ export function GraphCanvas() {
       wheelSensitivity: 0.3,
     });
 
-    cy.on("tap", "node", (evt) => selectNode(evt.target.id()));
+    cy.on("tap", "node", (evt) => {
+      const node = evt.target;
+      selectNode(node.id(), node.data());
+    });
     cy.on("tap", (evt) => { if (evt.target === cy) selectNode(null); });
 
     handleHover(cy);
