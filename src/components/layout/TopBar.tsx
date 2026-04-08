@@ -60,6 +60,23 @@ export function TopBar() {
           <span style={{ color: "#a5b4fc" }}>{stats.edgeCount}</span>{" "}edges
         </span>
 
+        {/* Violation badge */}
+        {stats.violationCount > 0 && (
+          <div
+            className="flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px]"
+            style={{
+              background: "rgba(239,68,68,0.08)",
+              border: "1px solid rgba(239,68,68,0.15)",
+              fontFamily: "'JetBrains Mono', monospace",
+            }}
+          >
+            <span style={{ color: "rgb(239,68,68)", fontSize: 12 }}>&#x2298;</span>
+            <span style={{ color: "#fca5a5" }}>
+              {stats.violationCount} violation{stats.violationCount > 1 ? "s" : ""} detected
+            </span>
+          </div>
+        )}
+
         {/* Divider */}
         <div className="w-px h-4" style={{ background: "var(--border)" }} />
 
