@@ -5,6 +5,7 @@ import { useGraphData } from "./useGraphData";
 import { useGraphSocket } from "./useGraphSocket";
 import { useGraphStore } from "@/stores/graph";
 import { GraphLegend } from "./GraphLegend";
+import { StatusCarousel } from "./StatusCarousel";
 
 export function GraphCanvas() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -85,6 +86,7 @@ export function GraphCanvas() {
         </div>
       )}
       <div ref={containerRef} className="w-full h-full" />
+      <StatusCarousel />
       <GraphLegend />
     </div>
   );

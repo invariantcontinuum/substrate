@@ -16,67 +16,63 @@ const bottomItems = [
 export function Sidebar() {
   return (
     <div
-      className="flex flex-col items-center py-4 gap-2"
+      className="flex flex-col items-center py-3 gap-1"
       style={{
-        width: 56,
-        minWidth: 56,
-        background: "#0a0a10",
-        borderRight: "1px solid rgba(255,255,255,0.06)",
+        width: 48,
+        minWidth: 48,
+        background: "var(--bg-surface)",
+        borderRight: "1px solid var(--border)",
       }}
     >
-      {/* Logo */}
       <div
-        className="flex items-center justify-center mb-3"
+        className="flex items-center justify-center mb-2"
         style={{
-          width: 32,
-          height: 32,
-          borderRadius: 8,
-          background: "rgba(99,102,241,0.15)",
-          border: "1px solid rgba(99,102,241,0.3)",
+          width: 28,
+          height: 28,
+          borderRadius: 6,
+          background: "rgba(99,102,241,0.12)",
+          border: "1px solid rgba(99,102,241,0.25)",
         }}
       >
-        <span style={{ color: "#6366f1", fontSize: 14, fontWeight: 700 }}>S</span>
+        <span style={{ color: "#6366f1", fontSize: 12, fontWeight: 800, letterSpacing: "-0.02em" }}>S</span>
       </div>
 
-      {/* Nav items */}
       {navItems.map((item) => (
         <button
           key={item.label}
           title={item.label}
           disabled={item.disabled}
-          className="flex items-center justify-center transition-colors"
+          className="flex items-center justify-center transition-all duration-150"
           style={{
-            width: 36,
-            height: 36,
-            borderRadius: 8,
-            background: item.active ? "rgba(99,102,241,0.12)" : "transparent",
-            border: item.active ? "1px solid rgba(99,102,241,0.2)" : "1px solid transparent",
-            opacity: item.disabled ? 0.3 : 1,
+            width: 32,
+            height: 32,
+            borderRadius: 6,
+            background: item.active ? "rgba(99,102,241,0.1)" : "transparent",
+            border: item.active ? "1px solid rgba(99,102,241,0.18)" : "1px solid transparent",
+            opacity: item.disabled ? 0.25 : 1,
             cursor: item.disabled ? "default" : "pointer",
           }}
         >
-          <item.icon size={16} color={item.active ? "#a5b4fc" : "#4a4a60"} />
+          <item.icon size={15} color={item.active ? "#a5b4fc" : "var(--text-muted)"} strokeWidth={item.active ? 2 : 1.5} />
         </button>
       ))}
 
       <div className="flex-1" />
 
-      {/* Bottom items */}
       {bottomItems.map((item) => (
         <button
           key={item.label}
           title={item.label}
-          disabled={item.disabled}
+          disabled
           className="flex items-center justify-center"
           style={{
-            width: 36,
-            height: 36,
-            borderRadius: 8,
-            opacity: 0.5,
-            cursor: "default",
+            width: 32,
+            height: 32,
+            borderRadius: 6,
+            opacity: 0.25,
           }}
         >
-          <item.icon size={16} color="#4a4a60" />
+          <item.icon size={15} color="var(--text-muted)" strokeWidth={1.5} />
         </button>
       ))}
     </div>

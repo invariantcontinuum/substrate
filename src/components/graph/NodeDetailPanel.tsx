@@ -22,16 +22,16 @@ export function NodeDetailPanel() {
 
   return (
     <div
-      className="overflow-y-auto p-4"
+      className="overflow-y-auto p-3"
       style={{
-        width: 280,
-        borderLeft: "1px solid rgba(255,255,255,0.06)",
-        background: "rgba(0,0,0,0.2)",
+        width: 260,
+        borderLeft: "1px solid var(--border)",
+        background: "var(--bg-surface)",
       }}
     >
       <div
-        className="text-[10px] uppercase tracking-widest mb-3"
-        style={{ color: "#4a4a60" }}
+        className="text-[9px] uppercase tracking-[0.15em] mb-2.5"
+        style={{ color: "var(--text-muted)" }}
       >
         Selected Node
       </div>
@@ -58,7 +58,7 @@ export function NodeDetailPanel() {
       </div>
 
       {data && (
-        <div className="text-[11px]" style={{ color: "#8888a0" }}>
+        <div className="text-[10px]" style={{ color: "var(--text-secondary)" }}>
           <pre className="whitespace-pre-wrap">{JSON.stringify(data, null, 2)}</pre>
         </div>
       )}

@@ -18,16 +18,16 @@ export function FilterPanel() {
 
   return (
     <div
-      className="overflow-y-auto p-3"
+      className="overflow-y-auto p-2.5"
       style={{
-        width: 200,
-        borderRight: "1px solid rgba(255,255,255,0.06)",
-        background: "rgba(0,0,0,0.2)",
+        width: 180,
+        borderRight: "1px solid var(--border)",
+        background: "var(--bg-surface)",
       }}
     >
       <div
-        className="text-[10px] uppercase tracking-widest mb-2.5"
-        style={{ color: "#4a4a60" }}
+        className="text-[9px] uppercase tracking-[0.15em] mb-2"
+        style={{ color: "var(--text-muted)" }}
       >
         Node Types
       </div>
@@ -35,8 +35,8 @@ export function FilterPanel() {
         {nodeTypes.map((nt) => (
           <label
             key={nt.type}
-            className="flex items-center gap-2 text-[11px] cursor-pointer"
-            style={{ color: "#8888a0" }}
+            className="flex items-center gap-2 text-[10px] cursor-pointer"
+            style={{ color: "var(--text-secondary)" }}
           >
             <div
               className="w-2.5 h-2.5 rounded-sm"
@@ -53,8 +53,8 @@ export function FilterPanel() {
       </div>
 
       <div
-        className="text-[10px] uppercase tracking-widest mt-4 mb-2.5"
-        style={{ color: "#4a4a60" }}
+        className="text-[9px] uppercase tracking-[0.15em] mt-3 mb-2"
+        style={{ color: "var(--text-muted)" }}
       >
         Layout
       </div>
@@ -71,7 +71,7 @@ export function FilterPanel() {
                 layout === l.value
                   ? "1px solid rgba(99,102,241,0.2)"
                   : "1px solid rgba(255,255,255,0.06)",
-              color: layout === l.value ? "#a5b4fc" : "#4a4a60",
+              color: layout === l.value ? "#a5b4fc" : "var(--text-muted)",
             }}
           >
             {l.label}
