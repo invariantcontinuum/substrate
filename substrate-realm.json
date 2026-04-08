@@ -60,11 +60,13 @@
       "directAccessGrantsEnabled": false,
       "redirectUris": [
         "http://localhost:3000/*",
-        "https://substrate.invariantcontinuum.io/*"
+        "https://substrate.invariantcontinuum.io/*",
+        "https://app.invariantcontinuum.io/*"
       ],
       "webOrigins": [
         "http://localhost:3000",
-        "https://substrate.invariantcontinuum.io"
+        "https://substrate.invariantcontinuum.io",
+        "https://app.invariantcontinuum.io"
       ],
       "attributes": {
         "pkce.code.challenge.method": "S256"
