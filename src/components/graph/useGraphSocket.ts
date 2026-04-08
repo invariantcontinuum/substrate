@@ -11,6 +11,9 @@ export function useGraphSocket(cyRef: React.MutableRefObject<cytoscape.Core | nu
   const socketRef = useRef<GraphSocket | null>(null);
   const setConnectionStatus = useGraphStore((s) => s.setConnectionStatus);
   const setStats = useGraphStore((s) => s.setStats);
+  const setSyncStatus = useGraphStore((s) => s.setSyncStatus);
+  const setSyncProgress = useGraphStore((s) => s.setSyncProgress);
+  const clearCanvas = useGraphStore((s) => s.clearCanvas);
   const queryClient = useQueryClient();
 
   const handleMessage = useCallback(
@@ -18,6 +21,25 @@ export function useGraphSocket(cyRef: React.MutableRefObject<cytoscape.Core | nu
       const msg = data as Record<string, unknown>;
       const cy = cyRef.current;
       if (!cy) return;
+
+      if (msg.type === "sync_progress") {
+        setSyncProgress({ done: msg.done as number, total: msg.total as number });
+        return;
+      }
+
+      if (msg.type === "sync_complete") {
+        setSyncStatus("idle");
+        setSyncProgress(null);
+        queryClient.invalidateQueries({ queryKey: ["graph"] });
+        return;
+      }
+
+      if (msg.type === "graph_cleared") {
+        clearCanvas();
+        const cy = cyRef.current;
+        if (cy) cy.elements().remove();
+        return;
+      }
 
       if (msg.type === "snapshot") {
         return;
@@ -78,7 +100,7 @@ export function useGraphSocket(cyRef: React.MutableRefObject<cytoscape.Core | nu
         });
       }
     },
-    [cyRef, setStats]
+    [cyRef, setStats, setSyncStatus, setSyncProgress, clearCanvas, queryClient]
   );
 
   useEffect(() => {
