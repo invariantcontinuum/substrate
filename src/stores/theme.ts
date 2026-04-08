@@ -26,11 +26,6 @@ export const useThemeStore = create<ThemeState>()(
     }),
     {
       name: "substrate-theme",
-      onRehydrate: (state) => {
-        if (state?.theme === "dark") {
-          document.documentElement.classList.add("dark");
-        }
-      },
     }
   )
 );
