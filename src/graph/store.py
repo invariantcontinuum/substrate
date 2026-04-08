@@ -100,13 +100,13 @@ async def merge_node(node: GraphNode) -> None:
         await session.run(
             f"""
             MERGE (n:{label} {{id: $id}})
+            ON CREATE SET n.first_seen = $now
             SET n.name = $name,
                 n.domain = $domain,
                 n.status = $status,
                 n.source = $source,
                 n.meta = $meta,
                 n.last_seen = $now
-            ON CREATE SET n.first_seen = $now
             """,
             id=node.id,
             name=node.name,

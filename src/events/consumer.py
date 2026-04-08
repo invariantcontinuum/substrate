@@ -127,8 +127,9 @@ async def start_consuming() -> None:
                     nodes=len(nodes),
                     edges=len(edges),
                 )
-            except Exception:
-                logger.exception("event_processing_failed")
+            except Exception as e:
+                import traceback
+                logger.error("event_processing_failed", error=str(e), traceback=traceback.format_exc())
                 await msg.nak()
 
     asyncio.create_task(_consume())
