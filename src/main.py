@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 
 from src.config import settings
 from src.auth import JWKSClient, validate_token
-from src.proxy import proxy_request, proxy_websocket
+from src.proxy import proxy_request, proxy_websocket, init_client, close_client
 
 structlog.configure(
     processors=[
@@ -23,8 +23,10 @@ jwks_client: JWKSClient | None = None
 async def lifespan(app: FastAPI):
     global jwks_client
     jwks_client = JWKSClient(settings.jwks_url)
+    await init_client()
     logger.info("gateway_started", keycloak=settings.keycloak_url)
     yield
+    await close_client()
     logger.info("gateway_stopped")
 
 
@@ -75,6 +77,14 @@ async def proxy_api(request: Request, path: str):
         return JSONResponse({"error": "unauthorized"}, status_code=401)
 
     return await proxy_request(request, settings.graph_service_url)
+
+
+@app.api_route("/ingest/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+async def proxy_ingest(request: Request, path: str):
+    claims = await _authenticate(request)
+    if not claims:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    return await proxy_request(request, settings.ingestion_service_url)
 
 
 @app.api_route(
