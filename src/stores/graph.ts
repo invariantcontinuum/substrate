@@ -41,10 +41,11 @@ interface GraphState {
     status: "connected" | "disconnected" | "reconnecting"
   ) => void;
 
-  stats: { nodeCount: number; edgeCount: number; lastUpdated: string };
+  stats: { nodeCount: number; edgeCount: number; violationCount: number; lastUpdated: string };
   setStats: (stats: {
     nodeCount: number;
     edgeCount: number;
+    violationCount: number;
     lastUpdated: string;
   }) => void;
 }
@@ -73,6 +74,6 @@ export const useGraphStore = create<GraphState>((set) => ({
   connectionStatus: "disconnected",
   setConnectionStatus: (connectionStatus) => set({ connectionStatus }),
 
-  stats: { nodeCount: 0, edgeCount: 0, lastUpdated: "" },
+  stats: { nodeCount: 0, edgeCount: 0, violationCount: 0, lastUpdated: "" },
   setStats: (stats) => set({ stats }),
 }));
