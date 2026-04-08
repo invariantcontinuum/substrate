@@ -3,7 +3,7 @@ import asyncio
 import nats
 import structlog
 from nats.js import JetStreamContext
-from src.graph.store import GraphNode, GraphEdge, merge_node, merge_edge
+from src.graph.store import GraphNode, GraphEdge, merge_nodes_batch, merge_edges_batch
 
 logger = structlog.get_logger()
 
@@ -77,10 +77,8 @@ async def start_consuming() -> None:
                 event_data = json.loads(msg.data.decode())
                 nodes, edges = parse_graph_event(event_data)
 
-                for node in nodes:
-                    await merge_node(node)
-                for edge in edges:
-                    await merge_edge(edge)
+                await merge_nodes_batch(nodes)
+                await merge_edges_batch(edges)
 
                 delta = {
                     "type": "batch",

@@ -5,6 +5,7 @@ from src.graph.store import (
     get_stats,
     nodes_to_cytoscape,
     edges_to_cytoscape,
+    purge_all,
 )
 
 router = APIRouter(prefix="/api/graph")
@@ -31,3 +32,9 @@ async def get_node(node_id: str):
 @router.get("/stats")
 async def graph_stats():
     return await get_stats()
+
+
+@router.delete("")
+async def purge_graph():
+    await purge_all()
+    return {"status": "purged"}
