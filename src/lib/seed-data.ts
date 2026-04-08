@@ -1,0 +1,37 @@
+import type { GraphSnapshot } from "@/components/graph/useGraphData";
+
+export const SEED_SNAPSHOT: GraphSnapshot = {
+  nodes: [
+    { data: { id: "gateway",      label: "API Gateway",     type: "service",  status: "healthy"   }, position: { x: 400, y: 80  } },
+    { data: { id: "auth",         label: "Auth Service",    type: "service",  status: "healthy"   }, position: { x: 200, y: 200 } },
+    { data: { id: "order",        label: "Order Service",   type: "service",  status: "healthy"   }, position: { x: 600, y: 200 } },
+    { data: { id: "payment",      label: "Payment Service", type: "service",  status: "violation" }, position: { x: 700, y: 340 } },
+    { data: { id: "notification", label: "Notification",    type: "service",  status: "healthy"   }, position: { x: 500, y: 380 } },
+    { data: { id: "postgres",     label: "PostgreSQL",      type: "database", status: "healthy"   }, position: { x: 650, y: 500 } },
+    { data: { id: "redis",        label: "Redis",           type: "cache",    status: "healthy"   }, position: { x: 120, y: 340 } },
+    { data: { id: "events",       label: "Event Store",     type: "database", status: "healthy"   }, position: { x: 380, y: 500 } },
+    { data: { id: "policy-pci",   label: "PCI Boundary",    type: "policy",   status: "enforced"  }, position: { x: 850, y: 260 } },
+    { data: { id: "policy-auth",  label: "Auth Required",   type: "policy",   status: "enforced"  }, position: { x: 80,  y: 140 } },
+    { data: { id: "adr-023",      label: "ADR-023",         type: "adr",      status: "healthy"   }, position: { x: 220, y: 500 } },
+    { data: { id: "incident-042", label: "POST-042",        type: "incident", status: "warning"   }, position: { x: 60,  y: 440 } },
+    { data: { id: "github",       label: "GitHub",          type: "external", status: "healthy"   }, position: { x: 860, y: 380 } },
+    { data: { id: "jira",         label: "Jira",            type: "external", status: "healthy"   }, position: { x: 240, y: 600 } },
+  ] as GraphSnapshot["nodes"],
+  edges: [
+    { data: { id: "e1",  source: "gateway",      target: "auth",         type: "depends"   } },
+    { data: { id: "e2",  source: "gateway",      target: "order",        type: "depends"   } },
+    { data: { id: "e3",  source: "order",        target: "payment",      type: "depends"   } },
+    { data: { id: "e4",  source: "order",        target: "postgres",     type: "depends"   } },
+    { data: { id: "e5",  source: "auth",         target: "redis",        type: "depends"   } },
+    { data: { id: "e6",  source: "notification", target: "events",       type: "depends"   } },
+    { data: { id: "e7",  source: "order",        target: "notification", type: "depends"   } },
+    { data: { id: "ev1", source: "payment",      target: "postgres",     type: "violation", label: "bypasses gateway" } },
+    { data: { id: "ep1", source: "policy-pci",   target: "payment",      type: "enforces"  } },
+    { data: { id: "ep2", source: "policy-auth",  target: "gateway",      type: "enforces"  } },
+    { data: { id: "ew1", source: "adr-023",      target: "gateway",      type: "why",       label: "Gateway mandate" } },
+    { data: { id: "ew2", source: "incident-042", target: "policy-auth",  type: "why",       label: "Caused this policy" } },
+    { data: { id: "ex1", source: "github",       target: "payment",      type: "drift",     label: "drift detected" } },
+    { data: { id: "ex2", source: "jira",         target: "adr-023",      type: "depends"   } },
+  ] as GraphSnapshot["edges"],
+  meta: { node_count: 14, edge_count: 14 },
+};
