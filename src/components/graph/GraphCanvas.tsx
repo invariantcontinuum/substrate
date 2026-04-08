@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback } from "react";
 import { motion } from "framer-motion";
 import cytoscape from "cytoscape";
 import { cytoscapeStyles } from "@/lib/graph-styles";
+import { SEED_SNAPSHOT } from "@/lib/seed-data";
 import { useGraphData } from "./useGraphData";
 import { useGraphSocket } from "./useGraphSocket";
 import { useGraphStore } from "@/stores/graph";
@@ -71,7 +72,7 @@ export function GraphCanvas() {
       const showLabels = zoom > 0.7;
       cy.nodes().style({
         "font-size": showLabels ? undefined : "0px",
-        label: showLabels ? "data(name)" : "",
+        label: showLabels ? "data(label)" : "",
       });
     });
   }, []);
@@ -105,6 +106,10 @@ export function GraphCanvas() {
     cy.elements().remove();
     cy.add([...data.nodes, ...data.edges]);
 
+    // Use preset layout for seed data (has baked-in positions), otherwise use selected layout
+    const isSeed = data === SEED_SNAPSHOT || data.nodes.some((n) => n.position != null);
+    const layoutName = isSeed ? "preset" : layout;
+
     const nodeCount = cy.nodes().length;
     const staggerDelay = Math.min(60, 3000 / Math.max(nodeCount, 1));
 
@@ -122,12 +127,15 @@ export function GraphCanvas() {
       }, Math.min(nodeCount * staggerDelay, 3000) + i * Math.min(40, 2000 / Math.max(cy.edges().length, 1)));
     });
 
-    cy.layout({ name: layout, animate: true, animationDuration: 500 }).run();
+    cy.layout({ name: layoutName, animate: !isSeed, animationDuration: 500 }).run();
     cy.fit(undefined, 50);
+
+    const violationCount = cy.edges().filter((e) => e.data("type") === "violation").length;
 
     setStats({
       nodeCount: data.meta.node_count,
       edgeCount: data.meta.edge_count,
+      violationCount,
       lastUpdated: new Date().toISOString(),
     });
   }, [data, layout, setStats]);

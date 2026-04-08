@@ -73,6 +73,7 @@ export function useGraphSocket(cyRef: React.MutableRefObject<cytoscape.Core | nu
         setStats({
           nodeCount: cy.nodes().length,
           edgeCount: cy.edges().length,
+          violationCount: cy.edges().filter((e) => e.data("type") === "violation").length,
           lastUpdated: new Date().toISOString(),
         });
       }
