@@ -83,9 +83,13 @@ export function useGraphSocket(cyRef: React.MutableRefObject<cytoscape.Core | nu
   useEffect(() => {
     if (!token) return;
 
+    const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const gatewayHost = window.location.hostname === "localhost"
+      ? `${window.location.hostname}:8180`
+      : `substrate.${window.location.hostname.split(".").slice(-2).join(".")}`;
     const wsUrl =
       import.meta.env.VITE_WS_URL ||
-      `ws://${window.location.hostname}:8080`;
+      `${proto}//${gatewayHost}`;
 
     const socket = new GraphSocket(wsUrl, token, handleMessage, (status) => {
       setConnectionStatus(status);

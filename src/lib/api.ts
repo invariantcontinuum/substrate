@@ -9,6 +9,12 @@ export const queryClient = new QueryClient({
   },
 });
 
+const API_BASE = import.meta.env.VITE_API_URL || (
+  window.location.hostname === "localhost"
+    ? ""
+    : `${window.location.protocol}//substrate.${window.location.hostname.split(".").slice(-2).join(".")}`
+);
+
 export async function apiFetch<T>(
   path: string,
   token: string | undefined,
@@ -19,7 +25,7 @@ export async function apiFetch<T>(
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 
-  const resp = await fetch(path, { ...options, headers });
+  const resp = await fetch(`${API_BASE}${path}`, { ...options, headers });
   if (!resp.ok) {
     throw new Error(`API error: ${resp.status} ${resp.statusText}`);
   }
