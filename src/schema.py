@@ -27,3 +27,30 @@ class GraphEvent(BaseModel):
     nodes_affected: list[NodeAffected] = Field(default_factory=list)
     edges_affected: list[EdgeAffected] = Field(default_factory=list)
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+import re as _re
+
+class SyncSchedule(BaseModel):
+    id: int = 0
+    owner: str
+    repo: str
+    interval_minutes: int = 60
+    enabled: bool = True
+    last_run: datetime | None = None
+    next_run: datetime | None = None
+
+class ScheduleRequest(BaseModel):
+    repo_url: str
+    interval_minutes: int = 60
+    enabled: bool = True
+
+_GITHUB_HTTPS_RE = _re.compile(r"https?://github\.com/([^/]+)/([^/.]+?)(?:\.git)?/?$")
+_GITHUB_SSH_RE = _re.compile(r"git@github\.com:([^/]+)/([^/.]+?)(?:\.git)?$")
+
+def parse_repo_url(url: str) -> tuple[str, str]:
+    for pattern in (_GITHUB_HTTPS_RE, _GITHUB_SSH_RE):
+        m = pattern.match(url.strip())
+        if m:
+            return m.group(1), m.group(2)
+    raise ValueError(f"Invalid GitHub URL: {url}")
