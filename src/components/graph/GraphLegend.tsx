@@ -1,13 +1,12 @@
-const items = [
-  { label: "Service", shape: "rounded", bg: "#0f0f1f", border: "#3b4199" },
-  { label: "Database", shape: "barrel", bg: "#0a1a14", border: "#065f46" },
-  { label: "Cache", shape: "barrel", bg: "#1a1400", border: "#92400e" },
-  { label: "External", shape: "rounded", bg: "#0d1117", border: "#374151" },
-  { label: "Violation", shape: "rounded", bg: "#1a0a0a", border: "#dc2626" },
+const nodeItems = [
+  { label: "Service",  color: "#3b4199" },
+  { label: "Database", color: "#065f46" },
+  { label: "Policy",   color: "#7c3aed" },
 ];
 
 const edgeItems = [
-  { label: "dep edge", style: "solid", color: "rgba(99,102,241,0.4)" },
+  { label: "why edge",  color: "#f59e0b", style: "dashed" as const },
+  { label: "violation", color: "#ef4444", style: "dashed" as const },
 ];
 
 export function GraphLegend() {
@@ -26,14 +25,13 @@ export function GraphLegend() {
       >
         Legend
       </span>
-      {items.map((item) => (
+      {nodeItems.map((item) => (
         <div key={item.label} className="flex items-center gap-2 text-[10px]">
           <div
-            className="w-[10px] h-[10px]"
+            className="w-[10px] h-[10px] rounded-sm"
             style={{
-              background: item.bg,
-              border: `1.5px solid ${item.border}`,
-              borderRadius: item.shape === "barrel" ? "2px 2px 4px 4px" : "2px",
+              background: item.color,
+              opacity: 0.9,
             }}
           />
           <span style={{ color: "var(--text-secondary)" }}>{item.label}</span>
