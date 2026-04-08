@@ -143,6 +143,8 @@ async def merge_edge(edge: GraphEdge) -> None:
 async def get_full_snapshot() -> GraphSnapshot:
     if not _driver:
         raise RuntimeError("Neo4j not connected")
+    type_map = {"Service": "service", "Database": "database", "Cache": "cache", "External": "external"}
+
     async with _driver.session() as session:
         node_result = await session.run(
             """
@@ -153,22 +155,23 @@ async def get_full_snapshot() -> GraphSnapshot:
                    n.meta AS meta, n.first_seen AS first_seen, n.last_seen AS last_seen
             """
         )
-        nodes = []
-        async for record in node_result:
-            type_map = {"Service": "service", "Database": "database", "Cache": "cache", "External": "external"}
-            nodes.append(
-                GraphNode(
-                    id=record["id"],
-                    name=record["name"] or record["id"],
-                    type=type_map.get(record["type"], "service"),
-                    domain=record["domain"] or "",
-                    status=record["status"] or "healthy",
-                    source=record["source"] or "github",
-                    first_seen=record["first_seen"] or "",
-                    last_seen=record["last_seen"] or "",
-                )
-            )
+        node_records = await node_result.values()
 
+    nodes = [
+        GraphNode(
+            id=r[0],
+            name=r[1] or r[0],
+            type=type_map.get(r[2], "service"),
+            domain=r[3] or "",
+            status=r[4] or "healthy",
+            source=r[5] or "github",
+            first_seen=r[7] or "",
+            last_seen=r[8] or "" if len(r) > 8 else "",
+        )
+        for r in node_records
+    ]
+
+    async with _driver.session() as session:
         edge_result = await session.run(
             """
             MATCH (a)-[r:DEPENDS_ON]->(b)
@@ -176,18 +179,19 @@ async def get_full_snapshot() -> GraphSnapshot:
                    r.weight AS weight, type(r) AS type
             """
         )
-        edges = []
-        async for record in edge_result:
-            edges.append(
-                GraphEdge(
-                    id=f"{record['source']}->{record['target']}",
-                    source=record["source"],
-                    target=record["target"],
-                    type="depends",
-                    label=record["label"] or "",
-                    weight=record["weight"] or 1.0,
-                )
-            )
+        edge_records = await edge_result.values()
+
+    edges = [
+        GraphEdge(
+            id=f"{r[0]}->{r[1]}",
+            source=r[0],
+            target=r[1],
+            type="depends",
+            label=r[2] or "",
+            weight=r[3] or 1.0,
+        )
+        for r in edge_records
+    ]
 
     return GraphSnapshot(
         nodes=nodes,
@@ -228,13 +232,15 @@ async def get_stats() -> dict:
         )
         record = await result.single()
         nodes_by_type = {}
-        for item in record["nodes_by_type"]:
-            nodes_by_type[item["type"].lower()] = item["count"]
+        if record:
+            for item in record["nodes_by_type"]:
+                nodes_by_type[item["type"].lower()] = item["count"]
 
+    async with _driver.session() as session:
         edge_result = await session.run("MATCH ()-[r:DEPENDS_ON]->() RETURN count(r) AS total")
         edge_record = await edge_result.single()
 
-        return {
-            "nodes_by_type": nodes_by_type,
-            "total_edges": edge_record["total"],
-        }
+    return {
+        "nodes_by_type": nodes_by_type,
+        "total_edges": edge_record["total"] if edge_record else 0,
+    }
