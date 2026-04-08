@@ -49,6 +49,14 @@ interface GraphState {
     violationCount: number;
     lastUpdated: string;
   }) => void;
+
+  searchQuery: string;
+  setSearchQuery: (query: string) => void;
+  syncStatus: "idle" | "syncing" | "error";
+  setSyncStatus: (status: "idle" | "syncing" | "error") => void;
+  syncProgress: { done: number; total: number } | null;
+  setSyncProgress: (progress: { done: number; total: number } | null) => void;
+  clearCanvas: () => void;
 }
 
 export const useGraphStore = create<GraphState>((set) => ({
@@ -78,4 +86,18 @@ export const useGraphStore = create<GraphState>((set) => ({
 
   stats: { nodeCount: 0, edgeCount: 0, violationCount: 0, lastUpdated: "" },
   setStats: (stats) => set({ stats }),
+
+  searchQuery: "",
+  setSearchQuery: (searchQuery) => set({ searchQuery }),
+  syncStatus: "idle",
+  setSyncStatus: (syncStatus) => set({ syncStatus }),
+  syncProgress: null,
+  setSyncProgress: (syncProgress) => set({ syncProgress }),
+  clearCanvas: () => set({
+    selectedNodeId: null,
+    selectedNodeData: null,
+    stats: { nodeCount: 0, edgeCount: 0, violationCount: 0, lastUpdated: "" },
+    searchQuery: "",
+    syncProgress: null,
+  }),
 }));
