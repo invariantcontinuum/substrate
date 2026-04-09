@@ -322,12 +322,11 @@ impl GraphEngine {
                 let id = self.node_order[idx].clone();
                 self.selected_id = Some(id.clone());
                 self.buffers_dirty = true;
-                if let Some(ref cb) = self.on_node_click {
-                    if let Some(node) = self.store.get_node(&id) {
-                        if let Ok(val) = to_js_value(node) {
-                            let _ = cb.call1(&JsValue::NULL, &val);
-                        }
-                    }
+                if let Some(ref cb) = self.on_node_click
+                    && let Some(node) = self.store.get_node(&id)
+                    && let Ok(val) = to_js_value(node)
+                {
+                    let _ = cb.call1(&JsValue::NULL, &val);
                 }
             }
         } else {
@@ -497,15 +496,15 @@ impl GraphEngine {
             let event_type = event.get("type").and_then(|t| t.as_str()).unwrap_or("");
             match event_type {
                 "node_added" | "node_updated" => {
-                    if let Some(node_val) = event.get("node") {
-                        if let Ok(node) = serde_json::from_value::<NodeData>(node_val.clone()) {
-                            self.search.insert(&node.id, &node.name);
-                            if !self.node_order.contains(&node.id) {
-                                self.node_order.push(node.id.clone());
-                            }
-                            self.store.add_node(node);
-                            changed = true;
+                    if let Some(node_val) = event.get("node")
+                        && let Ok(node) = serde_json::from_value::<NodeData>(node_val.clone())
+                    {
+                        self.search.insert(&node.id, &node.name);
+                        if !self.node_order.contains(&node.id) {
+                            self.node_order.push(node.id.clone());
                         }
+                        self.store.add_node(node);
+                        changed = true;
                     }
                 }
                 "node_removed" => {
@@ -518,11 +517,11 @@ impl GraphEngine {
                     }
                 }
                 "edge_added" => {
-                    if let Some(edge_val) = event.get("edge") {
-                        if let Ok(edge) = serde_json::from_value::<EdgeData>(edge_val.clone()) {
-                            self.store.add_edge(edge);
-                            changed = true;
-                        }
+                    if let Some(edge_val) = event.get("edge")
+                        && let Ok(edge) = serde_json::from_value::<EdgeData>(edge_val.clone())
+                    {
+                        self.store.add_edge(edge);
+                        changed = true;
                     }
                 }
                 _ => {}
@@ -574,7 +573,7 @@ impl GraphEngine {
             .filter(|(_, id)| {
                 self.visible_nodes
                     .as_ref()
-                    .map_or(true, |v| v.contains(id.as_str()))
+                    .is_none_or(|v| v.contains(id.as_str()))
             })
             .map(|(i, _)| i)
             .collect();
@@ -659,9 +658,10 @@ impl GraphEngine {
             let alpha_mult = if !in_spotlight {
                 theme.interaction.spotlight.dim_opacity
             } else if self.hovered_id.is_some() && !is_hovered && !is_selected {
-                let is_neighbor = self.hovered_id.as_ref().map_or(false, |hid| {
-                    self.store.neighbors(hid).iter().any(|n| n.id == *id)
-                });
+                let is_neighbor = self
+                    .hovered_id
+                    .as_ref()
+                    .is_some_and(|hid| self.store.neighbors(hid).iter().any(|n| n.id == *id));
                 if theme.interaction.hover.highlight_neighbors && is_neighbor {
                     1.0
                 } else {
@@ -745,10 +745,10 @@ impl GraphEngine {
         if self.show_hulls {
             let mut communities: HashMap<String, u32> = HashMap::new();
             for node in self.store.nodes() {
-                if let Some(c) = node.community {
-                    if visible_ids.contains(node.id.as_str()) {
-                        communities.insert(node.id.clone(), c);
-                    }
+                if let Some(c) = node.community
+                    && visible_ids.contains(node.id.as_str())
+                {
+                    communities.insert(node.id.clone(), c);
                 }
             }
             let hulls = compute_community_hulls(&self.positions, &communities);

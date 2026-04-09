@@ -36,10 +36,10 @@ impl HierarchicalLayout {
             .map(|(id, _)| id.clone())
             .collect();
 
-        if queue.is_empty() {
-            if let Some(n) = graph.nodes().next() {
-                queue.push_back(n.id.clone());
-            }
+        if queue.is_empty()
+            && let Some(n) = graph.nodes().next()
+        {
+            queue.push_back(n.id.clone());
         }
 
         for id in &queue {

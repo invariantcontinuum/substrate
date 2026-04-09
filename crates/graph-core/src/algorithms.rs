@@ -52,8 +52,8 @@ pub fn shortest_path(graph: &GraphStore, from_id: &str, to_id: &str) -> Option<V
             return Some(path);
         }
         for neighbor in inner.neighbors_undirected(current) {
-            if !visited.contains_key(&neighbor) {
-                visited.insert(neighbor, Some(current));
+            if let std::collections::hash_map::Entry::Vacant(e) = visited.entry(neighbor) {
+                e.insert(Some(current));
                 queue.push_back(neighbor);
             }
         }

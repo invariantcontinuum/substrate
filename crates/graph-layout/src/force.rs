@@ -77,35 +77,35 @@ impl QuadNode {
         if let Some((bx, by)) = self.body.take() {
             if self.children.is_none() {
                 let mut children: [Option<QuadNode>; 4] = [None, None, None, None];
-                for i in 0..4 {
+                for (i, child) in children.iter_mut().enumerate() {
                     let (cx_min, cy_min, cx_max, cy_max) = self.child_bounds(i);
-                    children[i] = Some(QuadNode::new(cx_min, cy_min, cx_max, cy_max));
+                    *child = Some(QuadNode::new(cx_min, cy_min, cx_max, cy_max));
                 }
                 self.children = Some(Box::new(children));
             }
             let q = self.quadrant(bx, by);
-            if let Some(ref mut children) = self.children {
-                if let Some(ref mut child) = children[q] {
-                    child.insert(bx, by);
-                }
+            if let Some(ref mut children) = self.children
+                && let Some(ref mut child) = children[q]
+            {
+                child.insert(bx, by);
             }
         }
 
         // Insert new body
         if self.children.is_none() {
             let mut children: [Option<QuadNode>; 4] = [None, None, None, None];
-            for i in 0..4 {
+            for (i, child) in children.iter_mut().enumerate() {
                 let (cx_min, cy_min, cx_max, cy_max) = self.child_bounds(i);
-                children[i] = Some(QuadNode::new(cx_min, cy_min, cx_max, cy_max));
+                *child = Some(QuadNode::new(cx_min, cy_min, cx_max, cy_max));
             }
             self.children = Some(Box::new(children));
         }
 
         let q = self.quadrant(x, y);
-        if let Some(ref mut children) = self.children {
-            if let Some(ref mut child) = children[q] {
-                child.insert(x, y);
-            }
+        if let Some(ref mut children) = self.children
+            && let Some(ref mut child) = children[q]
+        {
+            child.insert(x, y);
         }
 
         // Update center of mass
@@ -144,12 +144,10 @@ impl QuadNode {
         let mut fx = 0.0;
         let mut fy = 0.0;
         if let Some(ref children) = self.children {
-            for child in children.iter() {
-                if let Some(c) = child {
-                    let (cfx, cfy) = c.compute_force(x, y);
-                    fx += cfx;
-                    fy += cfy;
-                }
+            for c in children.iter().flatten() {
+                let (cfx, cfy) = c.compute_force(x, y);
+                fx += cfx;
+                fy += cfy;
             }
         }
         (fx, fy)

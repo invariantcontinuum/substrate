@@ -13,17 +13,9 @@ impl GraphFilter {
         graph
             .nodes()
             .filter(|n| {
-                self.types
-                    .as_ref()
-                    .map_or(true, |t| t.contains(&n.node_type))
-                    && self
-                        .domains
-                        .as_ref()
-                        .map_or(true, |d| d.contains(&n.domain))
-                    && self
-                        .statuses
-                        .as_ref()
-                        .map_or(true, |s| s.contains(&n.status))
+                self.types.as_ref().is_none_or(|t| t.contains(&n.node_type))
+                    && self.domains.as_ref().is_none_or(|d| d.contains(&n.domain))
+                    && self.statuses.as_ref().is_none_or(|s| s.contains(&n.status))
             })
             .map(|n| n.id.clone())
             .collect()
