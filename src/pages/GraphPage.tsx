@@ -1,4 +1,4 @@
-import { Graph } from "@/lib/graph-react";
+import { Graph } from "@invariantcontinuum/graph/react";
 import { useAuth } from "react-oidc-context";
 import { NodeDetailPanel } from "@/components/graph/NodeDetailPanel";
 import { FilterPanel } from "@/components/graph/FilterPanel";
