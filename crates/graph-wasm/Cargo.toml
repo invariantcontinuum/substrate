@@ -1,0 +1,33 @@
+[package]
+name = "graph-wasm"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+graph-core = { path = "../graph-core" }
+graph-layout = { path = "../graph-layout" }
+graph-render = { path = "../graph-render" }
+serde.workspace = true
+serde_json.workspace = true
+wasm-bindgen.workspace = true
+web-sys = { workspace = true, features = [
+    "WebSocket",
+    "MessageEvent",
+    "CloseEvent",
+    "ErrorEvent",
+    "HtmlCanvasElement",
+    "Window",
+    "Document",
+    "MouseEvent",
+    "WheelEvent",
+    "console",
+] }
+js-sys.workspace = true
+log.workspace = true
+console_log.workspace = true
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3"
