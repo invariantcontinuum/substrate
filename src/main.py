@@ -87,6 +87,22 @@ async def proxy_ingest(request: Request, path: str):
     return await proxy_request(request, settings.ingestion_service_url)
 
 
+@app.api_route("/jobs/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+async def proxy_jobs(request: Request, path: str):
+    claims = await _authenticate(request)
+    if not claims:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    return await proxy_request(request, settings.ingestion_service_url)
+
+
+@app.api_route("/jobs", methods=["GET", "POST"])
+async def proxy_jobs_root(request: Request):
+    claims = await _authenticate(request)
+    if not claims:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    return await proxy_request(request, settings.ingestion_service_url)
+
+
 @app.api_route(
     "/auth/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"]
 )
