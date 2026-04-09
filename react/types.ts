@@ -41,3 +41,13 @@ export interface GraphFilter {
 }
 
 export type LayoutType = "force" | "hierarchical";
+
+// --- Worker protocol types ---
+
+export type WorkerOutMessage =
+  | { type: "positions"; positions: ArrayBuffer; flags: ArrayBuffer; visible_count: number }
+  | { type: "snapshot_loaded"; node_count: number; edge_count: number; node_types: string[]; domains: string[] }
+  | { type: "stats"; node_count: number; edge_count: number; violation_count: number; last_updated: string }
+  | { type: "converged" }
+  | { type: "ws_nodes_added"; count: number }
+  | { type: "ws_status"; status: "connected" | "reconnecting" | "failed" };
