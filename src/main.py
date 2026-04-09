@@ -63,14 +63,6 @@ async def list_jobs():
     return runs
 
 
-@app.get("/jobs/{job_id}")
-async def get_job(job_id: str):
-    run = await get_job_run(job_id)
-    if not run:
-        return {"error": "not found"}, 404
-    return run
-
-
 @app.get("/jobs/schedules")
 async def list_schedules_endpoint():
     schedules = await get_schedules()
@@ -98,3 +90,11 @@ async def toggle_sched(schedule_id: int):
     if not schedule:
         return {"error": "not found"}, 404
     return schedule.model_dump()
+
+
+@app.get("/jobs/{job_id}")
+async def get_job(job_id: str):
+    run = await get_job_run(job_id)
+    if not run:
+        return {"error": "not found"}, 404
+    return run
