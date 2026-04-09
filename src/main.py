@@ -1,18 +1,18 @@
-import asyncio
 import structlog
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
-from pydantic import BaseModel
 
 from src.config import settings
 from src.db import get_pool, close_pool
-from src.publisher import connect as nats_connect, disconnect as nats_disconnect, publish
-from src.connectors.github import sync_repo, close_client
-from src.schema import GraphEvent, ScheduleRequest, parse_repo_url
-from src.scheduler import (
-    get_schedules, upsert_schedule, delete_schedule,
-    toggle_schedule, start_scheduler, stop_scheduler,
-)
+from src.publisher import connect as nats_connect, disconnect as nats_disconnect
+from src.connectors.github import close_client as close_github_client
+from src.llm import close_client as close_llm_client
+from src.qdrant import close_client as close_qdrant_client
+from src.schema import JobRequest, ScheduleRequest, parse_repo_url
+from src.jobs.runner import register_handler, run_job, get_job_runs, get_job_run
+from src.jobs.sync import handle_sync
+from src.jobs.enrich import handle_enrich
+from src.scheduler import get_schedules, upsert_schedule, delete_schedule, toggle_schedule, start_scheduler, stop_scheduler
 
 structlog.configure(
     processors=[
@@ -22,31 +22,22 @@ structlog.configure(
 )
 logger = structlog.get_logger()
 
-_sync_tasks: dict[str, asyncio.Task] = {}
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await get_pool()
     await nats_connect(settings.nats_url)
 
-    async def run_sync(owner: str, repo: str):
-        event = await sync_repo(owner, repo, settings.github_token)
-        pool = await get_pool()
-        await pool.execute(
-            "INSERT INTO raw_events (source, event_type, payload) VALUES ($1, $2, $3)",
-            "github", "sync", event.model_dump_json(),
-        )
-        await publish(event)
+    register_handler("sync", handle_sync)
+    register_handler("enrich", handle_enrich)
 
-    await start_scheduler(run_sync)
+    await start_scheduler(run_job)
     logger.info("ingestion_started")
     yield
     await stop_scheduler()
-    for task in _sync_tasks.values():
-        if not task.done():
-            task.cancel()
-    await close_client()
+    await close_github_client()
+    await close_llm_client()
+    await close_qdrant_client()
     await nats_disconnect()
     await close_pool()
     logger.info("ingestion_stopped")
@@ -60,67 +51,48 @@ async def health():
     return {"status": "ok"}
 
 
-@app.get("/status")
-async def status():
-    running = [k for k, t in _sync_tasks.items() if not t.done()]
-    return {"status": "ok", "syncs_running": running}
+@app.post("/jobs")
+async def create_job(req: JobRequest):
+    job_id = await run_job(req.job_type, req.scope)
+    return {"job_id": job_id, "job_type": req.job_type, "status": "started"}
 
 
-class SyncRequest(BaseModel):
-    owner: str = ""
-    repo: str = ""
-    repo_url: str = ""
+@app.get("/jobs")
+async def list_jobs():
+    runs = await get_job_runs()
+    return runs
 
 
-@app.post("/ingest/github/sync")
-async def trigger_sync(req: SyncRequest):
-    owner, repo = req.owner, req.repo
-    if req.repo_url:
-        owner, repo = parse_repo_url(req.repo_url)
-    if not owner or not repo:
-        return {"error": "Provide owner+repo or repo_url"}, 400
-
-    sync_key = f"{owner}/{repo}"
-    if sync_key in _sync_tasks and not _sync_tasks[sync_key].done():
-        return {"status": "sync_already_running", "owner": owner, "repo": repo}
-
-    async def _run():
-        try:
-            event = await sync_repo(owner, repo, settings.github_token)
-            pool = await get_pool()
-            await pool.execute(
-                "INSERT INTO raw_events (source, event_type, payload) VALUES ($1, $2, $3)",
-                "github", "sync", event.model_dump_json(),
-            )
-            await publish(event)
-            logger.info("sync_published", owner=owner, repo=repo)
-        except Exception:
-            logger.exception("sync_failed")
-
-    _sync_tasks[sync_key] = asyncio.create_task(_run())
-    return {"status": "sync_started", "owner": owner, "repo": repo}
+@app.get("/jobs/{job_id}")
+async def get_job(job_id: str):
+    run = await get_job_run(job_id)
+    if not run:
+        return {"error": "not found"}, 404
+    return run
 
 
-@app.get("/ingest/schedules")
-async def list_schedules():
+@app.get("/jobs/schedules")
+async def list_schedules_endpoint():
     schedules = await get_schedules()
     return [s.model_dump() for s in schedules]
 
 
-@app.post("/ingest/schedules")
+@app.post("/jobs/schedules")
 async def create_schedule(req: ScheduleRequest):
-    owner, repo = parse_repo_url(req.repo_url)
-    schedule = await upsert_schedule(owner, repo, req.interval_minutes, req.enabled)
+    owner, repo = "", ""
+    if req.repo_url:
+        owner, repo = parse_repo_url(req.repo_url)
+    schedule = await upsert_schedule(req.job_type, owner, repo, req.interval_minutes, req.scope)
     return schedule.model_dump()
 
 
-@app.delete("/ingest/schedules/{schedule_id}")
+@app.delete("/jobs/schedules/{schedule_id}")
 async def remove_schedule(schedule_id: int):
     await delete_schedule(schedule_id)
     return {"status": "deleted"}
 
 
-@app.post("/ingest/schedules/{schedule_id}/toggle")
+@app.post("/jobs/schedules/{schedule_id}/toggle")
 async def toggle_sched(schedule_id: int):
     schedule = await toggle_schedule(schedule_id)
     if not schedule:

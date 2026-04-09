@@ -1,4 +1,5 @@
 import asyncio
+import json
 from datetime import datetime, timezone
 from uuid import uuid4
 import structlog
@@ -20,7 +21,7 @@ async def create_job_run(job_type: str, scope: dict) -> str:
     await pool.execute(
         """INSERT INTO job_runs (id, job_type, scope, status, created_at)
            VALUES ($1, $2, $3, 'pending', now())""",
-        job_id, job_type, str(scope),
+        job_id, job_type, json.dumps(scope),
     )
     return job_id
 
