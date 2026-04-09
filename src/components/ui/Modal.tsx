@@ -34,7 +34,7 @@ export function Modal({ open, onClose, title, children, maxWidth = 480 }: ModalP
           exit={{ opacity: 0 }}
           transition={{ duration: 0.15 }}
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(8px)" }}
+          style={{ background: "var(--overlay-modal)", backdropFilter: "blur(var(--overlay-blur))", WebkitBackdropFilter: "blur(var(--overlay-blur))" }}
           onClick={onClose}
         >
           <motion.div
@@ -63,7 +63,7 @@ export function Modal({ open, onClose, title, children, maxWidth = 480 }: ModalP
               <button
                 onClick={onClose}
                 className="flex items-center justify-center w-7 h-7 rounded-md transition-colors"
-                style={{ color: "var(--text-muted)", background: "rgba(255,255,255,0.05)" }}
+                style={{ color: "var(--text-muted)", background: "var(--bg-hover)" }}
               >
                 <X size={14} />
               </button>

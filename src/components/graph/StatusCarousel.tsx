@@ -5,100 +5,62 @@ import { useGraphStore } from "@/stores/graph";
 interface StatusItem {
   id: string;
   color: string;
-  glow: string;
   message: string;
-  timestamp: Date;
 }
-
-const STATUS_COLORS = {
-  info: { color: "#6366f1", glow: "0 0 6px #6366f1" },
-  success: { color: "#10b981", glow: "0 0 6px #10b981" },
-  warning: { color: "#f59e0b", glow: "0 0 6px #f59e0b" },
-  error: { color: "#ef4444", glow: "0 0 6px #ef4444" },
-  sync: { color: "#a855f7", glow: "0 0 6px #a855f7" },
-} as const;
 
 export function StatusCarousel() {
   const { connectionStatus, stats } = useGraphStore();
   const [items, setItems] = useState<StatusItem[]>([
-    {
-      id: "init",
-      color: STATUS_COLORS.info.color,
-      glow: STATUS_COLORS.info.glow,
-      message: "Substrate Platform initialized",
-      timestamp: new Date(),
-    },
+    { id: "init", color: "var(--accent)", message: "Substrate initialized" },
   ]);
 
   useEffect(() => {
-    const entry: StatusItem = {
-      id: `conn-${Date.now()}`,
-      color: connectionStatus === "connected"
-        ? STATUS_COLORS.success.color
-        : connectionStatus === "reconnecting"
-        ? STATUS_COLORS.warning.color
-        : STATUS_COLORS.error.color,
-      glow: connectionStatus === "connected"
-        ? STATUS_COLORS.success.glow
-        : connectionStatus === "reconnecting"
-        ? STATUS_COLORS.warning.glow
-        : STATUS_COLORS.error.glow,
-      message: connectionStatus === "connected"
-        ? "WebSocket connected — live updates active"
-        : connectionStatus === "reconnecting"
-        ? "Reconnecting to live feed..."
-        : "WebSocket disconnected",
-      timestamp: new Date(),
-    };
-    setItems((prev) => [entry, ...prev].slice(0, 8));
+    const color =
+      connectionStatus === "connected" ? "var(--success)"
+      : connectionStatus === "reconnecting" ? "var(--warning)"
+      : "var(--error)";
+    const message =
+      connectionStatus === "connected" ? "Live feed active"
+      : connectionStatus === "reconnecting" ? "Reconnecting..."
+      : "Disconnected";
+    setItems((prev) => [{ id: `conn-${Date.now()}`, color, message }, ...prev].slice(0, 6));
   }, [connectionStatus]);
 
   useEffect(() => {
     if (stats.nodeCount > 0) {
       setItems((prev) => [
-        {
-          id: `stats-${Date.now()}`,
-          color: STATUS_COLORS.sync.color,
-          glow: STATUS_COLORS.sync.glow,
-          message: `Graph snapshot: ${stats.nodeCount} nodes, ${stats.edgeCount} edges`,
-          timestamp: new Date(),
-        },
+        { id: `stats-${Date.now()}`, color: "var(--purple)", message: `${stats.nodeCount} nodes, ${stats.edgeCount} edges` },
         ...prev,
-      ].slice(0, 8));
+      ].slice(0, 6));
     }
   }, [stats.nodeCount, stats.edgeCount]);
 
   return (
     <div
-      className="absolute bottom-3 left-3 flex flex-col gap-1.5 p-3 rounded-lg max-w-72 z-10"
+      className="absolute bottom-4 left-4 flex flex-col gap-1 py-3 px-3.5 rounded-xl z-10"
       style={{
-        background: "rgba(6,6,8,0.85)",
-        border: "1px solid rgba(255,255,255,0.06)",
-        backdropFilter: "blur(12px)",
+        background: "radial-gradient(ellipse at center, var(--overlay-panel) 0%, transparent 100%)",
+        backdropFilter: "blur(16px)",
+        WebkitBackdropFilter: "blur(16px)",
+        maxWidth: 280,
       }}
     >
-      <span
-        className="text-[9px] uppercase tracking-[0.15em] mb-0.5 font-medium"
-        style={{ color: "var(--text-muted)" }}
-      >
+      <span className="text-[9px] uppercase tracking-[0.15em] mb-0.5 font-medium" style={{ color: "var(--text-muted)" }}>
         Activity
       </span>
       <AnimatePresence initial={false}>
-        {items.slice(0, 5).map((item) => (
+        {items.slice(0, 4).map((item) => (
           <motion.div
             key={item.id}
-            initial={{ opacity: 0, y: -8, height: 0 }}
+            initial={{ opacity: 0, y: -6, height: 0 }}
             animate={{ opacity: 1, y: 0, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.25, ease: "easeOut" }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
             className="flex items-start gap-2 text-[10px] leading-relaxed"
           >
             <div
-              className="w-[6px] h-[6px] rounded-full mt-[4px] shrink-0"
-              style={{
-                background: item.color,
-                boxShadow: item.glow,
-              }}
+              className="w-[5px] h-[5px] rounded-full mt-[5px] shrink-0"
+              style={{ background: item.color, boxShadow: `0 0 6px ${item.color}` }}
             />
             <span style={{ color: "var(--text-secondary)" }}>{item.message}</span>
           </motion.div>

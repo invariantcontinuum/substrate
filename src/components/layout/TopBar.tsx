@@ -6,7 +6,7 @@ import { useState, useCallback } from "react";
 import { useSearch } from "@/hooks/useSearch";
 
 export function TopBar() {
-  const { connectionStatus, stats, searchQuery, setSearchQuery } = useGraphStore();
+  const { connectionStatus, stats, setSearchQuery } = useGraphStore();
   const { toggleSidebar, openModal } = useUIStore();
   const { isDesktop } = useResponsive();
   const { search } = useSearch();
@@ -20,103 +20,85 @@ export function TopBar() {
     search(localQuery.trim());
   }, [localQuery, setSearchQuery, search]);
 
-  // Mobile: just logo + hamburger
   if (!isDesktop) {
     return (
       <div
-        className="flex items-center justify-between px-4"
-        style={{
-          height: 44, minHeight: 44,
-          borderBottom: "1px solid var(--border)",
-          background: "rgba(255,255,255,0.015)",
-        }}
+        className="flex items-center justify-between px-3"
+        style={{ height: "var(--topbar-height)", minHeight: "var(--topbar-height)", borderBottom: "1px solid var(--border)", background: "var(--bg-surface)" }}
       >
         <button onClick={toggleSidebar} className="flex items-center justify-center w-8 h-8 rounded-md" style={{ color: "var(--text-muted)" }}>
           <Menu size={18} />
         </button>
-        <div className="flex items-center gap-2">
-          <div style={{ width: 24, height: 24, borderRadius: 6, background: "rgba(99,102,241,0.12)", border: "1px solid rgba(99,102,241,0.25)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <span style={{ color: "#6366f1", fontSize: 11, fontWeight: 800 }}>S</span>
+        <div className="flex items-center gap-1.5">
+          <div className="flex items-center justify-center" style={{ width: 22, height: 22, borderRadius: "var(--radius-sm)", background: "var(--accent-soft)", border: "1px solid var(--accent-medium)" }}>
+            <span style={{ color: "var(--accent)", fontSize: 10, fontWeight: 800 }}>S</span>
           </div>
-          <span className="text-[13px] font-semibold" style={{ color: "var(--text-primary)", letterSpacing: "-0.01em" }}>
-            Substrate
-          </span>
+          <span className="text-[12px] font-semibold" style={{ color: "var(--text-primary)", letterSpacing: "-0.02em" }}>Substrate</span>
         </div>
-        <div style={{ width: 32 }} /> {/* Spacer for centering */}
+        <div style={{ width: 32 }} />
       </div>
     );
   }
 
-  // Desktop
   return (
     <div
-      className="flex items-center px-4 gap-3"
-      style={{
-        height: 44, minHeight: 44,
-        borderBottom: "1px solid var(--border)",
-        background: "rgba(255,255,255,0.015)",
-      }}
+      className="flex items-center px-3 gap-3"
+      style={{ height: "var(--topbar-height)", minHeight: "var(--topbar-height)", borderBottom: "1px solid var(--border)", background: "var(--bg-surface)" }}
     >
       {/* Logo */}
-      <div className="flex items-center gap-2 mr-2">
-        <div style={{ width: 24, height: 24, borderRadius: 6, background: "rgba(99,102,241,0.12)", border: "1px solid rgba(99,102,241,0.25)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <span style={{ color: "#6366f1", fontSize: 11, fontWeight: 800 }}>S</span>
+      <div className="flex items-center gap-1.5">
+        <div className="flex items-center justify-center" style={{ width: 22, height: 22, borderRadius: "var(--radius-sm)", background: "var(--accent-soft)", border: "1px solid var(--accent-medium)" }}>
+          <span style={{ color: "var(--accent)", fontSize: 10, fontWeight: 800 }}>S</span>
         </div>
-        <span className="text-[13px] font-semibold" style={{ color: "var(--text-primary)", letterSpacing: "-0.01em" }}>
-          Substrate
-        </span>
+        <span className="text-[12px] font-semibold" style={{ color: "var(--text-primary)", letterSpacing: "-0.02em" }}>Substrate</span>
       </div>
 
       <div className="flex-1" />
 
       {/* Search */}
-      <div className="flex items-center gap-1.5" style={{ width: 280 }}>
-        <Search size={13} style={{ color: "var(--text-muted)" }} />
+      <div className="flex items-center gap-1.5 px-2 py-1 rounded-md" style={{ width: 240, background: "var(--bg-hover)", border: "1px solid var(--border)" }}>
+        <Search size={12} style={{ color: "var(--text-muted)" }} />
         <input
           type="text"
-          placeholder="Search nodes..."
+          placeholder="Search..."
           value={localQuery}
           onChange={(e) => setLocalQuery(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleSearch()}
           disabled={!graphLoaded}
-          className="flex-1 text-[11px] bg-transparent outline-none"
-          style={{
-            color: "var(--text-primary)",
-            fontFamily: "'JetBrains Mono', monospace",
-            opacity: graphLoaded ? 1 : 0.3,
-          }}
+          className="flex-1 text-[10px] bg-transparent outline-none"
+          style={{ color: "var(--text-primary)", fontFamily: "var(--font-mono)", opacity: graphLoaded ? 1 : 0.3 }}
         />
       </div>
 
-      <div className="w-px h-4" style={{ background: "var(--border)" }} />
+      <div className="w-px h-3.5" style={{ background: "var(--border)" }} />
 
       {/* Status + stats */}
-      <div className="flex items-center gap-3 text-[10px]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-        <div className="flex items-center gap-1.5">
-          <div className="w-[5px] h-[5px] rounded-full" style={{
-            background: connectionStatus === "connected" ? "#10b981" : connectionStatus === "reconnecting" ? "#f59e0b" : "#ef4444",
-            boxShadow: connectionStatus === "connected" ? "0 0 6px #10b981" : "none",
+      <div className="flex items-center gap-2.5 text-[10px]" style={{ fontFamily: "var(--font-mono)" }}>
+        <div className="flex items-center gap-1">
+          <div className="w-[4px] h-[4px] rounded-full" style={{
+            background: connectionStatus === "connected" ? "var(--success)" : connectionStatus === "reconnecting" ? "var(--warning)" : "var(--error)",
+            boxShadow: connectionStatus === "connected" ? "0 0 6px var(--success)" : "none",
           }} />
-          <span style={{ color: connectionStatus === "connected" ? "#6ee7b7" : connectionStatus === "reconnecting" ? "#fcd34d" : "#fca5a5" }}>
+          <span style={{ color: connectionStatus === "connected" ? "var(--success-text)" : connectionStatus === "reconnecting" ? "var(--warning-text)" : "var(--error-text)" }}>
             {connectionStatus === "connected" ? "Live" : connectionStatus === "reconnecting" ? "..." : "Off"}
           </span>
         </div>
-        <span style={{ color: "var(--text-secondary)" }}><span style={{ color: "#a5b4fc" }}>{stats.nodeCount}</span> n</span>
-        <span style={{ color: "var(--text-secondary)" }}><span style={{ color: "#a5b4fc" }}>{stats.edgeCount}</span> e</span>
+        <span style={{ color: "var(--text-muted)" }}><span style={{ color: "var(--accent-text)" }}>{stats.nodeCount}</span>n</span>
+        <span style={{ color: "var(--text-muted)" }}><span style={{ color: "var(--accent-text)" }}>{stats.edgeCount}</span>e</span>
         {stats.violationCount > 0 && (
-          <span style={{ color: "#fca5a5" }}>&#x2298;{stats.violationCount}</span>
+          <span style={{ color: "var(--error-text)" }}>&#x2298;{stats.violationCount}</span>
         )}
       </div>
 
-      <div className="w-px h-4" style={{ background: "var(--border)" }} />
+      <div className="w-px h-3.5" style={{ background: "var(--border)" }} />
 
       {/* Avatar */}
       <button
         onClick={() => openModal("user")}
         className="flex items-center justify-center"
-        style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(99,102,241,0.2)", border: "1px solid rgba(99,102,241,0.3)" }}
+        style={{ width: 26, height: 26, borderRadius: "50%", background: "var(--accent-soft)", border: "1px solid var(--accent-medium)" }}
       >
-        <span style={{ fontSize: 10, color: "#a5b4fc", fontWeight: 600 }}>U</span>
+        <span style={{ fontSize: 9, color: "var(--accent-text)", fontWeight: 600 }}>U</span>
       </button>
     </div>
   );

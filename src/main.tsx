@@ -7,16 +7,10 @@ import { queryClient } from "@/lib/api";
 import { App } from "@/App";
 import "@/styles/globals.css";
 
-// Initialize theme from persisted state
+// Initialize theme from persisted state before React renders
 const stored = localStorage.getItem("substrate-theme");
-if (stored) {
-  const parsed = JSON.parse(stored);
-  if (parsed?.state?.theme === "dark") {
-    document.documentElement.classList.add("dark");
-  }
-} else {
-  document.documentElement.classList.add("dark");
-}
+const theme = stored ? JSON.parse(stored)?.state?.theme : "dark";
+document.documentElement.classList.add(theme || "dark");
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

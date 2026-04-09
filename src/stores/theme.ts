@@ -9,23 +9,26 @@ interface ThemeState {
   toggleTheme: () => void;
 }
 
+function applyTheme(theme: Theme) {
+  document.documentElement.classList.remove("dark", "light");
+  document.documentElement.classList.add(theme);
+}
+
 export const useThemeStore = create<ThemeState>()(
   persist(
     (set) => ({
       theme: "dark",
       setTheme: (theme) => {
-        document.documentElement.classList.toggle("dark", theme === "dark");
+        applyTheme(theme);
         set({ theme });
       },
       toggleTheme: () =>
         set((state) => {
           const next = state.theme === "dark" ? "light" : "dark";
-          document.documentElement.classList.toggle("dark", next === "dark");
+          applyTheme(next);
           return { theme: next };
         }),
     }),
-    {
-      name: "substrate-theme",
-    }
+    { name: "substrate-theme" }
   )
 );
