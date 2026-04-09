@@ -28,6 +28,12 @@ async def publish(event: GraphEvent) -> None:
     logger.info("event_published", subject=subject, event_id=event.id)
 
 
+async def publish_raw(subject: str, data: bytes) -> None:
+    if not _js:
+        raise RuntimeError("NATS not connected")
+    await _js.publish(subject, data)
+
+
 async def disconnect() -> None:
     global _nc, _js
     if _nc:
