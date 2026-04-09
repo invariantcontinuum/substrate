@@ -77,7 +77,7 @@ jobs:
         with:
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
-      - run: cargo bench -p graph-layout -- --output-format bencher
+      - run: cargo bench -p graph-layout
 
   publish:
     name: Publish to GitHub Packages
