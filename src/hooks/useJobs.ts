@@ -42,7 +42,7 @@ export function useJobs() {
 
   const schedulesQuery = useQuery<Schedule[]>({
     queryKey: ["schedules"],
-    queryFn: () => apiFetch<Schedule[]>("/ingest/jobs/schedules", token),
+    queryFn: () => apiFetch<Schedule[]>("/jobs/schedules", token),
     enabled: !!token,
     refetchInterval: 30000,
   });
@@ -61,7 +61,7 @@ export function useJobs() {
 
   const createSchedule = useCallback(
     async (jobType: string, repoUrl: string, intervalMinutes: number, scope: Record<string, unknown> = {}) => {
-      await apiFetch("/ingest/jobs/schedules", token, {
+      await apiFetch("/jobs/schedules", token, {
         method: "POST",
         body: JSON.stringify({ job_type: jobType, repo_url: repoUrl, interval_minutes: intervalMinutes, scope }),
       });
@@ -72,7 +72,7 @@ export function useJobs() {
 
   const toggleSchedule = useCallback(
     async (id: number) => {
-      await apiFetch(`/ingest/jobs/schedules/${id}/toggle`, token, { method: "POST" });
+      await apiFetch(`/jobs/schedules/${id}/toggle`, token, { method: "POST" });
       queryClient.invalidateQueries({ queryKey: ["schedules"] });
     },
     [token, queryClient]
@@ -80,7 +80,7 @@ export function useJobs() {
 
   const deleteSchedule = useCallback(
     async (id: number) => {
-      await apiFetch(`/ingest/jobs/schedules/${id}`, token, { method: "DELETE" });
+      await apiFetch(`/jobs/schedules/${id}`, token, { method: "DELETE" });
       queryClient.invalidateQueries({ queryKey: ["schedules"] });
     },
     [token, queryClient]
