@@ -1,6 +1,6 @@
 use wasm_bindgen::prelude::*;
 
-// pub mod engine; // TODO: Task 6
+pub mod engine;
 pub mod spatial;
 
 #[wasm_bindgen(start)]
