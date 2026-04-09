@@ -20,10 +20,9 @@ const nodeTypes = [
   { type: "external", label: "Ext", color: "#374151" },
 ];
 
-const layouts: { value: "cose" | "dagre" | "circle"; icon: string }[] = [
-  { value: "cose", icon: "F" },
-  { value: "dagre", icon: "H" },
-  { value: "circle", icon: "C" },
+const layouts: { value: "force" | "hierarchical"; icon: string }[] = [
+  { value: "force", icon: "F" },
+  { value: "hierarchical", icon: "H" },
 ];
 
 export function Sidebar() {

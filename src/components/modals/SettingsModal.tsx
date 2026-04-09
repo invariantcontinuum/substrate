@@ -42,10 +42,10 @@ export function SettingsModal() {
             Graph Layout
           </div>
           <div className="flex gap-2">
-            {([["cose", "Force"], ["dagre", "Hierarchy"], ["circle", "Circular"]] as const).map(([val, label]) => (
+            {([["force", "Force"], ["hierarchical", "Hierarchy"]] as const).map(([val, label]) => (
               <button
                 key={val}
-                onClick={() => setLayout(val as "cose" | "dagre" | "circle")}
+                onClick={() => setLayout(val as "force" | "hierarchical")}
                 className="px-3 py-2 rounded-lg text-[11px] transition-all"
                 style={{
                   background: layout === val ? "rgba(99,102,241,0.1)" : "rgba(255,255,255,0.03)",

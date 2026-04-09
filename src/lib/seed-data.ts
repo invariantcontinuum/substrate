@@ -1,4 +1,8 @@
-import type { GraphSnapshot } from "@/components/graph/useGraphData";
+interface GraphSnapshot {
+  nodes: Array<{ data: Record<string, unknown>; position?: { x: number; y: number } }>;
+  edges: Array<{ data: Record<string, unknown> }>;
+  meta: Record<string, unknown>;
+}
 
 export const SEED_SNAPSHOT: GraphSnapshot = {
   nodes: [
