@@ -104,7 +104,7 @@ jobs:
           cp -r react/ pkg/react/
           cp package.json pkg/package.json
           cp .npmrc pkg/.npmrc
-          cp README.md pkg/README.md
+          [ -f README.md ] && cp README.md pkg/README.md || true
       - name: Publish
         working-directory: pkg
         run: npm publish
