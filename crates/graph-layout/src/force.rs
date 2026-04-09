@@ -4,6 +4,7 @@ use std::collections::HashMap;
 
 const THETA: f32 = 0.8;
 const REPULSION: f32 = 1000.0;
+const MAX_QUAD_DEPTH: usize = 40;
 const ATTRACTION: f32 = 0.01;
 const DAMPING: f32 = 0.9;
 const MIN_VELOCITY: f32 = 0.01;
@@ -64,92 +65,111 @@ impl QuadNode {
     }
 
     fn insert(&mut self, x: f32, y: f32) {
-        if self.mass == 0.0 && self.body.is_none() {
-            // Empty node — place body here
-            self.body = Some((x, y));
-            self.cx = x;
-            self.cy = y;
-            self.mass = 1.0;
-            return;
-        }
+        self.insert_at_depth(x, y, 0);
+    }
 
-        // If this is a leaf with an existing body, subdivide
-        if let Some((bx, by)) = self.body.take() {
-            if self.children.is_none() {
+    fn insert_at_depth(&mut self, x: f32, y: f32, start_depth: usize) {
+        // Iterative insertion using a raw pointer to walk down the tree.
+        // SAFETY: we never alias — `current` is the only live mutable ref at
+        // each step, and no other code touches the tree during insertion.
+        let mut current: *mut QuadNode = self;
+        let mut depth = start_depth;
+
+        loop {
+            let node = unsafe { &mut *current };
+
+            if node.mass == 0.0 && node.body.is_none() {
+                // Empty node — place body here
+                node.body = Some((x, y));
+                node.cx = x;
+                node.cy = y;
+                node.mass = 1.0;
+                return;
+            }
+
+            // At max depth, just accumulate mass without subdividing further
+            if depth >= MAX_QUAD_DEPTH {
+                let total = node.mass + 1.0;
+                node.cx = (node.cx * node.mass + x) / total;
+                node.cy = (node.cy * node.mass + y) / total;
+                node.mass = total;
+                return;
+            }
+
+            // Ensure children exist
+            if node.children.is_none() {
                 let mut children: [Option<QuadNode>; 4] = [None, None, None, None];
                 for (i, child) in children.iter_mut().enumerate() {
-                    let (cx_min, cy_min, cx_max, cy_max) = self.child_bounds(i);
+                    let (cx_min, cy_min, cx_max, cy_max) = node.child_bounds(i);
                     *child = Some(QuadNode::new(cx_min, cy_min, cx_max, cy_max));
                 }
-                self.children = Some(Box::new(children));
+                node.children = Some(Box::new(children));
             }
-            let q = self.quadrant(bx, by);
-            if let Some(ref mut children) = self.children
-                && let Some(ref mut child) = children[q]
-            {
-                child.insert(bx, by);
+
+            // If this is a leaf with an existing body, push it down into
+            // the appropriate child. Uses insert_at_depth with bounded
+            // recursion (max MAX_QUAD_DEPTH frames).
+            if let Some((bx, by)) = node.body.take() {
+                let bq = node.quadrant(bx, by);
+                let child = node.children.as_mut().unwrap()[bq].as_mut().unwrap();
+                child.insert_at_depth(bx, by, depth + 1);
             }
-        }
 
-        // Insert new body
-        if self.children.is_none() {
-            let mut children: [Option<QuadNode>; 4] = [None, None, None, None];
-            for (i, child) in children.iter_mut().enumerate() {
-                let (cx_min, cy_min, cx_max, cy_max) = self.child_bounds(i);
-                *child = Some(QuadNode::new(cx_min, cy_min, cx_max, cy_max));
-            }
-            self.children = Some(Box::new(children));
-        }
+            // Update center of mass
+            let total = node.mass + 1.0;
+            node.cx = (node.cx * node.mass + x) / total;
+            node.cy = (node.cy * node.mass + y) / total;
+            node.mass = total;
 
-        let q = self.quadrant(x, y);
-        if let Some(ref mut children) = self.children
-            && let Some(ref mut child) = children[q]
-        {
-            child.insert(x, y);
+            // Descend into the correct quadrant for the new point
+            let q = node.quadrant(x, y);
+            let next: *mut QuadNode = {
+                let children = node.children.as_mut().unwrap();
+                children[q].as_mut().unwrap() as *mut QuadNode
+            };
+            current = next;
+            depth += 1;
         }
-
-        // Update center of mass
-        let total = self.mass + 1.0;
-        self.cx = (self.cx * self.mass + x) / total;
-        self.cy = (self.cy * self.mass + y) / total;
-        self.mass = total;
     }
 
     fn compute_force(&self, x: f32, y: f32) -> (f32, f32) {
-        if self.mass == 0.0 {
-            return (0.0, 0.0);
-        }
+        let mut fx = 0.0_f32;
+        let mut fy = 0.0_f32;
+        let mut stack: Vec<&QuadNode> = vec![self];
 
-        let dx = self.cx - x;
-        let dy = self.cy - y;
-        let dist_sq = dx * dx + dy * dy;
+        while let Some(node) = stack.pop() {
+            if node.mass == 0.0 {
+                continue;
+            }
 
-        if dist_sq < 0.01 {
-            return (0.0, 0.0);
-        }
+            let dx = node.cx - x;
+            let dy = node.cy - y;
+            let dist_sq = dx * dx + dy * dy;
 
-        let (x_min, _y_min, x_max, _y_max) = self.bounds;
-        let width = x_max - x_min;
+            if dist_sq < 0.01 {
+                continue;
+            }
 
-        // Barnes-Hut criterion: if node is far enough, treat as single body
-        if (width * width) / dist_sq < THETA * THETA || self.children.is_none() {
-            let dist = dist_sq.sqrt();
-            let force = -REPULSION * self.mass / dist_sq;
-            let fx = force * dx / dist;
-            let fy = force * dy / dist;
-            return (fx, fy);
-        }
+            let (x_min, _y_min, x_max, _y_max) = node.bounds;
+            let width = x_max - x_min;
 
-        // Otherwise recurse into children
-        let mut fx = 0.0;
-        let mut fy = 0.0;
-        if let Some(ref children) = self.children {
-            for c in children.iter().flatten() {
-                let (cfx, cfy) = c.compute_force(x, y);
-                fx += cfx;
-                fy += cfy;
+            // Barnes-Hut criterion: if node is far enough, treat as single body
+            if (width * width) / dist_sq < THETA * THETA || node.children.is_none() {
+                let dist = dist_sq.sqrt();
+                let force = -REPULSION * node.mass / dist_sq;
+                fx += force * dx / dist;
+                fy += force * dy / dist;
+                continue;
+            }
+
+            // Otherwise push children onto the stack
+            if let Some(ref children) = node.children {
+                for c in children.iter().flatten() {
+                    stack.push(c);
+                }
             }
         }
+
         (fx, fy)
     }
 }
