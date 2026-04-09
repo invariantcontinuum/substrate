@@ -1,4 +1,5 @@
 from fastapi import APIRouter
+from src.search import search_nodes
 from src.graph.store import (
     get_full_snapshot,
     get_node_with_neighbors,
@@ -38,3 +39,11 @@ async def graph_stats():
 async def purge_graph():
     await purge_all()
     return {"status": "purged"}
+
+
+@router.get("/search")
+async def search_graph(q: str = "", type: str = "", domain: str = "", limit: int = 10):
+    if not q:
+        return {"results": []}
+    results = await search_nodes(q, limit=limit, type_filter=type, domain_filter=domain)
+    return {"results": results}

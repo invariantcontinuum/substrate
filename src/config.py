@@ -9,6 +9,11 @@ class Settings(BaseSettings):
     neo4j_password: str = "changeme"
     redis_url: str = "redis://local-redis:6379"
     app_port: int = 8082
+    embedding_url: str = "http://localhost:8101/v1/embeddings"
+    embedding_model: str = "embeddinggemma-300M-Q8_0.gguf"
+    reranker_url: str = "http://localhost:8104/v1/embeddings"
+    qdrant_url: str = "http://localhost:6333"
+    qdrant_collection: str = "substrate_nodes"
 
 
 settings = Settings()
