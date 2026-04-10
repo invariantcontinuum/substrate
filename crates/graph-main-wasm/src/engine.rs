@@ -14,6 +14,7 @@ use crate::spatial::SpatialGrid;
 const DEFAULT_THEME_JSON: &str = include_str!("default_theme.json");
 
 /// Categorical-12 palette for community hull coloring.
+#[allow(dead_code)]
 const PALETTE: &[(f32, f32, f32)] = &[
     (0.35, 0.65, 1.0),
     (1.0, 0.45, 0.35),
@@ -135,8 +136,8 @@ impl RenderEngine {
     // --- Configuration ---
 
     pub fn set_theme(&mut self, theme_js: &JsValue) -> Result<(), JsValue> {
-        let theme: ThemeConfig =
-            serde_wasm_bindgen::from_value(theme_js.clone()).map_err(|e| JsValue::from_str(&format!("{e}")))?;
+        let theme: ThemeConfig = serde_wasm_bindgen::from_value(theme_js.clone())
+            .map_err(|e| JsValue::from_str(&format!("{e}")))?;
         self.theme = theme;
         self.buffers_dirty = true;
         self.needs_render = true;
@@ -288,11 +289,21 @@ impl RenderEngine {
             let mut shape_name = theme.nodes.default.shape.clone();
 
             if let Some(ov) = theme.nodes.by_type.get(type_name) {
-                if let Some(ref s) = ov.size { size = *s; }
-                if let Some(ref c) = ov.color { color = c.clone(); }
-                if let Some(ref bc) = ov.border_color { border_color = bc.clone(); }
-                if let Some(ref bw) = ov.border_width { border_width = *bw; }
-                if let Some(ref sh) = ov.shape { shape_name = sh.clone(); }
+                if let Some(ref s) = ov.size {
+                    size = *s;
+                }
+                if let Some(ref c) = ov.color {
+                    color = c.clone();
+                }
+                if let Some(ref bc) = ov.border_color {
+                    border_color = bc.clone();
+                }
+                if let Some(ref bw) = ov.border_width {
+                    border_width = *bw;
+                }
+                if let Some(ref sh) = ov.shape {
+                    shape_name = sh.clone();
+                }
             }
 
             let mut flags = 0.0f32;
@@ -321,9 +332,17 @@ impl RenderEngine {
             };
 
             node_data.extend_from_slice(&[
-                x, y, size / 2.0,
-                cr, cg, cb, ca * alpha_mult,
-                br2, bg2, bb2, ba2 * alpha_mult,
+                x,
+                y,
+                size / 2.0,
+                cr,
+                cg,
+                cb,
+                ca * alpha_mult,
+                br2,
+                bg2,
+                bb2,
+                ba2 * alpha_mult,
                 border_width,
                 shape_index(&shape_name),
                 flags,
@@ -336,7 +355,9 @@ impl RenderEngine {
         let edge_stride = 6;
         for i in 0..self.edge_count {
             let base = i * edge_stride;
-            if base + 5 >= self.edge_data.len() { break; }
+            if base + 5 >= self.edge_data.len() {
+                break;
+            }
             let sx = self.edge_data[base];
             let sy = self.edge_data[base + 1];
             let tx = self.edge_data[base + 2];
@@ -359,10 +380,18 @@ impl RenderEngine {
             let mut animate = 0.0f32;
 
             if let Some(ov) = theme.edges.by_type.get(type_name) {
-                if let Some(ref c) = ov.color { ecolor = c.clone(); }
-                if let Some(ref w) = ov.width { ewidth = *w; }
-                if ov.style.as_deref() == Some("dashed") { dash = 1.0; }
-                if ov.animate { animate = 1.0; }
+                if let Some(ref c) = ov.color {
+                    ecolor = c.clone();
+                }
+                if let Some(ref w) = ov.width {
+                    ewidth = *w;
+                }
+                if ov.style.as_deref() == Some("dashed") {
+                    dash = 1.0;
+                }
+                if ov.animate {
+                    animate = 1.0;
+                }
             }
 
             let (er, eg, eb, ea) = parse_hex_color(&ecolor);

@@ -5,7 +5,10 @@ use serde::{Deserialize, Serialize};
 #[serde(tag = "type")]
 pub enum InMessage {
     #[serde(rename = "load_snapshot")]
-    LoadSnapshot { nodes: Vec<NodeIn>, edges: Vec<EdgeIn> },
+    LoadSnapshot {
+        nodes: Vec<NodeIn>,
+        edges: Vec<EdgeIn>,
+    },
     #[serde(rename = "set_layout")]
     SetLayout { layout: String },
     #[serde(rename = "set_filter")]

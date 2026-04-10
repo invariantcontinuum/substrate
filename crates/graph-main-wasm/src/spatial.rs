@@ -9,6 +9,12 @@ pub struct SpatialGrid {
     cell_h: f32,
 }
 
+impl Default for SpatialGrid {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SpatialGrid {
     pub fn new() -> Self {
         Self {
@@ -76,7 +82,13 @@ impl SpatialGrid {
     }
 
     /// Find the node index closest to (world_x, world_y) within max_distance.
-    pub fn pick(&self, world_x: f32, world_y: f32, positions: &[f32], max_distance: f32) -> Option<usize> {
+    pub fn pick(
+        &self,
+        world_x: f32,
+        world_y: f32,
+        positions: &[f32],
+        max_distance: f32,
+    ) -> Option<usize> {
         if self.cols == 0 || self.rows == 0 {
             return None;
         }
@@ -105,10 +117,8 @@ impl SpatialGrid {
                     let dy = world_y - ny;
                     let dist = (dx * dx + dy * dy).sqrt();
                     let hit_dist = dist - nr;
-                    if hit_dist < max_distance {
-                        if best.is_none() || dist < best.unwrap().1 {
-                            best = Some((node_idx, dist));
-                        }
+                    if hit_dist < max_distance && (best.is_none() || dist < best.unwrap().1) {
+                        best = Some((node_idx, dist));
                     }
                 }
             }
@@ -126,9 +136,7 @@ mod tests {
     fn pick_finds_nearest_node() {
         let mut grid = SpatialGrid::new();
         let positions = vec![
-            0.0, 0.0, 10.0, 0.0,
-            100.0, 100.0, 10.0, 0.0,
-            50.0, 50.0, 10.0, 0.0,
+            0.0, 0.0, 10.0, 0.0, 100.0, 100.0, 10.0, 0.0, 50.0, 50.0, 10.0, 0.0,
         ];
         grid.rebuild(&positions, 10);
 

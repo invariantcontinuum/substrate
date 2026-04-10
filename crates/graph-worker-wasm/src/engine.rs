@@ -33,6 +33,12 @@ pub struct WorkerEngine {
     visual_flags: Vec<u8>,
 }
 
+impl Default for WorkerEngine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl WorkerEngine {
     pub fn new() -> Self {
         Self {
@@ -138,13 +144,13 @@ impl WorkerEngine {
             None => self.visible_nodes = None,
             Some(f) => {
                 let core_filter = GraphFilter {
-                    types: f.types.map(|ts| {
-                        ts.into_iter().filter_map(|t| parse_node_type(&t)).collect()
-                    }),
+                    types: f
+                        .types
+                        .map(|ts| ts.into_iter().filter_map(|t| parse_node_type(&t)).collect()),
                     domains: f.domains,
-                    statuses: f.status.map(|ss| {
-                        ss.into_iter().filter_map(|s| parse_status(&s)).collect()
-                    }),
+                    statuses: f
+                        .status
+                        .map(|ss| ss.into_iter().filter_map(|s| parse_status(&s)).collect()),
                 };
                 let ids = core_filter.apply(&self.store);
                 self.visible_nodes = Some(ids.into_iter().collect());
@@ -438,10 +444,7 @@ mod tests {
         let mut engine = WorkerEngine::new();
         engine.load_snapshot(vec![make_node("a")], vec![]);
 
-        let added = engine.add_ws_nodes(
-            vec![make_node("b")],
-            vec![make_edge("e1", "a", "b")],
-        );
+        let added = engine.add_ws_nodes(vec![make_node("b")], vec![make_edge("e1", "a", "b")]);
         assert_eq!(added, 1);
         assert_eq!(engine.node_count(), 2);
 

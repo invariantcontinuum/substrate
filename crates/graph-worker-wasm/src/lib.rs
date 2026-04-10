@@ -1,6 +1,6 @@
+use js_sys::{Float32Array, Uint8Array};
 use std::cell::RefCell;
 use wasm_bindgen::prelude::*;
-use js_sys::{Float32Array, Uint8Array};
 use web_sys::DedicatedWorkerGlobalScope;
 
 pub mod engine;
@@ -8,7 +8,7 @@ pub mod protocol;
 pub mod websocket;
 
 use engine::WorkerEngine;
-use protocol::{InMessage, OutMessage, NodeIn, EdgeIn};
+use protocol::{EdgeIn, InMessage, NodeIn, OutMessage};
 
 thread_local! {
     static ENGINE: RefCell<WorkerEngine> = RefCell::new(WorkerEngine::new());
