@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useCallback } from "react";
+import React, { useEffect, useRef, useCallback, useState } from "react";
 import type {
   GraphSnapshot,
   GraphFilter,
@@ -49,6 +49,7 @@ export function Graph({
   const rafRef = useRef<number>(0);
   const convergedRef = useRef(false);
   const callbacksRef = useRef({ onNodeClick, onNodeHover, onStatsChange });
+  const [ready, setReady] = useState(false);
 
   callbacksRef.current = { onNodeClick, onNodeHover, onStatsChange };
 
@@ -123,12 +124,13 @@ export function Graph({
       }
       rafRef.current = requestAnimationFrame(renderLoop);
 
+      // Signal ready — this triggers prop-sync effects
+      setReady(true);
       onReady?.();
     }
 
     function requestRender() {
       engineRef.current?.request_render();
-      // Restart the render loop if it has stopped
       if (rafRef.current === 0 && engineRef.current) {
         function loop(timestamp: number) {
           if (!engineRef.current) return;
@@ -156,7 +158,7 @@ export function Graph({
 
   // Load snapshot from URL
   useEffect(() => {
-    if (!snapshotUrl || !workerRef.current) return;
+    if (!ready || !snapshotUrl || !workerRef.current) return;
     fetch(snapshotUrl)
       .then((res) => res.json())
       .then((data) => {
@@ -168,69 +170,69 @@ export function Graph({
         });
       })
       .catch((err) => console.error("Snapshot fetch failed:", err));
-  }, [snapshotUrl]);
+  }, [ready, snapshotUrl]);
 
   // Load snapshot from prop
   useEffect(() => {
-    if (!snapshot || !workerRef.current) return;
+    if (!ready || !snapshot || !workerRef.current) return;
     convergedRef.current = false;
     workerRef.current.postMessage({
       type: "load_snapshot",
       nodes: snapshot.nodes,
       edges: snapshot.edges,
     });
-  }, [snapshot]);
+  }, [ready, snapshot]);
 
   // WebSocket
   useEffect(() => {
-    if (!wsUrl || !authToken || !workerRef.current) return;
+    if (!ready || !wsUrl || !authToken || !workerRef.current) return;
     workerRef.current.postMessage({
       type: "connect_ws",
       url: wsUrl,
       token: authToken,
     });
-  }, [wsUrl, authToken]);
+  }, [ready, wsUrl, authToken]);
 
   // Theme
   useEffect(() => {
-    if (!theme || !engineRef.current) return;
+    if (!ready || !theme || !engineRef.current) return;
     engineRef.current.set_theme(theme);
-  }, [theme]);
+  }, [ready, theme]);
 
   // Layout
   useEffect(() => {
-    if (!workerRef.current) return;
+    if (!ready || !workerRef.current) return;
     convergedRef.current = false;
     workerRef.current.postMessage({ type: "set_layout", layout });
-  }, [layout]);
+  }, [ready, layout]);
 
   // Filter
   useEffect(() => {
-    if (!workerRef.current) return;
+    if (!ready || !workerRef.current) return;
     workerRef.current.postMessage({
       type: "set_filter",
       filter: filter ?? null,
     });
-  }, [filter]);
+  }, [ready, filter]);
 
   // Spotlight
   useEffect(() => {
-    if (!workerRef.current) return;
+    if (!ready || !workerRef.current) return;
     workerRef.current.postMessage({
       type: "set_spotlight",
       ids: spotlightIds ?? null,
     });
-  }, [spotlightIds]);
+  }, [ready, spotlightIds]);
 
   // Community hulls
   useEffect(() => {
-    if (!engineRef.current || !workerRef.current) return;
+    if (!ready || !engineRef.current || !workerRef.current) return;
     engineRef.current.set_community_hulls(showCommunities);
     workerRef.current.postMessage({
       type: "set_communities",
       show: showCommunities,
     });
-  }, [showCommunities]);
+  }, [ready, showCommunities]);
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
