@@ -424,7 +424,7 @@ mod tests {
         }));
 
         let positions = engine.get_position_buffer();
-        assert_eq!(positions.len(), 1 * 4);
+        assert_eq!(positions.len(), 4);
     }
 
     #[test]
