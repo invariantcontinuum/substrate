@@ -113,16 +113,16 @@ impl RenderEngine {
 
     // --- Data updates from worker ---
 
-    pub fn update_positions(&mut self, positions: Vec<f32>, flags: Vec<u8>) {
-        self.positions = positions;
-        self.visual_flags = flags;
+    pub fn update_positions(&mut self, positions: &[f32], flags: &[u8]) {
+        self.positions = positions.to_vec();
+        self.visual_flags = flags.to_vec();
         self.buffers_dirty = true;
         self.needs_render = true;
         self.spatial.rebuild(&self.positions, 200);
     }
 
-    pub fn update_edges(&mut self, edge_data: Vec<f32>, edge_count: usize) {
-        self.edge_data = edge_data;
+    pub fn update_edges(&mut self, edge_data: &[f32], edge_count: usize) {
+        self.edge_data = edge_data.to_vec();
         self.edge_count = edge_count;
         self.buffers_dirty = true;
         self.needs_render = true;

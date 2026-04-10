@@ -41,6 +41,7 @@ pub fn handle_message(msg_js: &JsValue) -> Result<(), JsValue> {
                     domains: vec![],
                 });
                 post_positions(&engine);
+                post_edges(&engine);
             }
             InMessage::SetLayout { layout } => {
                 engine.set_layout(&layout);
@@ -111,6 +112,29 @@ fn post_positions(engine: &WorkerEngine) {
     transfer.push(&pos_array.buffer());
     transfer.push(&flags_array.buffer());
 
+    scope.post_message_with_transfer(&msg, &transfer).ok();
+}
+
+fn post_edges(engine: &WorkerEngine) {
+    let scope: DedicatedWorkerGlobalScope = js_sys::global().unchecked_into();
+
+    let edge_data = engine.get_edge_buffer();
+    let edge_count = edge_data.len() / 6; // 6 floats per edge
+    let edge_array = Float32Array::new_with_length(edge_data.len() as u32);
+    edge_array.copy_from(&edge_data);
+
+    let msg = js_sys::Object::new();
+    js_sys::Reflect::set(&msg, &"type".into(), &"edges".into()).ok();
+    js_sys::Reflect::set(&msg, &"edges".into(), &edge_array).ok();
+    js_sys::Reflect::set(
+        &msg,
+        &"edge_count".into(),
+        &JsValue::from_f64(edge_count as f64),
+    )
+    .ok();
+
+    let transfer = js_sys::Array::new();
+    transfer.push(&edge_array.buffer());
     scope.post_message_with_transfer(&msg, &transfer).ok();
 }
 

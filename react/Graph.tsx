@@ -80,11 +80,15 @@ export function Graph({
         if (msg.type === "positions") {
           const positions = new Float32Array(msg.positions);
           const flags = new Uint8Array(msg.flags);
-          engine.update_positions(Array.from(positions), Array.from(flags));
+          engine.update_positions(positions, flags);
 
           if (!convergedRef.current) {
             requestRender();
           }
+        } else if (msg.type === "edges") {
+          const edges = new Float32Array(msg.edges);
+          engine.update_edges(edges, msg.edge_count);
+          requestRender();
         } else if (msg.type === "snapshot_loaded") {
           callbacksRef.current.onStatsChange?.({
             nodeCount: msg.node_count,
@@ -111,7 +115,11 @@ export function Graph({
       function renderLoop(timestamp: number) {
         if (cancelled) return;
         engine.frame(timestamp);
-        rafRef.current = requestAnimationFrame(renderLoop);
+        if (engine.needs_frame()) {
+          rafRef.current = requestAnimationFrame(renderLoop);
+        } else {
+          rafRef.current = 0;
+        }
       }
       rafRef.current = requestAnimationFrame(renderLoop);
 
@@ -120,6 +128,19 @@ export function Graph({
 
     function requestRender() {
       engineRef.current?.request_render();
+      // Restart the render loop if it has stopped
+      if (rafRef.current === 0 && engineRef.current) {
+        function loop(timestamp: number) {
+          if (!engineRef.current) return;
+          engineRef.current.frame(timestamp);
+          if (engineRef.current.needs_frame()) {
+            rafRef.current = requestAnimationFrame(loop);
+          } else {
+            rafRef.current = 0;
+          }
+        }
+        rafRef.current = requestAnimationFrame(loop);
+      }
     }
 
     init().catch((err) => console.error("Graph init failed:", err));
