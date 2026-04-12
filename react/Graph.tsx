@@ -256,6 +256,26 @@ export function Graph({
     });
   }, [ready, showCommunities]);
 
+  // Native non-passive wheel listener — React's onWheel prop is passive since React 17,
+  // so e.preventDefault() inside it is a no-op. Attach directly to the canvas with
+  // { passive: false } so ctrl+wheel zoom stays inside the graph canvas.
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const handler = (e: WheelEvent) => {
+      e.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      engineRef.current?.handle_zoom(
+        e.deltaY,
+        (e.clientX - rect.left) * dpr,
+        (e.clientY - rect.top) * dpr
+      );
+    };
+    canvas.addEventListener("wheel", handler, { passive: false });
+    return () => canvas.removeEventListener("wheel", handler);
+  }, []);
+
   const handleMouseDown = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
       const rect = (e.target as HTMLCanvasElement).getBoundingClientRect();
@@ -302,31 +322,16 @@ export function Graph({
     []
   );
 
-  const handleWheel = useCallback(
-    (e: React.WheelEvent<HTMLCanvasElement>) => {
-      e.preventDefault();
-      const rect = (e.target as HTMLCanvasElement).getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
-      engineRef.current?.handle_zoom(
-        e.deltaY,
-        (e.clientX - rect.left) * dpr,
-        (e.clientY - rect.top) * dpr
-      );
-    },
-    []
-  );
-
   return (
     <canvas
       ref={canvasRef}
       className={className}
-      style={{ width: "100%", height: "100%", display: "block", ...style }}
+      style={{ width: "100%", height: "100%", display: "block", touchAction: "none", ...style }}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
       onClick={handleClick}
-      onWheel={handleWheel}
     />
   );
 }
