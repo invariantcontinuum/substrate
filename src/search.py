@@ -52,7 +52,17 @@ async def _rerank(query: str, documents: list[dict]) -> list[dict]:
 
 
 async def search_nodes(query: str, limit: int = 10, type_filter: str = "", domain_filter: str = "") -> list[dict]:
-    vector = await _embed_query(query)
+    # Graceful degradation: if the embedding service (lazy-lamacpp) is not running,
+    # return an empty result set with a warning log instead of crashing the request.
+    # Per CLAUDE.md, LLM models are on-demand — search is unavailable until started.
+    try:
+        vector = await _embed_query(query)
+    except httpx.ConnectError as e:
+        logger.warning("search_embedding_unavailable", error=str(e), query=query)
+        return []
+    except Exception as e:
+        logger.warning("search_embedding_failed", error=str(e), query=query)
+        return []
 
     client = await _get_client()
     body: dict = {"vector": vector, "limit": limit * 2, "with_payload": True}
@@ -65,11 +75,19 @@ async def search_nodes(query: str, limit: int = 10, type_filter: str = "", domai
     if must:
         body["filter"] = {"must": must}
 
-    resp = await client.post(
-        f"{settings.qdrant_url}/collections/{settings.qdrant_collection}/points/search",
-        json=body,
-    )
-    resp.raise_for_status()
+    try:
+        resp = await client.post(
+            f"{settings.qdrant_url}/collections/{settings.qdrant_collection}/points/search",
+            json=body,
+        )
+        resp.raise_for_status()
+    except httpx.ConnectError as e:
+        logger.warning("search_qdrant_unavailable", error=str(e), query=query)
+        return []
+    except Exception as e:
+        logger.warning("search_qdrant_failed", error=str(e), query=query)
+        return []
+
     results = resp.json().get("result", [])
 
     candidates = [
