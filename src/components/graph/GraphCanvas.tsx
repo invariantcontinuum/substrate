@@ -11,7 +11,8 @@ import { apiFetch } from "@/lib/api";
 import { useGraphStore } from "@/stores/graph";
 import { useUIStore } from "@/stores/ui";
 import type { ModalName } from "@/stores/ui";
-import { graphTheme } from "@/lib/graph-theme";
+import { getGraphTheme } from "@/lib/graph-theme";
+import { useThemeStore } from "@/stores/theme";
 import { SignalsOverlay } from "./SignalsOverlay";
 import { DynamicLegend } from "./DynamicLegend";
 import { ViolationBadge } from "./ViolationBadge";
@@ -46,6 +47,9 @@ export function GraphCanvas() {
   const auth = useAuth();
   const token = auth.user?.access_token;
   const [legend, setLegend] = useState<LegendSummary | null>(null);
+
+  const themeMode = useThemeStore((s) => s.theme);
+  const graphTheme = useMemo(() => getGraphTheme(themeMode), [themeMode]);
 
   const canvasCleared = useGraphStore((s) => s.canvasCleared);
   const setStats = useGraphStore((s) => s.setStats);
