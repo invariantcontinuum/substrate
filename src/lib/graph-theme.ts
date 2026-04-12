@@ -32,9 +32,47 @@ export const graphTheme = {
       label: { field: "name", color: "#e2e8f0", size: 12 },
     },
     byType: {
-      service: {
+      // --- file-level types from GitHub ingestion ---
+      source: {
         color: "rgba(34,211,238,0.10)",
         borderColor: "#22d3ee",
+        borderWidth: 2,
+      },
+      config: {
+        color: "rgba(251,191,36,0.10)",
+        borderColor: "#fbbf24",
+        borderWidth: 1.8,
+      },
+      script: {
+        color: "rgba(52,211,153,0.10)",
+        borderColor: "#34d399",
+        borderWidth: 1.8,
+      },
+      doc: {
+        halfWidth: 45,
+        halfHeight: 16,
+        color: "rgba(148,163,184,0.06)",
+        borderColor: "#64748b",
+        borderWidth: 1.2,
+      },
+      data: {
+        halfWidth: 42,
+        halfHeight: 16,
+        color: "rgba(56,189,248,0.08)",
+        borderColor: "#38bdf8",
+        borderWidth: 1.5,
+      },
+      asset: {
+        halfWidth: 38,
+        halfHeight: 14,
+        color: "rgba(100,116,139,0.05)",
+        borderColor: "#475569",
+        borderWidth: 1,
+      },
+      // --- architecture-level types (future connectors) ---
+      service: {
+        color: "rgba(99,102,241,0.12)",
+        borderColor: "#818cf8",
         borderWidth: 2,
       },
       database: {
