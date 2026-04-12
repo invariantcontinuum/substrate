@@ -55,7 +55,11 @@ export function useJobs() {
         body: JSON.stringify({ job_type: jobType, scope }),
       });
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["jobs"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      queryClient.invalidateQueries({ queryKey: ["graph"] });
+      useGraphStore.getState().setCanvasCleared(false);
+    },
     onError: () => setSyncStatus("error"),
   });
 
