@@ -1,15 +1,6 @@
-CREATE EXTENSION IF NOT EXISTS age;
-CREATE EXTENSION IF NOT EXISTS vector;
-
-LOAD 'age';
-SET search_path = ag_catalog, "$user", public;
-
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM ag_catalog.ag_graph WHERE name = 'substrate') THEN
-        PERFORM create_graph('substrate');
-    END IF;
-END $$;
+-- AGE extension, pgvector extension, and the 'substrate' graph are created
+-- by the home-stack init script (01-init-databases.sh) as superuser.
+-- This migration only creates the relational tables and indexes.
 
 CREATE TABLE IF NOT EXISTS repositories (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
