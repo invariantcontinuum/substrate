@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { useAuth } from "react-oidc-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
+import { logger } from "@/lib/logger";
 import { useGraphStore } from "@/stores/graph";
 
 interface ProgressMeta {
@@ -64,12 +65,17 @@ export function useJobs() {
       const prev = lastSeenStatus.current.get(job.id);
       if (prev !== job.status) {
         lastSeenStatus.current.set(job.id, job.status);
+        logger.info("job_status_transition", { jobId: job.id, from: prev ?? "initial", to: job.status });
         if (prev === "running" && job.status === "completed") {
           sawCompletion = true;
+        }
+        if (prev === "running" && job.status === "failed") {
+          logger.error("job_failed", { jobId: job.id, error: job.error ?? "unknown" });
         }
       }
     }
     if (sawCompletion) {
+      logger.info("graph_refetch_triggered", { reason: "job_completed" });
       queryClient.invalidateQueries({ queryKey: ["graph"] });
       useGraphStore.getState().setCanvasCleared(false);
       setSyncStatus("idle");
@@ -85,6 +91,7 @@ export function useJobs() {
 
   const runJob = useMutation({
     mutationFn: async ({ jobType, scope }: { jobType: string; scope: Record<string, unknown> }) => {
+      logger.info("sync_started", { jobType, scope });
       if (jobType === "sync") setSyncStatus("syncing");
       return apiFetch("/jobs", token, {
         method: "POST",

@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useJobs } from "@/hooks/useJobs";
 import { useGraphStore } from "@/stores/graph";
+import { logger } from "@/lib/logger";
 
 interface Signal {
   id: string;
@@ -26,6 +27,10 @@ export function SignalsOverlay() {
   // Live signals derived from currently-running jobs
   const liveSignals: Signal[] = [];
   for (const job of jobs) {
+    if (job.status === "running") {
+      const m = job.progress_meta;
+      logger.debug("signal_live_phase", { jobId: job.id, phase: m?.phase ?? "unknown" });
+    }
     if (job.status !== "running") continue;
     const m = job.progress_meta;
     if (!m) {
@@ -94,6 +99,9 @@ export function SignalsOverlay() {
       }
     }
     if (next.length > 0) {
+      for (const s of next) {
+        logger.info("signal_status_transition", { signalId: s.id, label: s.label });
+      }
       setSignals((prev) => [...next, ...prev].slice(0, 8));
     }
   }, [jobs, stats]);

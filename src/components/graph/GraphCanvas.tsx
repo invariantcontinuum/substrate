@@ -2,6 +2,7 @@ import { useEffect, useRef, useMemo, useCallback } from "react";
 import { useAuth } from "react-oidc-context";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
+import { logger } from "@/lib/logger";
 import { useGraphStore } from "@/stores/graph";
 import { useUIStore } from "@/stores/ui";
 import type { ModalName } from "@/stores/ui";
@@ -115,7 +116,14 @@ export function GraphCanvas() {
 
   const { data: rawData } = useQuery<RawSnapshot>({
     queryKey: ["graph"],
-    queryFn: () => apiFetch<RawSnapshot>("/api/graph", token),
+    queryFn: async () => {
+      const data = await apiFetch<RawSnapshot>("/api/graph", token);
+      logger.info("graph_data_fetched", {
+        nodes: (data.nodes ?? []).length,
+        edges: (data.edges ?? []).length,
+      });
+      return data;
+    },
     enabled: !!token,
     refetchOnWindowFocus: false,
   });
@@ -130,6 +138,7 @@ export function GraphCanvas() {
     if (!rawData) return;
     const nodeCount = (rawData.nodes ?? []).length;
     if (nodeCount === 0) {
+      logger.info("empty_graph_detected", { action: "opening_sources_modal" });
       setDefaultRepoUrl(DEFAULT_REPO_URL);
       openModal("sources" as ModalName);
     }
@@ -139,6 +148,7 @@ export function GraphCanvas() {
   const handleNodeTap = useCallback(
     (evt: { target: { data: () => Record<string, unknown> } }) => {
       const d = evt.target.data();
+      logger.info("node_clicked", { nodeId: String(d.id), type: String(d.type || "unknown") });
       selectNode(String(d.id), d);
     },
     [selectNode],
@@ -157,6 +167,8 @@ export function GraphCanvas() {
   useEffect(() => {
     if (!containerRef.current) return;
     let destroyed = false;
+
+    logger.info("cytoscape_init_start", { elementCount: elements.length });
 
     loadCytoscape().then((cytoscapeFn) => {
       if (destroyed || !containerRef.current) return;
@@ -185,16 +197,23 @@ export function GraphCanvas() {
           gravity: 0.2,
           numIter: 2500,
         } as cytoscape.LayoutOptions).run();
+        logger.info("layout_computation_complete", { layout: "cose-bilkent" });
       }
 
       // Report stats after layout
       const violationCount = cy.nodes("[status='violation']").length;
+      const nodeCount = cy.nodes().length;
+      const edgeCount = cy.edges().length;
       setStats({
-        nodeCount: cy.nodes().length,
-        edgeCount: cy.edges().length,
+        nodeCount,
+        edgeCount,
         violationCount,
         lastUpdated: new Date().toISOString(),
       });
+
+      logger.info("cytoscape_initialized", { nodes: nodeCount, edges: edgeCount, violations: violationCount });
+    }).catch((err) => {
+      logger.error("cytoscape_init_failed", { error: String(err) });
     });
 
     return () => {
@@ -212,8 +231,9 @@ export function GraphCanvas() {
   useEffect(() => {
     const cy = cyRef.current;
     if (!cy) return;
+    logger.info("theme_switched", { theme: themeMode });
     cy.style().fromJson(stylesheet).update();
-  }, [stylesheet]);
+  }, [stylesheet, themeMode]);
 
   return (
     <div

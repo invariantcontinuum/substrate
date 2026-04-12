@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { logger } from "@/lib/logger";
 
 interface GraphStats {
   nodeCount: number;
@@ -44,8 +45,14 @@ interface GraphState {
 export const useGraphStore = create<GraphState>((set) => ({
   selectedNodeId: null,
   selectedNodeData: null,
-  selectNode: (id, data) =>
-    set({ selectedNodeId: id, selectedNodeData: data ?? null }),
+  selectNode: (id, data) => {
+    if (id) {
+      logger.info("node_selected", { nodeId: id });
+    } else {
+      logger.info("node_deselected");
+    }
+    set({ selectedNodeId: id, selectedNodeData: data ?? null });
+  },
 
   filters: {
     types: new Set([
@@ -66,7 +73,10 @@ export const useGraphStore = create<GraphState>((set) => ({
   setLayout: (layout) => set({ layout }),
 
   stats: { nodeCount: 0, edgeCount: 0, violationCount: 0, lastUpdated: "" },
-  setStats: (stats) => set({ stats }),
+  setStats: (stats) => {
+    logger.info("stats_updated", { nodes: stats.nodeCount, edges: stats.edgeCount, violations: stats.violationCount });
+    set({ stats });
+  },
 
   connectionStatus: "disconnected",
   setConnectionStatus: (connectionStatus) => set({ connectionStatus }),
@@ -83,7 +93,8 @@ export const useGraphStore = create<GraphState>((set) => ({
   canvasCleared: false,
   setCanvasCleared: (canvasCleared) => set({ canvasCleared }),
 
-  clearCanvas: () =>
+  clearCanvas: () => {
+    logger.info("canvas_cleared");
     set({
       selectedNodeId: null,
       selectedNodeData: null,
@@ -91,5 +102,6 @@ export const useGraphStore = create<GraphState>((set) => ({
       searchQuery: "",
       syncProgress: null,
       canvasCleared: true,
-    }),
+    });
+  },
 }));
