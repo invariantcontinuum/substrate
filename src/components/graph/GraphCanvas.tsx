@@ -180,6 +180,11 @@ export function GraphCanvas() {
         minZoom: 0.2,
         maxZoom: 3.0,
         wheelSensitivity: 0.3,
+        userZoomingEnabled: true,
+        userPanningEnabled: true,
+        boxSelectionEnabled: false,
+        autoungrabify: false,
+        autounselectify: false,
       });
 
       cyRef.current = cy;
