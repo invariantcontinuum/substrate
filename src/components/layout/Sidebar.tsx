@@ -1,9 +1,12 @@
 import { useState } from "react";
-import { GitBranch, Plug, Sparkles, Search, Shield, FileText, Activity, Terminal, Settings } from "lucide-react";
+import {
+  GitBranch, Plug, Sparkles, Search, Shield,
+  FileText, Activity, Terminal, Settings,
+} from "lucide-react";
 import { useAuth } from "react-oidc-context";
 import { useUIStore, type ModalName } from "@/stores/ui";
 
-const IMPLEMENTED_MODALS = new Set<string>(["sources", "enrichment", "search", "settings", "user"]);
+const IMPLEMENTED = new Set(["sources", "enrichment", "search", "settings", "user"]);
 
 interface NavItem {
   icon: typeof GitBranch;
@@ -12,158 +15,152 @@ interface NavItem {
   active?: boolean;
 }
 
-const menuItems: NavItem[] = [
-  { icon: GitBranch, label: "Graph", modal: "navigate", active: true },
-  { icon: Plug, label: "Sources", modal: "sources" },
-  { icon: Sparkles, label: "Enrichment", modal: "enrichment" },
-  { icon: Search, label: "Search", modal: "search" },
-  { icon: Shield, label: "Policies", modal: "policies" },
-  { icon: FileText, label: "ADRs", modal: "adrs" },
-  { icon: Activity, label: "Drift", modal: "drift" },
-  { icon: Terminal, label: "Query", modal: "query" },
-  { icon: Settings, label: "Settings", modal: "settings" },
+const items: NavItem[] = [
+  { icon: GitBranch, label: "Graph",      modal: "navigate", active: true },
+  { icon: Plug,      label: "Sources",    modal: "sources" },
+  { icon: Sparkles,  label: "Enrichment", modal: "enrichment" },
+  { icon: Search,    label: "Search",     modal: "search" },
+  { icon: Shield,    label: "Policies",   modal: "policies" },
+  { icon: FileText,  label: "ADRs",       modal: "adrs" },
+  { icon: Activity,  label: "Drift",      modal: "drift" },
+  { icon: Terminal,  label: "Query",      modal: "query" },
+  { icon: Settings,  label: "Settings",   modal: "settings" },
 ];
 
-const NAV_ITEM_SIZE = 38;
-
-function NavButton({ item, hovered, onHover, onLeave, onClick }: {
-  item: NavItem;
-  hovered: boolean;
-  onHover: () => void;
-  onLeave: () => void;
-  onClick: () => void;
-}) {
-  const isActive = item.active;
-  const isComingSoon = item.modal !== "navigate" && !IMPLEMENTED_MODALS.has(item.modal as string);
-
-  return (
-    <div className="relative flex items-center" onMouseEnter={onHover} onMouseLeave={onLeave}>
-      <div
-        style={{
-          position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)",
-          width: 3,
-          height: isActive ? 20 : hovered ? 14 : 0,
-          borderRadius: "0 2px 2px 0",
-          background: "var(--accent)",
-          transition: "height 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
-          boxShadow: isActive || hovered ? "0 0 8px var(--accent-glow)" : "none",
-        }}
-      />
-      <button
-        onClick={onClick}
-        className="flex items-center justify-center"
-        style={{
-          width: NAV_ITEM_SIZE, height: NAV_ITEM_SIZE,
-          borderRadius: "var(--radius-md)",
-          background: isActive ? "var(--accent-soft)" : hovered ? "var(--bg-hover)" : "transparent",
-          border: isActive ? "1px solid var(--accent-medium)" : "1px solid transparent",
-          cursor: "pointer",
-          transition: "all 0.15s ease-out",
-          transform: hovered && !isActive ? "scale(1.06)" : "scale(1)",
-        }}
-      >
-        <item.icon
-          size={16}
-          color={isActive ? "var(--accent-text)" : hovered ? "var(--text-secondary)" : "var(--text-muted)"}
-          strokeWidth={isActive ? 2 : 1.5}
-          style={{ transition: "color 0.15s ease-out" }}
-        />
-      </button>
-      <div
-        style={{
-          position: "absolute", left: NAV_ITEM_SIZE + 6, top: "50%",
-          transform: "translateY(-50%)", pointerEvents: "none",
-          opacity: hovered ? 1 : 0, transition: "opacity 0.12s ease-out",
-          zIndex: 100, display: "flex", alignItems: "center", gap: 6,
-        }}
-      >
-        <div
-          style={{
-            background: "var(--bg-elevated)", border: "1px solid var(--border)",
-            borderRadius: "var(--radius-sm)", padding: "4px 8px",
-            whiteSpace: "nowrap", boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
-            display: "flex", alignItems: "center", gap: 6,
-          }}
-        >
-          <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-primary)", fontFamily: "var(--font-sans)", letterSpacing: "0.01em" }}>
-            {item.label}
-          </span>
-          {isComingSoon && (
-            <span style={{ fontSize: 9, fontWeight: 600, color: "var(--warning-text)", background: "var(--warning-soft)", padding: "1px 5px", borderRadius: 3, fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-              soon
-            </span>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
+const SZ = 36;
 
 export function Sidebar() {
-  const { openModal } = useUIStore();
+  const open = useUIStore((s) => s.openModal);
   const auth = useAuth();
-  const [hoveredItem, setHoveredItem] = useState<string | null>(null);
-
-  const userInitial = auth.user?.profile?.name?.[0]?.toUpperCase() ?? "U";
-
-  const handleNavClick = (item: NavItem) => {
-    if (item.modal === "navigate") return;
-    openModal(item.modal);
-  };
+  const initial = auth.user?.profile?.name?.[0]?.toUpperCase() ?? "U";
+  const [hov, setHov] = useState<string | null>(null);
 
   return (
-    <div
-      className="flex flex-col items-center py-2.5 gap-0.5 shrink-0"
+    <nav
+      className="flex flex-col items-center py-2 gap-px shrink-0"
       style={{
-        width: "var(--sidebar-width)", minWidth: "var(--sidebar-width)",
-        background: "var(--bg-surface)", borderRight: "1px solid var(--border)",
+        width: "var(--sidebar-width)",
+        minWidth: "var(--sidebar-width)",
+        background: "var(--bg-surface)",
+        borderRight: "1px solid var(--border)",
       }}
     >
-      {/* Nav items */}
-      {menuItems.map((item) => (
-        <NavButton
-          key={item.label}
-          item={item}
-          hovered={hoveredItem === item.label}
-          onHover={() => setHoveredItem(item.label)}
-          onLeave={() => setHoveredItem(null)}
-          onClick={() => handleNavClick(item)}
-        />
-      ))}
+      {items.map((it) => {
+        const isActive = it.active;
+        const isHov = hov === it.label;
+        const coming = it.modal !== "navigate" && !IMPLEMENTED.has(it.modal as string);
+
+        return (
+          <div
+            key={it.label}
+            className="relative flex items-center"
+            onMouseEnter={() => setHov(it.label)}
+            onMouseLeave={() => setHov(null)}
+          >
+            {/* Active bar */}
+            <div
+              style={{
+                position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)",
+                width: 3, borderRadius: "0 2px 2px 0",
+                height: isActive ? 18 : isHov ? 12 : 0,
+                background: "var(--accent)",
+                transition: "height 0.15s ease",
+                boxShadow: isActive || isHov ? "0 0 6px var(--accent-glow)" : "none",
+              }}
+            />
+            <button
+              onClick={() => it.modal !== "navigate" && open(it.modal)}
+              style={{
+                width: SZ, height: SZ, display: "flex", alignItems: "center", justifyContent: "center",
+                borderRadius: "var(--radius-md)", border: "none", cursor: "pointer",
+                background: isActive ? "var(--accent-soft)" : isHov ? "var(--bg-hover)" : "transparent",
+                outline: isActive ? "1px solid var(--accent-medium)" : "none",
+                transition: "all 0.12s ease",
+              }}
+            >
+              <it.icon
+                size={15}
+                strokeWidth={isActive ? 2 : 1.5}
+                color={isActive ? "var(--accent-text)" : isHov ? "var(--text-secondary)" : "var(--text-muted)"}
+              />
+            </button>
+
+            {/* Tooltip */}
+            {isHov && (
+              <div
+                style={{
+                  position: "absolute", left: SZ + 8, top: "50%", transform: "translateY(-50%)",
+                  pointerEvents: "none", zIndex: 100, display: "flex", alignItems: "center", gap: 6,
+                  animation: "fadeIn 0.1s ease",
+                }}
+              >
+                <div
+                  style={{
+                    background: "var(--bg-elevated)", border: "1px solid var(--border)",
+                    borderRadius: "var(--radius-sm)", padding: "3px 8px",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.4)", whiteSpace: "nowrap",
+                    display: "flex", alignItems: "center", gap: 5,
+                  }}
+                >
+                  <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-primary)" }}>
+                    {it.label}
+                  </span>
+                  {coming && (
+                    <span
+                      style={{
+                        fontSize: 8, fontWeight: 700, textTransform: "uppercase",
+                        color: "var(--warning-text)", background: "var(--warning-soft)",
+                        padding: "1px 4px", borderRadius: 3, letterSpacing: "0.04em",
+                        fontFamily: "var(--font-mono)",
+                      }}
+                    >
+                      soon
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
 
       <div className="flex-1" />
 
-      {/* User account */}
+      {/* User avatar */}
       <div
         className="relative flex items-center"
-        onMouseEnter={() => setHoveredItem("__account")}
-        onMouseLeave={() => setHoveredItem(null)}
+        onMouseEnter={() => setHov("__u")}
+        onMouseLeave={() => setHov(null)}
       >
         <button
-          onClick={() => openModal("user")}
-          className="flex items-center justify-center"
+          onClick={() => open("user")}
           style={{
-            width: NAV_ITEM_SIZE, height: NAV_ITEM_SIZE, borderRadius: "50%",
-            background: hoveredItem === "__account" ? "var(--accent-medium)" : "var(--accent-soft)",
-            border: "1px solid var(--accent-medium)", cursor: "pointer",
-            transition: "all 0.15s ease-out",
-            transform: hoveredItem === "__account" ? "scale(1.08)" : "scale(1)",
+            width: SZ, height: SZ, borderRadius: "50%", border: "none",
+            background: hov === "__u" ? "var(--accent-medium)" : "var(--accent-soft)",
+            outline: "1px solid var(--accent-medium)", cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            transition: "all 0.12s ease",
           }}
         >
-          <span style={{ fontSize: 11, color: "var(--accent-text)", fontWeight: 600 }}>{userInitial}</span>
+          <span style={{ fontSize: 11, color: "var(--accent-text)", fontWeight: 600 }}>{initial}</span>
         </button>
-        <div
-          style={{
-            position: "absolute", left: NAV_ITEM_SIZE + 6, top: "50%",
-            transform: "translateY(-50%)", pointerEvents: "none",
-            opacity: hoveredItem === "__account" ? 1 : 0, transition: "opacity 0.12s ease-out", zIndex: 100,
-          }}
-        >
-          <div style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", padding: "4px 8px", whiteSpace: "nowrap", boxShadow: "0 4px 12px rgba(0,0,0,0.4)" }}>
-            <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-primary)", fontFamily: "var(--font-sans)" }}>Account</span>
+        {hov === "__u" && (
+          <div
+            style={{
+              position: "absolute", left: SZ + 8, top: "50%", transform: "translateY(-50%)",
+              pointerEvents: "none", zIndex: 100, animation: "fadeIn 0.1s ease",
+            }}
+          >
+            <div style={{
+              background: "var(--bg-elevated)", border: "1px solid var(--border)",
+              borderRadius: "var(--radius-sm)", padding: "3px 8px",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
+            }}>
+              <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-primary)" }}>Account</span>
+            </div>
           </div>
-        </div>
+        )}
       </div>
-    </div>
+    </nav>
   );
 }

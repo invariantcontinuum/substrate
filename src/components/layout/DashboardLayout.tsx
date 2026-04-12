@@ -9,15 +9,25 @@ export function DashboardLayout() {
   const { isDesktop } = useResponsive();
 
   return (
-    <div className="flex h-screen" style={{ background: "var(--bg)" }}>
+    <div
+      className="flex h-dvh"
+      style={{ background: "var(--bg)", overflow: "hidden" }}
+    >
+      {/* Sidebar — desktop only, fixed width */}
       {isDesktop && <Sidebar />}
-      <div className="flex flex-col flex-1 overflow-hidden">
+
+      {/* Main column */}
+      <div className="flex flex-col flex-1 min-w-0">
         <TopBar />
-        <main className="flex-1 overflow-hidden">
+        <main className="flex-1 overflow-hidden relative">
           <Outlet />
         </main>
       </div>
+
+      {/* Mobile drawer */}
       {!isDesktop && <MobileNav />}
+
+      {/* Modal layer */}
       <ModalRoot />
     </div>
   );

@@ -1,24 +1,27 @@
-import { Search } from "lucide-react";
-import { useGraphStore } from "@/stores/graph";
-import { useSearch } from "@/hooks/useSearch";
 import { useState, useCallback } from "react";
-import { Brain } from "lucide-react";
+import { Search, Brain, Menu } from "lucide-react";
+import { useGraphStore } from "@/stores/graph";
+import { useUIStore } from "@/stores/ui";
+import { useSearch } from "@/hooks/useSearch";
+import { useResponsive } from "@/hooks/useResponsive";
 
 export function TopBar() {
   const { connectionStatus, stats, setSearchQuery } = useGraphStore();
+  const { toggleSidebar } = useUIStore();
   const { search } = useSearch();
-  const [localQuery, setLocalQuery] = useState("");
-  const graphLoaded = stats.nodeCount > 0;
+  const { isDesktop } = useResponsive();
+  const [q, setQ] = useState("");
+  const loaded = stats.nodeCount > 0;
 
-  const handleSearch = useCallback(() => {
-    if (!localQuery.trim()) return;
-    setSearchQuery(localQuery.trim());
-    search(localQuery.trim());
-  }, [localQuery, setSearchQuery, search]);
+  const go = useCallback(() => {
+    if (!q.trim()) return;
+    setSearchQuery(q.trim());
+    search(q.trim());
+  }, [q, setSearchQuery, search]);
 
   return (
-    <div
-      className="flex items-center px-3 gap-3"
+    <header
+      className="flex items-center gap-2 px-2 sm:px-3 shrink-0"
       style={{
         height: "var(--topbar-height)",
         minHeight: "var(--topbar-height)",
@@ -26,19 +29,30 @@ export function TopBar() {
         background: "var(--bg-surface)",
       }}
     >
-      {/* Logo — left corner */}
+      {/* Mobile hamburger */}
+      {!isDesktop && (
+        <button
+          onClick={toggleSidebar}
+          className="flex items-center justify-center"
+          style={{ width: 32, height: 32, color: "var(--text-muted)" }}
+        >
+          <Menu size={18} />
+        </button>
+      )}
+
+      {/* Logo */}
       <div className="flex items-center gap-1.5">
         <div
           className="flex items-center justify-center"
           style={{
-            width: 24, height: 24, borderRadius: "var(--radius-sm)",
+            width: 22, height: 22, borderRadius: "var(--radius-sm)",
             background: "var(--accent-soft)", border: "1px solid var(--accent-medium)",
           }}
         >
-          <Brain size={13} color="var(--accent)" />
+          <Brain size={12} color="var(--accent)" />
         </div>
         <span
-          className="text-[12px] font-semibold"
+          className="text-[12px] font-semibold hidden sm:inline"
           style={{ color: "var(--text-primary)", letterSpacing: "-0.02em" }}
         >
           Substrate
@@ -47,42 +61,51 @@ export function TopBar() {
 
       <div className="flex-1" />
 
-      {/* Search bar */}
+      {/* Search */}
       <div
         className="flex items-center gap-1.5 px-2 py-1 rounded-md"
-        style={{ width: 240, background: "var(--bg-hover)", border: "1px solid var(--border)" }}
+        style={{
+          width: isDesktop ? 220 : 140,
+          background: "var(--bg-hover)",
+          border: "1px solid var(--border)",
+        }}
       >
-        <Search size={12} style={{ color: "var(--text-muted)" }} />
+        <Search size={11} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
         <input
           type="text"
-          placeholder="Search graph..."
-          value={localQuery}
-          onChange={(e) => setLocalQuery(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-          disabled={!graphLoaded}
-          className="flex-1 text-[10px] bg-transparent outline-none"
+          placeholder="Search..."
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && go()}
+          disabled={!loaded}
+          className="flex-1 text-[10px] bg-transparent outline-none min-w-0"
           style={{
             color: "var(--text-primary)",
             fontFamily: "var(--font-mono)",
-            opacity: graphLoaded ? 1 : 0.3,
+            opacity: loaded ? 1 : 0.3,
           }}
         />
       </div>
 
-      <div className="w-px h-3.5" style={{ background: "var(--border)" }} />
+      <div className="w-px h-3 hidden sm:block" style={{ background: "var(--border)" }} />
 
       {/* Stats */}
-      <div className="flex items-center gap-2.5 text-[10px]" style={{ fontFamily: "var(--font-mono)" }}>
+      <div
+        className="items-center gap-2 text-[10px] hidden sm:flex"
+        style={{ fontFamily: "var(--font-mono)" }}
+      >
         <div className="flex items-center gap-1">
           <div
-            className="w-[4px] h-[4px] rounded-full"
             style={{
-              background: connectionStatus === "connected" ? "var(--success)" : connectionStatus === "reconnecting" ? "var(--warning)" : "var(--error)",
+              width: 4, height: 4, borderRadius: "50%",
+              background: connectionStatus === "connected" ? "var(--success)"
+                : connectionStatus === "reconnecting" ? "var(--warning)" : "var(--error)",
               boxShadow: connectionStatus === "connected" ? "0 0 6px var(--success)" : "none",
             }}
           />
           <span style={{
-            color: connectionStatus === "connected" ? "var(--success-text)" : connectionStatus === "reconnecting" ? "var(--warning-text)" : "var(--error-text)",
+            color: connectionStatus === "connected" ? "var(--success-text)"
+              : connectionStatus === "reconnecting" ? "var(--warning-text)" : "var(--error-text)",
           }}>
             {connectionStatus === "connected" ? "Live" : connectionStatus === "reconnecting" ? "..." : "Off"}
           </span>
@@ -97,6 +120,6 @@ export function TopBar() {
           <span style={{ color: "var(--error-text)" }}>&#x2298;{stats.violationCount}</span>
         )}
       </div>
-    </div>
+    </header>
   );
 }
