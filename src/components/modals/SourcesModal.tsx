@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { useUIStore } from "@/stores/ui";
 import { useJobs } from "@/hooks/useJobs";
@@ -16,13 +16,20 @@ const SCHEDULE_OPTIONS = [
 
 export function SourcesModal() {
   const { activeModal, closeModal } = useUIStore();
+  const defaultRepoUrl = useUIStore((s) => s.defaultRepoUrl);
   const { runJob, isRunning, schedules, createSchedule, toggleSchedule, deleteSchedule, purgeGraph } = useJobs();
-  const clearCanvas = useGraphStore((s) => s.clearCanvas);
+  const setCanvasCleared = useGraphStore((s) => s.setCanvasCleared);
   const syncStatus = useGraphStore((s) => s.syncStatus);
 
-  const [repoUrl, setRepoUrl] = useState("");
+  const [repoUrl, setRepoUrl] = useState(defaultRepoUrl ?? "");
   const [scheduleInterval, setScheduleInterval] = useState(60);
   const [showPurgeConfirm, setShowPurgeConfirm] = useState(false);
+
+  useEffect(() => {
+    if (defaultRepoUrl) {
+      setRepoUrl(defaultRepoUrl);
+    }
+  }, [defaultRepoUrl]);
 
   const syncing = isRunning || syncStatus === "syncing";
 
@@ -38,8 +45,11 @@ export function SourcesModal() {
 
   const handlePurge = () => {
     purgeGraph();
-    clearCanvas();
     setShowPurgeConfirm(false);
+  };
+
+  const handleClean = () => {
+    setCanvasCleared(true);
   };
 
   return (
@@ -151,6 +161,25 @@ export function SourcesModal() {
             </div>
           </div>
         )}
+
+        {/* View controls */}
+        <div style={{ borderTop: "1px solid rgba(255,255,255,0.04)", paddingTop: 16 }}>
+          <div className="text-[10px] uppercase tracking-wider mb-2 font-medium" style={{ color: "var(--text-muted)" }}>
+            View
+          </div>
+          <button
+            onClick={handleClean}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-medium"
+            style={{
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(255,255,255,0.08)",
+              color: "var(--text-secondary)",
+            }}
+          >
+            <Trash2 size={13} />
+            Clean Canvas
+          </button>
+        </div>
 
         {/* Danger zone */}
         <div style={{ borderTop: "1px solid rgba(255,255,255,0.04)", paddingTop: 16 }}>
