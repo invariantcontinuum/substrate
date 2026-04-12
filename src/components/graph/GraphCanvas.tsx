@@ -11,6 +11,7 @@ import { apiFetch } from "@/lib/api";
 import { useGraphStore } from "@/stores/graph";
 import { useUIStore } from "@/stores/ui";
 import type { ModalName } from "@/stores/ui";
+import { graphTheme } from "@/lib/graph-theme";
 import { SignalsOverlay } from "./SignalsOverlay";
 import { DynamicLegend } from "./DynamicLegend";
 import { ViolationBadge } from "./ViolationBadge";
@@ -103,6 +104,7 @@ export function GraphCanvas() {
           snapshot={effective}
           wsUrl={wsUrl}
           authToken={token}
+          theme={graphTheme as unknown as Record<string, unknown>}
           layout={layout}
           filter={{ types: Array.from(filters.types) }}
           onNodeClick={(node: NodeData) =>
