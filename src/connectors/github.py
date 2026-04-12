@@ -1,5 +1,8 @@
 import re
+import os
 import asyncio
+import shutil
+import tempfile
 import httpx
 import structlog
 from src.schema import GraphEvent, NodeAffected, EdgeAffected
@@ -32,7 +35,7 @@ PARSEABLE_EXTENSIONS = {
 }
 
 # Map file extensions (and special filenames) to semantic node types.
-# These types flow through the entire pipeline: Neo4j → API → WASM engine → theme.
+# These types flow through the entire pipeline: Neo4j -> API -> WASM engine -> theme.
 _EXT_TO_TYPE: dict[str, str] = {
     # Source code
     ".c": "source", ".h": "source", ".cpp": "source", ".hpp": "source", ".cc": "source",
@@ -72,7 +75,7 @@ def classify_file_type(path: str) -> str:
     # Check exact filename matches first (Makefile, Dockerfile, etc.)
     if name in _NAME_TO_TYPE:
         return _NAME_TO_TYPE[name]
-    # Check base name without extension for files like README.md → already caught by ext
+    # Check base name without extension for files like README.md -> already caught by ext
     base = name.split(".")[0]
     if base in _NAME_TO_TYPE:
         return _NAME_TO_TYPE[base]
@@ -81,6 +84,9 @@ def classify_file_type(path: str) -> str:
     if "." in name:
         ext = "." + name.rsplit(".", 1)[-1].lower()
     return _EXT_TO_TYPE.get(ext, "service")
+
+
+# ---------- HTTP client (kept for enrich.py) ----------
 
 _client: httpx.AsyncClient | None = None
 
@@ -102,6 +108,8 @@ async def close_client() -> None:
         _client = None
 
 
+# ---------- Tree / node helpers ----------
+
 def parse_repo_tree(tree: list[dict], source: str = "github") -> list[NodeAffected]:
     nodes = []
     for item in tree:
@@ -118,6 +126,8 @@ def parse_repo_tree(tree: list[dict], source: str = "github") -> list[NodeAffect
         )
     return nodes
 
+
+# ---------- Import parsing ----------
 
 def _resolve_import(file_id: str, raw_import: str, known_files: set[str]) -> str | None:
     if raw_import in known_files:
@@ -159,6 +169,8 @@ def parse_imports(file_id: str, content: str, known_files: set[str]) -> list[Edg
     return edges
 
 
+# ---------- GitHub API tree fetch (kept for enrich.py) ----------
+
 async def fetch_repo_tree(owner: str, repo: str, token: str, branch: str = "master") -> list[dict]:
     client = await get_client()
     url = f"{GITHUB_API}/repos/{owner}/{repo}/git/trees/{branch}?recursive=1"
@@ -168,28 +180,35 @@ async def fetch_repo_tree(owner: str, repo: str, token: str, branch: str = "mast
     return resp.json().get("tree", [])
 
 
-async def _fetch_and_parse(
-    semaphore: asyncio.Semaphore, owner: str, repo: str, path: str,
-    token: str, known_files: set[str], ref: str = "master",
-) -> list[EdgeAffected]:
-    async with semaphore:
-        client = await get_client()
-        url = f"{GITHUB_API}/repos/{owner}/{repo}/contents/{path}?ref={ref}"
-        headers = {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github.raw+json"}
-        try:
-            resp = await client.get(url, headers=headers)
-            remaining = int(resp.headers.get("x-ratelimit-remaining", "999"))
-            if remaining < 50:
-                reset_at = int(resp.headers.get("x-ratelimit-reset", "0"))
-                import time
-                wait = max(0, reset_at - int(time.time())) + 1
-                logger.warning("rate_limit_approaching", remaining=remaining, wait=wait)
-                await asyncio.sleep(min(wait, 60))
-            resp.raise_for_status()
-            return parse_imports(path, resp.text, known_files)
-        except Exception as e:
-            logger.warning("file_fetch_failed", path=path, error=str(e))
-            return []
+# ---------- Clone-based sync ----------
+
+async def _clone_repo(owner: str, repo: str, token: str) -> str:
+    """Shallow-clone a repo to a temp directory; return the path."""
+    tmpdir = tempfile.mkdtemp(prefix="substrate-sync-")
+    url = f"https://x-access-token:{token}@github.com/{owner}/{repo}.git"
+    proc = await asyncio.create_subprocess_exec(
+        "git", "clone", "--depth", "1", "--single-branch", "-q", url, tmpdir,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    _, stderr = await proc.communicate()
+    if proc.returncode != 0:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+        raise RuntimeError(f"git clone failed: {stderr.decode().strip()}")
+    return tmpdir
+
+
+def _walk_local_tree(repo_dir: str) -> list[dict]:
+    """Walk a cloned repo and return entries compatible with parse_repo_tree."""
+    tree: list[dict] = []
+    git_dir = os.path.join(repo_dir, ".git")
+    for root, dirs, files in os.walk(repo_dir):
+        # skip .git directory
+        dirs[:] = [d for d in dirs if os.path.join(root, d) != git_dir]
+        for f in files:
+            rel = os.path.relpath(os.path.join(root, f), repo_dir)
+            tree.append({"path": rel, "type": "blob"})
+    return tree
 
 
 async def sync_repo(
@@ -197,34 +216,84 @@ async def sync_repo(
     on_progress=None,
 ) -> GraphEvent:
     logger.info("sync_started", owner=owner, repo=repo)
+    repo_label = f"{owner}/{repo}"
 
-    tree = await fetch_repo_tree(owner, repo, token)
-    nodes = parse_repo_tree(tree)
-    known_files = {n.id for n in nodes}
+    meta = {
+        "phase": "cloning", "repo": repo_label,
+        "files_total": 0, "files_parseable": 0,
+        "files_parsed": 0, "edges_found": 0,
+        "nodes_by_type": {},
+    }
+    if on_progress:
+        await on_progress(0, 0, meta)
 
-    parseable = [n.id for n in nodes if "." in n.id and "." + n.id.rsplit(".", 1)[-1] in PARSEABLE_EXTENSIONS]
-    logger.info("parsing_imports", total_files=len(parseable))
+    # ── 1. Clone ──
+    tmpdir = await _clone_repo(owner, repo, token)
+    logger.info("clone_complete", owner=owner, repo=repo, path=tmpdir)
 
-    semaphore = asyncio.Semaphore(MAX_CONCURRENT_REQUESTS)
-    all_edges: list[EdgeAffected] = []
-
-    batch_size = 100
-    for batch_start in range(0, len(parseable), batch_size):
-        batch = parseable[batch_start:batch_start + batch_size]
-        results = await asyncio.gather(
-            *[_fetch_and_parse(semaphore, owner, repo, p, token, known_files) for p in batch]
-        )
-        for edges in results:
-            all_edges.extend(edges)
-
-        done = min(batch_start + batch_size, len(parseable))
-        logger.info("import_parse_progress", done=done, total=len(parseable))
+    try:
+        # ── 2. Discover files ──
+        meta["phase"] = "discovering"
         if on_progress:
-            await on_progress(done, len(parseable))
+            await on_progress(0, 0, meta)
 
-    event = GraphEvent(
-        source="github", event_type="sync",
-        nodes_affected=nodes, edges_affected=all_edges,
-    )
-    logger.info("sync_complete", owner=owner, repo=repo, nodes=len(nodes), edges=len(all_edges))
-    return event
+        tree = _walk_local_tree(tmpdir)
+        nodes = parse_repo_tree(tree)
+        known_files = {n.id for n in nodes}
+
+        type_counts: dict[str, int] = {}
+        for n in nodes:
+            type_counts[n.type] = type_counts.get(n.type, 0) + 1
+
+        parseable = [
+            n.id for n in nodes
+            if "." in n.id and "." + n.id.rsplit(".", 1)[-1] in PARSEABLE_EXTENSIONS
+        ]
+
+        meta.update({
+            "files_total": len(nodes),
+            "files_parseable": len(parseable),
+            "nodes_by_type": type_counts,
+        })
+        if on_progress:
+            await on_progress(0, len(parseable), meta)
+        logger.info("discovery_complete", files=len(nodes), parseable=len(parseable))
+
+        # ── 3. Parse imports from local files ──
+        meta["phase"] = "parsing"
+        all_edges: list[EdgeAffected] = []
+
+        for i, file_id in enumerate(parseable):
+            filepath = os.path.join(tmpdir, file_id)
+            try:
+                with open(filepath, "r", errors="replace") as f:
+                    content = f.read()
+                edges = parse_imports(file_id, content, known_files)
+                all_edges.extend(edges)
+            except Exception:
+                pass
+
+            done = i + 1
+            meta["files_parsed"] = done
+            meta["edges_found"] = len(all_edges)
+            # report every 50 files or on the last file
+            if on_progress and (done % 50 == 0 or done == len(parseable)):
+                await on_progress(done, len(parseable), meta)
+
+        logger.info("parsing_complete", parsed=len(parseable), edges=len(all_edges))
+
+        # ── 4. Build event ──
+        meta["phase"] = "publishing"
+        if on_progress:
+            await on_progress(len(parseable), len(parseable), meta)
+
+        event = GraphEvent(
+            source="github", event_type="sync",
+            nodes_affected=nodes, edges_affected=all_edges,
+        )
+        logger.info("sync_complete", owner=owner, repo=repo,
+                     nodes=len(nodes), edges=len(all_edges))
+        return event
+
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)

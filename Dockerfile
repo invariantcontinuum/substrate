@@ -1,7 +1,7 @@
 FROM python:3.12-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl default-jre-headless \
+    curl default-jre-headless git \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Flyway

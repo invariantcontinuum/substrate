@@ -41,11 +41,17 @@ async def run_job(job_type: str, scope: dict) -> str:
                 job_id,
             )
 
-            async def on_progress(done: int, total: int):
-                await pool.execute(
-                    "UPDATE job_runs SET progress_done = $1, progress_total = $2 WHERE id = $3",
-                    done, total, job_id,
-                )
+            async def on_progress(done: int, total: int, meta: dict | None = None):
+                if meta is not None:
+                    await pool.execute(
+                        "UPDATE job_runs SET progress_done = $1, progress_total = $2, progress_meta = $3 WHERE id = $4",
+                        done, total, json.dumps(meta), job_id,
+                    )
+                else:
+                    await pool.execute(
+                        "UPDATE job_runs SET progress_done = $1, progress_total = $2 WHERE id = $3",
+                        done, total, job_id,
+                    )
 
             await handler(scope, on_progress)
 
