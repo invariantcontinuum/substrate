@@ -42,11 +42,8 @@ COPY --from=build /app/dist /usr/share/nginx/html
 # Copy built documentation
 COPY --from=docs-build /src/site /usr/share/nginx/html/docs
 
-# Copy nginx configuration
+# Copy nginx configuration, overwriting the stock default.
 COPY nginx.conf /etc/nginx/conf.d/default.conf
-
-# Remove default nginx config
-RUN rm -f /etc/nginx/conf.d/default.conf 2>/dev/null || true
 
 # Expose port
 EXPOSE 3000
