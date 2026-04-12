@@ -110,9 +110,12 @@ async def invalidate_cache() -> None:
 
 
 def _label_for_type(node_type: str) -> str:
-    return {"service": "Service", "database": "Database", "cache": "Cache", "external": "External"}.get(
-        node_type, "Service"
-    )
+    return {
+        "service": "Service", "source": "Source", "config": "Config",
+        "script": "Script", "doc": "Doc", "data": "Data", "asset": "Asset",
+        "database": "Database", "cache": "Cache", "external": "External",
+        "policy": "Policy", "adr": "Adr", "incident": "Incident",
+    }.get(node_type, "Service")
 
 
 async def merge_node(node: GraphNode) -> None:
@@ -243,13 +246,20 @@ async def get_full_snapshot() -> GraphSnapshot:
             edges = [GraphEdge(**e) for e in data["edges"]]
             return GraphSnapshot(nodes=nodes, edges=edges, meta=data["meta"])
 
-    type_map = {"Service": "service", "Database": "database", "Cache": "cache", "External": "external"}
+    type_map = {
+        "Service": "service", "Source": "source", "Config": "config",
+        "Script": "script", "Doc": "doc", "Data": "data", "Asset": "asset",
+        "Database": "database", "Cache": "cache", "External": "external",
+        "Policy": "policy", "Adr": "adr", "Incident": "incident",
+    }
 
     async with _driver.session() as session:
         node_result = await session.run(
             """
             MATCH (n)
-            WHERE n:Service OR n:Database OR n:Cache OR n:External
+            WHERE n:Service OR n:Source OR n:Config OR n:Script OR n:Doc
+               OR n:Data OR n:Asset OR n:Database OR n:Cache OR n:External
+               OR n:Policy OR n:Adr OR n:Incident
             RETURN n.id AS id, n.name AS name, labels(n)[0] AS type,
                    n.domain AS domain, n.status AS status, n.source AS source,
                    n.meta AS meta, n.first_seen AS first_seen, n.last_seen AS last_seen
@@ -326,7 +336,10 @@ async def get_stats() -> dict:
     async with _driver.session() as session:
         result = await session.run(
             """
-            MATCH (n) WHERE n:Service OR n:Database OR n:Cache OR n:External
+            MATCH (n)
+            WHERE n:Service OR n:Source OR n:Config OR n:Script OR n:Doc
+               OR n:Data OR n:Asset OR n:Database OR n:Cache OR n:External
+               OR n:Policy OR n:Adr OR n:Incident
             WITH labels(n)[0] AS label, count(n) AS cnt
             RETURN collect({type: label, count: cnt}) AS nodes_by_type
             """
