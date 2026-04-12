@@ -1,61 +1,115 @@
-import { useState, useEffect, useMemo } from "react";
-import { Graph } from "@invariantcontinuum/graph/react";
-import type {
-  GraphSnapshot,
-  LegendSummary,
-  NodeData,
-} from "@invariantcontinuum/graph/react";
+import { useEffect, useRef, useMemo, useCallback } from "react";
 import { useAuth } from "react-oidc-context";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import { useGraphStore } from "@/stores/graph";
 import { useUIStore } from "@/stores/ui";
 import type { ModalName } from "@/stores/ui";
-import { getGraphTheme } from "@/lib/graph-theme";
 import { useThemeStore } from "@/stores/theme";
+import { darkStylesheet, lightStylesheet } from "./cytoscape-styles";
 import { SignalsOverlay } from "./SignalsOverlay";
 import { DynamicLegend } from "./DynamicLegend";
 import { ViolationBadge } from "./ViolationBadge";
 
-const EMPTY_SNAPSHOT: GraphSnapshot = {
-  nodes: [],
-  edges: [],
-  meta: { node_count: 0, edge_count: 0 },
-};
-const DEFAULT_REPO_URL = "https://github.com/curl/curl.git";
+import type cytoscape from "cytoscape";
+type Core = cytoscape.Core;
+type ElementDefinition = cytoscape.ElementDefinition;
 
-// The graph service currently returns Cytoscape-style wrapped elements
-// ({nodes:[{data:{id,...}}], edges:[{data:{id,source,target,...}}]}).
-// The @invariantcontinuum/graph React component expects flat elements
-// ({nodes:[{id,...}], edges:[{id,source,target,...}]}). Normalize here.
-type RawElement = { data?: Record<string, unknown> } & Record<string, unknown>;
-type RawSnapshot = {
+// Raw API response shape (Cytoscape-style wrapped elements)
+interface RawElement {
+  data?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+interface RawSnapshot {
   nodes?: RawElement[];
   edges?: RawElement[];
   meta?: Record<string, unknown>;
-};
+}
 
-function flatten(raw: RawSnapshot | undefined): GraphSnapshot {
-  if (!raw) return EMPTY_SNAPSHOT;
-  const nodes = (raw.nodes ?? []).map((n) => (n.data ?? n)) as unknown as GraphSnapshot["nodes"];
-  const edges = (raw.edges ?? []).map((e) => (e.data ?? e)) as unknown as GraphSnapshot["edges"];
-  const meta = (raw.meta ?? {}) as unknown as GraphSnapshot["meta"];
-  return { nodes, edges, meta };
+const DEFAULT_REPO_URL = "https://github.com/curl/curl.git";
+
+// Lazy-load cytoscape + layout extension (no SSR)
+let cyPromise: Promise<typeof import("cytoscape")> | null = null;
+let registered = false;
+
+function loadCytoscape() {
+  if (!cyPromise) {
+    cyPromise = Promise.all([
+      import("cytoscape"),
+      import("cytoscape-cose-bilkent"),
+    ]).then(([cyMod, coseBilkentMod]) => {
+      if (!registered) {
+        const cy = cyMod.default;
+        const coseBilkent = coseBilkentMod.default;
+        cy.use(coseBilkent);
+        registered = true;
+      }
+      return cyMod;
+    });
+  }
+  return cyPromise;
+}
+
+/** Convert raw API response into Cytoscape ElementDefinition[] */
+function toElements(raw: RawSnapshot | undefined, filters: Set<string>): ElementDefinition[] {
+  if (!raw) return [];
+  const elements: ElementDefinition[] = [];
+  const nodeIds = new Set<string>();
+
+  for (const n of raw.nodes ?? []) {
+    const d = (n.data ?? n) as Record<string, unknown>;
+    const nodeType = String(d.type || "source");
+    if (!filters.has(nodeType)) continue;
+    const id = String(d.id);
+    nodeIds.add(id);
+    elements.push({
+      data: {
+        id,
+        name: d.name || d.label || id,
+        type: nodeType,
+        domain: d.domain || "",
+        status: d.status || "",
+        ...d,
+      },
+    });
+  }
+
+  for (const e of raw.edges ?? []) {
+    const d = (e.data ?? e) as Record<string, unknown>;
+    const source = String(d.source);
+    const target = String(d.target);
+    if (!nodeIds.has(source) || !nodeIds.has(target)) continue;
+    elements.push({
+      data: {
+        id: d.id ? String(d.id) : `${source}->${target}`,
+        source,
+        target,
+        type: d.type || "depends",
+        label: d.label || "",
+        weight: d.weight ?? 1,
+      },
+    });
+  }
+
+  return elements;
 }
 
 export function GraphCanvas() {
   const auth = useAuth();
   const token = auth.user?.access_token;
-  const [legend, setLegend] = useState<LegendSummary | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const cyRef = useRef<Core | null>(null);
 
   const themeMode = useThemeStore((s) => s.theme);
-  const graphTheme = useMemo(() => getGraphTheme(themeMode), [themeMode]);
+  const stylesheet = useMemo(
+    () => (themeMode === "light" ? lightStylesheet : darkStylesheet),
+    [themeMode],
+  );
 
   const canvasCleared = useGraphStore((s) => s.canvasCleared);
   const setStats = useGraphStore((s) => s.setStats);
   const selectNode = useGraphStore((s) => s.selectNode);
   const filters = useGraphStore((s) => s.filters);
-  const layout = useGraphStore((s) => s.layout);
   const openModal = useUIStore((s) => s.openModal);
   const setDefaultRepoUrl = useUIStore((s) => s.setDefaultRepoUrl);
 
@@ -66,26 +120,100 @@ export function GraphCanvas() {
     refetchOnWindowFocus: false,
   });
 
-  // Flatten the cytoscape-style wrapper once per refetch.
-  const data = useMemo(() => flatten(rawData), [rawData]);
+  const elements = useMemo(
+    () => (canvasCleared ? [] : toElements(rawData, filters.types)),
+    [rawData, canvasCleared, filters.types],
+  );
 
-  // Auto-open SourcesModal with curl/curl prefilled when the graph is empty.
+  // Auto-open SourcesModal when graph is empty
   useEffect(() => {
     if (!rawData) return;
-    if (data.nodes.length === 0) {
+    const nodeCount = (rawData.nodes ?? []).length;
+    if (nodeCount === 0) {
       setDefaultRepoUrl(DEFAULT_REPO_URL);
       openModal("sources" as ModalName);
     }
-  }, [rawData, data, openModal, setDefaultRepoUrl]);
+  }, [rawData, openModal, setDefaultRepoUrl]);
 
-  const effective = canvasCleared ? EMPTY_SNAPSHOT : data;
+  // Node tap handler (stable ref)
+  const handleNodeTap = useCallback(
+    (evt: { target: { data: () => Record<string, unknown> } }) => {
+      const d = evt.target.data();
+      selectNode(String(d.id), d);
+    },
+    [selectNode],
+  );
 
-  const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-  const gatewayHost =
-    window.location.hostname === "localhost"
-      ? `${window.location.hostname}:8180`
-      : `substrate.${window.location.hostname.split(".").slice(-2).join(".")}`;
-  const wsUrl = import.meta.env.VITE_WS_URL || `${proto}//${gatewayHost}`;
+  const handleBgTap = useCallback(
+    (evt: { target: Core }) => {
+      if (evt.target === cyRef.current) {
+        selectNode(null);
+      }
+    },
+    [selectNode],
+  );
+
+  // Initialize Cytoscape
+  useEffect(() => {
+    if (!containerRef.current) return;
+    let destroyed = false;
+
+    loadCytoscape().then((cyMod) => {
+      if (destroyed || !containerRef.current) return;
+
+      const cy = cyMod.default({
+        container: containerRef.current,
+        elements,
+        style: stylesheet,
+        minZoom: 0.2,
+        maxZoom: 3.0,
+        wheelSensitivity: 0.3,
+      });
+
+      cyRef.current = cy;
+
+      cy.on("tap", "node", handleNodeTap as unknown as cytoscape.EventHandler);
+      cy.on("tap", handleBgTap as unknown as cytoscape.EventHandler);
+
+      if (elements.length > 0) {
+        cy.layout({
+          name: "cose-bilkent",
+          animate: "end" as unknown as boolean,
+          animationDuration: 400,
+          nodeRepulsion: 8000,
+          idealEdgeLength: 120,
+          gravity: 0.2,
+          numIter: 2500,
+        } as cytoscape.LayoutOptions).run();
+      }
+
+      // Report stats after layout
+      const violationCount = cy.nodes("[status='violation']").length;
+      setStats({
+        nodeCount: cy.nodes().length,
+        edgeCount: cy.edges().length,
+        violationCount,
+        lastUpdated: new Date().toISOString(),
+      });
+    });
+
+    return () => {
+      destroyed = true;
+      if (cyRef.current) {
+        cyRef.current.destroy();
+        cyRef.current = null;
+      }
+    };
+    // Only re-init when elements or stylesheet fundamentally change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [elements, stylesheet]);
+
+  // Theme switching without full re-init
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy) return;
+    cy.style().fromJson(stylesheet).update();
+  }, [stylesheet]);
 
   return (
     <div
@@ -104,23 +232,10 @@ export function GraphCanvas() {
           backdropFilter: "blur(12px)",
         }}
       >
-        <Graph
-          snapshot={effective}
-          wsUrl={wsUrl}
-          authToken={token}
-          theme={graphTheme as unknown as Record<string, unknown>}
-          layout={layout}
-          filter={{ types: Array.from(filters.types) }}
-          onNodeClick={(node: NodeData) =>
-            selectNode(node.id, node as unknown as Record<string, unknown>)
-          }
-          onStatsChange={setStats}
-          onLegendChange={setLegend}
-          className="w-full h-full"
-        />
+        <div ref={containerRef} className="w-full h-full" />
         <SignalsOverlay />
         <ViolationBadge />
-        <DynamicLegend legend={legend} />
+        <DynamicLegend />
       </div>
     </div>
   );

@@ -11,3 +11,9 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+declare module "cytoscape-cose-bilkent" {
+  import type { Core, Ext } from "cytoscape";
+  const ext: (cytoscape: (fn: Ext) => void) => void;
+  export default ext;
+}
