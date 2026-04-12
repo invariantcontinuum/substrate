@@ -19,6 +19,8 @@ interface UIState {
   closeModal: () => void;
   toggleSidebar: () => void;
   setSidebarOpen: (open: boolean) => void;
+  defaultRepoUrl: string | null;
+  setDefaultRepoUrl: (url: string | null) => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -28,4 +30,6 @@ export const useUIStore = create<UIState>((set) => ({
   closeModal: () => set({ activeModal: null }),
   toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
   setSidebarOpen: (sidebarOpen) => set({ sidebarOpen }),
+  defaultRepoUrl: null,
+  setDefaultRepoUrl: (defaultRepoUrl) => set({ defaultRepoUrl }),
 }));

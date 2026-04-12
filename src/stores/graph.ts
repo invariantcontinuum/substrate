@@ -35,6 +35,9 @@ interface GraphState {
   syncProgress: { done: number; total: number } | null;
   setSyncProgress: (progress: { done: number; total: number } | null) => void;
 
+  canvasCleared: boolean;
+  setCanvasCleared: (v: boolean) => void;
+
   clearCanvas: () => void;
 }
 
@@ -73,6 +76,9 @@ export const useGraphStore = create<GraphState>((set) => ({
   syncProgress: null,
   setSyncProgress: (syncProgress) => set({ syncProgress }),
 
+  canvasCleared: false,
+  setCanvasCleared: (canvasCleared) => set({ canvasCleared }),
+
   clearCanvas: () =>
     set({
       selectedNodeId: null,
@@ -80,5 +86,6 @@ export const useGraphStore = create<GraphState>((set) => ({
       stats: { nodeCount: 0, edgeCount: 0, violationCount: 0, lastUpdated: "" },
       searchQuery: "",
       syncProgress: null,
+      canvasCleared: true,
     }),
 }));
