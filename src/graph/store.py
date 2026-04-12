@@ -1,4 +1,5 @@
 import json
+import time
 import structlog
 import asyncpg
 from dataclasses import dataclass, field
@@ -103,6 +104,9 @@ async def get_full_snapshot() -> GraphSnapshot:
     if not _pool:
         raise RuntimeError("Database not connected")
 
+    logger.info("snapshot_query_start")
+    start = time.monotonic()
+
     async with _pool.acquire() as conn:
         rows = await conn.fetch(
             """
@@ -156,6 +160,10 @@ async def get_full_snapshot() -> GraphSnapshot:
         except Exception as e:
             logger.warning("age_edge_query_failed", error=str(e))
 
+    elapsed = time.monotonic() - start
+    logger.info("snapshot_fetched", node_count=len(nodes), edge_count=len(edges),
+                duration_ms=round(elapsed * 1000))
+
     return GraphSnapshot(
         nodes=nodes,
         edges=edges,
@@ -166,6 +174,8 @@ async def get_full_snapshot() -> GraphSnapshot:
 async def get_node_with_neighbors(node_id: str) -> dict:
     if not _pool:
         raise RuntimeError("Database not connected")
+
+    logger.info("node_query_start", node_id=node_id)
 
     async with _pool.acquire() as conn:
         node = await conn.fetchrow(
@@ -180,6 +190,7 @@ async def get_node_with_neighbors(node_id: str) -> dict:
         )
 
     if not node:
+        logger.info("node_not_found", node_id=node_id)
         return {}
 
     neighbors: list[dict] = []
@@ -201,6 +212,8 @@ async def get_node_with_neighbors(node_id: str) -> dict:
                     neighbors.append({"id": str(nf), "type": str(rt), "weight": float(w)})
         except Exception as e:
             logger.warning("age_neighbor_query_failed", error=str(e))
+
+    logger.info("node_found", node_id=node_id, neighbor_count=len(neighbors))
 
     return {
         "node": {
@@ -225,6 +238,8 @@ async def get_stats() -> dict:
     if not _pool:
         raise RuntimeError("Database not connected")
 
+    logger.info("stats_query_start")
+
     async with _pool.acquire() as conn:
         type_rows = await conn.fetch(
             "SELECT type, count(*) AS cnt FROM file_embeddings GROUP BY type"
@@ -248,6 +263,9 @@ async def get_stats() -> dict:
         except Exception as e:
             logger.warning("age_stats_query_failed", error=str(e))
 
+    logger.info("stats_fetched", total_nodes=total_nodes, total_edges=total_edges,
+                types=len(nodes_by_type))
+
     return {
         "nodes_by_type": nodes_by_type,
         "total_nodes": total_nodes,
@@ -259,6 +277,10 @@ async def search(query_embedding: list[float], limit: int = 10,
                  type_filter: str = "", domain_filter: str = "") -> list[dict]:
     if not _pool:
         raise RuntimeError("Database not connected")
+
+    logger.info("search_start", limit=limit, type_filter=type_filter or None,
+                domain_filter=domain_filter or None)
+    start = time.monotonic()
 
     conditions = []
     args: list = [str(query_embedding), limit]
@@ -286,7 +308,7 @@ async def search(query_embedding: list[float], limit: int = 10,
             *args,
         )
 
-    return [
+    results = [
         {
             "id": r["id"],
             "file_path": r["file_path"],
@@ -301,10 +323,22 @@ async def search(query_embedding: list[float], limit: int = 10,
         for r in rows
     ]
 
+    elapsed = time.monotonic() - start
+    distance_range = (
+        (round(rows[0]["distance"], 4), round(rows[-1]["distance"], 4))
+        if rows else None
+    )
+    logger.info("search_complete", result_count=len(results),
+                distance_range=distance_range, duration_ms=round(elapsed * 1000))
+
+    return results
+
 
 async def purge_all() -> None:
     if not _pool:
         raise RuntimeError("Database not connected")
+
+    logger.info("purge_start")
 
     async with _pool.acquire() as conn:
         await conn.execute("DELETE FROM content_chunks")
