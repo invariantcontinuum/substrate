@@ -26,6 +26,8 @@ float sdf_barrel(vec2 p) {
 }
 
 void main() {
+    // Shape dispatch: 0=circle 1=diamond 2=square 3=hexagon 4=triangle
+    // 5=octagon 6=roundrectangle 7=barrel, fallback=circle.
     float d;
     if (v_shape < 0.5) d = sdf_circle(v_local);
     else if (v_shape < 1.5) d = sdf_diamond(v_local);
@@ -34,7 +36,8 @@ void main() {
     else if (v_shape < 4.5) d = sdf_triangle(v_local);
     else if (v_shape < 5.5) d = sdf_octagon(v_local);
     else if (v_shape < 6.5) d = sdf_roundrect(v_local, 0.25);
-    else                     d = sdf_barrel(v_local);
+    else if (v_shape < 7.5) d = sdf_barrel(v_local);
+    else                     d = sdf_circle(v_local);
     float aa = 2.0 / v_radius;
     float alpha = 1.0 - smoothstep(-aa, aa, d);
     if (alpha < 0.01) discard;
