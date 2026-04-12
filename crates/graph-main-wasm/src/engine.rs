@@ -68,6 +68,7 @@ pub struct RenderEngine {
     edge_count: usize,
     node_ids: Vec<String>,
     node_metadata: std::collections::HashMap<String, NodeMeta>,
+    edge_metadata: std::collections::HashMap<String, String>, // edge_id -> edge_type
 
     // Spatial index
     spatial: SpatialGrid,
@@ -126,6 +127,7 @@ impl RenderEngine {
             edge_count: 0,
             node_ids: Vec::new(),
             node_metadata: std::collections::HashMap::new(),
+            edge_metadata: std::collections::HashMap::new(),
             spatial: SpatialGrid::new(),
             hovered_idx: None,
             selected_idx: None,
@@ -183,6 +185,63 @@ impl RenderEngine {
         }
         self.buffers_dirty = true;
         Ok(())
+    }
+
+    pub fn set_edge_metadata(&mut self, ids_js: JsValue, types_js: JsValue) -> Result<(), JsValue> {
+        let ids: Vec<String> = serde_wasm_bindgen::from_value(ids_js)
+            .map_err(|e| JsValue::from_str(&format!("ids: {e}")))?;
+        let types: Vec<String> = serde_wasm_bindgen::from_value(types_js)
+            .map_err(|e| JsValue::from_str(&format!("types: {e}")))?;
+        self.edge_metadata.clear();
+        for (i, id) in ids.iter().enumerate() {
+            self.edge_metadata.insert(
+                id.clone(),
+                types.get(i).cloned().unwrap_or_else(|| "depends".into()),
+            );
+        }
+        Ok(())
+    }
+
+    pub fn get_legend(&self) -> JsValue {
+        use std::collections::HashMap;
+        let mut node_counts: HashMap<String, usize> = HashMap::new();
+        let mut edge_counts: HashMap<String, usize> = HashMap::new();
+
+        for meta in self.node_metadata.values() {
+            *node_counts.entry(meta.node_type.clone()).or_insert(0) += 1;
+        }
+        for etype in self.edge_metadata.values() {
+            *edge_counts.entry(etype.clone()).or_insert(0) += 1;
+        }
+
+        let mut summary = graph_core::graph::GraphStore::legend_summary_from_counts(
+            &node_counts,
+            &edge_counts,
+        );
+
+        // Populate node style fields from theme.
+        for entry in &mut summary.node_types {
+            let override_ = self.theme.nodes.by_type.get(&entry.type_key);
+            entry.shape = override_
+                .and_then(|o| o.shape.clone())
+                .unwrap_or_else(|| self.theme.nodes.default.shape.clone());
+            entry.color = override_
+                .and_then(|o| o.color.clone())
+                .unwrap_or_else(|| self.theme.nodes.default.color.clone());
+            entry.border_color = override_
+                .and_then(|o| o.border_color.clone())
+                .unwrap_or_else(|| self.theme.nodes.default.border_color.clone());
+        }
+        // Populate edge style fields from theme.
+        for entry in &mut summary.edge_types {
+            let override_ = self.theme.edges.by_type.get(&entry.type_key);
+            entry.color = override_
+                .and_then(|o| o.color.clone())
+                .unwrap_or_else(|| self.theme.edges.default.color.clone());
+            entry.dash = override_.and_then(|o| o.style.clone());
+        }
+
+        serde_wasm_bindgen::to_value(&summary).unwrap_or(JsValue::NULL)
     }
 
     // --- Configuration ---
