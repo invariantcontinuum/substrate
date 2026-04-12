@@ -30,100 +30,93 @@ export function MobileNav() {
 
   return (
     <>
-      {/* Backdrop */}
       <div
         className="fixed inset-0 z-40"
         style={{
           background: "var(--overlay-modal)",
-          backdropFilter: "blur(4px)",
+          backdropFilter: "blur(8px)",
           animation: "fadeIn 0.12s ease both",
         }}
         onClick={() => setSidebarOpen(false)}
       />
 
-      {/* Drawer */}
       <div
         className="fixed top-0 left-0 bottom-0 z-50 flex flex-col"
         style={{
-          width: "min(280px, 85vw)",
+          width: "min(300px, 85vw)",
           background: "var(--bg-surface)",
-          borderRight: "1px solid var(--border)",
+          boxShadow: "var(--neu-extruded)",
           animation: "slideInLeft 0.22s cubic-bezier(0.4, 0, 0.2, 1) both",
         }}
       >
-        {/* Header */}
         <div
-          className="flex items-center justify-between px-4 shrink-0"
-          style={{ height: 48, borderBottom: "1px solid var(--border)" }}
+          className="flex items-center justify-between px-5 shrink-0"
+          style={{ height: 60 }}
         >
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <div
               style={{
-                width: 26, height: 26, borderRadius: "var(--radius-sm)",
-                background: "var(--accent-soft)", border: "1px solid var(--accent-medium)",
+                width: 32, height: 32, borderRadius: "var(--radius-md)",
+                background: "var(--bg-surface)", boxShadow: "var(--neu-inset-deep)",
                 display: "flex", alignItems: "center", justifyContent: "center",
               }}
             >
-              <Brain size={13} color="var(--accent)" />
+              <Brain size={15} color="var(--accent)" />
             </div>
-            <span className="text-[13px] font-semibold" style={{ color: "var(--text-primary)" }}>
+            <span className="text-[14px] font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
               Substrate
             </span>
           </div>
           <button
             onClick={() => setSidebarOpen(false)}
+            className="neu-btn flex items-center justify-center"
             style={{
-              width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center",
-              borderRadius: "var(--radius-sm)", border: "none", cursor: "pointer",
-              background: "var(--bg-hover)", color: "var(--text-muted)",
+              width: 34, height: 34, borderRadius: "var(--radius-md)",
+              background: "var(--bg-surface)", color: "var(--text-muted)",
             }}
           >
             <X size={16} />
           </button>
         </div>
 
-        {/* Items */}
-        <div className="flex flex-col gap-px px-2 py-2 flex-1 overflow-y-auto">
+        <div className="flex flex-col gap-1 px-4 py-4 flex-1 overflow-y-auto">
           {items.map((it) => (
             <button
               key={it.label}
               onClick={() => go(it.modal)}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-md text-[13px] text-left"
+              className="neu-btn flex items-center gap-3 px-4 py-3 text-[13px] text-left font-medium"
               style={{
-                color: "var(--text-secondary)", border: "none",
-                background: "transparent", cursor: "pointer",
-                transition: "background 0.1s ease",
+                color: "var(--text-secondary)",
+                background: "var(--bg-surface)",
+                borderRadius: "var(--radius-lg)",
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-hover)")}
-              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
             >
-              <it.icon size={17} strokeWidth={1.5} />
+              <it.icon size={17} strokeWidth={1.6} />
               {it.label}
             </button>
           ))}
         </div>
 
-        {/* Footer */}
         <div
-          className="flex items-center gap-2 px-3 py-2.5 shrink-0"
-          style={{ borderTop: "1px solid var(--border)" }}
+          className="flex items-center gap-3 px-5 py-4 shrink-0"
         >
           <button
             onClick={() => go("user")}
             style={{
-              width: 30, height: 30, borderRadius: "50%", border: "none",
-              background: "var(--accent-soft)", outline: "1px solid var(--accent-medium)",
-              cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+              width: 36, height: 36, borderRadius: "50%",
+              background: "var(--bg-surface)", boxShadow: "var(--neu-extruded-sm)",
+              display: "flex", alignItems: "center", justifyContent: "center",
             }}
           >
-            <span style={{ fontSize: 11, color: "var(--accent-text)", fontWeight: 600 }}>{initial}</span>
+            <span style={{ fontSize: 13, color: "var(--accent)", fontWeight: 700, fontFamily: "var(--font-display)" }}>{initial}</span>
           </button>
           <div className="flex-1" />
           <button
             onClick={() => go("settings")}
+            className="neu-btn flex items-center justify-center"
             style={{
-              width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center",
-              border: "none", background: "transparent", cursor: "pointer",
+              width: 36, height: 36, borderRadius: "var(--radius-md)",
+              background: "var(--bg-surface)",
             }}
           >
             <Settings size={16} color="var(--text-muted)" />

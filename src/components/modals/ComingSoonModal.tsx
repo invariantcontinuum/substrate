@@ -14,18 +14,18 @@ export function ComingSoonModal({ name }: { name: string }) {
 
   return (
     <Modal open={activeModal === name} onClose={closeModal} title={title} maxWidth={360}>
-      <div className="flex flex-col items-center gap-4 py-8 text-center">
+      <div className="flex flex-col items-center gap-6 py-10 text-center">
         <div
-          className="w-12 h-12 rounded-xl flex items-center justify-center"
-          style={{ background: "rgba(99,102,241,0.1)", border: "1px solid rgba(99,102,241,0.2)" }}
+          className="w-14 h-14 rounded-2xl flex items-center justify-center float-anim"
+          style={{ background: "var(--bg-surface)", boxShadow: "var(--neu-extruded)" }}
         >
-          <span style={{ color: "#6366f1", fontSize: 20 }}>&#x2692;</span>
+          <span style={{ color: "var(--accent)", fontSize: 22 }}>&#x2692;</span>
         </div>
         <div>
-          <div className="text-[14px] font-semibold mb-1" style={{ color: "var(--text-primary)" }}>
+          <div className="text-[15px] font-bold mb-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
             Coming Soon
           </div>
-          <div className="text-[12px]" style={{ color: "var(--text-muted)", maxWidth: 260 }}>
+          <div className="text-[12px] leading-relaxed" style={{ color: "var(--text-muted)", maxWidth: 260 }}>
             {DESCRIPTIONS[name] || "This feature is under development."}
           </div>
         </div>

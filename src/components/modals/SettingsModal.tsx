@@ -11,51 +11,59 @@ export function SettingsModal() {
 
   return (
     <Modal open={activeModal === "settings"} onClose={closeModal} title="Settings">
-      <div className="flex flex-col gap-5">
-        {/* Theme */}
+      <div className="flex flex-col gap-7">
         <div>
-          <div className="text-[10px] uppercase tracking-wider mb-2 font-medium" style={{ color: "var(--text-muted)" }}>
+          <div className="text-[10px] uppercase tracking-wider mb-3 font-semibold" style={{ color: "var(--text-muted)", fontFamily: "var(--font-display)" }}>
             Theme
           </div>
-          <div className="flex gap-2">
-            {(["dark", "light"] as const).map((t) => (
-              <button
-                key={t}
-                onClick={() => { if (theme !== t) toggleTheme(); }}
-                className="flex items-center gap-2 px-3 py-2 rounded-lg text-[12px] transition-all"
-                style={{
-                  background: theme === t ? "rgba(99,102,241,0.1)" : "rgba(255,255,255,0.03)",
-                  border: `1px solid ${theme === t ? "rgba(99,102,241,0.2)" : "rgba(255,255,255,0.06)"}`,
-                  color: theme === t ? "#a5b4fc" : "var(--text-muted)",
-                }}
-              >
-                {t === "dark" ? <Moon size={14} /> : <Sun size={14} />}
-                {t.charAt(0).toUpperCase() + t.slice(1)}
-              </button>
-            ))}
+          <div className="flex gap-3">
+            {(["dark", "light"] as const).map((t) => {
+              const active = theme === t;
+              return (
+                <button
+                  key={t}
+                  onClick={() => { if (!active) toggleTheme(); }}
+                  className="flex items-center gap-2.5 px-5 py-3 text-[12px] font-medium"
+                  style={{
+                    background: "var(--bg-surface)",
+                    borderRadius: "var(--radius-lg)",
+                    boxShadow: active ? "var(--neu-inset)" : "var(--neu-extruded-sm)",
+                    color: active ? "var(--accent)" : "var(--text-muted)",
+                    transition: "all 0.3s ease-out",
+                  }}
+                >
+                  {t === "dark" ? <Moon size={15} /> : <Sun size={15} />}
+                  {t.charAt(0).toUpperCase() + t.slice(1)}
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        {/* Layout */}
         <div>
-          <div className="text-[10px] uppercase tracking-wider mb-2 font-medium" style={{ color: "var(--text-muted)" }}>
+          <div className="text-[10px] uppercase tracking-wider mb-3 font-semibold" style={{ color: "var(--text-muted)", fontFamily: "var(--font-display)" }}>
             Graph Layout
           </div>
-          <div className="flex gap-2">
-            {([["force", "Force"], ["hierarchical", "Hierarchy"]] as const).map(([val, label]) => (
-              <button
-                key={val}
-                onClick={() => setLayout(val as "force" | "hierarchical")}
-                className="px-3 py-2 rounded-lg text-[11px] transition-all"
-                style={{
-                  background: layout === val ? "rgba(99,102,241,0.1)" : "rgba(255,255,255,0.03)",
-                  border: `1px solid ${layout === val ? "rgba(99,102,241,0.2)" : "rgba(255,255,255,0.06)"}`,
-                  color: layout === val ? "#a5b4fc" : "var(--text-muted)",
-                }}
-              >
-                {label}
-              </button>
-            ))}
+          <div className="flex gap-3">
+            {([["force", "Force"], ["hierarchical", "Hierarchy"]] as const).map(([val, label]) => {
+              const active = layout === val;
+              return (
+                <button
+                  key={val}
+                  onClick={() => setLayout(val as "force" | "hierarchical")}
+                  className="px-5 py-3 text-[11px] font-medium"
+                  style={{
+                    background: "var(--bg-surface)",
+                    borderRadius: "var(--radius-lg)",
+                    boxShadow: active ? "var(--neu-inset)" : "var(--neu-extruded-sm)",
+                    color: active ? "var(--accent)" : "var(--text-muted)",
+                    transition: "all 0.3s ease-out",
+                  }}
+                >
+                  {label}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>

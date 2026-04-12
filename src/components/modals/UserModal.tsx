@@ -14,29 +14,36 @@ export function UserModal() {
 
   return (
     <Modal open={activeModal === "user"} onClose={closeModal} title="Account" maxWidth={360}>
-      <div className="flex flex-col items-center gap-4 py-4">
+      <div className="flex flex-col items-center gap-6 py-6">
         <div
-          className="w-16 h-16 rounded-full flex items-center justify-center"
-          style={{ background: "rgba(99,102,241,0.2)", border: "2px solid rgba(99,102,241,0.3)" }}
+          className="w-[72px] h-[72px] rounded-full flex items-center justify-center"
+          style={{ background: "var(--bg-surface)", boxShadow: "var(--neu-extruded)" }}
         >
-          <span style={{ fontSize: 24, color: "#a5b4fc", fontWeight: 700 }}>
+          <span style={{ fontSize: 26, color: "var(--accent)", fontWeight: 800, fontFamily: "var(--font-display)" }}>
             {username.charAt(0).toUpperCase()}
           </span>
         </div>
         <div className="text-center">
-          <div className="text-[14px] font-semibold" style={{ color: "var(--text-primary)" }}>{username}</div>
-          {email && <div className="text-[11px] mt-0.5" style={{ color: "var(--text-muted)" }}>{email}</div>}
+          <div className="text-[15px] font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>{username}</div>
+          {email && <div className="text-[11px] mt-1.5" style={{ color: "var(--text-muted)" }}>{email}</div>}
           <div
-            className="inline-block mt-2 px-2 py-0.5 rounded text-[10px] font-medium"
-            style={{ background: "rgba(99,102,241,0.1)", color: "#a5b4fc", border: "1px solid rgba(99,102,241,0.2)" }}
+            className="inline-block mt-3 px-3 py-1.5 text-[10px] font-semibold"
+            style={{
+              background: "var(--bg-surface)", boxShadow: "var(--neu-inset-sm)",
+              borderRadius: "var(--radius-md)", color: "var(--accent)",
+            }}
           >
             {displayRole}
           </div>
         </div>
         <button
           onClick={() => { closeModal(); auth.signoutRedirect(); }}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg text-[12px] font-medium mt-2 transition-colors"
-          style={{ background: "rgba(239,68,68,0.08)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.15)" }}
+          className="flex items-center gap-2 px-5 py-3 text-[12px] font-semibold mt-2"
+          style={{
+            background: "var(--bg-surface)", borderRadius: "var(--radius-lg)",
+            color: "var(--error)", boxShadow: "var(--neu-extruded-sm)",
+            transition: "all 0.3s ease-out",
+          }}
         >
           <LogOut size={14} />
           Sign Out

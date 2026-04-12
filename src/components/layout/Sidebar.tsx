@@ -27,7 +27,7 @@ const items: NavItem[] = [
   { icon: Settings,  label: "Settings",   modal: "settings" },
 ];
 
-const SZ = 36;
+const SZ = 42;
 
 export function Sidebar() {
   const open = useUIStore((s) => s.openModal);
@@ -37,12 +37,12 @@ export function Sidebar() {
 
   return (
     <nav
-      className="flex flex-col items-center py-2 gap-px shrink-0"
+      className="flex flex-col items-center py-4 gap-1.5 shrink-0"
       style={{
         width: "var(--sidebar-width)",
         minWidth: "var(--sidebar-width)",
         background: "var(--bg-surface)",
-        borderRight: "1px solid var(--border)",
+        boxShadow: "var(--neu-extruded-sm)",
       }}
     >
       {items.map((it) => {
@@ -61,27 +61,28 @@ export function Sidebar() {
             <div
               style={{
                 position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)",
-                width: 3, borderRadius: "0 2px 2px 0",
-                height: isActive ? 18 : isHov ? 12 : 0,
+                width: 3, borderRadius: "0 3px 3px 0",
+                height: isActive ? 22 : isHov ? 16 : 0,
                 background: "var(--accent)",
-                transition: "height 0.15s ease",
-                boxShadow: isActive || isHov ? "0 0 6px var(--accent-glow)" : "none",
+                transition: "height 0.2s ease-out",
+                boxShadow: isActive || isHov ? "0 0 8px var(--accent-glow)" : "none",
               }}
             />
             <button
               onClick={() => it.modal !== "navigate" && open(it.modal)}
+              className={isActive ? "neu-inset-sm" : isHov ? "neu-extruded-sm" : ""}
               style={{
                 width: SZ, height: SZ, display: "flex", alignItems: "center", justifyContent: "center",
-                borderRadius: "var(--radius-md)", border: "none", cursor: "pointer",
-                background: isActive ? "var(--accent-soft)" : isHov ? "var(--bg-hover)" : "transparent",
-                outline: isActive ? "1px solid var(--accent-medium)" : "none",
-                transition: "all 0.12s ease",
+                borderRadius: "var(--radius-md)",
+                background: isActive ? "var(--bg-surface)" : "var(--bg-surface)",
+                boxShadow: isActive ? "var(--neu-inset-sm)" : isHov ? "var(--neu-extruded-sm)" : "none",
+                transition: "all 0.3s ease-out",
               }}
             >
               <it.icon
-                size={15}
-                strokeWidth={isActive ? 2 : 1.5}
-                color={isActive ? "var(--accent-text)" : isHov ? "var(--text-secondary)" : "var(--text-muted)"}
+                size={17}
+                strokeWidth={isActive ? 2.2 : 1.6}
+                color={isActive ? "var(--accent)" : isHov ? "var(--text-primary)" : "var(--text-muted)"}
               />
             </button>
 
@@ -89,20 +90,20 @@ export function Sidebar() {
             {isHov && (
               <div
                 style={{
-                  position: "absolute", left: SZ + 8, top: "50%", transform: "translateY(-50%)",
+                  position: "absolute", left: SZ + 12, top: "50%", transform: "translateY(-50%)",
                   pointerEvents: "none", zIndex: 100, display: "flex", alignItems: "center", gap: 6,
-                  animation: "fadeIn 0.1s ease",
+                  animation: "fadeIn 0.12s ease",
                 }}
               >
                 <div
                   style={{
-                    background: "var(--bg-elevated)", border: "1px solid var(--border)",
-                    borderRadius: "var(--radius-sm)", padding: "3px 8px",
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.4)", whiteSpace: "nowrap",
-                    display: "flex", alignItems: "center", gap: 5,
+                    background: "var(--bg-surface)",
+                    borderRadius: "var(--radius-md)", padding: "6px 12px",
+                    boxShadow: "var(--neu-extruded-sm)", whiteSpace: "nowrap",
+                    display: "flex", alignItems: "center", gap: 6,
                   }}
                 >
-                  <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-primary)" }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
                     {it.label}
                   </span>
                   {coming && (
@@ -110,7 +111,7 @@ export function Sidebar() {
                       style={{
                         fontSize: 8, fontWeight: 700, textTransform: "uppercase",
                         color: "var(--warning-text)", background: "var(--warning-soft)",
-                        padding: "1px 4px", borderRadius: 3, letterSpacing: "0.04em",
+                        padding: "2px 5px", borderRadius: 6, letterSpacing: "0.04em",
                         fontFamily: "var(--font-mono)",
                       }}
                     >
@@ -128,35 +129,40 @@ export function Sidebar() {
 
       {/* User avatar */}
       <div
-        className="relative flex items-center"
+        className="relative flex items-center mb-2"
         onMouseEnter={() => setHov("__u")}
         onMouseLeave={() => setHov(null)}
       >
         <button
           onClick={() => open("user")}
           style={{
-            width: SZ, height: SZ, borderRadius: "50%", border: "none",
-            background: hov === "__u" ? "var(--accent-medium)" : "var(--accent-soft)",
-            outline: "1px solid var(--accent-medium)", cursor: "pointer",
+            width: SZ, height: SZ, borderRadius: "50%",
+            background: hov === "__u" ? "var(--accent)" : "var(--bg-surface)",
+            boxShadow: hov === "__u" ? "var(--neu-extruded)" : "var(--neu-extruded-sm)",
             display: "flex", alignItems: "center", justifyContent: "center",
-            transition: "all 0.12s ease",
+            transition: "all 0.3s ease-out",
           }}
         >
-          <span style={{ fontSize: 11, color: "var(--accent-text)", fontWeight: 600 }}>{initial}</span>
+          <span style={{
+            fontSize: 13,
+            color: hov === "__u" ? "#fff" : "var(--accent)",
+            fontWeight: 700,
+            fontFamily: "var(--font-display)",
+          }}>{initial}</span>
         </button>
         {hov === "__u" && (
           <div
             style={{
-              position: "absolute", left: SZ + 8, top: "50%", transform: "translateY(-50%)",
-              pointerEvents: "none", zIndex: 100, animation: "fadeIn 0.1s ease",
+              position: "absolute", left: SZ + 12, top: "50%", transform: "translateY(-50%)",
+              pointerEvents: "none", zIndex: 100, animation: "fadeIn 0.12s ease",
             }}
           >
             <div style={{
-              background: "var(--bg-elevated)", border: "1px solid var(--border)",
-              borderRadius: "var(--radius-sm)", padding: "3px 8px",
-              boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
+              background: "var(--bg-surface)",
+              borderRadius: "var(--radius-md)", padding: "6px 12px",
+              boxShadow: "var(--neu-extruded-sm)",
             }}>
-              <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-primary)" }}>Account</span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>Account</span>
             </div>
           </div>
         )}

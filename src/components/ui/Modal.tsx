@@ -1,5 +1,6 @@
 import { useEffect, useCallback } from "react";
 import { X } from "lucide-react";
+import { useResponsive } from "@/hooks/useResponsive";
 
 interface ModalProps {
   open: boolean;
@@ -10,6 +11,8 @@ interface ModalProps {
 }
 
 export function Modal({ open, onClose, title, children, maxWidth = 480 }: ModalProps) {
+  const { isDesktop } = useResponsive();
+
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -32,13 +35,13 @@ export function Modal({ open, onClose, title, children, maxWidth = 480 }: ModalP
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start sm:items-center justify-center"
+      className="fixed inset-0 z-50 flex justify-center"
       style={{
         background: "var(--overlay-modal)",
         backdropFilter: "blur(var(--overlay-blur))",
         WebkitBackdropFilter: "blur(var(--overlay-blur))",
         animation: "fadeIn 0.15s ease-out both",
-        padding: "0",
+        alignItems: isDesktop ? "center" : "flex-end",
       }}
       onClick={onClose}
     >
@@ -47,49 +50,55 @@ export function Modal({ open, onClose, title, children, maxWidth = 480 }: ModalP
         style={{
           width: "100%",
           maxWidth,
-          height: "100%",
-          maxHeight: "100dvh",
+          ...(isDesktop
+            ? {
+                maxHeight: "calc(100dvh - 120px)",
+                borderRadius: "var(--radius-container)",
+                boxShadow: "var(--neu-extruded-hover)",
+              }
+            : {
+                height: "100%",
+                maxHeight: "100dvh",
+                borderRadius: "var(--radius-container) var(--radius-container) 0 0",
+                boxShadow: "var(--neu-extruded)",
+              }),
           background: "var(--bg-surface)",
-          border: "none",
-          borderLeft: "1px solid var(--border)",
-          borderRight: "1px solid var(--border)",
-          boxShadow: "0 25px 50px rgba(0,0,0,0.5)",
           animation: "scaleIn 0.2s ease-out both",
         }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div
-          className="flex items-center justify-between px-4 sm:px-5 shrink-0"
+          className="flex items-center justify-between px-6 sm:px-7 shrink-0"
           style={{
-            height: 48,
-            minHeight: 48,
-            borderBottom: "1px solid var(--border)",
+            height: 60,
+            minHeight: 60,
           }}
         >
           <span
-            className="text-[13px] font-semibold tracking-tight"
-            style={{ color: "var(--text-primary)" }}
+            className="text-[14px] font-bold tracking-tight"
+            style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}
           >
             {title}
           </span>
           <button
             onClick={onClose}
-            className="flex items-center justify-center rounded-md transition-colors"
+            className="neu-btn flex items-center justify-center"
             style={{
-              width: 28,
-              height: 28,
+              width: 34,
+              height: 34,
               color: "var(--text-muted)",
-              background: "var(--bg-hover)",
+              background: "var(--bg-surface)",
+              borderRadius: "var(--radius-md)",
             }}
           >
-            <X size={14} />
+            <X size={15} />
           </button>
         </div>
 
         {/* Body */}
         <div
-          className="flex-1 overflow-y-auto px-4 sm:px-5 py-4"
+          className="flex-1 overflow-y-auto px-6 sm:px-7 pb-6"
           style={{ overscrollBehavior: "contain" }}
         >
           {children}

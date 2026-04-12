@@ -21,39 +21,45 @@ export function TopBar() {
 
   return (
     <header
-      className="flex items-center gap-2 px-2 sm:px-3 shrink-0"
+      className="flex items-center gap-3 px-4 sm:px-5 shrink-0"
       style={{
         height: "var(--topbar-height)",
         minHeight: "var(--topbar-height)",
-        borderBottom: "1px solid var(--border)",
         background: "var(--bg-surface)",
+        boxShadow: "var(--neu-extruded-sm)",
+        zIndex: 5,
+        position: "relative",
       }}
     >
       {/* Mobile hamburger */}
       {!isDesktop && (
         <button
           onClick={toggleSidebar}
-          className="flex items-center justify-center"
-          style={{ width: 32, height: 32, color: "var(--text-muted)" }}
+          className="neu-btn flex items-center justify-center"
+          style={{
+            width: 38, height: 38, color: "var(--text-muted)",
+            borderRadius: "var(--radius-md)", background: "var(--bg-surface)",
+          }}
         >
           <Menu size={18} />
         </button>
       )}
 
       {/* Logo */}
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-2.5">
         <div
           className="flex items-center justify-center"
           style={{
-            width: 22, height: 22, borderRadius: "var(--radius-sm)",
-            background: "var(--accent-soft)", border: "1px solid var(--accent-medium)",
+            width: 32, height: 32, borderRadius: "var(--radius-md)",
+            background: "var(--bg-surface)",
+            boxShadow: "var(--neu-inset-deep)",
           }}
         >
-          <Brain size={12} color="var(--accent)" />
+          <Brain size={16} color="var(--accent)" />
         </div>
         <span
-          className="text-[12px] font-semibold hidden sm:inline"
-          style={{ color: "var(--text-primary)", letterSpacing: "-0.02em" }}
+          className="text-[13px] font-bold hidden sm:inline font-display"
+          style={{ color: "var(--text-primary)", letterSpacing: "-0.02em", fontFamily: "var(--font-display)" }}
         >
           Substrate
         </span>
@@ -63,14 +69,14 @@ export function TopBar() {
 
       {/* Search */}
       <div
-        className="flex items-center gap-1.5 px-2 py-1 rounded-md"
+        className="flex items-center gap-2 px-3 py-2 rounded-2xl"
         style={{
-          width: isDesktop ? 220 : 140,
-          background: "var(--bg-hover)",
-          border: "1px solid var(--border)",
+          width: isDesktop ? 260 : 170,
+          background: "var(--bg-surface)",
+          boxShadow: "var(--neu-inset)",
         }}
       >
-        <Search size={11} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
+        <Search size={13} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
         <input
           type="text"
           placeholder="Search..."
@@ -78,7 +84,7 @@ export function TopBar() {
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && go()}
           disabled={!loaded}
-          className="flex-1 text-[10px] bg-transparent outline-none min-w-0"
+          className="flex-1 text-[11px] bg-transparent outline-none min-w-0"
           style={{
             color: "var(--text-primary)",
             fontFamily: "var(--font-mono)",
@@ -87,23 +93,22 @@ export function TopBar() {
         />
       </div>
 
-      <div className="w-px h-3 hidden sm:block" style={{ background: "var(--border)" }} />
-
       {/* Stats */}
       <div
-        className="items-center gap-2 text-[10px] hidden sm:flex"
+        className="items-center gap-3 text-[10px] hidden sm:flex"
         style={{ fontFamily: "var(--font-mono)" }}
       >
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5">
           <div
             style={{
-              width: 4, height: 4, borderRadius: "50%",
+              width: 6, height: 6, borderRadius: "50%",
               background: connectionStatus === "connected" ? "var(--success)"
                 : connectionStatus === "reconnecting" ? "var(--warning)" : "var(--error)",
-              boxShadow: connectionStatus === "connected" ? "0 0 6px var(--success)" : "none",
+              boxShadow: connectionStatus === "connected" ? "0 0 8px var(--success)" : "none",
             }}
           />
           <span style={{
+            fontWeight: 500,
             color: connectionStatus === "connected" ? "var(--success-text)"
               : connectionStatus === "reconnecting" ? "var(--warning-text)" : "var(--error-text)",
           }}>
@@ -111,13 +116,13 @@ export function TopBar() {
           </span>
         </div>
         <span style={{ color: "var(--text-muted)" }}>
-          <span style={{ color: "var(--accent-text)" }}>{stats.nodeCount}</span>n
+          <span style={{ color: "var(--accent-text)", fontWeight: 600 }}>{stats.nodeCount}</span>n
         </span>
         <span style={{ color: "var(--text-muted)" }}>
-          <span style={{ color: "var(--accent-text)" }}>{stats.edgeCount}</span>e
+          <span style={{ color: "var(--accent-text)", fontWeight: 600 }}>{stats.edgeCount}</span>e
         </span>
         {stats.violationCount > 0 && (
-          <span style={{ color: "var(--error-text)" }}>&#x2298;{stats.violationCount}</span>
+          <span style={{ color: "var(--error-text)", fontWeight: 600 }}>&#x2298;{stats.violationCount}</span>
         )}
       </div>
     </header>
