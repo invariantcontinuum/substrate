@@ -82,6 +82,11 @@ pub struct RenderEngine {
     last_mouse_x: f32,
     last_mouse_y: f32,
 
+    // Drag state
+    is_dragging_node: bool,
+    dragged_idx: Option<usize>,
+    pending_worker_messages: Vec<serde_json::Value>,
+
     // Animation
     start_time: f64,
     buffers_dirty: bool,
@@ -128,6 +133,9 @@ impl RenderEngine {
             is_panning: false,
             last_mouse_x: 0.0,
             last_mouse_y: 0.0,
+            is_dragging_node: false,
+            dragged_idx: None,
+            pending_worker_messages: Vec::new(),
             start_time: 0.0,
             buffers_dirty: true,
             needs_render: true,
@@ -245,6 +253,67 @@ impl RenderEngine {
         let factor = if delta > 0.0 { 0.9 } else { 1.1 };
         self.camera.zoom_at(factor, x, y);
         self.needs_render = true;
+    }
+
+    // --- Node drag ---
+
+    /// Start dragging the node at the given screen coordinates.
+    /// Returns the node id if a node was picked, otherwise None (caller should
+    /// fall back to pan).
+    pub fn handle_node_drag_start(&mut self, screen_x: f32, screen_y: f32) -> Option<String> {
+        let (wx, wy) = self.camera.screen_to_world(screen_x, screen_y);
+        let idx = self.hit_test_node(wx, wy)?;
+        self.is_dragging_node = true;
+        self.dragged_idx = Some(idx);
+        let node_id = self.node_ids.get(idx).cloned();
+        // Queue a pin_node message — the React wrapper will pump this to the worker.
+        self.pending_worker_messages.push(serde_json::json!({
+            "type": "pin_node",
+            "idx": idx,
+            "x": wx,
+            "y": wy,
+        }));
+        node_id
+    }
+
+    /// Update the currently-dragged node's position. No-op if no drag active.
+    pub fn handle_node_drag_move(&mut self, screen_x: f32, screen_y: f32) {
+        let Some(idx) = self.dragged_idx else { return; };
+        let (wx, wy) = self.camera.screen_to_world(screen_x, screen_y);
+        // Stride-4 positions buffer: x, y, radius_legacy, type_idx.
+        let base = idx * 4;
+        if base + 1 < self.positions.len() {
+            self.positions[base]     = wx;
+            self.positions[base + 1] = wy;
+        }
+        self.buffers_dirty = true;
+        self.needs_render = true;
+        self.pending_worker_messages.push(serde_json::json!({
+            "type": "pin_node",
+            "idx": idx,
+            "x": wx,
+            "y": wy,
+        }));
+    }
+
+    /// End the current drag. Queues an unpin message so the force layout reclaims
+    /// the node.
+    pub fn handle_node_drag_end(&mut self) {
+        if let Some(idx) = self.dragged_idx.take() {
+            self.pending_worker_messages.push(serde_json::json!({
+                "type": "unpin_node",
+                "idx": idx,
+            }));
+        }
+        self.is_dragging_node = false;
+    }
+
+    /// Return (and clear) pending worker messages queued by drag handlers.
+    /// The React wrapper calls this after each drag event and forwards the
+    /// results via `worker.postMessage`.
+    pub fn drain_worker_messages(&mut self) -> JsValue {
+        let msgs = std::mem::take(&mut self.pending_worker_messages);
+        serde_wasm_bindgen::to_value(&msgs).unwrap_or(JsValue::NULL)
     }
 
     // --- Main render frame ---
