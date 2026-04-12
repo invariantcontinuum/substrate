@@ -15,9 +15,72 @@ IMPORT_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     (".js .jsx .ts .tsx", re.compile(r"""(?:import\s+.*?from\s+['"]([^'"]+)['"]|require\s*\(\s*['"]([^'"]+)['"]\s*\))""")),
     (".go", re.compile(r'import\s+"([^"]+)"')),
     (".rs", re.compile(r"(?:use\s+(?:crate::)?([\w:]+)|mod\s+(\w+))")),
+    (".pl .pm", re.compile(r"""(?:use\s+([\w:]+)|require\s+['"]([^'"]+)['"])""")),
+    (".sh .bash", re.compile(r"""(?:source\s+['"]?([^'";\s]+)|\.(?:\s+)['"]?([^'";\s]+))""")),
+    (".cmake", re.compile(r"(?:include\s*\(\s*(\S+)\s*\)|find_package\s*\(\s*(\S+))")),
 ]
 
-PARSEABLE_EXTENSIONS = {".c", ".h", ".cpp", ".hpp", ".cc", ".py", ".go", ".rs", ".ts", ".tsx", ".js", ".jsx"}
+PARSEABLE_EXTENSIONS = {
+    ".c", ".h", ".cpp", ".hpp", ".cc",
+    ".py",
+    ".go",
+    ".rs",
+    ".ts", ".tsx", ".js", ".jsx",
+    ".pl", ".pm",
+    ".sh", ".bash",
+    ".cmake",
+}
+
+# Map file extensions (and special filenames) to semantic node types.
+# These types flow through the entire pipeline: Neo4j → API → WASM engine → theme.
+_EXT_TO_TYPE: dict[str, str] = {
+    # Source code
+    ".c": "source", ".h": "source", ".cpp": "source", ".hpp": "source", ".cc": "source",
+    ".py": "source", ".go": "source", ".rs": "source",
+    ".ts": "source", ".tsx": "source", ".js": "source", ".jsx": "source",
+    ".pl": "source", ".pm": "source",
+    ".java": "source", ".kt": "source", ".swift": "source", ".cs": "source",
+    ".rb": "source", ".php": "source", ".lua": "source", ".zig": "source",
+    ".m4": "source",
+    # Config / build
+    ".cmake": "config", ".toml": "config", ".yaml": "config", ".yml": "config",
+    ".json": "config", ".xml": "config", ".ini": "config", ".cfg": "config",
+    ".conf": "config", ".env": "config", ".properties": "config",
+    # Scripts / automation
+    ".sh": "script", ".bash": "script", ".zsh": "script", ".bat": "script",
+    ".ps1": "script", ".fish": "script",
+    # Documentation
+    ".md": "doc", ".rst": "doc", ".txt": "doc", ".adoc": "doc",
+    ".html": "doc", ".htm": "doc",
+    # Data / assets
+    ".csv": "data", ".tsv": "data", ".sql": "data",
+    ".png": "asset", ".jpg": "asset", ".jpeg": "asset", ".gif": "asset",
+    ".svg": "asset", ".ico": "asset", ".woff": "asset", ".woff2": "asset",
+}
+
+_NAME_TO_TYPE: dict[str, str] = {
+    "Makefile": "config", "Dockerfile": "config", "Vagrantfile": "config",
+    "CMakeLists.txt": "config", "Rakefile": "config", "Gemfile": "config",
+    ".gitignore": "config", ".gitattributes": "config", ".editorconfig": "config",
+    "LICENSE": "doc", "COPYING": "doc", "README": "doc", "CHANGELOG": "doc",
+}
+
+
+def classify_file_type(path: str) -> str:
+    """Classify a file path into a semantic node type for the knowledge graph."""
+    name = path.rsplit("/", 1)[-1]
+    # Check exact filename matches first (Makefile, Dockerfile, etc.)
+    if name in _NAME_TO_TYPE:
+        return _NAME_TO_TYPE[name]
+    # Check base name without extension for files like README.md → already caught by ext
+    base = name.split(".")[0]
+    if base in _NAME_TO_TYPE:
+        return _NAME_TO_TYPE[base]
+    # Check extension
+    ext = ""
+    if "." in name:
+        ext = "." + name.rsplit(".", 1)[-1].lower()
+    return _EXT_TO_TYPE.get(ext, "service")
 
 _client: httpx.AsyncClient | None = None
 
@@ -45,9 +108,10 @@ def parse_repo_tree(tree: list[dict], source: str = "github") -> list[NodeAffect
         if item["type"] != "blob":
             continue
         path = item["path"]
+        node_type = classify_file_type(path)
         nodes.append(
             NodeAffected(
-                id=path, name=path.rsplit("/", 1)[-1], type="service",
+                id=path, name=path.rsplit("/", 1)[-1], type=node_type,
                 action="add", domain=path.split("/")[0] if "/" in path else "",
                 meta={"source": source, "path": path},
             )
