@@ -21,15 +21,6 @@ EOSQL
 
 echo "✓ Created database: ${KC_DB_NAME} with user: ${KC_DB_USER}"
 
-# Create minio database and user (for future use)
-psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
-    CREATE USER ${MINIO_DB_USER:-minio} WITH PASSWORD '${MINIO_DB_PASSWORD:-changeme}';
-    CREATE DATABASE ${MINIO_DB_NAME:-minio} OWNER ${MINIO_DB_USER:-minio};
-    GRANT ALL PRIVILEGES ON DATABASE ${MINIO_DB_NAME:-minio} TO ${MINIO_DB_USER:-minio};
-EOSQL
-
-echo "✓ Created database: ${MINIO_DB_NAME:-minio} with user: ${MINIO_DB_USER:-minio}"
-
 # Create schema for n8n (n8n requires a specific schema)
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$N8N_DB_NAME" <<-EOSQL
     CREATE SCHEMA IF NOT EXISTS ${N8N_DB_NAME} AUTHORIZATION ${N8N_DB_USER};
@@ -46,7 +37,12 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     GRANT ALL PRIVILEGES ON DATABASE ${SUBSTRATE_INGESTION_DB_NAME} TO ${SUBSTRATE_INGESTION_DB_USER};
 EOSQL
 
-echo "✓ Created database: ${SUBSTRATE_INGESTION_DB_NAME} with user: ${SUBSTRATE_INGESTION_DB_USER}"
+# Enable pgvector on substrate_ingestion
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$SUBSTRATE_INGESTION_DB_NAME" <<-EOSQL
+    CREATE EXTENSION IF NOT EXISTS vector;
+EOSQL
+
+echo "✓ Created database: ${SUBSTRATE_INGESTION_DB_NAME} with user: ${SUBSTRATE_INGESTION_DB_USER} (pgvector enabled)"
 
 # ── Substrate Graph Database ──
 echo "Creating Substrate Graph database..."
@@ -56,4 +52,18 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     GRANT ALL PRIVILEGES ON DATABASE ${SUBSTRATE_GRAPH_DB_NAME} TO ${SUBSTRATE_GRAPH_DB_USER};
 EOSQL
 
-echo "✓ Created database: ${SUBSTRATE_GRAPH_DB_NAME} with user: ${SUBSTRATE_GRAPH_DB_USER}"
+# Enable AGE and pgvector on substrate_graph, create graph
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$SUBSTRATE_GRAPH_DB_NAME" <<-EOSQL
+    CREATE EXTENSION IF NOT EXISTS age;
+    CREATE EXTENSION IF NOT EXISTS vector;
+    LOAD 'age';
+    SET search_path = ag_catalog, "\$user", public;
+    SELECT create_graph('substrate');
+    GRANT USAGE ON SCHEMA ag_catalog TO ${SUBSTRATE_GRAPH_DB_USER};
+    GRANT SELECT ON ALL TABLES IN SCHEMA ag_catalog TO ${SUBSTRATE_GRAPH_DB_USER};
+    GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA ag_catalog TO ${SUBSTRATE_GRAPH_DB_USER};
+    ALTER DEFAULT PRIVILEGES IN SCHEMA ag_catalog GRANT SELECT ON TABLES TO ${SUBSTRATE_GRAPH_DB_USER};
+    ALTER DEFAULT PRIVILEGES IN SCHEMA ag_catalog GRANT EXECUTE ON FUNCTIONS TO ${SUBSTRATE_GRAPH_DB_USER};
+EOSQL
+
+echo "✓ Created database: ${SUBSTRATE_GRAPH_DB_NAME} with user: ${SUBSTRATE_GRAPH_DB_USER} (AGE + pgvector enabled, graph 'substrate' created)"
