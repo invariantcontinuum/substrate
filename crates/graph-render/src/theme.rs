@@ -28,6 +28,12 @@ pub struct NodeStyle {
     pub shape: String,
     #[serde(default = "default_node_size")]
     pub size: f32,
+    #[serde(rename = "halfWidth", default)]
+    pub half_width: Option<f32>,
+    #[serde(rename = "halfHeight", default)]
+    pub half_height: Option<f32>,
+    #[serde(rename = "cornerRadius", default)]
+    pub corner_radius: Option<f32>,
     #[serde(default = "default_color")]
     pub color: String,
     #[serde(rename = "borderWidth", default = "default_border_width")]
@@ -51,6 +57,12 @@ pub struct LabelStyle {
 pub struct NodeStyleOverride {
     pub shape: Option<String>,
     pub size: Option<f32>,
+    #[serde(rename = "halfWidth")]
+    pub half_width: Option<f32>,
+    #[serde(rename = "halfHeight")]
+    pub half_height: Option<f32>,
+    #[serde(rename = "cornerRadius")]
+    pub corner_radius: Option<f32>,
     pub color: Option<String>,
     #[serde(rename = "borderWidth")]
     pub border_width: Option<f32>,
@@ -290,5 +302,27 @@ mod tests {
         assert!(g < 0.01);
         assert!(b < 0.01);
         assert!((a - 1.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn parse_theme_with_nonuniform_sizing() {
+        let json = r##"{"background":"#0d0d12","nodes":{"default":{"shape":"roundrectangle","halfWidth":55,"halfHeight":19,"cornerRadius":0.25,"color":"#0f0f1f","borderColor":"#3b4199"},"byType":{"database":{"shape":"barrel","halfWidth":55,"halfHeight":19,"color":"#0a1a14"}},"byStatus":{}},"edges":{"default":{"color":"#21262d","width":1},"byType":{}}}"##;
+        let theme: ThemeConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(theme.nodes.default.shape, "roundrectangle");
+        assert_eq!(theme.nodes.default.half_width, Some(55.0));
+        assert_eq!(theme.nodes.default.half_height, Some(19.0));
+        assert_eq!(theme.nodes.default.corner_radius, Some(0.25));
+        let db = &theme.nodes.by_type["database"];
+        assert_eq!(db.shape.as_deref(), Some("barrel"));
+        assert_eq!(db.half_width, Some(55.0));
+    }
+
+    #[test]
+    fn legacy_size_still_works() {
+        let json = r##"{"background":"#000","nodes":{"default":{"shape":"circle","size":12,"color":"#888","borderWidth":1,"borderColor":"#333"},"byType":{},"byStatus":{}},"edges":{"default":{"color":"#333","width":1},"byType":{}}}"##;
+        let theme: ThemeConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(theme.nodes.default.size, 12.0);
+        assert_eq!(theme.nodes.default.half_width, None);
+        assert_eq!(theme.nodes.default.half_height, None);
     }
 }
