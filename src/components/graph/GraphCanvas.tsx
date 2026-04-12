@@ -179,7 +179,7 @@ export function GraphCanvas() {
         style: stylesheet,
         minZoom: 0.2,
         maxZoom: 3.0,
-        wheelSensitivity: 0.3,
+        wheelSensitivity: 1.0,
         userZoomingEnabled: true,
         userPanningEnabled: true,
         boxSelectionEnabled: false,
