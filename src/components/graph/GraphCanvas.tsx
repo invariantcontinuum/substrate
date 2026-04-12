@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Graph } from "@invariantcontinuum/graph/react";
 import type {
   GraphSnapshot,
@@ -22,6 +22,25 @@ const EMPTY_SNAPSHOT: GraphSnapshot = {
 };
 const DEFAULT_REPO_URL = "https://github.com/curl/curl.git";
 
+// The graph service currently returns Cytoscape-style wrapped elements
+// ({nodes:[{data:{id,...}}], edges:[{data:{id,source,target,...}}]}).
+// The @invariantcontinuum/graph React component expects flat elements
+// ({nodes:[{id,...}], edges:[{id,source,target,...}]}). Normalize here.
+type RawElement = { data?: Record<string, unknown> } & Record<string, unknown>;
+type RawSnapshot = {
+  nodes?: RawElement[];
+  edges?: RawElement[];
+  meta?: Record<string, unknown>;
+};
+
+function flatten(raw: RawSnapshot | undefined): GraphSnapshot {
+  if (!raw) return EMPTY_SNAPSHOT;
+  const nodes = (raw.nodes ?? []).map((n) => (n.data ?? n)) as unknown as GraphSnapshot["nodes"];
+  const edges = (raw.edges ?? []).map((e) => (e.data ?? e)) as unknown as GraphSnapshot["edges"];
+  const meta = (raw.meta ?? {}) as unknown as GraphSnapshot["meta"];
+  return { nodes, edges, meta };
+}
+
 export function GraphCanvas() {
   const auth = useAuth();
   const token = auth.user?.access_token;
@@ -35,23 +54,26 @@ export function GraphCanvas() {
   const openModal = useUIStore((s) => s.openModal);
   const setDefaultRepoUrl = useUIStore((s) => s.setDefaultRepoUrl);
 
-  const { data } = useQuery<GraphSnapshot>({
+  const { data: rawData } = useQuery<RawSnapshot>({
     queryKey: ["graph"],
-    queryFn: () => apiFetch<GraphSnapshot>("/api/graph", token),
+    queryFn: () => apiFetch<RawSnapshot>("/api/graph", token),
     enabled: !!token,
     refetchOnWindowFocus: false,
   });
 
+  // Flatten the cytoscape-style wrapper once per refetch.
+  const data = useMemo(() => flatten(rawData), [rawData]);
+
   // Auto-open SourcesModal with curl/curl prefilled when the graph is empty.
   useEffect(() => {
-    if (!data) return;
+    if (!rawData) return;
     if (data.nodes.length === 0) {
       setDefaultRepoUrl(DEFAULT_REPO_URL);
       openModal("sources" as ModalName);
     }
-  }, [data, openModal, setDefaultRepoUrl]);
+  }, [rawData, data, openModal, setDefaultRepoUrl]);
 
-  const effective = canvasCleared ? EMPTY_SNAPSHOT : data ?? EMPTY_SNAPSHOT;
+  const effective = canvasCleared ? EMPTY_SNAPSHOT : data;
 
   const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
   const gatewayHost =

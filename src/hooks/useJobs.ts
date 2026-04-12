@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useAuth } from "react-oidc-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
@@ -39,6 +39,31 @@ export function useJobs() {
     enabled: !!token,
     refetchInterval: 5000,
   });
+
+  // Watch the polled jobs for running→completed transitions and trigger
+  // a graph refetch when any job flips to completed. Without this, the
+  // frontend would never refetch /api/graph after a sync that the user
+  // triggered from the modal, because the runJob.mutate() onSuccess fires
+  // at POST time (sync start), not when the job actually finishes.
+  const lastSeenStatus = useRef<Map<string, string>>(new Map());
+  useEffect(() => {
+    const jobs = jobsQuery.data ?? [];
+    let sawCompletion = false;
+    for (const job of jobs) {
+      const prev = lastSeenStatus.current.get(job.id);
+      if (prev !== job.status) {
+        lastSeenStatus.current.set(job.id, job.status);
+        if (prev === "running" && job.status === "completed") {
+          sawCompletion = true;
+        }
+      }
+    }
+    if (sawCompletion) {
+      queryClient.invalidateQueries({ queryKey: ["graph"] });
+      useGraphStore.getState().setCanvasCleared(false);
+      setSyncStatus("idle");
+    }
+  }, [jobsQuery.data, queryClient, setSyncStatus]);
 
   const schedulesQuery = useQuery<Schedule[]>({
     queryKey: ["schedules"],
