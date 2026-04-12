@@ -31,6 +31,8 @@ pub struct WorkerEngine {
     show_hulls: bool,
 
     visual_flags: Vec<u8>,
+
+    pinned: HashSet<usize>,
 }
 
 impl Default for WorkerEngine {
@@ -54,6 +56,7 @@ impl WorkerEngine {
             spotlight_ids: HashSet::new(),
             show_hulls: false,
             visual_flags: Vec::new(),
+            pinned: HashSet::new(),
         }
     }
 
@@ -96,8 +99,7 @@ impl WorkerEngine {
 
     /// Reset the engine to the same state as `WorkerEngine::new()`, preserving
     /// only the layout engine instances (force_layout, hier_layout) so we avoid
-    /// re-allocating them.  T15 will add `self.pinned.clear()` here when the
-    /// pinned-set field lands.
+    /// re-allocating them.
     pub fn clear_snapshot(&mut self) {
         self.store = GraphStore::new();
         self.search.clear();
@@ -108,6 +110,7 @@ impl WorkerEngine {
         self.spotlight_ids.clear();
         self.show_hulls = false;
         self.layout_running = false;
+        self.pinned.clear();
     }
 
     pub fn tick(&mut self) -> bool {
@@ -117,6 +120,17 @@ impl WorkerEngine {
 
         match self.active_layout {
             LayoutKind::Force => {
+                // Save pinned positions before the physics step.
+                let pinned_saved: Vec<(String, (f32, f32))> = self
+                    .pinned
+                    .iter()
+                    .filter_map(|&idx| {
+                        self.node_order.get(idx).cloned().and_then(|id| {
+                            self.positions.get(&id).copied().map(|pos| (id, pos))
+                        })
+                    })
+                    .collect();
+
                 let still_moving = self.force_layout.tick(&self.store);
                 if !still_moving {
                     self.layout_running = false;
@@ -125,6 +139,12 @@ impl WorkerEngine {
                 for (id, x, y) in result {
                     self.positions.insert(id, (x, y));
                 }
+
+                // Restore pinned positions so physics cannot move them.
+                for (id, (x, y)) in pinned_saved {
+                    self.positions.insert(id, (x, y));
+                }
+
                 still_moving
             }
             LayoutKind::Hierarchical => {
@@ -132,6 +152,21 @@ impl WorkerEngine {
                 false
             }
         }
+    }
+
+    /// Mark a node as pinned and move it to the given position immediately.
+    /// Restarts the layout so that neighboring nodes can reflow.
+    pub fn pin_node(&mut self, idx: usize, x: f32, y: f32) {
+        if let Some(id) = self.node_order.get(idx).cloned() {
+            self.positions.insert(id, (x, y));
+        }
+        self.pinned.insert(idx);
+        self.layout_running = true;
+    }
+
+    /// Remove a node from the pinned set so the force layout can move it again.
+    pub fn unpin_node(&mut self, idx: usize) {
+        self.pinned.remove(&idx);
     }
 
     pub fn set_layout(&mut self, layout: &str) {
@@ -475,5 +510,37 @@ mod tests {
         assert_eq!(flags.len(), 2);
         assert_eq!(flags[0], 0);
         assert_eq!(flags[1], 1);
+    }
+
+    #[test]
+    fn pin_and_unpin_tracked() {
+        let mut engine = WorkerEngine::new();
+        engine.load_snapshot(vec![make_node("a"), make_node("b")], vec![]);
+
+        // Pin node at index 0 to a specific position.
+        engine.pin_node(0, 5.0, 5.0);
+        assert!(engine.pinned.contains(&0));
+        assert_eq!(engine.positions.get("a"), Some(&(5.0, 5.0)));
+        // Pinning should restart layout.
+        assert!(engine.is_layout_running());
+
+        // Tick: pinned position must be preserved despite physics.
+        engine.tick();
+        assert_eq!(engine.positions.get("a"), Some(&(5.0, 5.0)));
+
+        // Unpin: node should no longer be in the pinned set.
+        engine.unpin_node(0);
+        assert!(!engine.pinned.contains(&0));
+    }
+
+    #[test]
+    fn clear_snapshot_clears_pinned() {
+        let mut engine = WorkerEngine::new();
+        engine.load_snapshot(vec![make_node("a"), make_node("b")], vec![]);
+        engine.pin_node(0, 1.0, 2.0);
+        assert!(!engine.pinned.is_empty());
+
+        engine.clear_snapshot();
+        assert!(engine.pinned.is_empty());
     }
 }

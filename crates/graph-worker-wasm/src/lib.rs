@@ -65,6 +65,12 @@ pub fn handle_message(msg_js: &JsValue) -> Result<(), JsValue> {
                 post_positions(&engine);
                 post_edges(&engine);
             }
+            InMessage::PinNode { idx, x, y } => {
+                engine.pin_node(idx, x, y);
+            }
+            InMessage::UnpinNode { idx } => {
+                engine.unpin_node(idx);
+            }
         }
     });
 

@@ -21,6 +21,10 @@ pub enum InMessage {
     SetSpotlight { ids: Option<Vec<String>> },
     #[serde(rename = "set_communities")]
     SetCommunities { show: bool },
+    #[serde(rename = "pin_node")]
+    PinNode { idx: usize, x: f32, y: f32 },
+    #[serde(rename = "unpin_node")]
+    UnpinNode { idx: usize },
 }
 
 #[derive(Deserialize)]
