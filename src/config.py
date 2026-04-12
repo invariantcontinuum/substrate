@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     app_port: int = 8081
     embedding_url: str = "http://localhost:8101/v1/embeddings"
     embedding_model: str = "embeddinggemma-300M-Q8_0.gguf"
-    embedding_dim: int = 384
+    embedding_dim: int = 768
     chunk_size: int = 512
     chunk_overlap: int = 64
 
