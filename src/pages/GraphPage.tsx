@@ -3,8 +3,8 @@ import { NodeDetailPanel } from "@/components/graph/NodeDetailPanel";
 
 export function GraphPage() {
   return (
-    <div className="h-full p-4 flex">
-      <div className="flex-1">
+    <div className="h-full flex overflow-hidden">
+      <div className="flex-1 min-w-0 h-full">
         <GraphCanvas />
       </div>
       <NodeDetailPanel />

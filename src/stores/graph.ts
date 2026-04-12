@@ -48,7 +48,11 @@ export const useGraphStore = create<GraphState>((set) => ({
     set({ selectedNodeId: id, selectedNodeData: data ?? null }),
 
   filters: {
-    types: new Set(["service", "database", "cache", "external"]),
+    types: new Set([
+      "service", "database", "cache", "external",
+      "source", "config", "script", "doc", "data", "asset",
+      "policy", "adr", "incident",
+    ]),
   },
   toggleTypeFilter: (type) =>
     set((state) => {
