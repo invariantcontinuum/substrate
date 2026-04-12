@@ -81,6 +81,30 @@ impl SpatialGrid {
         }
     }
 
+    /// Return all node indices whose cells fall within `radius` world-units of the query point.
+    /// This is a coarse first pass — callers must do a fine-grained check (e.g. AABB or SDF).
+    pub fn candidates_within(&self, world_x: f32, world_y: f32, radius: f32) -> Vec<usize> {
+        let mut out = Vec::new();
+        if self.cell_w == 0.0 || self.cell_h == 0.0 {
+            return out;
+        }
+        let cell_radius = ((radius / self.cell_w.min(self.cell_h)).ceil() as isize).max(1);
+        let col = ((world_x - self.x_min) / self.cell_w).floor() as isize;
+        let row = ((world_y - self.y_min) / self.cell_h).floor() as isize;
+        for dr in -cell_radius..=cell_radius {
+            for dc in -cell_radius..=cell_radius {
+                let r = row + dr;
+                let c = col + dc;
+                if r < 0 || r >= self.rows as isize || c < 0 || c >= self.cols as isize {
+                    continue;
+                }
+                let cell = &self.cells[(r as usize) * self.cols + c as usize];
+                out.extend(cell.iter().copied());
+            }
+        }
+        out
+    }
+
     /// Find the node index closest to (world_x, world_y) within max_distance.
     pub fn pick(
         &self,

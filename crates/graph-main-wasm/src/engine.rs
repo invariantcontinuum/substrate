@@ -194,7 +194,7 @@ impl RenderEngine {
 
     pub fn handle_click(&mut self, screen_x: f32, screen_y: f32) -> Option<String> {
         let (wx, wy) = self.camera.screen_to_world(screen_x, screen_y);
-        let picked = self.spatial.pick(wx, wy, &self.positions, 20.0);
+        let picked = self.hit_test_node(wx, wy);
 
         self.selected_idx = picked;
         self.buffers_dirty = true;
@@ -205,7 +205,7 @@ impl RenderEngine {
 
     pub fn handle_hover(&mut self, screen_x: f32, screen_y: f32) -> Option<String> {
         let (wx, wy) = self.camera.screen_to_world(screen_x, screen_y);
-        let picked = self.spatial.pick(wx, wy, &self.positions, 20.0);
+        let picked = self.hit_test_node(wx, wy);
 
         if picked != self.hovered_idx {
             self.hovered_idx = picked;
@@ -353,6 +353,48 @@ impl RenderEngine {
             shape,
             flags,
         }
+    }
+
+    /// Coarse-then-fine node picking: uses the spatial grid for a candidate list,
+    /// then performs a per-node AABB check using the theme-resolved half_w / half_h.
+    fn hit_test_node(&self, world_x: f32, world_y: f32) -> Option<usize> {
+        // Conservative bounding radius: worst-case half-dimension of any resolved style.
+        // Cheap since node_metadata is small. Fallback to a safe 20.0 when empty.
+        let max_bound = self
+            .node_ids
+            .iter()
+            .filter_map(|id| self.node_metadata.get(id))
+            .map(|meta| {
+                let style = self.resolved_node_style(&meta.node_type, &meta.status);
+                style.half_w.max(style.half_h)
+            })
+            .fold(0.0_f32, f32::max)
+            .max(20.0);
+
+        let candidates = self.spatial.candidates_within(world_x, world_y, max_bound);
+        for idx in candidates {
+            if idx * 4 + 1 >= self.positions.len() {
+                continue;
+            }
+            let cx = self.positions[idx * 4];
+            let cy = self.positions[idx * 4 + 1];
+            // Look up this node's AABB via metadata + theme.
+            let (hw, hh) = match self.node_ids.get(idx) {
+                Some(id) => self
+                    .node_metadata
+                    .get(id)
+                    .map(|m| {
+                        let style = self.resolved_node_style(&m.node_type, &m.status);
+                        (style.half_w, style.half_h)
+                    })
+                    .unwrap_or((20.0, 20.0)),
+                None => (20.0, 20.0),
+            };
+            if (world_x - cx).abs() <= hw && (world_y - cy).abs() <= hh {
+                return Some(idx);
+            }
+        }
+        None
     }
 
     fn rebuild_buffers(&mut self) {
