@@ -9,7 +9,7 @@ logger = structlog.get_logger()
 
 _pool: asyncpg.Pool | None = None
 
-AGE_PREAMBLE = "SET search_path = ag_catalog, \"$user\", public;"
+AGE_PREAMBLE = "LOAD 'age'; SET search_path = ag_catalog, \"$user\", public;"
 
 
 @dataclass
