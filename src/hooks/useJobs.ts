@@ -4,6 +4,16 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import { useGraphStore } from "@/stores/graph";
 
+interface ProgressMeta {
+  phase: string;
+  repo: string;
+  files_total: number;
+  files_parseable: number;
+  files_parsed: number;
+  edges_found: number;
+  nodes_by_type: Record<string, number>;
+}
+
 interface JobRun {
   id: string;
   job_type: string;
@@ -11,6 +21,7 @@ interface JobRun {
   status: string;
   progress_done: number;
   progress_total: number;
+  progress_meta: ProgressMeta | null;
   error: string | null;
   created_at: string;
 }
