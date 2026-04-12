@@ -218,6 +218,8 @@ pub fn shape_index(shape: &str) -> f32 {
         "hexagon" => 3.0,
         "triangle" => 4.0,
         "octagon" => 5.0,
+        "roundrectangle" => 6.0,
+        "barrel" => 7.0,
         _ => 0.0,
     }
 }
@@ -324,5 +326,18 @@ mod tests {
         assert_eq!(theme.nodes.default.size, 12.0);
         assert_eq!(theme.nodes.default.half_width, None);
         assert_eq!(theme.nodes.default.half_height, None);
+    }
+
+    #[test]
+    fn shape_index_covers_new_shapes() {
+        assert_eq!(shape_index("circle"), 0.0);
+        assert_eq!(shape_index("diamond"), 1.0);
+        assert_eq!(shape_index("square"), 2.0);
+        assert_eq!(shape_index("hexagon"), 3.0);
+        assert_eq!(shape_index("triangle"), 4.0);
+        assert_eq!(shape_index("octagon"), 5.0);
+        assert_eq!(shape_index("roundrectangle"), 6.0);
+        assert_eq!(shape_index("barrel"), 7.0);
+        assert_eq!(shape_index("unknown"), 0.0);
     }
 }
