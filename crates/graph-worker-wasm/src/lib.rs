@@ -60,6 +60,11 @@ pub fn handle_message(msg_js: &JsValue) -> Result<(), JsValue> {
             InMessage::SetCommunities { show } => {
                 engine.set_communities(show);
             }
+            InMessage::ClearSnapshot {} => {
+                engine.clear_snapshot();
+                post_positions(&engine);
+                post_edges(&engine);
+            }
         }
     });
 

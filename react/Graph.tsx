@@ -177,8 +177,13 @@ export function Graph({
     if (!ready || !snapshot || !workerRef.current) return;
     convergedRef.current = false;
 
+    if (snapshot.nodes.length === 0 && snapshot.edges.length === 0) {
+      workerRef.current.postMessage({ type: "clear_snapshot" });
+      return;
+    }
+
     // Feed node metadata to the engine synchronously so it can resolve theme styles.
-    if (engineRef.current && snapshot.nodes.length > 0) {
+    if (engineRef.current) {
       try {
         engineRef.current.set_node_metadata(
           snapshot.nodes.map((n) => n.id),
@@ -190,19 +195,11 @@ export function Graph({
       }
     }
 
-    if (snapshot.nodes.length === 0 && snapshot.edges.length === 0) {
-      workerRef.current.postMessage({
-        type: "load_snapshot",
-        nodes: [],
-        edges: [],
-      });
-    } else {
-      workerRef.current.postMessage({
-        type: "load_snapshot",
-        nodes: snapshot.nodes,
-        edges: snapshot.edges,
-      });
-    }
+    workerRef.current.postMessage({
+      type: "load_snapshot",
+      nodes: snapshot.nodes,
+      edges: snapshot.edges,
+    });
   }, [ready, snapshot]);
 
   // WebSocket

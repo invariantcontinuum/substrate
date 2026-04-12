@@ -9,6 +9,8 @@ pub enum InMessage {
         nodes: Vec<NodeIn>,
         edges: Vec<EdgeIn>,
     },
+    #[serde(rename = "clear_snapshot")]
+    ClearSnapshot {},
     #[serde(rename = "set_layout")]
     SetLayout { layout: String },
     #[serde(rename = "set_filter")]

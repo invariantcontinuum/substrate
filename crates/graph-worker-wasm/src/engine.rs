@@ -94,6 +94,22 @@ impl WorkerEngine {
         self.rebuild_visual_flags();
     }
 
+    /// Reset the engine to the same state as `WorkerEngine::new()`, preserving
+    /// only the layout engine instances (force_layout, hier_layout) so we avoid
+    /// re-allocating them.  T15 will add `self.pinned.clear()` here when the
+    /// pinned-set field lands.
+    pub fn clear_snapshot(&mut self) {
+        self.store = GraphStore::new();
+        self.search.clear();
+        self.positions.clear();
+        self.node_order.clear();
+        self.visual_flags.clear();
+        self.visible_nodes = None;
+        self.spotlight_ids.clear();
+        self.show_hulls = false;
+        self.layout_running = false;
+    }
+
     pub fn tick(&mut self) -> bool {
         if !self.layout_running {
             return false;
