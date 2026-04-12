@@ -1,3 +1,4 @@
+import time
 import httpx
 import structlog
 from src.config import settings
@@ -33,10 +34,26 @@ async def embed(text: str) -> list[float]:
 
 async def embed_batch(texts: list[str]) -> list[list[float]]:
     client = await _get_client()
-    resp = await client.post(
-        settings.embedding_url,
-        json={"input": texts, "model": settings.embedding_model},
-    )
-    resp.raise_for_status()
-    data = resp.json()["data"]
-    return [item["embedding"] for item in sorted(data, key=lambda x: x["index"])]
+    start = time.monotonic()
+    batch_size = len(texts)
+    try:
+        resp = await client.post(
+            settings.embedding_url,
+            json={"input": texts, "model": settings.embedding_model},
+        )
+        resp.raise_for_status()
+        data = resp.json()["data"]
+        elapsed = time.monotonic() - start
+        logger.info("embed_batch_complete", batch_size=batch_size,
+                     duration_ms=round(elapsed * 1000))
+        return [item["embedding"] for item in sorted(data, key=lambda x: x["index"])]
+    except httpx.ConnectError as e:
+        elapsed = time.monotonic() - start
+        logger.error("embed_batch_connection_error", batch_size=batch_size,
+                      error=str(e), duration_ms=round(elapsed * 1000))
+        raise
+    except Exception as e:
+        elapsed = time.monotonic() - start
+        logger.error("embed_batch_failed", batch_size=batch_size,
+                      error=str(e), duration_ms=round(elapsed * 1000))
+        raise

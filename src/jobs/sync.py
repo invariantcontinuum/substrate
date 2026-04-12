@@ -1,4 +1,5 @@
 import os
+import time
 import shutil
 import structlog
 from src.config import settings
@@ -58,6 +59,8 @@ async def handle_sync(scope: dict, on_progress) -> None:
         raise ValueError("scope must include owner+repo or repo_url")
 
     repo_label = f"{owner}/{repo}"
+    sync_start = time.monotonic()
+    logger.info("sync_started", owner=owner, repo=repo)
     meta = {
         "phase": "cloning", "repo": repo_label,
         "files_total": 0, "files_parseable": 0,
@@ -68,11 +71,16 @@ async def handle_sync(scope: dict, on_progress) -> None:
     await on_progress(0, 0, meta)
 
     # ── 1. Clone ──
+    logger.info("sync_phase_cloning", owner=owner, repo=repo)
+    clone_start = time.monotonic()
     tmpdir = await _clone_repo(owner, repo, settings.github_token)
-    logger.info("clone_complete", owner=owner, repo=repo, path=tmpdir)
+    clone_elapsed = time.monotonic() - clone_start
+    logger.info("clone_complete", owner=owner, repo=repo,
+                duration_ms=round(clone_elapsed * 1000))
 
     try:
         # ── 2. Discover files ──
+        logger.info("sync_phase_discovering")
         meta["phase"] = "discovering"
         await on_progress(0, 0, meta)
 
@@ -95,9 +103,11 @@ async def handle_sync(scope: dict, on_progress) -> None:
             "nodes_by_type": type_counts,
         })
         await on_progress(0, len(nodes), meta)
-        logger.info("discovery_complete", files=len(nodes), parseable=len(parseable))
+        logger.info("discovery_complete", files_total=len(nodes),
+                     files_parseable=len(parseable), types=type_counts)
 
         # ── 3. Parse imports ──
+        logger.info("sync_phase_parsing", files_to_parse=len(parseable))
         meta["phase"] = "parsing"
         all_edges: list[EdgeAffected] = []
         file_contents: dict[str, str] = {}
@@ -119,7 +129,7 @@ async def handle_sync(scope: dict, on_progress) -> None:
             if done % 50 == 0 or done == len(parseable):
                 await on_progress(done, len(nodes), meta)
 
-        logger.info("parsing_complete", parsed=len(parseable), edges=len(all_edges))
+        logger.info("parsing_complete", files_parsed=len(parseable), edges_found=len(all_edges))
 
         # Build edge lookup for imports_count per file
         edge_count_by_source: dict[str, int] = {}
@@ -133,6 +143,7 @@ async def handle_sync(scope: dict, on_progress) -> None:
         )
 
         # ── 5. Build summaries + chunks for all files ──
+        logger.info("sync_phase_embedding", total_files=len(nodes))
         meta["phase"] = "embedding"
         await on_progress(0, len(nodes), meta)
 
@@ -174,6 +185,8 @@ async def handle_sync(scope: dict, on_progress) -> None:
         summary_texts = [fi["summary"] for fi in file_info_list]
         summary_embeddings: list[list[float] | None] = [None] * len(summary_texts)
 
+        embed_start = time.monotonic()
+        file_batches_total = (len(summary_texts) + EMBED_BATCH_SIZE - 1) // EMBED_BATCH_SIZE
         try:
             for batch_start in range(0, len(summary_texts), EMBED_BATCH_SIZE):
                 batch = summary_texts[batch_start:batch_start + EMBED_BATCH_SIZE]
@@ -181,6 +194,10 @@ async def handle_sync(scope: dict, on_progress) -> None:
                 for j, vec in enumerate(vectors):
                     summary_embeddings[batch_start + j] = vec
                 meta["files_embedded"] = min(batch_start + EMBED_BATCH_SIZE, len(summary_texts))
+                batch_num = batch_start // EMBED_BATCH_SIZE + 1
+                logger.info("embedding_file_batch_complete", batch=batch_num,
+                            total_batches=file_batches_total,
+                            files_embedded=meta["files_embedded"])
                 await on_progress(meta["files_embedded"], len(nodes), meta)
         except Exception as e:
             logger.warning("embedding_unavailable", error=str(e))
@@ -198,7 +215,10 @@ async def handle_sync(scope: dict, on_progress) -> None:
                 chunk_map.append((fi_idx, ch_idx))
 
         chunk_embeddings: list[list[float] | None] = [None] * len(all_chunk_texts)
+        chunk_batches_total = (len(all_chunk_texts) + EMBED_BATCH_SIZE - 1) // EMBED_BATCH_SIZE if all_chunk_texts else 0
         if embedding_available and all_chunk_texts:
+            logger.info("embedding_chunks_start", total_chunks=len(all_chunk_texts),
+                        total_batches=chunk_batches_total)
             try:
                 for batch_start in range(0, len(all_chunk_texts), EMBED_BATCH_SIZE):
                     batch = all_chunk_texts[batch_start:batch_start + EMBED_BATCH_SIZE]
@@ -206,16 +226,23 @@ async def handle_sync(scope: dict, on_progress) -> None:
                     for j, vec in enumerate(vectors):
                         chunk_embeddings[batch_start + j] = vec
                     meta["chunks_embedded"] = min(batch_start + EMBED_BATCH_SIZE, len(all_chunk_texts))
+                    batch_num = batch_start // EMBED_BATCH_SIZE + 1
+                    logger.info("embedding_chunk_batch_complete", batch=batch_num,
+                                total_batches=chunk_batches_total,
+                                chunks_embedded=meta["chunks_embedded"])
                     await on_progress(meta["files_embedded"], len(nodes), meta)
             except Exception as e:
                 logger.warning("chunk_embedding_failed", error=str(e))
                 meta["chunks_embedded"] = 0
 
+        embed_elapsed = time.monotonic() - embed_start
         logger.info("embedding_complete",
                      files_embedded=meta["files_embedded"],
-                     chunks_embedded=meta["chunks_embedded"])
+                     chunks_embedded=meta["chunks_embedded"],
+                     duration_ms=round(embed_elapsed * 1000))
 
         # ── 7. Write file_embeddings + content_chunks to substrate_graph ──
+        logger.info("sync_phase_graphing", total_files=len(nodes))
         meta["phase"] = "graphing"
         await on_progress(0, len(nodes), meta)
 
@@ -298,9 +325,12 @@ async def handle_sync(scope: dict, on_progress) -> None:
         # ── 10. Done ──
         meta["phase"] = "done"
         await on_progress(len(nodes), len(nodes), meta)
+        sync_elapsed = time.monotonic() - sync_start
         logger.info("sync_job_complete", owner=owner, repo=repo,
                      nodes=len(nodes), edges=len(all_edges),
-                     chunks=total_chunks, embedded=meta["files_embedded"])
+                     chunks=total_chunks, files_embedded=meta["files_embedded"],
+                     chunks_embedded=meta.get("chunks_embedded", 0),
+                     duration_ms=round(sync_elapsed * 1000))
 
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)

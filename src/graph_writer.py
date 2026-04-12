@@ -1,3 +1,4 @@
+import time
 import asyncpg
 import structlog
 
@@ -22,6 +23,7 @@ def _escape_cypher(value: str) -> str:
 
 async def connect(database_url: str) -> None:
     global _pool
+    logger.info("graph_writer_connecting")
     _pool = await asyncpg.create_pool(
         _parse_url(database_url), min_size=2, max_size=10, init=_init_age,
     )
@@ -31,6 +33,7 @@ async def connect(database_url: str) -> None:
 async def disconnect() -> None:
     global _pool
     if _pool:
+        logger.info("graph_writer_disconnecting")
         await _pool.close()
         _pool = None
         logger.info("graph_writer_disconnected")
@@ -67,6 +70,8 @@ async def upsert_file(
 ) -> str:
     if not _pool:
         raise RuntimeError("graph_writer not connected")
+    logger.debug("file_upsert_start", file_path=file_path, type=file_type,
+                 has_embedding=embedding is not None)
     async with _pool.acquire() as conn:
         if embedding is not None:
             row = await conn.fetchrow(
@@ -124,6 +129,7 @@ async def insert_chunks(file_id: str, chunks: list[dict]) -> None:
         raise RuntimeError("graph_writer not connected")
     if not chunks:
         return
+    logger.debug("chunks_insert_start", file_id=file_id, chunk_count=len(chunks))
     async with _pool.acquire() as conn:
         await conn.execute(
             "DELETE FROM content_chunks WHERE file_id = $1::uuid", file_id,
@@ -148,6 +154,9 @@ async def write_age_nodes(nodes: list[dict]) -> None:
         raise RuntimeError("graph_writer not connected")
     if not nodes:
         return
+    logger.info("age_nodes_write_start", count=len(nodes))
+    start = time.monotonic()
+    failed = 0
     async with _pool.acquire() as conn:
         for node in nodes:
             file_id = _escape_cypher(node["file_id"])
@@ -163,8 +172,11 @@ async def write_age_nodes(nodes: list[dict]) -> None:
                     f"SELECT * FROM cypher('substrate', $$ {cypher} $$) AS (v agtype)"
                 )
             except Exception as e:
+                failed += 1
                 logger.warning("age_node_write_failed", file_id=node["file_id"], error=str(e))
-    logger.info("age_nodes_written", count=len(nodes))
+    elapsed = time.monotonic() - start
+    logger.info("age_nodes_written", count=len(nodes), failed=failed,
+                duration_ms=round(elapsed * 1000))
 
 
 async def write_age_edges(edges: list[dict]) -> None:
@@ -172,6 +184,9 @@ async def write_age_edges(edges: list[dict]) -> None:
         raise RuntimeError("graph_writer not connected")
     if not edges:
         return
+    logger.info("age_edges_write_start", count=len(edges))
+    start = time.monotonic()
+    failed = 0
     async with _pool.acquire() as conn:
         for edge in edges:
             src = _escape_cypher(edge["source_id"])
@@ -187,5 +202,8 @@ async def write_age_edges(edges: list[dict]) -> None:
                     f"SELECT * FROM cypher('substrate', $$ {cypher} $$) AS (v agtype)"
                 )
             except Exception as e:
+                failed += 1
                 logger.warning("age_edge_write_failed", source=edge["source_id"], target=edge["target_id"], error=str(e))
-    logger.info("age_edges_written", count=len(edges))
+    elapsed = time.monotonic() - start
+    logger.info("age_edges_written", count=len(edges), failed=failed,
+                duration_ms=round(elapsed * 1000))

@@ -1,4 +1,7 @@
+import structlog
 from dataclasses import dataclass
+
+logger = structlog.get_logger()
 
 
 @dataclass
@@ -15,6 +18,7 @@ def estimate_tokens(text: str) -> int:
 
 
 def chunk_file(content: str, chunk_size: int = 512, overlap: int = 64) -> list[Chunk]:
+    input_size = len(content)
     lines = content.split("\n")
     chunks: list[Chunk] = []
     current_lines: list[str] = []
@@ -55,6 +59,7 @@ def chunk_file(content: str, chunk_size: int = 512, overlap: int = 64) -> list[C
                 content=chunk_content, start_line=start_line, end_line=len(lines),
                 token_count=current_tokens, chunk_index=chunk_index,
             ))
+    logger.debug("file_chunked", input_bytes=input_size, chunks_produced=len(chunks))
     return chunks
 
 

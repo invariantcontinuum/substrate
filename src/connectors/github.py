@@ -1,5 +1,6 @@
 import re
 import os
+import time
 import asyncio
 import shutil
 import tempfile
@@ -184,6 +185,8 @@ async def fetch_repo_tree(owner: str, repo: str, token: str, branch: str = "mast
 
 async def _clone_repo(owner: str, repo: str, token: str) -> str:
     """Shallow-clone a repo to a temp directory; return the path."""
+    logger.info("clone_start", owner=owner, repo=repo)
+    start = time.monotonic()
     tmpdir = tempfile.mkdtemp(prefix="substrate-sync-")
     url = f"https://x-access-token:{token}@github.com/{owner}/{repo}.git"
     proc = await asyncio.create_subprocess_exec(
@@ -192,14 +195,20 @@ async def _clone_repo(owner: str, repo: str, token: str) -> str:
         stderr=asyncio.subprocess.PIPE,
     )
     _, stderr = await proc.communicate()
+    elapsed = time.monotonic() - start
     if proc.returncode != 0:
         shutil.rmtree(tmpdir, ignore_errors=True)
+        logger.error("clone_failed", owner=owner, repo=repo,
+                     error=stderr.decode().strip(), duration_ms=round(elapsed * 1000))
         raise RuntimeError(f"git clone failed: {stderr.decode().strip()}")
+    logger.info("clone_complete", owner=owner, repo=repo,
+                duration_ms=round(elapsed * 1000))
     return tmpdir
 
 
 def _walk_local_tree(repo_dir: str) -> list[dict]:
     """Walk a cloned repo and return entries compatible with parse_repo_tree."""
+    logger.info("walk_tree_start", repo_dir=repo_dir)
     tree: list[dict] = []
     git_dir = os.path.join(repo_dir, ".git")
     for root, dirs, files in os.walk(repo_dir):
@@ -208,6 +217,7 @@ def _walk_local_tree(repo_dir: str) -> list[dict]:
         for f in files:
             rel = os.path.relpath(os.path.join(root, f), repo_dir)
             tree.append({"path": rel, "type": "blob"})
+    logger.info("walk_tree_complete", files_found=len(tree))
     return tree
 
 
