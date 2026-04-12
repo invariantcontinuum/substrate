@@ -69,6 +69,7 @@ def edges_to_cytoscape(edges: list[GraphEdge]) -> list[dict]:
                 "target": e.target,
                 "type": e.type,
                 "label": e.label,
+                "weight": e.weight,
             }
         }
         for e in edges
