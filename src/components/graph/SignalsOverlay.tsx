@@ -6,6 +6,7 @@ interface Signal {
   id: string;
   color: string;
   label: string;
+  ts: number;
 }
 
 const SIGNAL_COLORS = {
@@ -40,12 +41,9 @@ export function SignalsOverlay() {
           id: `${job.id}-start`,
           color: SIGNAL_COLORS.sync,
           label: `sync started: ${repoUrl}`,
+          ts: Date.now(),
         });
       } else if (job.status === "completed" && prev !== "completed") {
-        // Show actual graph stats (nodes + edges) rather than the misleading
-        // progress_done/progress_total which only counts parseable files.
-        // The graph store gets updated by the React Query refetch triggered
-        // by the useJobs completion-transition watcher.
         const nodeCount = stats.nodeCount;
         const edgeCount = stats.edgeCount;
         if (nodeCount > 0) {
@@ -53,13 +51,14 @@ export function SignalsOverlay() {
             id: `${job.id}-done`,
             color: SIGNAL_COLORS.complete,
             label: `sync complete: ${nodeCount} nodes, ${edgeCount} edges`,
+            ts: Date.now(),
           });
         } else {
-          // Stats haven't refreshed yet — use progress as fallback.
           next.push({
             id: `${job.id}-done`,
             color: SIGNAL_COLORS.complete,
             label: `sync complete: ${job.progress_done} files parsed`,
+            ts: Date.now(),
           });
         }
       } else if (job.status === "failed" && prev !== "failed") {
@@ -67,6 +66,7 @@ export function SignalsOverlay() {
           id: `${job.id}-err`,
           color: SIGNAL_COLORS.error,
           label: `sync failed: ${job.error ?? "unknown"}`,
+          ts: Date.now(),
         });
       }
     }
@@ -76,18 +76,19 @@ export function SignalsOverlay() {
   }, [jobs, stats]);
 
   return (
-    <div
-      className="absolute bottom-3 left-3 z-10 flex flex-col gap-1 pointer-events-none"
-      style={{ maxWidth: 280 }}
-    >
+    <div className="absolute bottom-3 left-3 sm:bottom-6 sm:left-6 z-10 flex flex-col gap-1 pointer-events-none">
       {signals.map((s, i) => (
         <div
-          key={s.id}
-          className="flex items-center gap-1.5 text-[10px] font-mono signal-enter"
-          style={{ color: "#8888a0", opacity: 1 - i * 0.18 }}
+          key={`${s.id}-${s.ts}`}
+          className="flex items-center gap-1.5 text-[9px] sm:text-[10px] font-mono signal-line"
+          style={{
+            color: "#8888a0",
+            opacity: 1 - i * 0.18,
+            animationDelay: `${i * 40}ms`,
+          }}
         >
           <span style={{ color: s.color, fontSize: 5 }}>●</span>
-          <span className="truncate">{s.label}</span>
+          <span className="truncate max-w-[200px] sm:max-w-none">{s.label}</span>
         </div>
       ))}
     </div>
