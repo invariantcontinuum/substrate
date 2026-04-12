@@ -264,3 +264,17 @@ body {
     @apply font-sans;
   }
 }
+
+/* violation-pulse: ported verbatim from substrate-web/app/globals.css:58-74 */
+@keyframes violation-pulse {
+  0%, 100% { opacity: 1;   box-shadow: 0 0 12px rgba(239,68,68,0.5); }
+  50%      { opacity: 0.6; box-shadow: 0 0 28px rgba(239,68,68,0.8); }
+}
+.violation-pulse { animation: violation-pulse 2s ease-in-out infinite; }
+
+/* signal-slide-in: used by SignalsOverlay entries for the fade-and-slide animation */
+@keyframes signal-slide-in {
+  from { opacity: 0; transform: translateX(-12px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.signal-enter { animation: signal-slide-in 240ms ease-out forwards; }
