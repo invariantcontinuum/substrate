@@ -86,7 +86,7 @@ def classify_file_type(path: str) -> str:
     return _EXT_TO_TYPE.get(ext, "service")
 
 
-# ---------- HTTP client (kept for enrich.py) ----------
+# ---------- HTTP client ----------
 
 _client: httpx.AsyncClient | None = None
 
@@ -169,7 +169,7 @@ def parse_imports(file_id: str, content: str, known_files: set[str]) -> list[Edg
     return edges
 
 
-# ---------- GitHub API tree fetch (kept for enrich.py) ----------
+# ---------- GitHub API tree fetch ----------
 
 async def fetch_repo_tree(owner: str, repo: str, token: str, branch: str = "master") -> list[dict]:
     client = await get_client()

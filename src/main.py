@@ -4,14 +4,12 @@ from fastapi import FastAPI
 
 from src.config import settings
 from src.db import get_pool, close_pool
-from src.publisher import connect as nats_connect, disconnect as nats_disconnect
+from src import graph_writer
 from src.connectors.github import close_client as close_github_client
 from src.llm import close_client as close_llm_client
-from src.qdrant import close_client as close_qdrant_client
 from src.schema import JobRequest, ScheduleRequest, parse_repo_url
 from src.jobs.runner import register_handler, run_job, get_job_runs, get_job_run
 from src.jobs.sync import handle_sync
-from src.jobs.enrich import handle_enrich
 from src.scheduler import get_schedules, upsert_schedule, delete_schedule, toggle_schedule, start_scheduler, stop_scheduler
 
 structlog.configure(
@@ -26,10 +24,9 @@ logger = structlog.get_logger()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await get_pool()
-    await nats_connect(settings.nats_url)
+    await graph_writer.connect(settings.graph_database_url)
 
     register_handler("sync", handle_sync)
-    register_handler("enrich", handle_enrich)
 
     await start_scheduler(run_job)
     logger.info("ingestion_started")
@@ -37,8 +34,7 @@ async def lifespan(app: FastAPI):
     await stop_scheduler()
     await close_github_client()
     await close_llm_client()
-    await close_qdrant_client()
-    await nats_disconnect()
+    await graph_writer.disconnect()
     await close_pool()
     logger.info("ingestion_stopped")
 
