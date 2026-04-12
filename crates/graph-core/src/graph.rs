@@ -1,6 +1,24 @@
 use crate::types::{EdgeData, NodeData};
 use petgraph::graph::{DiGraph, NodeIndex};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LegendEntry {
+    pub type_key: String,
+    pub label: String,
+    pub count: usize,
+    pub color: String,
+    pub border_color: String,
+    pub shape: String,
+    pub dash: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LegendSummary {
+    pub node_types: Vec<LegendEntry>,
+    pub edge_types: Vec<LegendEntry>,
+}
 
 pub struct GraphStore {
     graph: DiGraph<NodeData, EdgeData>,
@@ -98,11 +116,85 @@ impl GraphStore {
             .filter_map(|n| self.graph.node_weight(n))
             .collect()
     }
+
+    /// Build a skeleton `LegendSummary` from node-type and edge-type counts.
+    /// Callers (typically `graph-main-wasm`) fill in the style fields (color,
+    /// border_color, shape, dash) from their theme — graph-core has no theme
+    /// awareness.
+    pub fn legend_summary_from_counts(
+        node_counts: &HashMap<String, usize>,
+        edge_counts: &HashMap<String, usize>,
+    ) -> LegendSummary {
+        let mut node_types: Vec<LegendEntry> = node_counts
+            .iter()
+            .map(|(type_key, count)| LegendEntry {
+                type_key: type_key.clone(),
+                label: type_key.clone(),
+                count: *count,
+                color: String::new(),
+                border_color: String::new(),
+                shape: String::new(),
+                dash: None,
+            })
+            .collect();
+        node_types.sort_by(|a, b| a.type_key.cmp(&b.type_key));
+
+        let mut edge_types: Vec<LegendEntry> = edge_counts
+            .iter()
+            .map(|(type_key, count)| LegendEntry {
+                type_key: type_key.clone(),
+                label: type_key.replace('_', " "),
+                count: *count,
+                color: String::new(),
+                border_color: String::new(),
+                shape: String::new(),
+                dash: None,
+            })
+            .collect();
+        edge_types.sort_by(|a, b| a.type_key.cmp(&b.type_key));
+
+        LegendSummary { node_types, edge_types }
+    }
 }
 
 impl Default for GraphStore {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod legend_tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    #[test]
+    fn legend_summary_counts_and_sorts() {
+        let mut nodes = HashMap::new();
+        nodes.insert("service".to_string(), 3);
+        nodes.insert("database".to_string(), 1);
+        let edges = HashMap::new();
+
+        let s = GraphStore::legend_summary_from_counts(&nodes, &edges);
+
+        assert_eq!(s.node_types.len(), 2);
+        // sorted alphabetically: database before service
+        assert_eq!(s.node_types[0].type_key, "database");
+        assert_eq!(s.node_types[0].count, 1);
+        assert_eq!(s.node_types[1].type_key, "service");
+        assert_eq!(s.node_types[1].count, 3);
+        assert_eq!(s.edge_types.len(), 0);
+    }
+
+    #[test]
+    fn edge_type_label_replaces_underscores() {
+        let nodes = HashMap::new();
+        let mut edges = HashMap::new();
+        edges.insert("depends_on".to_string(), 5);
+
+        let s = GraphStore::legend_summary_from_counts(&nodes, &edges);
+        assert_eq!(s.edge_types[0].type_key, "depends_on");
+        assert_eq!(s.edge_types[0].label, "depends on");
     }
 }
 
