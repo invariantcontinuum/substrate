@@ -1,47 +1,39 @@
-import type { LegendSummary } from "@invariantcontinuum/graph/react";
+import { useGraphStore } from "@/stores/graph";
 
-interface Props {
-  legend: LegendSummary | null;
-}
+const TYPE_COLORS: Record<string, string> = {
+  source: "#22d3ee",
+  config: "#fbbf24",
+  script: "#34d399",
+  doc: "#64748b",
+  data: "#38bdf8",
+  asset: "#475569",
+  service: "#3b4199",
+  database: "#065f46",
+  cache: "#047857",
+  policy: "#7c3aed",
+  adr: "#92400e",
+  incident: "#991b1b",
+  external: "#374151",
+};
 
-export function DynamicLegend({ legend }: Props) {
-  if (!legend) return null;
-  const hasContent = legend.node_types.length > 0 || legend.edge_types.length > 0;
-  if (!hasContent) return null;
+export function DynamicLegend() {
+  const nodeCount = useGraphStore((s) => s.stats.nodeCount);
+  if (nodeCount === 0) return null;
+
   return (
     <div
       className="absolute bottom-3 right-3 hidden sm:flex flex-col gap-1.5 text-[10px] font-mono"
       style={{ color: "#4a4a60" }}
     >
-      {legend.node_types.map((entry) => (
-        <div key={`node-${entry.type_key}`} className="flex items-center gap-1.5">
+      {Object.entries(TYPE_COLORS).map(([type, color]) => (
+        <div key={type} className="flex items-center gap-1.5">
           <div
             className="w-2 h-2 rounded-sm"
-            style={{ background: entry.border_color || entry.color }}
+            style={{ background: color }}
           />
-          {entry.label || entry.type_key}
+          {type}
         </div>
       ))}
-      {legend.edge_types.map((entry) => {
-        const borderStyle =
-          entry.dash === "dashed"
-            ? "1px dashed"
-            : entry.dash === "dotted"
-            ? "1px dotted"
-            : "none";
-        return (
-          <div key={`edge-${entry.type_key}`} className="flex items-center gap-1.5">
-            <div
-              className="w-3 h-0.5"
-              style={{
-                background: entry.color,
-                borderBottom: borderStyle,
-              }}
-            />
-            {entry.label || entry.type_key}
-          </div>
-        );
-      })}
     </div>
   );
 }
