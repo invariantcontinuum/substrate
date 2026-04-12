@@ -3,6 +3,7 @@ use web_sys::HtmlCanvasElement;
 
 use graph_render::camera::Camera;
 use graph_render::context::RenderContext;
+use graph_render::arrows::{ARROW_INSTANCE_FLOATS, ArrowRenderer};
 use graph_render::edges::{EDGE_INSTANCE_FLOATS, EdgeRenderer};
 use graph_render::hulls::HullRenderer;
 use graph_render::nodes::{NODE_INSTANCE_FLOATS, NodeRenderer};
@@ -56,6 +57,7 @@ pub struct RenderEngine {
     // Renderers
     node_renderer: NodeRenderer,
     edge_renderer: EdgeRenderer,
+    arrow_renderer: ArrowRenderer,
     text_renderer: TextRenderer,
     hull_renderer: HullRenderer,
 
@@ -100,6 +102,7 @@ impl RenderEngine {
 
         let node_renderer = NodeRenderer::new(&ctx).map_err(|e| JsValue::from_str(&e))?;
         let edge_renderer = EdgeRenderer::new(&ctx).map_err(|e| JsValue::from_str(&e))?;
+        let arrow_renderer = ArrowRenderer::new(&ctx).map_err(|e| JsValue::from_str(&e))?;
         let text_renderer = TextRenderer::new(&ctx).map_err(|e| JsValue::from_str(&e))?;
         let hull_renderer = HullRenderer::new(&ctx).map_err(|e| JsValue::from_str(&e))?;
 
@@ -109,6 +112,7 @@ impl RenderEngine {
             theme,
             node_renderer,
             edge_renderer,
+            arrow_renderer,
             text_renderer,
             hull_renderer,
             positions: Vec::new(),
@@ -277,6 +281,7 @@ impl RenderEngine {
         let vp = self.camera.view_projection_matrix();
         self.hull_renderer.draw(&self.ctx.gl, &vp);
         self.edge_renderer.draw(&self.ctx.gl, &vp, time);
+        self.arrow_renderer.draw(&self.ctx.gl, &vp);
         self.node_renderer.draw(&self.ctx.gl, &vp, time);
         self.text_renderer.draw(&self.ctx.gl, &vp);
 
@@ -491,6 +496,7 @@ impl RenderEngine {
 
         // --- Edge buffer ---
         let mut edge_buf = Vec::with_capacity(self.edge_count * EDGE_INSTANCE_FLOATS);
+        let mut arrow_instances: Vec<f32> = Vec::with_capacity(self.edge_count * ARROW_INSTANCE_FLOATS);
         let edge_stride = 6;
         for i in 0..self.edge_count {
             let base = i * edge_stride;
@@ -539,8 +545,17 @@ impl RenderEngine {
 
             let (er, eg, eb, ea) = parse_hex_color(&ecolor);
             edge_buf.extend_from_slice(&[sx, sy, tx, ty, ewidth, er, eg, eb, ea, dash, animate]);
+
+            // T11: build arrow instance data alongside each edge.
+            arrow_instances.extend_from_slice(&[
+                sx, sy, tx, ty,
+                6.0, // arrow scale in world units
+                er, eg, eb, ea,
+            ]);
         }
+        let arrow_count = arrow_instances.len() / ARROW_INSTANCE_FLOATS;
         self.edge_renderer.upload(gl, &edge_buf, self.edge_count);
+        self.arrow_renderer.upload(gl, &arrow_instances, arrow_count);
 
         // --- Hull buffer ---
         self.hull_renderer.upload(gl, &[], 0);
