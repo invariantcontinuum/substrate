@@ -1,6 +1,0 @@
-CREATE CONSTRAINT service_id IF NOT EXISTS FOR (s:Service) REQUIRE s.id IS UNIQUE;
-CREATE CONSTRAINT database_id IF NOT EXISTS FOR (d:Database) REQUIRE d.id IS UNIQUE;
-CREATE CONSTRAINT cache_id IF NOT EXISTS FOR (c:Cache) REQUIRE c.id IS UNIQUE;
-CREATE CONSTRAINT external_id IF NOT EXISTS FOR (e:External) REQUIRE e.id IS UNIQUE;
-CREATE INDEX service_name IF NOT EXISTS FOR (s:Service) ON (s.name);
-CREATE INDEX service_domain IF NOT EXISTS FOR (s:Service) ON (s.domain);

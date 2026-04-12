@@ -1,15 +1,30 @@
+import httpx
+import structlog
 from fastapi import APIRouter
-from src.search import search_nodes
+
+from src.config import settings
 from src.graph.store import (
     get_full_snapshot,
     get_node_with_neighbors,
     get_stats,
     nodes_to_cytoscape,
     edges_to_cytoscape,
+    search,
     purge_all,
 )
 
+logger = structlog.get_logger()
 router = APIRouter(prefix="/api/graph")
+
+
+async def _embed_query(query: str) -> list[float]:
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.post(
+            settings.embedding_url,
+            json={"input": query, "model": settings.embedding_model},
+        )
+        resp.raise_for_status()
+        return resp.json()["data"][0]["embedding"]
 
 
 @router.get("")
@@ -42,8 +57,16 @@ async def purge_graph():
 
 
 @router.get("/search")
-async def search_graph(q: str = "", type: str = "", domain: str = "", limit: int = 10):
+async def search_graph(q: str = "", type: str = "", limit: int = 10):
     if not q:
         return {"results": []}
-    results = await search_nodes(q, limit=limit, type_filter=type, domain_filter=domain)
+    try:
+        embedding = await _embed_query(q)
+    except httpx.ConnectError as e:
+        logger.warning("search_embedding_unavailable", error=str(e), query=q)
+        return {"results": []}
+    except Exception as e:
+        logger.warning("search_embedding_failed", error=str(e), query=q)
+        return {"results": []}
+    results = await search(embedding, limit=limit, type_filter=type)
     return {"results": results}
