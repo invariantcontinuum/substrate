@@ -13,7 +13,7 @@ interface ImportMeta {
 }
 
 declare module "cytoscape-cose-bilkent" {
-  import type { Core, Ext } from "cytoscape";
-  const ext: (cytoscape: (fn: Ext) => void) => void;
+  import type cytoscape from "cytoscape";
+  const ext: cytoscape.Ext;
   export default ext;
 }

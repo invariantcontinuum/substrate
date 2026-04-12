@@ -29,7 +29,7 @@ interface RawSnapshot {
 const DEFAULT_REPO_URL = "https://github.com/curl/curl.git";
 
 // Lazy-load cytoscape + layout extension (no SSR)
-let cyPromise: Promise<typeof import("cytoscape")> | null = null;
+let cyPromise: Promise<typeof cytoscape> | null = null;
 let registered = false;
 
 function loadCytoscape() {
@@ -38,13 +38,13 @@ function loadCytoscape() {
       import("cytoscape"),
       import("cytoscape-cose-bilkent"),
     ]).then(([cyMod, coseBilkentMod]) => {
+      const cy = (cyMod as any).default || cyMod;
       if (!registered) {
-        const cy = cyMod.default;
-        const coseBilkent = coseBilkentMod.default;
-        cy.use(coseBilkent);
+        const coseBilkent = (coseBilkentMod as any).default || coseBilkentMod;
+        cy.use(coseBilkent as cytoscape.Ext);
         registered = true;
       }
-      return cyMod;
+      return cy as typeof cytoscape;
     });
   }
   return cyPromise;
@@ -158,10 +158,10 @@ export function GraphCanvas() {
     if (!containerRef.current) return;
     let destroyed = false;
 
-    loadCytoscape().then((cyMod) => {
+    loadCytoscape().then((cytoscapeFn) => {
       if (destroyed || !containerRef.current) return;
 
-      const cy = cyMod.default({
+      const cy = cytoscapeFn({
         container: containerRef.current,
         elements,
         style: stylesheet,

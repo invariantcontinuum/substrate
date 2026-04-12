@@ -1,7 +1,7 @@
-import type { Stylesheet } from "cytoscape";
+import type cytoscape from "cytoscape";
 
 // ─── Dark Stylesheet ───
-export const darkStylesheet: Stylesheet[] = [
+export const darkStylesheet: cytoscape.StylesheetJsonBlock[] = [
   // Base node
   {
     selector: "node",
@@ -233,7 +233,7 @@ export const darkStylesheet: Stylesheet[] = [
 ];
 
 // ─── Light Stylesheet ───
-export const lightStylesheet: Stylesheet[] = [
+export const lightStylesheet: cytoscape.StylesheetJsonBlock[] = [
   // Base node
   {
     selector: "node",
