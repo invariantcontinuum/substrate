@@ -21,7 +21,7 @@ export function TopBar() {
 
   return (
     <header
-      className="flex items-center gap-3 px-4 sm:px-5 shrink-0"
+      className="flex items-center gap-4 px-5 sm:px-6 shrink-0"
       style={{
         height: "var(--topbar-height)",
         minHeight: "var(--topbar-height)",

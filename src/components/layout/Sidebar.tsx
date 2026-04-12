@@ -37,7 +37,7 @@ export function Sidebar() {
 
   return (
     <nav
-      className="flex flex-col items-center py-4 gap-1.5 shrink-0"
+      className="flex flex-col items-center py-5 px-2 gap-1.5 shrink-0"
       style={{
         width: "var(--sidebar-width)",
         minWidth: "var(--sidebar-width)",
@@ -129,7 +129,7 @@ export function Sidebar() {
 
       {/* User avatar */}
       <div
-        className="relative flex items-center mb-2"
+        className="relative flex items-center mb-1"
         onMouseEnter={() => setHov("__u")}
         onMouseLeave={() => setHov(null)}
       >

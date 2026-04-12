@@ -50,8 +50,8 @@ export function MobileNav() {
         }}
       >
         <div
-          className="flex items-center justify-between px-5 shrink-0"
-          style={{ height: 60 }}
+          className="flex items-center justify-between px-6 shrink-0"
+          style={{ height: 64 }}
         >
           <div className="flex items-center gap-3">
             <div
@@ -79,7 +79,7 @@ export function MobileNav() {
           </button>
         </div>
 
-        <div className="flex flex-col gap-1 px-4 py-4 flex-1 overflow-y-auto">
+        <div className="flex flex-col gap-1.5 px-5 py-5 flex-1 overflow-y-auto">
           {items.map((it) => (
             <button
               key={it.label}
@@ -98,7 +98,7 @@ export function MobileNav() {
         </div>
 
         <div
-          className="flex items-center gap-3 px-5 py-4 shrink-0"
+          className="flex items-center gap-3 px-6 py-5 shrink-0"
         >
           <button
             onClick={() => go("user")}

@@ -69,10 +69,10 @@ export function Modal({ open, onClose, title, children, maxWidth = 480 }: ModalP
       >
         {/* Header */}
         <div
-          className="flex items-center justify-between px-6 sm:px-7 shrink-0"
+          className="flex items-center justify-between px-7 sm:px-8 shrink-0"
           style={{
-            height: 60,
-            minHeight: 60,
+            height: 64,
+            minHeight: 64,
           }}
         >
           <span
@@ -98,7 +98,7 @@ export function Modal({ open, onClose, title, children, maxWidth = 480 }: ModalP
 
         {/* Body */}
         <div
-          className="flex-1 overflow-y-auto px-6 sm:px-7 pb-6"
+          className="flex-1 overflow-y-auto px-7 sm:px-8 pt-1 pb-7"
           style={{ overscrollBehavior: "contain" }}
         >
           {children}
