@@ -81,7 +81,7 @@ export function SourcesModal() {
             Schedule Sync
           </Label>
           <div className="flex gap-3 items-center">
-            <Select value={String(scheduleInterval)} onValueChange={(v: string) => setScheduleInterval(Number(v))}>
+            <Select value={String(scheduleInterval)} onValueChange={(v: string | null) => v && setScheduleInterval(Number(v))}>
               <SelectTrigger size="sm">
                 <SelectValue />
               </SelectTrigger>
