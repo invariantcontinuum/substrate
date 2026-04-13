@@ -37,7 +37,7 @@ export function Sidebar() {
 
   return (
     <nav
-      className="flex flex-col items-center py-2 gap-px shrink-0"
+      className="flex flex-col items-center py-2 gap-0.5 shrink-0"
       style={{
         width: "var(--sidebar-width)",
         minWidth: "var(--sidebar-width)",

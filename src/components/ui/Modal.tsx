@@ -48,7 +48,7 @@ export function Modal({ open, onClose, title, children, maxWidth = 480 }: ModalP
           maxWidth,
           maxHeight: "calc(100dvh - 120px)",
           borderRadius: "var(--radius-lg)",
-          boxShadow: "0 24px 48px rgba(0,0,0,0.5)",
+          boxShadow: "0 16px 40px rgba(0,0,0,0.15)",
           background: "var(--bg-elevated)",
           backdropFilter: "blur(20px)",
           WebkitBackdropFilter: "blur(20px)",

@@ -66,15 +66,15 @@
 /* ─── Substrate Glass Morphism Design Tokens (Light) ─── */
 .light {
   color-scheme: light;
-  --bg: #f8f8fa;
-  --bg-surface: rgba(255, 255, 255, 0.8);
-  --bg-elevated: rgba(240, 240, 244, 0.85);
-  --bg-hover: rgba(0, 0, 0, 0.03);
-  --bg-active: rgba(0, 0, 0, 0.06);
-  --overlay-panel: rgba(255, 255, 255, 0.85);
-  --overlay-modal: rgba(0, 0, 0, 0.3);
-  --border: rgba(0, 0, 0, 0.08);
-  --border-subtle: rgba(0, 0, 0, 0.04);
+  --bg: #f4f5f7;
+  --bg-surface: #ffffff;
+  --bg-elevated: #ffffff;
+  --bg-hover: rgba(0, 0, 0, 0.05);
+  --bg-active: rgba(0, 0, 0, 0.08);
+  --overlay-panel: rgba(255, 255, 255, 0.9);
+  --overlay-modal: rgba(0, 0, 0, 0.35);
+  --border: rgba(0, 0, 0, 0.12);
+  --border-subtle: rgba(0, 0, 0, 0.06);
   --border-active: rgba(99, 102, 241, 0.25);
   --text-primary: #111118;
   --text-secondary: #64647a;
@@ -163,6 +163,10 @@ body {
   backdrop-filter: blur(var(--overlay-blur));
   -webkit-backdrop-filter: blur(var(--overlay-blur));
   border: 1px solid var(--border);
+}
+
+.light .glass-panel {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
 .glass-input {
