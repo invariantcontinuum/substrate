@@ -1,6 +1,5 @@
 import { useEffect, useCallback } from "react";
 import { X } from "lucide-react";
-import { useResponsive } from "@/hooks/useResponsive";
 
 interface ModalProps {
   open: boolean;
@@ -11,8 +10,6 @@ interface ModalProps {
 }
 
 export function Modal({ open, onClose, title, children, maxWidth = 480 }: ModalProps) {
-  const { isDesktop } = useResponsive();
-
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -35,13 +32,12 @@ export function Modal({ open, onClose, title, children, maxWidth = 480 }: ModalP
 
   return (
     <div
-      className="fixed inset-0 z-50 flex justify-center"
+      className="fixed inset-0 z-50 flex justify-center items-center"
       style={{
         background: "var(--overlay-modal)",
-        backdropFilter: "blur(var(--overlay-blur))",
-        WebkitBackdropFilter: "blur(var(--overlay-blur))",
+        backdropFilter: "blur(8px)",
+        WebkitBackdropFilter: "blur(8px)",
         animation: "fadeIn 0.15s ease-out both",
-        alignItems: isDesktop ? "center" : "flex-end",
       }}
       onClick={onClose}
     >
@@ -50,19 +46,13 @@ export function Modal({ open, onClose, title, children, maxWidth = 480 }: ModalP
         style={{
           width: "100%",
           maxWidth,
-          ...(isDesktop
-            ? {
-                maxHeight: "calc(100dvh - 120px)",
-                borderRadius: "var(--radius-container)",
-                boxShadow: "var(--neu-extruded-hover)",
-              }
-            : {
-                height: "100%",
-                maxHeight: "100dvh",
-                borderRadius: "var(--radius-container) var(--radius-container) 0 0",
-                boxShadow: "var(--neu-extruded)",
-              }),
-          background: "var(--bg-surface)",
+          maxHeight: "calc(100dvh - 120px)",
+          borderRadius: "var(--radius-lg)",
+          boxShadow: "0 24px 48px rgba(0,0,0,0.5)",
+          background: "var(--bg-elevated)",
+          backdropFilter: "blur(20px)",
+          WebkitBackdropFilter: "blur(20px)",
+          border: "1px solid var(--border)",
           animation: "scaleIn 0.2s ease-out both",
         }}
         onClick={(e) => e.stopPropagation()}
@@ -71,8 +61,9 @@ export function Modal({ open, onClose, title, children, maxWidth = 480 }: ModalP
         <div
           className="flex items-center justify-between px-7 sm:px-8 shrink-0"
           style={{
-            height: 64,
-            minHeight: 64,
+            height: 44,
+            minHeight: 44,
+            borderBottom: "1px solid var(--border)",
           }}
         >
           <span
@@ -83,13 +74,13 @@ export function Modal({ open, onClose, title, children, maxWidth = 480 }: ModalP
           </span>
           <button
             onClick={onClose}
-            className="neu-btn flex items-center justify-center"
+            className="flex items-center justify-center"
             style={{
               width: 34,
               height: 34,
               color: "var(--text-muted)",
-              background: "var(--bg-surface)",
-              borderRadius: "var(--radius-md)",
+              background: "var(--bg-hover)",
+              borderRadius: "var(--radius-sm)",
             }}
           >
             <X size={15} />
