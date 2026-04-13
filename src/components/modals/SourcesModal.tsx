@@ -49,10 +49,10 @@ export function SourcesModal() {
 
   return (
     <Modal open={activeModal === "sources"} onClose={closeModal} title="Sources" maxWidth={520}>
-      <div className="flex flex-col gap-7">
+      <div className="flex flex-col gap-5">
         {/* Ingest repo */}
         <div>
-          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2.5 font-display">
+          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2 font-display">
             Ingest Repository
           </Label>
           <div className="flex gap-3">
@@ -77,7 +77,7 @@ export function SourcesModal() {
 
         {/* Schedule */}
         <div>
-          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2.5 font-display">
+          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2 font-display">
             Schedule Sync
           </Label>
           <div className="flex gap-3 items-center">
@@ -108,7 +108,7 @@ export function SourcesModal() {
         {/* Active schedules */}
         {schedules.length > 0 && (
           <div>
-            <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2.5 font-display">
+            <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2 font-display">
               Active Schedules
             </Label>
             <div className="flex flex-col gap-2">
@@ -147,7 +147,7 @@ export function SourcesModal() {
 
         {/* View controls */}
         <div>
-          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2.5 font-display">
+          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2 font-display">
             View
           </Label>
           <div className="flex flex-col gap-3">

@@ -9,10 +9,7 @@ export function DashboardLayout() {
   const { isDesktop } = useResponsive();
 
   return (
-    <div
-      className="flex h-dvh"
-      style={{ overflow: "hidden" }}
-    >
+    <div className="flex h-dvh overflow-hidden bg-background">
       {/* Sidebar — desktop only, fixed width */}
       {isDesktop && <Sidebar />}
 

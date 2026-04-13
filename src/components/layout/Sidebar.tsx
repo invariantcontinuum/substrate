@@ -36,7 +36,7 @@ export function Sidebar() {
 
   return (
     <nav
-      className="flex flex-col items-center py-2 gap-0.5 shrink-0 w-[var(--sidebar-width)] min-w-[var(--sidebar-width)] bg-[var(--bg-glass)] backdrop-blur-md border-r border-[var(--border-glass)]"
+      className="flex flex-col items-center pt-1.5 pb-2 gap-px shrink-0 w-13 min-w-13 bg-[var(--bg-glass)] backdrop-blur-md border-r border-[var(--border-glass)]"
     >
       {items.map((it) => {
         const isActive = it.active;
@@ -60,7 +60,7 @@ export function Sidebar() {
             <button
               onClick={() => it.modal !== "navigate" && open(it.modal)}
               className={cn(
-                "flex items-center justify-center w-[34px] h-[34px] rounded-md transition-all duration-150",
+                "flex items-center justify-center size-8 rounded-md transition-all duration-150 cursor-pointer",
                 isActive && "bg-[var(--accent-soft)] outline outline-1 outline-[var(--accent-medium)]",
                 !isActive && isHov && "bg-white/[0.04]",
               )}
@@ -109,7 +109,7 @@ export function Sidebar() {
       >
         <button
           onClick={() => open("user")}
-          className="flex items-center justify-center w-[34px] h-[34px] rounded-full bg-[var(--accent-soft)] outline outline-1 outline-[var(--accent-medium)] transition-all duration-150"
+          className="flex items-center justify-center size-8 rounded-full bg-[var(--accent-soft)] outline outline-1 outline-[var(--accent-medium)] transition-all duration-150 cursor-pointer"
         >
           <span className="text-[11px] font-semibold text-[var(--accent-brand)]">{initial}</span>
         </button>

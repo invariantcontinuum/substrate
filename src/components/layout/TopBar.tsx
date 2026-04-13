@@ -24,7 +24,7 @@ export function TopBar() {
 
   return (
     <header
-      className="flex items-center gap-2 px-2 sm:px-3 shrink-0 h-[var(--topbar-height)] min-h-[var(--topbar-height)] bg-[var(--bg-glass)] backdrop-blur-md border-b border-[var(--border-glass)] relative z-5"
+      className="flex items-center gap-2.5 px-3 shrink-0 h-11 min-h-11 bg-[var(--bg-glass)] backdrop-blur-md border-b border-[var(--border-glass)] relative z-5"
     >
       {/* Mobile hamburger */}
       {!isDesktop && (

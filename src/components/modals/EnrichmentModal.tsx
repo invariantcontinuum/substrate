@@ -28,13 +28,13 @@ export function EnrichmentModal() {
 
   return (
     <Modal open={activeModal === "enrichment"} onClose={closeModal} title="Enrichment" maxWidth={480}>
-      <div className="flex flex-col gap-7">
+      <div className="flex flex-col gap-5">
         <div className="text-xs leading-relaxed text-muted-foreground">
           Use local LLM to generate descriptions, classifications, and embeddings for graph nodes.
         </div>
 
         <div>
-          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2.5 font-display">
+          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2 font-display">
             Repository
           </Label>
           <Input
@@ -48,7 +48,7 @@ export function EnrichmentModal() {
 
         <div className="flex gap-4">
           <div className="flex-1">
-            <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2.5 font-display">
+            <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2 font-display">
               Limit
             </Label>
             <Input
@@ -59,7 +59,7 @@ export function EnrichmentModal() {
             />
           </div>
           <div className="flex-1">
-            <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2.5 font-display">
+            <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2 font-display">
               Mode
             </Label>
             <Button

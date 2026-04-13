@@ -42,9 +42,7 @@
 :root {
   color-scheme: dark;
 
-  /* App-specific tokens (sidebar, topbar, graph) */
-  --sidebar-width: 52px;
-  --topbar-height: 44px;
+  /* App-specific tokens */
   --overlay-blur: 16px;
 
   /* Graph accent colors */
