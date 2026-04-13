@@ -41,10 +41,10 @@ export function Sidebar() {
       style={{
         width: "var(--sidebar-width)",
         minWidth: "var(--sidebar-width)",
-        background: "var(--bg-surface)",
+        background: "var(--bg-glass)",
         backdropFilter: "blur(var(--overlay-blur))",
         WebkitBackdropFilter: "blur(var(--overlay-blur))",
-        borderRight: "1px solid var(--border)",
+        borderRight: "1px solid var(--border-glass)",
       }}
     >
       {items.map((it) => {

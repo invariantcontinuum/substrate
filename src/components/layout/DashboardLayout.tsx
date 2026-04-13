@@ -11,7 +11,7 @@ export function DashboardLayout() {
   return (
     <div
       className="flex h-dvh"
-      style={{ background: "var(--bg)", overflow: "hidden" }}
+      style={{ overflow: "hidden" }}
     >
       {/* Sidebar — desktop only, fixed width */}
       {isDesktop && <Sidebar />}

@@ -27,10 +27,10 @@ export function TopBar() {
       style={{
         height: "var(--topbar-height)",
         minHeight: "var(--topbar-height)",
-        background: "var(--bg-surface)",
+        background: "var(--bg-glass)",
         backdropFilter: "blur(var(--overlay-blur))",
         WebkitBackdropFilter: "blur(var(--overlay-blur))",
-        borderBottom: "1px solid var(--border)",
+        borderBottom: "1px solid var(--border-glass)",
         zIndex: 5,
         position: "relative",
       }}
@@ -87,7 +87,7 @@ export function TopBar() {
         </div>
       </div>
 
-      <div className="w-px h-3 hidden sm:block" style={{ background: "var(--border)" }} />
+      <div className="w-px h-3 hidden sm:block" style={{ background: "var(--border-glass)" }} />
 
       {/* Stats */}
       <div
