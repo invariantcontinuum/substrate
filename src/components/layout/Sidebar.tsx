@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "react-oidc-context";
 import { useUIStore, type ModalName } from "@/stores/ui";
+import { cn } from "@/lib/utils";
 
 const IMPLEMENTED = new Set(["sources", "enrichment", "search", "settings", "user"]);
 
@@ -27,8 +28,6 @@ const items: NavItem[] = [
   { icon: Settings,  label: "Settings",   modal: "settings" },
 ];
 
-const SZ = 34;
-
 export function Sidebar() {
   const open = useUIStore((s) => s.openModal);
   const auth = useAuth();
@@ -37,15 +36,7 @@ export function Sidebar() {
 
   return (
     <nav
-      className="flex flex-col items-center py-2 gap-0.5 shrink-0"
-      style={{
-        width: "var(--sidebar-width)",
-        minWidth: "var(--sidebar-width)",
-        background: "var(--bg-glass)",
-        backdropFilter: "blur(var(--overlay-blur))",
-        WebkitBackdropFilter: "blur(var(--overlay-blur))",
-        borderRight: "1px solid var(--border-glass)",
-      }}
+      className="flex flex-col items-center py-2 gap-0.5 shrink-0 w-[var(--sidebar-width)] min-w-[var(--sidebar-width)] bg-[var(--bg-glass)] backdrop-blur-md border-r border-[var(--border-glass)]"
     >
       {items.map((it) => {
         const isActive = it.active;
@@ -61,61 +52,42 @@ export function Sidebar() {
           >
             {/* Active bar */}
             <div
-              style={{
-                position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)",
-                width: 2, borderRadius: "0 3px 3px 0",
-                height: isActive ? 18 : isHov ? 12 : 0,
-                background: "var(--accent)",
-                transition: "height 0.2s ease-out",
-                boxShadow: isActive || isHov ? "0 0 8px var(--accent-glow)" : "none",
-              }}
+              className={cn(
+                "absolute left-0 top-1/2 -translate-y-1/2 w-0.5 rounded-r-sm bg-[var(--accent-brand)] transition-all duration-200",
+                isActive ? "h-[18px] shadow-[0_0_8px_var(--accent-glow)]" : isHov ? "h-3 shadow-[0_0_8px_var(--accent-glow)]" : "h-0"
+              )}
             />
             <button
               onClick={() => it.modal !== "navigate" && open(it.modal)}
-              style={{
-                width: SZ, height: SZ, display: "flex", alignItems: "center", justifyContent: "center",
-                borderRadius: "var(--radius-md)",
-                background: isActive ? "var(--accent-soft)" : isHov ? "var(--bg-hover)" : "transparent",
-                outline: isActive ? "1px solid var(--accent-medium)" : "none",
-                transition: "all 0.15s ease",
-              }}
+              className={cn(
+                "flex items-center justify-center w-[34px] h-[34px] rounded-md transition-all duration-150",
+                isActive && "bg-[var(--accent-soft)] outline outline-1 outline-[var(--accent-medium)]",
+                !isActive && isHov && "bg-white/[0.04]",
+              )}
             >
               <it.icon
                 size={15}
                 strokeWidth={isActive ? 2 : 1.5}
-                color={isActive ? "var(--accent)" : isHov ? "var(--text-primary)" : "var(--text-muted)"}
+                className={cn(
+                  isActive ? "text-[var(--accent-brand)]" : isHov ? "text-[var(--text-primary)]" : "text-[var(--text-muted)]"
+                )}
               />
             </button>
 
             {/* Tooltip */}
             {isHov && (
               <div
-                style={{
-                  position: "absolute", left: SZ + 8, top: "50%", transform: "translateY(-50%)",
-                  pointerEvents: "none", zIndex: 100, display: "flex", alignItems: "center", gap: 5,
-                  animation: "fadeIn 0.1s ease",
-                }}
+                className="absolute left-[42px] top-1/2 -translate-y-1/2 pointer-events-none z-[100] flex items-center gap-1.5 animate-[fadeIn_0.1s_ease]"
               >
                 <div
-                  style={{
-                    background: "var(--bg-elevated)",
-                    border: "1px solid var(--border)",
-                    borderRadius: "var(--radius-sm)", padding: "3px 8px",
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.4)", whiteSpace: "nowrap",
-                    display: "flex", alignItems: "center", gap: 5,
-                  }}
+                  className="bg-[var(--color-popover)] border border-[var(--border-glass)] rounded-md px-2 py-0.5 shadow-lg whitespace-nowrap flex items-center gap-1.5"
                 >
-                  <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-primary)" }}>
+                  <span className="text-[11px] font-medium text-[var(--text-primary)]">
                     {it.label}
                   </span>
                   {coming && (
                     <span
-                      style={{
-                        fontSize: 8, fontWeight: 700, textTransform: "uppercase",
-                        color: "var(--warning-text)", background: "var(--warning-soft)",
-                        padding: "2px 5px", borderRadius: 6, letterSpacing: "0.04em",
-                        fontFamily: "var(--font-mono)",
-                      }}
+                      className="text-[8px] font-bold uppercase text-[var(--warning-text)] bg-[var(--warning)]/10 px-1.5 py-0.5 rounded-md tracking-wide font-mono"
                     >
                       soon
                     </span>
@@ -137,30 +109,16 @@ export function Sidebar() {
       >
         <button
           onClick={() => open("user")}
-          style={{
-            width: SZ, height: SZ, borderRadius: "50%",
-            background: "var(--accent-soft)",
-            outline: "1px solid var(--accent-medium)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            transition: "all 0.15s ease",
-          }}
+          className="flex items-center justify-center w-[34px] h-[34px] rounded-full bg-[var(--accent-soft)] outline outline-1 outline-[var(--accent-medium)] transition-all duration-150"
         >
-          <span style={{ fontSize: 11, color: "var(--accent-text)", fontWeight: 600 }}>{initial}</span>
+          <span className="text-[11px] font-semibold text-[var(--accent-brand)]">{initial}</span>
         </button>
         {hov === "__u" && (
           <div
-            style={{
-              position: "absolute", left: SZ + 8, top: "50%", transform: "translateY(-50%)",
-              pointerEvents: "none", zIndex: 100, animation: "fadeIn 0.1s ease",
-            }}
+            className="absolute left-[42px] top-1/2 -translate-y-1/2 pointer-events-none z-[100] animate-[fadeIn_0.1s_ease]"
           >
-            <div style={{
-              background: "var(--bg-elevated)",
-              border: "1px solid var(--border)",
-              borderRadius: "var(--radius-sm)", padding: "3px 8px",
-              boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
-            }}>
-              <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-primary)" }}>Account</span>
+            <div className="bg-[var(--color-popover)] border border-[var(--border-glass)] rounded-md px-2 py-0.5 shadow-lg">
+              <span className="text-[11px] font-medium text-[var(--text-primary)]">Account</span>
             </div>
           </div>
         )}
