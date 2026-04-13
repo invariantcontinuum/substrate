@@ -34,10 +34,8 @@ export function Sidebar() {
   const [hov, setHov] = useState<string | null>(null);
 
   return (
-    <nav>
+    <nav className="flex flex-col w-48 border-r border-black bg-white h-full">
       {items.map((it) => {
-        const isActive = it.active;
-        const isHov = hov === it.label;
         const coming = it.modal !== "navigate" && !IMPLEMENTED.has(it.modal as string);
 
         return (
@@ -45,35 +43,35 @@ export function Sidebar() {
             key={it.label}
             onMouseEnter={() => setHov(it.label)}
             onMouseLeave={() => setHov(null)}
+            className="relative"
           >
-            <div />
-            <button onClick={() => it.modal !== "navigate" && open(it.modal)}>
-              <it.icon size={16} strokeWidth={isActive ? 2 : 1.5} />
+            <button
+              onClick={() => it.modal !== "navigate" && open(it.modal)}
+              className="w-full flex items-center gap-2 p-3 border-b border-black text-black text-left"
+            >
+              <it.icon size={16} />
+              <span>{it.label}</span>
+              {coming && <span className="ml-auto border border-black px-1">soon</span>}
             </button>
 
-            {isHov && (
-              <div>
-                <div>
-                  <span>{it.label}</span>
-                  {coming && <span>soon</span>}
-                </div>
+            {hov === it.label && (
+              <div className="absolute left-full top-0 z-50 bg-white border border-black p-2 whitespace-nowrap">
+                {it.label}
               </div>
             )}
           </div>
         );
       })}
 
-      <div />
+      <div className="flex-1" />
 
-      <div onMouseEnter={() => setHov("__u")} onMouseLeave={() => setHov(null)}>
-        <button onClick={() => open("user")}>
-          <span>{initial}</span>
+      <div className="relative" onMouseEnter={() => setHov("__u")} onMouseLeave={() => setHov(null)}>
+        <button onClick={() => open("user")} className="w-full p-3 border-t border-black text-black text-left">
+          {initial}
         </button>
         {hov === "__u" && (
-          <div>
-            <div>
-              <span>Account</span>
-            </div>
+          <div className="absolute left-full bottom-0 z-50 bg-white border border-black p-2 whitespace-nowrap">
+            Account
           </div>
         )}
       </div>

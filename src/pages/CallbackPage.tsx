@@ -13,16 +13,7 @@ export function CallbackPage() {
   }, [auth.isAuthenticated, navigate]);
 
   return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        height: "100vh",
-        background: "#060608",
-        color: "#8888a0",
-      }}
-    >
+    <div className="flex items-center justify-center h-screen bg-white text-black">
       Authenticating...
     </div>
   );

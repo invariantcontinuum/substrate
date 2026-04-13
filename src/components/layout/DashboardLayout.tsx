@@ -9,12 +9,12 @@ export function DashboardLayout() {
   const { isDesktop } = useResponsive();
 
   return (
-    <div>
+    <div className="flex h-screen bg-white">
       {isDesktop && <Sidebar />}
 
-      <div>
+      <div className="flex flex-col flex-1 min-w-0">
         <TopBar />
-        <main>
+        <main className="flex-1 min-h-0 overflow-hidden">
           <Outlet />
         </main>
       </div>

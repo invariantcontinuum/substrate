@@ -16,7 +16,6 @@ import type cytoscape from "cytoscape";
 type Core = cytoscape.Core;
 type ElementDefinition = cytoscape.ElementDefinition;
 
-// Raw API response shape (Cytoscape-style wrapped elements)
 interface RawElement {
   data?: Record<string, unknown>;
   [key: string]: unknown;
@@ -29,7 +28,6 @@ interface RawSnapshot {
 
 const DEFAULT_REPO_URL = "https://github.com/curl/curl.git";
 
-// Lazy-load cytoscape + layout extension (no SSR)
 let cyPromise: Promise<typeof cytoscape> | null = null;
 let registered = false;
 
@@ -51,7 +49,6 @@ function loadCytoscape() {
   return cyPromise;
 }
 
-/** Convert raw API response into Cytoscape ElementDefinition[] */
 function toElements(raw: RawSnapshot | undefined, filters: Set<string>): ElementDefinition[] {
   if (!raw) return [];
   const elements: ElementDefinition[] = [];
@@ -133,7 +130,6 @@ export function GraphCanvas() {
     [rawData, canvasCleared, filters.types],
   );
 
-  // Auto-open SourcesModal when graph is empty
   useEffect(() => {
     if (!rawData) return;
     const nodeCount = (rawData.nodes ?? []).length;
@@ -144,7 +140,6 @@ export function GraphCanvas() {
     }
   }, [rawData, openModal, setDefaultRepoUrl]);
 
-  // Node tap handler (stable ref)
   const handleNodeTap = useCallback(
     (evt: { target: { data: () => Record<string, unknown> } }) => {
       const d = evt.target.data();
@@ -163,7 +158,6 @@ export function GraphCanvas() {
     [selectNode],
   );
 
-  // Initialize Cytoscape
   useEffect(() => {
     if (!containerRef.current) return;
     let destroyed = false;
@@ -192,7 +186,6 @@ export function GraphCanvas() {
       cy.on("tap", "node", handleNodeTap as unknown as cytoscape.EventHandler);
       cy.on("tap", handleBgTap as unknown as cytoscape.EventHandler);
 
-      // Middle-mouse-button drag to pan
       const container = containerRef.current;
       let middleDrag = false;
       let lastX = 0;
@@ -225,7 +218,6 @@ export function GraphCanvas() {
       container.addEventListener("mousedown", onMouseDown);
       window.addEventListener("mousemove", onMouseMove);
       window.addEventListener("mouseup", onMouseUp);
-      // Prevent default middle-click scroll behavior
       container.addEventListener("auxclick", (e) => e.button === 1 && e.preventDefault());
 
       (cy as any)._middleDragCleanup = () => {
@@ -247,7 +239,6 @@ export function GraphCanvas() {
         logger.info("layout_computation_complete", { layout: "cose-bilkent" });
       }
 
-      // Report stats after layout
       const violationCount = cy.nodes("[status='violation']").length;
       const nodeCount = cy.nodes().length;
       const edgeCount = cy.edges().length;
@@ -271,11 +262,9 @@ export function GraphCanvas() {
         cyRef.current = null;
       }
     };
-    // Only re-init when elements or stylesheet fundamentally change
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [elements, stylesheet]);
 
-  // Theme switching without full re-init
   useEffect(() => {
     const cy = cyRef.current;
     if (!cy) return;
@@ -284,13 +273,11 @@ export function GraphCanvas() {
   }, [stylesheet, themeMode]);
 
   return (
-    <div className="relative w-full h-full">
-      <div className="w-full h-full rounded-2xl overflow-hidden bg-[rgba(16,16,24,0.65)] border border-white/10 backdrop-blur-xl shadow-2xl">
-        <div ref={containerRef} className="w-full h-full" />
-        <SignalsOverlay />
-        <ViolationBadge />
-        <DynamicLegend />
-      </div>
+    <div className="w-full h-full">
+      <div ref={containerRef} className="w-full h-full" />
+      <SignalsOverlay />
+      <ViolationBadge />
+      <DynamicLegend />
     </div>
   );
 }

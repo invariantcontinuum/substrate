@@ -14,12 +14,12 @@ export function ComingSoonModal({ name }: { name: string }) {
 
   return (
     <Modal open={activeModal === name} onClose={closeModal} title={title} maxWidth={360}>
-      <div>
-        <div>
-          <span>&#x2692;</span>
+      <div className="flex flex-col items-center gap-4 text-center">
+        <div className="border border-black p-3">
+          <span className="text-xl">&#x2692;</span>
         </div>
         <div>
-          <div>Coming Soon</div>
+          <div className="font-bold">Coming Soon</div>
           <div>{DESCRIPTIONS[name] || "This feature is under development."}</div>
         </div>
       </div>

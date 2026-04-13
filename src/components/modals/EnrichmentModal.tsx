@@ -28,11 +28,11 @@ export function EnrichmentModal() {
 
   return (
     <Modal open={activeModal === "enrichment"} onClose={closeModal} title="Enrichment" maxWidth={480}>
-      <div>
+      <div className="flex flex-col gap-4">
         <p>Use local LLM to generate descriptions, classifications, and embeddings for graph nodes.</p>
 
         <div>
-          <Label>Repository</Label>
+          <Label className="block mb-2">Repository</Label>
           <Input
             type="text"
             placeholder="https://github.com/owner/repo"
@@ -41,30 +41,28 @@ export function EnrichmentModal() {
           />
         </div>
 
-        <div>
-          <div>
-            <Label>Limit</Label>
+        <div className="flex gap-3">
+          <div className="flex-1">
+            <Label className="block mb-2">Limit</Label>
             <Input type="number" value={limit} onChange={(e) => setLimit(Number(e.target.value))} />
           </div>
-          <div>
-            <Label>Mode</Label>
-            <Button onClick={() => setUnenrichedOnly(!unenrichedOnly)}>
+          <div className="flex-1">
+            <Label className="block mb-2">Mode</Label>
+            <Button onClick={() => setUnenrichedOnly(!unenrichedOnly)} className="w-full justify-start">
               {unenrichedOnly ? "Unenriched only" : "All nodes"}
             </Button>
           </div>
         </div>
 
-        <Button onClick={handleEnrich} disabled={!repoUrl.trim() || isRunning}>
+        <Button onClick={handleEnrich} disabled={!repoUrl.trim() || isRunning} className="w-full">
           {isRunning ? <Loader2 size={14} /> : <Sparkles size={14} />}
           Run Enrichment
         </Button>
 
         {latestEnrich && (
-          <div>
+          <div className="border border-black p-2">
             <span>Last enrichment: </span>
-            <span>
-              {latestEnrich.status}
-            </span>
+            <span>{latestEnrich.status}</span>
             {latestEnrich.progress_total > 0 && (
               <span> ({latestEnrich.progress_done}/{latestEnrich.progress_total})</span>
             )}

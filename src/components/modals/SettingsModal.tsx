@@ -11,18 +11,20 @@ export function SettingsModal() {
 
   return (
     <Modal open={activeModal === "settings"} onClose={closeModal} title="Settings">
-      <div>
-        <Label>Theme</Label>
+      <div className="flex flex-col gap-4">
         <div>
-          {(["dark", "light"] as const).map((t) => {
-            const active = theme === t;
-            return (
-              <Button key={t} onClick={() => { if (!active) toggleTheme(); }}>
-                {t === "dark" ? <Moon size={15} /> : <Sun size={15} />}
-                {t.charAt(0).toUpperCase() + t.slice(1)}
-              </Button>
-            );
-          })}
+          <Label className="block mb-2">Theme</Label>
+          <div className="flex gap-2">
+            {(["dark", "light"] as const).map((t) => {
+              const active = theme === t;
+              return (
+                <Button key={t} onClick={() => { if (!active) toggleTheme(); }}>
+                  {t === "dark" ? <Moon size={15} /> : <Sun size={15} />}
+                  {t.charAt(0).toUpperCase() + t.slice(1)}
+                </Button>
+              );
+            })}
+          </div>
         </div>
       </div>
     </Modal>

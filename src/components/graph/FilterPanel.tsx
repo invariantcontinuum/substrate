@@ -1,71 +1,54 @@
 import { useGraphStore } from "@/stores/graph";
 
 const nodeTypes = [
-  { type: "service", label: "Service", bg: "#3b4199", border: "#6366f1" },
-  { type: "database", label: "Database", bg: "#065f46", border: "#10b981" },
-  { type: "cache", label: "Cache", bg: "#92400e", border: "#f59e0b" },
-  { type: "external", label: "External", bg: "#374151", border: "#6b7280" },
+  { type: "service", label: "Service" },
+  { type: "database", label: "Database" },
+  { type: "cache", label: "Cache" },
+  { type: "external", label: "External" },
 ];
 
 const layouts = [
   { value: "force" as const, label: "Force" },
-  { value: "hierarchical" as const, label: "Hierarchical" },
+  { value: "hierarchical" as const, label: "Hierarchy" },
 ];
 
 export function FilterPanel() {
   const { filters, toggleTypeFilter, layout, setLayout, stats } = useGraphStore();
 
   return (
-    <div
-      className="overflow-y-auto p-2.5 shrink-0"
-      style={{
-        width: 180,
-        borderRight: "1px solid var(--border)",
-        background: "var(--bg-surface)",
-        animation: "slideInLeft 0.3s ease-out 0.15s both",
-      }}
-    >
-      <div className="text-[9px] uppercase tracking-[0.15em] mb-2 font-medium" style={{ color: "var(--text-muted)" }}>
-        Node Types
-      </div>
-      <div className="flex flex-col gap-1">
+    <div className="w-44 border-r border-black bg-white p-2 h-full flex flex-col text-black">
+      <div className="mb-2">Node Types</div>
+      <div className="flex flex-col">
         {nodeTypes.map((nt) => {
           const active = filters.types.has(nt.type);
           return (
-            <button key={nt.type} onClick={() => toggleTypeFilter(nt.type)}
-              className="flex items-center gap-2 text-[10px] py-1 px-1.5 rounded transition-all duration-150 text-left"
-              style={{ background: active ? "rgba(255,255,255,0.03)" : "transparent", color: active ? "var(--text-secondary)" : "var(--text-muted)" }}>
-              <div className="w-2.5 h-2.5 rounded-sm shrink-0 transition-all duration-150"
-                style={{ background: active ? nt.bg : "transparent", border: `1.5px solid ${nt.border}`, opacity: active ? 1 : 0.3 }} />
-              <span className="flex-1">{nt.label}</span>
+            <button key={nt.type} onClick={() => toggleTypeFilter(nt.type)} className="text-left py-1 px-1 border border-black mb-1 flex items-center gap-2">
+              <div className={`w-2.5 h-2.5 border border-black ${active ? "bg-black" : "bg-white"}`} />
+              <span>{nt.label}</span>
             </button>
           );
         })}
       </div>
 
-      <div className="text-[9px] uppercase tracking-[0.15em] mt-4 mb-2 font-medium" style={{ color: "var(--text-muted)" }}>Layout</div>
-      <div className="flex flex-col gap-0.5">
+      <div className="mt-4 mb-2">Layout</div>
+      <div className="flex flex-col">
         {layouts.map((l) => (
-          <button key={l.value} onClick={() => setLayout(l.value)}
-            className="text-[10px] px-2 py-1.5 rounded transition-all duration-150 text-left"
-            style={{ background: layout === l.value ? "rgba(99,102,241,0.1)" : "transparent",
-              border: layout === l.value ? "1px solid rgba(99,102,241,0.18)" : "1px solid transparent",
-              color: layout === l.value ? "#a5b4fc" : "var(--text-muted)" }}>
+          <button key={l.value} onClick={() => setLayout(l.value)} className={`text-left px-2 py-1 border border-black mb-1 ${layout === l.value ? "bg-black text-white" : "bg-white text-black"}`}>
             {l.label}
           </button>
         ))}
       </div>
 
-      <div className="mt-4 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}>
-        <div className="text-[9px] uppercase tracking-[0.15em] mb-2 font-medium" style={{ color: "var(--text-muted)" }}>Graph</div>
-        <div className="flex flex-col gap-1 text-[10px]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+      <div className="mt-4 pt-2 border-t border-black">
+        <div className="mb-2">Graph</div>
+        <div className="flex flex-col">
           <div className="flex justify-between">
-            <span style={{ color: "var(--text-muted)" }}>Nodes</span>
-            <span style={{ color: "#a5b4fc" }}>{stats.nodeCount}</span>
+            <span>Nodes</span>
+            <span>{stats.nodeCount}</span>
           </div>
           <div className="flex justify-between">
-            <span style={{ color: "var(--text-muted)" }}>Edges</span>
-            <span style={{ color: "#a5b4fc" }}>{stats.edgeCount}</span>
+            <span>Edges</span>
+            <span>{stats.edgeCount}</span>
           </div>
         </div>
       </div>

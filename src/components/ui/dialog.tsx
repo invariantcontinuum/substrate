@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { XIcon } from "lucide-react";
 
@@ -34,7 +35,11 @@ function DialogContent({
   return (
     <DialogPortal>
       <DialogOverlay />
-      <DialogPrimitive.Popup data-slot="dialog-content" className={className} {...props}>
+      <DialogPrimitive.Popup
+        data-slot="dialog-content"
+        className={cn("bg-white border border-black p-4", className)}
+        {...props}
+      >
         {children}
         {showCloseButton && (
           <DialogPrimitive.Close data-slot="dialog-close" render={<Button />}>
@@ -48,15 +53,15 @@ function DialogContent({
 }
 
 function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
-  return <div data-slot="dialog-header" className={className} {...props} />;
+  return <div data-slot="dialog-header" className={cn("mb-3", className)} {...props} />;
 }
 
 function DialogFooter({ className, showCloseButton = false, children, ...props }: React.ComponentProps<"div"> & { showCloseButton?: boolean }) {
   return (
-    <div data-slot="dialog-footer" className={className} {...props}>
+    <div data-slot="dialog-footer" className={cn("mt-4 pt-3 border-t border-black", className)} {...props}>
       {children}
       {showCloseButton && (
-        <DialogPrimitive.Close render={<Button variant="outline" />}>
+        <DialogPrimitive.Close render={<Button />}>
           Close
         </DialogPrimitive.Close>
       )}
@@ -65,11 +70,11 @@ function DialogFooter({ className, showCloseButton = false, children, ...props }
 }
 
 function DialogTitle({ className, ...props }: DialogPrimitive.Title.Props) {
-  return <DialogPrimitive.Title data-slot="dialog-title" className={className} {...props} />;
+  return <DialogPrimitive.Title data-slot="dialog-title" className={cn("font-medium", className)} {...props} />;
 }
 
 function DialogDescription({ className, ...props }: DialogPrimitive.Description.Props) {
-  return <DialogPrimitive.Description data-slot="dialog-description" className={className} {...props} />;
+  return <DialogPrimitive.Description data-slot="dialog-description" className={cn("text-black", className)} {...props} />;
 }
 
 export {

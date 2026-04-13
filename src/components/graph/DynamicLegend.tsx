@@ -21,16 +21,10 @@ export function DynamicLegend() {
   if (nodeCount === 0) return null;
 
   return (
-    <div
-      className="absolute bottom-3 right-3 hidden sm:flex flex-col gap-1.5 text-[10px] font-mono"
-      style={{ color: "#4a4a60" }}
-    >
-      {Object.entries(TYPE_COLORS).map(([type, color]) => (
+    <div className="absolute bottom-3 right-3 hidden sm:flex flex-col border border-black bg-white p-2 text-black z-10">
+      {Object.entries(TYPE_COLORS).map(([type]) => (
         <div key={type} className="flex items-center gap-1.5">
-          <div
-            className="w-2 h-2 rounded-sm"
-            style={{ background: color }}
-          />
+          <div className="w-2 h-2 border border-black bg-black" />
           {type}
         </div>
       ))}

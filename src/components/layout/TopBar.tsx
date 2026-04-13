@@ -6,6 +6,7 @@ import { useSearch } from "@/hooks/useSearch";
 import { useResponsive } from "@/hooks/useResponsive";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export function TopBar() {
   const { connectionStatus, stats, setSearchQuery } = useGraphStore();
@@ -22,54 +23,40 @@ export function TopBar() {
   }, [q, setSearchQuery, search]);
 
   return (
-    <header>
+    <header className="flex items-center gap-3 px-4 h-14 border-b border-black bg-white">
       {!isDesktop && (
-        <Button variant="ghost" size="icon-sm" onClick={toggleSidebar}>
+        <Button onClick={toggleSidebar}>
           <Menu size={18} />
         </Button>
       )}
 
-      <div>
-        <div>
-          <Brain size={14} />
-        </div>
-        <span>Substrate</span>
+      <div className="flex items-center gap-2">
+        <Brain size={16} className="text-black" />
+        <span className="text-black">Substrate</span>
       </div>
 
-      <div />
+      <div className="flex-1" />
 
-      <div>
-        <div>
-          <Search size={12} />
-          <Input
-            type="text"
-            placeholder="Search..."
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && go()}
-            disabled={!loaded}
-          />
-        </div>
+      <div className="flex items-center gap-2">
+        <Search size={12} className="text-black" />
+        <Input
+          type="text"
+          placeholder="Search..."
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && go()}
+          disabled={!loaded}
+        />
       </div>
 
-      <div />
-
-      <div>
-        <div>
-          <div />
-          <span>
-            {connectionStatus === "connected" ? "Live" : connectionStatus === "reconnecting" ? "..." : "Off"}
-          </span>
+      <div className="hidden sm:flex items-center gap-3 text-black">
+        <div className="flex items-center gap-1">
+          <div className={cn("w-2 h-2 border border-black", connectionStatus === "connected" ? "bg-black" : "bg-white")} />
+          <span>{connectionStatus === "connected" ? "Live" : connectionStatus === "reconnecting" ? "..." : "Off"}</span>
         </div>
-        <span>
-          <span>{stats.nodeCount}</span>n
-        </span>
-        <span>
-          <span>{stats.edgeCount}</span>e
-        </span>
-        {stats.violationCount > 0 && (
-          <span>{stats.violationCount}</span>
-        )}
+        <span>{stats.nodeCount}n</span>
+        <span>{stats.edgeCount}e</span>
+        {stats.violationCount > 0 && <span>{stats.violationCount}</span>}
       </div>
     </header>
   );

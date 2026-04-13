@@ -16,12 +16,12 @@ export function UserModal() {
 
   return (
     <Modal open={activeModal === "user"} onClose={closeModal} title="Account" maxWidth={360}>
-      <div>
-        <div>
-          <span>{username.charAt(0).toUpperCase()}</span>
+      <div className="flex flex-col items-center gap-4">
+        <div className="border border-black p-4 w-16 h-16 flex items-center justify-center">
+          <span className="text-2xl font-extrabold">{username.charAt(0).toUpperCase()}</span>
         </div>
-        <div>
-          <div>{username}</div>
+        <div className="text-center">
+          <div className="font-bold">{username}</div>
           {email && <div>{email}</div>}
           <Badge>{displayRole}</Badge>
         </div>
