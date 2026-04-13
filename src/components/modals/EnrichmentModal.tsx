@@ -31,7 +31,7 @@ export function EnrichmentModal() {
         </div>
 
         <div>
-          <div className="text-[10px] uppercase tracking-wider mb-3 font-semibold" style={{ color: "var(--text-muted)", fontFamily: "var(--font-display)" }}>
+          <div className="section-label" style={{ fontFamily: "var(--font-display)" }}>
             Repository
           </div>
           <input
@@ -39,43 +39,35 @@ export function EnrichmentModal() {
             placeholder="https://github.com/owner/repo"
             value={repoUrl}
             onChange={(e) => setRepoUrl(e.target.value)}
-            className="w-full text-[11px] px-4 py-3 outline-none"
-            style={{
-              background: "var(--bg-surface)", boxShadow: "var(--neu-inset)",
-              borderRadius: "var(--radius-lg)", color: "var(--text-primary)",
-              fontFamily: "var(--font-mono)", border: "none",
-            }}
+            className="glass-input w-full"
           />
         </div>
 
         <div className="flex gap-4">
           <div className="flex-1">
-            <div className="text-[10px] uppercase tracking-wider mb-3 font-semibold" style={{ color: "var(--text-muted)", fontFamily: "var(--font-display)" }}>
+            <div className="section-label" style={{ fontFamily: "var(--font-display)" }}>
               Limit
             </div>
             <input
               type="number"
               value={limit}
               onChange={(e) => setLimit(Number(e.target.value))}
-              className="w-full text-[11px] px-4 py-3 outline-none"
-              style={{
-                background: "var(--bg-surface)", boxShadow: "var(--neu-inset)",
-                borderRadius: "var(--radius-lg)", color: "var(--text-primary)", border: "none",
-              }}
+              className="glass-input w-full"
             />
           </div>
           <div className="flex-1">
-            <div className="text-[10px] uppercase tracking-wider mb-3 font-semibold" style={{ color: "var(--text-muted)", fontFamily: "var(--font-display)" }}>
+            <div className="section-label" style={{ fontFamily: "var(--font-display)" }}>
               Mode
             </div>
             <button
               onClick={() => setUnenrichedOnly(!unenrichedOnly)}
-              className="neu-btn w-full text-[11px] px-4 py-3 text-left"
+              className="w-full text-[11px] px-4 py-3 text-left"
               style={{
-                background: "var(--bg-surface)",
-                borderRadius: "var(--radius-lg)",
+                background: unenrichedOnly ? "var(--accent-soft)" : "var(--bg-hover)",
+                border: unenrichedOnly ? "1px solid var(--accent-medium)" : "1px solid var(--border)",
+                borderRadius: "var(--radius-md)",
                 color: unenrichedOnly ? "var(--accent)" : "var(--text-muted)",
-                boxShadow: unenrichedOnly ? "var(--neu-inset-sm)" : "var(--neu-extruded-sm)",
+                transition: "all 0.15s ease",
               }}
             >
               {unenrichedOnly ? "Unenriched only" : "All nodes"}
@@ -86,13 +78,7 @@ export function EnrichmentModal() {
         <button
           onClick={handleEnrich}
           disabled={!repoUrl.trim() || isRunning}
-          className="flex items-center justify-center gap-2 px-4 py-3.5 text-[12px] font-semibold"
-          style={{
-            background: "var(--accent)", borderRadius: "var(--radius-lg)",
-            color: "#fff", boxShadow: "var(--neu-extruded-sm)",
-            opacity: !repoUrl.trim() || isRunning ? 0.4 : 1,
-            transition: "all 0.3s ease-out",
-          }}
+          className="glass-btn-accent flex items-center justify-center gap-2"
         >
           {isRunning ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
           Run Enrichment
@@ -102,8 +88,8 @@ export function EnrichmentModal() {
           <div
             className="px-4 py-3 text-[11px]"
             style={{
-              background: "var(--bg-surface)", boxShadow: "var(--neu-inset-sm)",
-              borderRadius: "var(--radius-lg)", fontFamily: "var(--font-mono)",
+              background: "var(--bg-hover)", border: "1px solid var(--border)",
+              borderRadius: "var(--radius-md)", fontFamily: "var(--font-mono)",
             }}
           >
             <span style={{ color: "var(--text-muted)" }}>Last enrichment: </span>

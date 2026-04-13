@@ -11,7 +11,7 @@ export function SettingsModal() {
     <Modal open={activeModal === "settings"} onClose={closeModal} title="Settings">
       <div className="flex flex-col gap-7">
         <div>
-          <div className="text-[10px] uppercase tracking-wider mb-3 font-semibold" style={{ color: "var(--text-muted)", fontFamily: "var(--font-display)" }}>
+          <div className="section-label" style={{ fontFamily: "var(--font-display)" }}>
             Theme
           </div>
           <div className="flex gap-3">
@@ -23,11 +23,11 @@ export function SettingsModal() {
                   onClick={() => { if (!active) toggleTheme(); }}
                   className="flex items-center gap-2.5 px-5 py-3 text-[12px] font-medium"
                   style={{
-                    background: "var(--bg-surface)",
-                    borderRadius: "var(--radius-lg)",
-                    boxShadow: active ? "var(--neu-inset)" : "var(--neu-extruded-sm)",
+                    background: active ? "var(--accent-soft)" : "var(--bg-hover)",
+                    border: active ? "1px solid var(--accent-medium)" : "1px solid var(--border)",
+                    borderRadius: "var(--radius-md)",
                     color: active ? "var(--accent)" : "var(--text-muted)",
-                    transition: "all 0.3s ease-out",
+                    transition: "all 0.15s ease",
                   }}
                 >
                   {t === "dark" ? <Moon size={15} /> : <Sun size={15} />}

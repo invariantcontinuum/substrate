@@ -48,7 +48,7 @@ export function SourcesModal() {
       <div className="flex flex-col gap-7">
         {/* Ingest repo */}
         <div>
-          <div className="text-[10px] uppercase tracking-wider mb-3 font-semibold" style={{ color: "var(--text-muted)", fontFamily: "var(--font-display)" }}>
+          <div className="section-label" style={{ fontFamily: "var(--font-display)" }}>
             Ingest Repository
           </div>
           <div className="flex gap-3">
@@ -58,26 +58,12 @@ export function SourcesModal() {
               value={repoUrl}
               onChange={(e) => setRepoUrl(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSync()}
-              className="flex-1 text-[11px] px-4 py-3 outline-none"
-              style={{
-                background: "var(--bg-surface)",
-                boxShadow: "var(--neu-inset)",
-                borderRadius: "var(--radius-lg)",
-                color: "var(--text-primary)",
-                fontFamily: "var(--font-mono)",
-                border: "none",
-              }}
+              className="glass-input flex-1"
             />
             <button
               onClick={handleSync}
               disabled={!repoUrl.trim() || syncing}
-              className="neu-btn flex items-center gap-1.5 px-4 py-3 text-[11px] font-semibold"
-              style={{
-                background: "var(--accent)",
-                borderRadius: "var(--radius-lg)",
-                color: "#fff",
-                opacity: !repoUrl.trim() || syncing ? 0.4 : 1,
-              }}
+              className="glass-btn-accent flex items-center gap-1.5"
             >
               {syncing ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
               Sync
@@ -87,21 +73,14 @@ export function SourcesModal() {
 
         {/* Schedule */}
         <div>
-          <div className="text-[10px] uppercase tracking-wider mb-3 font-semibold" style={{ color: "var(--text-muted)", fontFamily: "var(--font-display)" }}>
+          <div className="section-label" style={{ fontFamily: "var(--font-display)" }}>
             Schedule Sync
           </div>
           <div className="flex gap-3 items-center">
             <select
               value={scheduleInterval}
               onChange={(e) => setScheduleInterval(Number(e.target.value))}
-              className="text-[11px] px-3 py-3 outline-none"
-              style={{
-                background: "var(--bg-surface)",
-                boxShadow: "var(--neu-inset)",
-                borderRadius: "var(--radius-lg)",
-                color: "var(--text-secondary)",
-                border: "none",
-              }}
+              className="glass-input"
             >
               {SCHEDULE_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value} style={{ background: "var(--bg-elevated)" }}>
@@ -112,13 +91,8 @@ export function SourcesModal() {
             <button
               onClick={handleSchedule}
               disabled={!repoUrl.trim()}
-              className="neu-btn flex items-center gap-1.5 px-4 py-3 text-[11px] font-medium"
-              style={{
-                background: "var(--bg-surface)",
-                borderRadius: "var(--radius-lg)",
-                color: "var(--text-secondary)",
-                opacity: !repoUrl.trim() ? 0.4 : 1,
-              }}
+              className="glass-btn flex items-center gap-1.5"
+              style={{ opacity: !repoUrl.trim() ? 0.4 : 1 }}
             >
               <Clock size={13} />
               Set Schedule
@@ -129,7 +103,7 @@ export function SourcesModal() {
         {/* Active schedules */}
         {schedules.length > 0 && (
           <div>
-            <div className="text-[10px] uppercase tracking-wider mb-3 font-semibold" style={{ color: "var(--text-muted)", fontFamily: "var(--font-display)" }}>
+            <div className="section-label" style={{ fontFamily: "var(--font-display)" }}>
               Active Schedules
             </div>
             <div className="flex flex-col gap-2">
@@ -137,7 +111,7 @@ export function SourcesModal() {
                 <div
                   key={s.id}
                   className="flex items-center justify-between px-4 py-3 text-[11px]"
-                  style={{ background: "var(--bg-surface)", boxShadow: "var(--neu-extruded-sm)", borderRadius: "var(--radius-lg)" }}
+                  style={{ background: "var(--bg-hover)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)" }}
                 >
                   <div style={{ fontFamily: "var(--font-mono)" }}>
                     <span style={{ color: "var(--text-primary)" }}>{s.owner}/{s.repo}</span>
@@ -147,16 +121,16 @@ export function SourcesModal() {
                     <button
                       onClick={() => toggleSchedule(s.id)}
                       title={s.enabled ? "Disable" : "Enable"}
-                      className="neu-btn flex items-center justify-center w-7 h-7"
-                      style={{ borderRadius: "var(--radius-sm)", background: "var(--bg-surface)" }}
+                      className="flex items-center justify-center w-7 h-7"
+                      style={{ borderRadius: "var(--radius-sm)", background: "var(--bg-hover)", border: "1px solid var(--border)" }}
                     >
                       <Power size={12} style={{ color: s.enabled ? "var(--success)" : "var(--error)" }} />
                     </button>
                     <button
                       onClick={() => deleteSchedule(s.id)}
                       title="Delete"
-                      className="neu-btn flex items-center justify-center w-7 h-7"
-                      style={{ borderRadius: "var(--radius-sm)", background: "var(--bg-surface)" }}
+                      className="flex items-center justify-center w-7 h-7"
+                      style={{ borderRadius: "var(--radius-sm)", background: "var(--bg-hover)", border: "1px solid var(--border)" }}
                     >
                       <Trash2 size={12} style={{ color: "var(--text-muted)" }} />
                     </button>
@@ -169,7 +143,7 @@ export function SourcesModal() {
 
         {/* View controls */}
         <div>
-          <div className="text-[10px] uppercase tracking-wider mb-3 font-semibold" style={{ color: "var(--text-muted)", fontFamily: "var(--font-display)" }}>
+          <div className="section-label" style={{ fontFamily: "var(--font-display)" }}>
             View
           </div>
           <div className="flex flex-col gap-3">
@@ -182,11 +156,11 @@ export function SourcesModal() {
                     onClick={() => setLayout(val as "force" | "hierarchical")}
                     className="px-5 py-3 text-[11px] font-medium"
                     style={{
-                      background: "var(--bg-surface)",
-                      borderRadius: "var(--radius-lg)",
-                      boxShadow: active ? "var(--neu-inset)" : "var(--neu-extruded-sm)",
+                      background: active ? "var(--accent-soft)" : "var(--bg-hover)",
+                      border: active ? "1px solid var(--accent-medium)" : "1px solid var(--border)",
+                      borderRadius: "var(--radius-md)",
                       color: active ? "var(--accent)" : "var(--text-muted)",
-                      transition: "all 0.3s ease-out",
+                      transition: "all 0.15s ease",
                     }}
                   >
                     {label}
@@ -196,8 +170,7 @@ export function SourcesModal() {
             </div>
             <button
               onClick={() => setCanvasCleared(true)}
-              className="neu-btn flex items-center gap-1.5 px-4 py-3 text-[11px] font-medium"
-              style={{ background: "var(--bg-surface)", borderRadius: "var(--radius-lg)", color: "var(--text-secondary)" }}
+              className="glass-btn flex items-center gap-1.5"
             >
               <Trash2 size={13} />
               Clean Canvas
@@ -207,14 +180,14 @@ export function SourcesModal() {
 
         {/* Danger zone */}
         <div>
-          <div className="text-[10px] uppercase tracking-wider mb-3 font-semibold" style={{ color: "var(--error)", fontFamily: "var(--font-display)" }}>
+          <div className="section-label" style={{ color: "var(--error)", fontFamily: "var(--font-display)" }}>
             Danger Zone
           </div>
           {!showPurgeConfirm ? (
             <button
               onClick={() => setShowPurgeConfirm(true)}
-              className="neu-btn flex items-center gap-1.5 px-4 py-3 text-[11px] font-medium"
-              style={{ background: "var(--bg-surface)", borderRadius: "var(--radius-lg)", color: "var(--error)" }}
+              className="glass-btn flex items-center gap-1.5"
+              style={{ color: "var(--error)" }}
             >
               <Trash2 size={13} />
               Purge All Graph Data
@@ -224,14 +197,13 @@ export function SourcesModal() {
               <button
                 onClick={() => { purgeGraph(); setShowPurgeConfirm(false); }}
                 className="px-4 py-3 text-[11px] font-semibold"
-                style={{ background: "var(--error)", borderRadius: "var(--radius-lg)", color: "#fff", boxShadow: "var(--neu-extruded-sm)" }}
+                style={{ background: "var(--error)", borderRadius: "var(--radius-md)", color: "#fff" }}
               >
                 Confirm Purge
               </button>
               <button
                 onClick={() => setShowPurgeConfirm(false)}
-                className="neu-btn px-4 py-3 text-[11px]"
-                style={{ background: "var(--bg-surface)", borderRadius: "var(--radius-lg)", color: "var(--text-muted)" }}
+                className="glass-btn"
               >
                 Cancel
               </button>

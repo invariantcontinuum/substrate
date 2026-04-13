@@ -17,7 +17,7 @@ export function UserModal() {
       <div className="flex flex-col items-center gap-6 py-6">
         <div
           className="w-[72px] h-[72px] rounded-full flex items-center justify-center"
-          style={{ background: "var(--bg-surface)", boxShadow: "var(--neu-extruded)" }}
+          style={{ background: "var(--accent-soft)", border: "2px solid var(--accent-medium)" }}
         >
           <span style={{ fontSize: 26, color: "var(--accent)", fontWeight: 800, fontFamily: "var(--font-display)" }}>
             {username.charAt(0).toUpperCase()}
@@ -29,7 +29,7 @@ export function UserModal() {
           <div
             className="inline-block mt-3 px-3 py-1.5 text-[10px] font-semibold"
             style={{
-              background: "var(--bg-surface)", boxShadow: "var(--neu-inset-sm)",
+              background: "var(--accent-soft)", border: "1px solid var(--accent-medium)",
               borderRadius: "var(--radius-md)", color: "var(--accent)",
             }}
           >
@@ -38,12 +38,7 @@ export function UserModal() {
         </div>
         <button
           onClick={() => { closeModal(); auth.signoutRedirect(); }}
-          className="flex items-center gap-2 px-5 py-3 text-[12px] font-semibold mt-2"
-          style={{
-            background: "var(--bg-surface)", borderRadius: "var(--radius-lg)",
-            color: "var(--error)", boxShadow: "var(--neu-extruded-sm)",
-            transition: "all 0.3s ease-out",
-          }}
+          className="glass-btn flex items-center gap-2 mt-2"
         >
           <LogOut size={14} />
           Sign Out

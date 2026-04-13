@@ -33,23 +33,13 @@ export function SearchModal() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-            className="flex-1 text-[12px] px-4 py-3 outline-none"
-            style={{
-              background: "var(--bg-surface)", boxShadow: "var(--neu-inset)",
-              borderRadius: "var(--radius-lg)", color: "var(--text-primary)", border: "none",
-            }}
+            className="glass-input flex-1 text-[12px]"
             autoFocus
           />
           <button
             onClick={handleSearch}
             disabled={!query.trim() || searching}
-            className="flex items-center gap-1.5 px-5 py-3 text-[12px] font-semibold"
-            style={{
-              background: "var(--accent)", borderRadius: "var(--radius-lg)",
-              color: "#fff", boxShadow: "var(--neu-extruded-sm)",
-              opacity: !query.trim() || searching ? 0.4 : 1,
-              transition: "all 0.3s ease-out",
-            }}
+            className="glass-btn-accent flex items-center gap-1.5"
           >
             {searching ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
             Search
@@ -62,37 +52,30 @@ export function SearchModal() {
             placeholder="Filter by category..."
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
-            className="flex-1 text-[11px] px-3 py-2.5 outline-none"
-            style={{
-              background: "var(--bg-surface)", boxShadow: "var(--neu-inset-sm)",
-              borderRadius: "var(--radius-md)", color: "var(--text-secondary)", border: "none",
-            }}
+            className="glass-input flex-1"
           />
           <input
             type="text"
             placeholder="Filter by domain..."
             value={domainFilter}
             onChange={(e) => setDomainFilter(e.target.value)}
-            className="flex-1 text-[11px] px-3 py-2.5 outline-none"
-            style={{
-              background: "var(--bg-surface)", boxShadow: "var(--neu-inset-sm)",
-              borderRadius: "var(--radius-md)", color: "var(--text-secondary)", border: "none",
-            }}
+            className="glass-input flex-1"
           />
         </div>
 
         {results.length > 0 && (
           <div className="flex flex-col gap-2">
-            <div className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: "var(--text-muted)", fontFamily: "var(--font-display)" }}>
+            <div className="section-label" style={{ fontFamily: "var(--font-display)" }}>
               {results.length} results
             </div>
             {results.map((r) => (
               <button
                 key={r.node_id}
                 onClick={() => handleSelectResult(r.node_id)}
-                className="neu-btn flex flex-col gap-1 px-4 py-3.5 text-left"
+                className="flex flex-col gap-1 px-4 py-3.5 text-left"
                 style={{
-                  background: "var(--bg-surface)", borderRadius: "var(--radius-lg)",
+                  background: "var(--bg-hover)", border: "1px solid var(--border)",
+                  borderRadius: "var(--radius-md)", transition: "all 0.15s ease",
                 }}
               >
                 <div className="flex items-center gap-2">

@@ -17,7 +17,7 @@ export function ComingSoonModal({ name }: { name: string }) {
       <div className="flex flex-col items-center gap-6 py-10 text-center">
         <div
           className="w-14 h-14 rounded-2xl flex items-center justify-center float-anim"
-          style={{ background: "var(--bg-surface)", boxShadow: "var(--neu-extruded)" }}
+          style={{ background: "var(--accent-soft)", border: "1px solid var(--accent-medium)" }}
         >
           <span style={{ color: "var(--accent)", fontSize: 22 }}>&#x2692;</span>
         </div>
