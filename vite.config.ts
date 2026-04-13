@@ -16,6 +16,18 @@ export default defineConfig({
         target: "http://localhost:8180",
         changeOrigin: true,
       },
+      "/jobs": {
+        target: "http://localhost:8180",
+        changeOrigin: true,
+      },
+      "/ingest": {
+        target: "http://localhost:8180",
+        changeOrigin: true,
+      },
+      "/auth": {
+        target: "http://localhost:8180",
+        changeOrigin: true,
+      },
       "/ws": {
         target: "ws://localhost:8180",
         ws: true,
