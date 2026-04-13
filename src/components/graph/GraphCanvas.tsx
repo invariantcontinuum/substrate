@@ -1,283 +1,200 @@
-import { useEffect, useRef, useMemo, useCallback } from "react";
-import { useAuth } from "react-oidc-context";
-import { useQuery } from "@tanstack/react-query";
-import { apiFetch } from "@/lib/api";
-import { logger } from "@/lib/logger";
+import { useEffect, useRef, useState } from "react";
 import { useGraphStore } from "@/stores/graph";
 import { useUIStore } from "@/stores/ui";
-import type { ModalName } from "@/stores/ui";
-import { useThemeStore } from "@/stores/theme";
-import { darkStylesheet, lightStylesheet } from "./cytoscape-styles";
+import { useResponsive } from "@/hooks/useResponsive";
+import { loadCytoscape } from "@/lib/cytoscapeLoader";
 import { SignalsOverlay } from "./SignalsOverlay";
-import { DynamicLegend } from "./DynamicLegend";
 import { ViolationBadge } from "./ViolationBadge";
-
-import type cytoscape from "cytoscape";
-type Core = cytoscape.Core;
-type ElementDefinition = cytoscape.ElementDefinition;
-
-interface RawElement {
-  data?: Record<string, unknown>;
-  [key: string]: unknown;
-}
-interface RawSnapshot {
-  nodes?: RawElement[];
-  edges?: RawElement[];
-  meta?: Record<string, unknown>;
-}
-
-const DEFAULT_REPO_URL = "https://github.com/curl/curl.git";
-
-let cyPromise: Promise<typeof cytoscape> | null = null;
-let registered = false;
-
-function loadCytoscape() {
-  if (!cyPromise) {
-    cyPromise = Promise.all([
-      import("cytoscape"),
-      import("cytoscape-cose-bilkent"),
-    ]).then(([cyMod, coseBilkentMod]) => {
-      const cy = (cyMod as any).default || cyMod;
-      if (!registered) {
-        const coseBilkent = (coseBilkentMod as any).default || coseBilkentMod;
-        cy.use(coseBilkent as cytoscape.Ext);
-        registered = true;
-      }
-      return cy as typeof cytoscape;
-    });
-  }
-  return cyPromise;
-}
-
-function toElements(raw: RawSnapshot | undefined, filters: Set<string>): ElementDefinition[] {
-  if (!raw) return [];
-  const elements: ElementDefinition[] = [];
-  const nodeIds = new Set<string>();
-
-  for (const n of raw.nodes ?? []) {
-    const d = (n.data ?? n) as Record<string, unknown>;
-    const nodeType = String(d.type || "source");
-    if (!filters.has(nodeType)) continue;
-    const id = String(d.id);
-    nodeIds.add(id);
-    elements.push({
-      data: {
-        id,
-        name: d.name || d.label || id,
-        type: nodeType,
-        domain: d.domain || "",
-        status: d.status || "",
-        ...d,
-      },
-    });
-  }
-
-  for (const e of raw.edges ?? []) {
-    const d = (e.data ?? e) as Record<string, unknown>;
-    const source = String(d.source);
-    const target = String(d.target);
-    if (!nodeIds.has(source) || !nodeIds.has(target)) continue;
-    elements.push({
-      data: {
-        id: d.id ? String(d.id) : `${source}->${target}`,
-        source,
-        target,
-        type: d.type || "depends",
-        label: d.label || "",
-        weight: d.weight ?? 1,
-      },
-    });
-  }
-
-  return elements;
-}
+import { DynamicLegend } from "./DynamicLegend";
 
 export function GraphCanvas() {
-  const auth = useAuth();
-  const token = auth.user?.access_token;
-  const containerRef = useRef<HTMLDivElement>(null);
-  const cyRef = useRef<Core | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const cyRef = useRef<cytoscape.Core | null>(null);
+  const [ready, setReady] = useState(false);
+  const { isMobile } = useResponsive();
 
-  const themeMode = useThemeStore((s) => s.theme);
-  const stylesheet = useMemo(
-    () => (themeMode === "light" ? lightStylesheet : darkStylesheet),
-    [themeMode],
-  );
+  const {
+    nodes,
+    edges,
+    signals,
+    layoutName,
+    selectedNodeId,
+    zoom,
+    nodeSize,
+    violations,
+    setSelectedNodeId,
+    setZoom,
+    setLayoutName,
+    setPan,
+  } = useGraphStore();
 
-  const canvasCleared = useGraphStore((s) => s.canvasCleared);
-  const setStats = useGraphStore((s) => s.setStats);
-  const selectNode = useGraphStore((s) => s.selectNode);
-  const filters = useGraphStore((s) => s.filters);
-  const openModal = useUIStore((s) => s.openModal);
-  const setDefaultRepoUrl = useUIStore((s) => s.setDefaultRepoUrl);
+  const { openModal } = useUIStore();
 
-  const { data: rawData } = useQuery<RawSnapshot>({
-    queryKey: ["graph"],
-    queryFn: async () => {
-      const data = await apiFetch<RawSnapshot>("/api/graph", token);
-      logger.info("graph_data_fetched", {
-        nodes: (data.nodes ?? []).length,
-        edges: (data.edges ?? []).length,
-      });
-      return data;
-    },
-    enabled: !!token,
-    refetchOnWindowFocus: false,
-  });
-
-  const elements = useMemo(
-    () => (canvasCleared ? [] : toElements(rawData, filters.types)),
-    [rawData, canvasCleared, filters.types],
-  );
-
+  /* init cytoscape */
   useEffect(() => {
-    if (!rawData) return;
-    const nodeCount = (rawData.nodes ?? []).length;
-    if (nodeCount === 0) {
-      logger.info("empty_graph_detected", { action: "opening_sources_modal" });
-      setDefaultRepoUrl(DEFAULT_REPO_URL);
-      openModal("sources" as ModalName);
-    }
-  }, [rawData, openModal, setDefaultRepoUrl]);
-
-  const handleNodeTap = useCallback(
-    (evt: { target: { data: () => Record<string, unknown> } }) => {
-      const d = evt.target.data();
-      logger.info("node_clicked", { nodeId: String(d.id), type: String(d.type || "unknown") });
-      selectNode(String(d.id), d);
-    },
-    [selectNode],
-  );
-
-  const handleBgTap = useCallback(
-    (evt: { target: Core }) => {
-      if (evt.target === cyRef.current) {
-        selectNode(null);
-      }
-    },
-    [selectNode],
-  );
-
-  useEffect(() => {
-    if (!containerRef.current) return;
-    let destroyed = false;
-
-    logger.info("cytoscape_init_start", { elementCount: elements.length });
-
-    loadCytoscape().then((cytoscapeFn) => {
-      if (destroyed || !containerRef.current) return;
-
-      const cy = cytoscapeFn({
+    if (!containerRef.current || cyRef.current) return;
+    const init = async () => {
+      const cytoscape = await loadCytoscape();
+      const cy = cytoscape({
         container: containerRef.current,
-        elements,
-        style: stylesheet,
-        minZoom: 0.2,
-        maxZoom: 3.0,
-        wheelSensitivity: 1.0,
-        userZoomingEnabled: true,
+        elements: [],
+        style: [
+          {
+            selector: "node",
+            style: {
+              width: nodeSize,
+              height: nodeSize,
+              "background-color": "#fff",
+              "border-width": 2,
+              "border-color": "#000",
+              label: "data(label)",
+              "font-size": 10,
+              "text-valign": "center",
+              "text-halign": "center",
+              color: "#000",
+              "text-outline-width": 0,
+            },
+          },
+          {
+            selector: "edge",
+            style: {
+              width: 1,
+              "line-color": "#000",
+              "target-arrow-color": "#000",
+              "target-arrow-shape": "triangle",
+              "curve-style": "unbundled-bezier",
+              "control-point-distances": 24,
+              "control-point-weights": 0.5,
+            },
+          },
+          {
+            selector: ":selected",
+            style: {
+              "border-width": 4,
+              "border-color": "#000",
+              "background-color": "#f0f0f0",
+            },
+          },
+        ],
+        minZoom: 0.05,
+        maxZoom: 3,
+        wheelSensitivity: 0.15,
         userPanningEnabled: true,
-        boxSelectionEnabled: false,
+        userZoomingEnabled: true,
         autoungrabify: false,
-        autounselectify: false,
       });
+
+      cy.on("tap", "node", (evt) => {
+        const id = evt.target.id() as string;
+        setSelectedNodeId(id);
+        openModal("nodeDetail");
+      });
+
+      cy.on("tap", (evt) => {
+        if (evt.target === cy) setSelectedNodeId(null);
+      });
+
+      cy.on("zoom", () => setZoom(cy.zoom()));
+      cy.on("pan", () => setPan(cy.pan()));
 
       cyRef.current = cy;
-
-      cy.on("tap", "node", handleNodeTap as unknown as cytoscape.EventHandler);
-      cy.on("tap", handleBgTap as unknown as cytoscape.EventHandler);
-
-      const container = containerRef.current;
-      let middleDrag = false;
-      let lastX = 0;
-      let lastY = 0;
-
-      const onMouseDown = (e: MouseEvent) => {
-        if (e.button === 1) {
-          e.preventDefault();
-          middleDrag = true;
-          lastX = e.clientX;
-          lastY = e.clientY;
-          container.style.cursor = "grabbing";
-        }
-      };
-      const onMouseMove = (e: MouseEvent) => {
-        if (!middleDrag) return;
-        const dx = e.clientX - lastX;
-        const dy = e.clientY - lastY;
-        lastX = e.clientX;
-        lastY = e.clientY;
-        cy.panBy({ x: dx, y: dy });
-      };
-      const onMouseUp = (e: MouseEvent) => {
-        if (e.button === 1) {
-          middleDrag = false;
-          container.style.cursor = "";
-        }
-      };
-
-      container.addEventListener("mousedown", onMouseDown);
-      window.addEventListener("mousemove", onMouseMove);
-      window.addEventListener("mouseup", onMouseUp);
-      container.addEventListener("auxclick", (e) => e.button === 1 && e.preventDefault());
-
-      (cy as any)._middleDragCleanup = () => {
-        container.removeEventListener("mousedown", onMouseDown);
-        window.removeEventListener("mousemove", onMouseMove);
-        window.removeEventListener("mouseup", onMouseUp);
-      };
-
-      if (elements.length > 0) {
-        cy.layout({
-          name: "cose-bilkent",
-          animate: "end" as unknown as boolean,
-          animationDuration: 400,
-          nodeRepulsion: 8000,
-          idealEdgeLength: 120,
-          gravity: 0.2,
-          numIter: 2500,
-        } as cytoscape.LayoutOptions).run();
-        logger.info("layout_computation_complete", { layout: "cose-bilkent" });
-      }
-
-      const violationCount = cy.nodes("[status='violation']").length;
-      const nodeCount = cy.nodes().length;
-      const edgeCount = cy.edges().length;
-      setStats({
-        nodeCount,
-        edgeCount,
-        violationCount,
-        lastUpdated: new Date().toISOString(),
-      });
-
-      logger.info("cytoscape_initialized", { nodes: nodeCount, edges: edgeCount, violations: violationCount });
-    }).catch((err) => {
-      logger.error("cytoscape_init_failed", { error: String(err) });
-    });
-
+      setReady(true);
+    };
+    init();
     return () => {
-      destroyed = true;
-      if (cyRef.current) {
-        (cyRef.current as any)._middleDragCleanup?.();
-        cyRef.current.destroy();
-        cyRef.current = null;
+      cyRef.current?.destroy();
+      cyRef.current = null;
+    };
+  }, [nodeSize, setSelectedNodeId, setZoom, setPan, openModal]);
+
+  /* update elements */
+  useEffect(() => {
+    if (!ready || !cyRef.current) return;
+    const cy = cyRef.current;
+    cy.elements().remove();
+    if (nodes.length) cy.add(nodes.map((n) => ({ data: { id: n.id, label: n.label, ...n } })));
+    if (edges.length) cy.add(edges.map((e) => ({ data: { id: e.id, source: e.source, target: e.target, label: e.label, ...e } })));
+    cy.layout({ name: layoutName as any, padding: isMobile ? 24 : 48, animate: false, fit: true }).run();
+  }, [nodes, edges, layoutName, ready, isMobile]);
+
+  /* zoom sync */
+  useEffect(() => {
+    if (!cyRef.current) return;
+    const cy = cyRef.current;
+    if (Math.abs(cy.zoom() - zoom) > 0.001) cy.zoom(zoom);
+  }, [zoom]);
+
+  /* selection highlight */
+  useEffect(() => {
+    if (!cyRef.current) return;
+    cyRef.current.nodes().unselect();
+    if (selectedNodeId) cyRef.current.getElementById(selectedNodeId).select();
+  }, [selectedNodeId]);
+
+  /* signals pulse */
+  useEffect(() => {
+    if (!cyRef.current || !signals.length) return;
+    const cy = cyRef.current;
+    const ids = new Set(signals.map((s) => s.nodeId));
+    ids.forEach((id) => {
+      const n = cy.getElementById(id);
+      if (!n.length) return;
+      n.animate({ style: { "border-width": 6 } }, { duration: 250 });
+      setTimeout(() => {
+        n.animate({ style: { "border-width": 2 } }, { duration: 250 });
+      }, 260);
+    });
+  }, [signals]);
+
+  /* node size sync */
+  useEffect(() => {
+    cyRef.current?.style().selector("node").style("width", nodeSize).style("height", nodeSize).update();
+  }, [nodeSize]);
+
+  /* keyboard shortcuts */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key.toLowerCase() === "0") {
+          e.preventDefault();
+          cyRef.current?.fit(undefined, 48);
+        } else if (e.key === "=" || e.key === "+") {
+          e.preventDefault();
+          cyRef.current?.zoom(cyRef.current.zoom() * 1.1);
+        } else if (e.key === "-" || e.key === "_") {
+          e.preventDefault();
+          cyRef.current?.zoom(cyRef.current.zoom() * 0.9);
+        }
+      }
+      if (e.key === "Escape") {
+        setSelectedNodeId(null);
+      }
+      if (e.key.toLowerCase() === "l" && !e.ctrlKey && !e.metaKey) {
+        setLayoutName(layoutName === "cose" ? "breadthfirst" : "cose");
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [elements, stylesheet]);
-
-  useEffect(() => {
-    const cy = cyRef.current;
-    if (!cy) return;
-    logger.info("theme_switched", { theme: themeMode });
-    cy.style().fromJson(stylesheet).update();
-  }, [stylesheet, themeMode]);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [layoutName, setLayoutName, setSelectedNodeId]);
 
   return (
-    <div className="relative w-full h-full">
-      <div ref={containerRef} className="w-full h-full" />
-      <SignalsOverlay />
-      <ViolationBadge />
-      <DynamicLegend />
+    <div className="graph-canvas">
+      <div className="graph-canvas-inner">
+        <div ref={containerRef} className="graph-canvas-container" />
+      </div>
+
+      <div className="graph-overlay-group">
+        <SignalsOverlay />
+        <ViolationBadge />
+        <DynamicLegend />
+      </div>
+
+      <div className="graph-toolbar">
+        <button onClick={() => cyRef.current?.fit(undefined, 48)} title="Fit">⊘</button>
+        <button onClick={() => cyRef.current?.zoom(cyRef.current.zoom() * 1.1)} title="Zoom in">+</button>
+        <button onClick={() => cyRef.current?.zoom(cyRef.current.zoom() * 0.9)} title="Zoom out">−</button>
+        <button onClick={() => setLayoutName(layoutName === "cose" ? "breadthfirst" : "cose")} title="Relayout">L</button>
+      </div>
     </div>
   );
 }
