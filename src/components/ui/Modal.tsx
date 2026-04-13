@@ -15,7 +15,7 @@ export function Modal({ open, onClose, title, children, maxWidth = 480 }: ModalP
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
-        <div className="max-h-[70vh] overflow-y-auto">
+        <div className="max-h-[70vh] overflow-y-auto p-5">
           {children}
         </div>
       </DialogContent>

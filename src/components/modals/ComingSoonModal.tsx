@@ -14,7 +14,7 @@ export function ComingSoonModal({ name }: { name: string }) {
 
   return (
     <Modal open={activeModal === name} onClose={closeModal} title={title} maxWidth={360}>
-      <div className="flex flex-col items-center gap-5 py-8 text-center">
+      <div className="flex flex-col items-center gap-5 text-center">
         <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-primary/30 bg-primary/10 float-anim">
           <span className="text-xl text-primary">&#x2692;</span>
         </div>
