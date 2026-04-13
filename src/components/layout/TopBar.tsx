@@ -26,7 +26,9 @@ export function TopBar() {
         height: "var(--topbar-height)",
         minHeight: "var(--topbar-height)",
         background: "var(--bg-surface)",
-        boxShadow: "var(--neu-extruded-sm)",
+        backdropFilter: "blur(var(--overlay-blur))",
+        WebkitBackdropFilter: "blur(var(--overlay-blur))",
+        borderBottom: "1px solid var(--border)",
         zIndex: 5,
         position: "relative",
       }}
@@ -35,10 +37,10 @@ export function TopBar() {
       {!isDesktop && (
         <button
           onClick={toggleSidebar}
-          className="neu-btn flex items-center justify-center"
+          className="glass-btn flex items-center justify-center"
           style={{
             width: 38, height: 38, color: "var(--text-muted)",
-            borderRadius: "var(--radius-md)", background: "var(--bg-surface)",
+            borderRadius: "var(--radius-md)", padding: 0,
           }}
         >
           <Menu size={18} />
@@ -51,8 +53,8 @@ export function TopBar() {
           className="flex items-center justify-center"
           style={{
             width: 32, height: 32, borderRadius: "var(--radius-md)",
-            background: "var(--bg-surface)",
-            boxShadow: "var(--neu-inset-deep)",
+            background: "var(--accent-soft)",
+            border: "1px solid var(--accent-medium)",
           }}
         >
           <Brain size={16} color="var(--accent)" />
@@ -69,12 +71,8 @@ export function TopBar() {
 
       {/* Search */}
       <div
-        className="flex items-center gap-2 px-3 py-2 rounded-2xl"
-        style={{
-          width: isDesktop ? 260 : 170,
-          background: "var(--bg-surface)",
-          boxShadow: "var(--neu-inset)",
-        }}
+        className="flex items-center gap-2"
+        style={{ width: isDesktop ? 260 : 170 }}
       >
         <Search size={13} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
         <input
@@ -84,10 +82,8 @@ export function TopBar() {
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && go()}
           disabled={!loaded}
-          className="flex-1 text-[11px] bg-transparent outline-none min-w-0"
+          className="glass-input flex-1 min-w-0"
           style={{
-            color: "var(--text-primary)",
-            fontFamily: "var(--font-mono)",
             opacity: loaded ? 1 : 0.3,
           }}
         />
