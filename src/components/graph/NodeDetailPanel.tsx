@@ -52,7 +52,8 @@ export function NodeDetailPanel() {
         width: 340,
         height: "100%",
         background: "var(--bg-surface)",
-        boxShadow: "var(--neu-extruded)",
+        backdropFilter: "blur(var(--overlay-blur))",
+        borderLeft: "1px solid var(--border)",
         animation: "slideInRight 0.2s ease-out both",
       }}
     >
@@ -88,8 +89,8 @@ export function NodeDetailPanel() {
         </div>
         <button
           onClick={() => selectNode(null)}
-          className="neu-btn flex items-center justify-center w-7 h-7 shrink-0"
-          style={{ borderRadius: "var(--radius-sm)", background: "var(--bg-surface)" }}
+          className="flex items-center justify-center w-7 h-7 shrink-0"
+          style={{ borderRadius: "var(--radius-sm)", background: "var(--bg-hover)", border: "1px solid var(--border)" }}
         >
           <X size={14} color="var(--text-muted)" />
         </button>
@@ -109,9 +110,9 @@ export function NodeDetailPanel() {
         <div
           className="p-4"
           style={{
-            background: "var(--bg-surface)",
-            boxShadow: "var(--neu-inset)",
-            borderRadius: "var(--radius-lg)",
+            background: "var(--bg-hover)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius-md)",
           }}
         >
           {Object.entries(data).map(([key, value]) => {
@@ -133,7 +134,7 @@ export function NodeDetailPanel() {
         <div
           className="px-4 py-3 text-[10px] break-all"
           style={{
-            background: "var(--bg-surface)", boxShadow: "var(--neu-inset-sm)",
+            background: "var(--bg-hover)", border: "1px solid var(--border)",
             borderRadius: "var(--radius-md)", color: "var(--text-secondary)",
             fontFamily: "var(--font-mono)",
           }}
@@ -158,9 +159,9 @@ export function NodeDetailPanel() {
               <div
                 className="p-4"
                 style={{
-                  background: "var(--bg-surface)",
-                  boxShadow: "var(--neu-inset)",
-                  borderRadius: "var(--radius-lg)",
+                  background: "var(--bg-hover)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "var(--radius-md)",
                 }}
               >
                 {entries.map(([key, value]) => (
