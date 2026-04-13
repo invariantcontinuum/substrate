@@ -28,57 +28,45 @@ export function EnrichmentModal() {
 
   return (
     <Modal open={activeModal === "enrichment"} onClose={closeModal} title="Enrichment" maxWidth={480}>
-      <div className="flex flex-col gap-4">
-        <p className="text-xs text-muted-foreground">
-          Use local LLM to generate descriptions, classifications, and embeddings for graph nodes.
-        </p>
+      <div>
+        <p>Use local LLM to generate descriptions, classifications, and embeddings for graph nodes.</p>
 
         <div>
-          <Label className="text-xs text-muted-foreground mb-2 block">Repository</Label>
+          <Label>Repository</Label>
           <Input
             type="text"
             placeholder="https://github.com/owner/repo"
             value={repoUrl}
             onChange={(e) => setRepoUrl(e.target.value)}
-            className="w-full font-mono text-xs"
           />
         </div>
 
-        <div className="flex gap-3">
-          <div className="flex-1">
-            <Label className="text-xs text-muted-foreground mb-2 block">Limit</Label>
-            <Input type="number" value={limit} onChange={(e) => setLimit(Number(e.target.value))} className="w-full" />
+        <div>
+          <div>
+            <Label>Limit</Label>
+            <Input type="number" value={limit} onChange={(e) => setLimit(Number(e.target.value))} />
           </div>
-          <div className="flex-1">
-            <Label className="text-xs text-muted-foreground mb-2 block">Mode</Label>
-            <Button
-              variant={unenrichedOnly ? "secondary" : "outline"}
-              size="sm"
-              className="w-full justify-start"
-              onClick={() => setUnenrichedOnly(!unenrichedOnly)}
-            >
+          <div>
+            <Label>Mode</Label>
+            <Button onClick={() => setUnenrichedOnly(!unenrichedOnly)}>
               {unenrichedOnly ? "Unenriched only" : "All nodes"}
             </Button>
           </div>
         </div>
 
-        <Button onClick={handleEnrich} disabled={!repoUrl.trim() || isRunning} className="w-full">
-          {isRunning ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+        <Button onClick={handleEnrich} disabled={!repoUrl.trim() || isRunning}>
+          {isRunning ? <Loader2 size={14} /> : <Sparkles size={14} />}
           Run Enrichment
         </Button>
 
         {latestEnrich && (
-          <div className="rounded-md border bg-muted/50 px-3 py-2 text-xs font-mono">
-            <span className="text-muted-foreground">Last enrichment: </span>
-            <span className={
-              latestEnrich.status === "completed" ? "text-green-500"
-              : latestEnrich.status === "failed" ? "text-red-500"
-              : "text-yellow-500"
-            }>
+          <div>
+            <span>Last enrichment: </span>
+            <span>
               {latestEnrich.status}
             </span>
             {latestEnrich.progress_total > 0 && (
-              <span className="text-muted-foreground"> ({latestEnrich.progress_done}/{latestEnrich.progress_total})</span>
+              <span> ({latestEnrich.progress_done}/{latestEnrich.progress_total})</span>
             )}
           </div>
         )}

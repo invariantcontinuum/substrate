@@ -11,13 +11,11 @@ interface ModalProps {
 export function Modal({ open, onClose, title, children, maxWidth = 480 }: ModalProps) {
   return (
     <Dialog open={open} onOpenChange={(v: boolean) => !v && onClose()}>
-      <DialogContent className="sm:max-w-[480px]" style={maxWidth !== 480 ? { maxWidth } : undefined}>
+      <DialogContent style={maxWidth !== 480 ? { maxWidth } : undefined}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
-        <div className="max-h-[70vh] overflow-y-auto p-5">
-          {children}
-        </div>
+        <div>{children}</div>
       </DialogContent>
     </Dialog>
   );

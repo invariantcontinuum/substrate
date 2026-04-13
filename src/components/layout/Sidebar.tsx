@@ -5,7 +5,6 @@ import {
 } from "lucide-react";
 import { useAuth } from "react-oidc-context";
 import { useUIStore, type ModalName } from "@/stores/ui";
-import { cn } from "@/lib/utils";
 
 const IMPLEMENTED = new Set(["sources", "enrichment", "search", "settings", "user"]);
 
@@ -35,7 +34,7 @@ export function Sidebar() {
   const [hov, setHov] = useState<string | null>(null);
 
   return (
-    <nav className="flex flex-col items-center py-2 gap-1 shrink-0 w-14 bg-background border-r border-border">
+    <nav>
       {items.map((it) => {
         const isActive = it.active;
         const isHov = hov === it.label;
@@ -44,42 +43,19 @@ export function Sidebar() {
         return (
           <div
             key={it.label}
-            className="relative flex items-center"
             onMouseEnter={() => setHov(it.label)}
             onMouseLeave={() => setHov(null)}
           >
-            <div
-              className={cn(
-                "absolute left-0 top-1/2 -translate-y-1/2 w-0.5 rounded-r bg-primary transition-all",
-                isActive ? "h-4" : isHov ? "h-2" : "h-0"
-              )}
-            />
-            <button
-              onClick={() => it.modal !== "navigate" && open(it.modal)}
-              className={cn(
-                "flex items-center justify-center w-8 h-8 rounded-md transition-colors",
-                isActive && "bg-primary/10",
-                !isActive && isHov && "bg-muted"
-              )}
-            >
-              <it.icon
-                size={16}
-                strokeWidth={isActive ? 2 : 1.5}
-                className={cn(
-                  isActive ? "text-primary" : isHov ? "text-foreground" : "text-muted-foreground"
-                )}
-              />
+            <div />
+            <button onClick={() => it.modal !== "navigate" && open(it.modal)}>
+              <it.icon size={16} strokeWidth={isActive ? 2 : 1.5} />
             </button>
 
             {isHov && (
-              <div className="absolute left-10 top-1/2 -translate-y-1/2 pointer-events-none z-50 animate-[fadeIn_0.1s_ease]">
-                <div className="bg-popover border border-border rounded-md px-2 py-1 shadow-md whitespace-nowrap flex items-center gap-2">
-                  <span className="text-xs font-medium">{it.label}</span>
-                  {coming && (
-                    <span className="text-[10px] font-bold uppercase text-yellow-500 bg-yellow-500/10 px-1.5 py-0.5 rounded">
-                      soon
-                    </span>
-                  )}
+              <div>
+                <div>
+                  <span>{it.label}</span>
+                  {coming && <span>soon</span>}
                 </div>
               </div>
             )}
@@ -87,23 +63,16 @@ export function Sidebar() {
         );
       })}
 
-      <div className="flex-1" />
+      <div />
 
-      <div
-        className="relative flex items-center"
-        onMouseEnter={() => setHov("__u")}
-        onMouseLeave={() => setHov(null)}
-      >
-        <button
-          onClick={() => open("user")}
-          className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 border border-primary/20 transition-colors"
-        >
-          <span className="text-xs font-semibold text-primary">{initial}</span>
+      <div onMouseEnter={() => setHov("__u")} onMouseLeave={() => setHov(null)}>
+        <button onClick={() => open("user")}>
+          <span>{initial}</span>
         </button>
         {hov === "__u" && (
-          <div className="absolute left-10 top-1/2 -translate-y-1/2 pointer-events-none z-50 animate-[fadeIn_0.1s_ease]">
-            <div className="bg-popover border border-border rounded-md px-2 py-1 shadow-md">
-              <span className="text-xs font-medium">Account</span>
+          <div>
+            <div>
+              <span>Account</span>
             </div>
           </div>
         )}

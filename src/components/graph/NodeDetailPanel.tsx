@@ -19,11 +19,9 @@ const TYPE_COLORS: Record<string, { bg: string; border: string; text: string }> 
 
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between items-baseline gap-4 py-2 border-b border-border last:border-0">
-      <span className="text-xs uppercase font-semibold shrink-0 text-muted-foreground">{label}</span>
-      <span className="text-xs text-right truncate text-secondary-foreground font-mono" title={value}>
-        {value}
-      </span>
+    <div>
+      <span>{label}</span>
+      <span title={value}>{value}</span>
     </div>
   );
 }
@@ -40,36 +38,25 @@ export function NodeDetailPanel() {
   if (!selectedNodeId || !data) return null;
 
   return (
-    <div className="shrink-0 flex flex-col overflow-hidden w-80 h-full bg-card border-l border-border animate-[slideInRight_0.2s_ease-out_both]">
-      <div
-        className="px-4 py-3 flex items-center justify-between shrink-0"
-        style={{ background: colors.bg, borderBottom: `1px solid ${colors.border}44` }}
-      >
-        <div className="flex items-center gap-2 min-w-0">
-          <div
-            className="w-3 h-3 rounded shrink-0"
-            style={{ background: colors.border }}
-          />
-          <div className="min-w-0">
-            <div className="text-sm font-bold truncate" style={{ color: colors.text }} title={String(data.label || data.name || data.id)}>
+    <div>
+      <div style={{ background: colors.bg, borderBottom: `1px solid ${colors.border}44` }}>
+        <div>
+          <div style={{ background: colors.border }} />
+          <div>
+            <div style={{ color: colors.text }} title={String(data.label || data.name || data.id)}>
               {String(data.label || data.name || data.id)}
             </div>
-            <div className="text-xs truncate font-medium text-muted-foreground font-mono" title={nodeType}>
-              {nodeType}
-            </div>
+            <div title={nodeType}>{nodeType}</div>
           </div>
         </div>
-        <button
-          onClick={() => selectNode(null)}
-          className="flex items-center justify-center w-7 h-7 shrink-0 rounded-md bg-white/5 border border-border hover:bg-white/10"
-        >
-          <X size={14} className="text-muted-foreground" />
+        <button onClick={() => selectNode(null)}>
+          <X size={14} />
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-4">
-        <span className="text-xs uppercase font-semibold block mb-2 text-muted-foreground">Properties</span>
-        <div className="p-3 bg-muted/50 border border-border rounded-md">
+      <div>
+        <span>Properties</span>
+        <div>
           {Object.entries(data).map(([key, value]) => {
             if (key === "id") return null;
             if (typeof value === "object" && value !== null) return null;
@@ -77,10 +64,8 @@ export function NodeDetailPanel() {
           })}
         </div>
 
-        <span className="text-xs uppercase font-semibold block mt-4 mb-2 text-muted-foreground">ID</span>
-        <div className="px-3 py-2 text-xs break-all bg-muted/50 border border-border rounded-md text-secondary-foreground font-mono">
-          {String(data.id)}
-        </div>
+        <span>ID</span>
+        <div>{String(data.id)}</div>
 
         {(() => {
           const meta = data.meta;
@@ -89,8 +74,8 @@ export function NodeDetailPanel() {
           if (entries.length === 0) return null;
           return (
             <>
-              <span className="text-xs uppercase font-semibold block mt-4 mb-2 text-muted-foreground">Metadata</span>
-              <div className="p-3 bg-muted/50 border border-border rounded-md">
+              <span>Metadata</span>
+              <div>
                 {entries.map(([key, value]) => (
                   <DetailRow key={key} label={key} value={String(value ?? "—")} />
                 ))}

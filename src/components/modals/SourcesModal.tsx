@@ -49,30 +49,29 @@ export function SourcesModal() {
 
   return (
     <Modal open={activeModal === "sources"} onClose={closeModal} title="Sources" maxWidth={520}>
-      <div className="flex flex-col gap-5">
+      <div>
         <div>
-          <Label className="text-xs text-muted-foreground mb-2 block">Ingest Repository</Label>
-          <div className="flex gap-2">
+          <Label>Ingest Repository</Label>
+          <div>
             <Input
               type="text"
               placeholder="https://github.com/owner/repo"
               value={repoUrl}
               onChange={(e) => setRepoUrl(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSync()}
-              className="flex-1 font-mono text-xs"
             />
-            <Button size="sm" onClick={handleSync} disabled={!repoUrl.trim() || syncing}>
-              {syncing ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+            <Button onClick={handleSync} disabled={!repoUrl.trim() || syncing}>
+              {syncing ? <Loader2 size={14} /> : <RefreshCw size={14} />}
               Sync
             </Button>
           </div>
         </div>
 
         <div>
-          <Label className="text-xs text-muted-foreground mb-2 block">Schedule Sync</Label>
-          <div className="flex gap-2 items-center">
+          <Label>Schedule Sync</Label>
+          <div>
             <Select value={String(scheduleInterval)} onValueChange={(v: string | null) => v && setScheduleInterval(Number(v))}>
-              <SelectTrigger size="sm">
+              <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -83,7 +82,7 @@ export function SourcesModal() {
                 ))}
               </SelectContent>
             </Select>
-            <Button variant="outline" size="sm" onClick={handleSchedule} disabled={!repoUrl.trim()}>
+            <Button onClick={handleSchedule} disabled={!repoUrl.trim()}>
               <Clock size={14} />
               Set Schedule
             </Button>
@@ -92,20 +91,20 @@ export function SourcesModal() {
 
         {schedules.length > 0 && (
           <div>
-            <Label className="text-xs text-muted-foreground mb-2 block">Active Schedules</Label>
-            <div className="flex flex-col gap-2">
+            <Label>Active Schedules</Label>
+            <div>
               {schedules.map((s) => (
-                <div key={s.id} className="flex items-center justify-between rounded-md border bg-muted/50 px-3 py-2 text-xs">
-                  <div className="font-mono">
-                    <span className="text-foreground">{s.owner}/{s.repo}</span>
-                    <span className="text-muted-foreground"> / {s.job_type} / {s.interval_minutes}m</span>
+                <div key={s.id}>
+                  <div>
+                    <span>{s.owner}/{s.repo}</span>
+                    <span> / {s.job_type} / {s.interval_minutes}m</span>
                   </div>
-                  <div className="flex gap-1">
-                    <Button variant="ghost" size="icon-xs" onClick={() => toggleSchedule(s.id)} title={s.enabled ? "Disable" : "Enable"}>
-                      <Power size={12} className={s.enabled ? "text-green-500" : "text-red-500"} />
+                  <div>
+                    <Button onClick={() => toggleSchedule(s.id)} title={s.enabled ? "Disable" : "Enable"}>
+                      <Power size={12} />
                     </Button>
-                    <Button variant="ghost" size="icon-xs" onClick={() => deleteSchedule(s.id)} title="Delete">
-                      <Trash2 size={12} className="text-muted-foreground" />
+                    <Button onClick={() => deleteSchedule(s.id)} title="Delete">
+                      <Trash2 size={12} />
                     </Button>
                   </div>
                 </div>
@@ -115,19 +114,19 @@ export function SourcesModal() {
         )}
 
         <div>
-          <Label className="text-xs text-muted-foreground mb-2 block">View</Label>
-          <div className="flex flex-col gap-2">
-            <div className="flex gap-2">
+          <Label>View</Label>
+          <div>
+            <div>
               {([["force", "Force"], ["hierarchical", "Hierarchy"]] as const).map(([val, label]) => {
                 const active = layout === val;
                 return (
-                  <Button key={val} variant={active ? "secondary" : "outline"} size="sm" onClick={() => setLayout(val as "force" | "hierarchical")}>
+                  <Button key={val} onClick={() => setLayout(val as "force" | "hierarchical")}>
                     {label}
                   </Button>
                 );
               })}
             </div>
-            <Button variant="outline" size="sm" onClick={() => setCanvasCleared(true)}>
+            <Button onClick={() => setCanvasCleared(true)}>
               <Trash2 size={14} />
               Clean Canvas
             </Button>
@@ -135,18 +134,18 @@ export function SourcesModal() {
         </div>
 
         <div>
-          <Label className="text-xs text-destructive mb-2 block">Danger Zone</Label>
+          <Label>Danger Zone</Label>
           {!showPurgeConfirm ? (
-            <Button variant="destructive" size="sm" onClick={() => setShowPurgeConfirm(true)}>
+            <Button onClick={() => setShowPurgeConfirm(true)}>
               <Trash2 size={14} />
               Purge All Graph Data
             </Button>
           ) : (
-            <div className="flex gap-2">
-              <Button variant="destructive" size="sm" onClick={() => { purgeGraph(); setShowPurgeConfirm(false); }}>
+            <div>
+              <Button onClick={() => { purgeGraph(); setShowPurgeConfirm(false); }}>
                 Confirm Purge
               </Button>
-              <Button variant="outline" size="sm" onClick={() => setShowPurgeConfirm(false)}>
+              <Button onClick={() => setShowPurgeConfirm(false)}>
                 Cancel
               </Button>
             </div>
