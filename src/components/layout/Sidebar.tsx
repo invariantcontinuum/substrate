@@ -27,7 +27,7 @@ const items: NavItem[] = [
   { icon: Settings,  label: "Settings",   modal: "settings" },
 ];
 
-const SZ = 42;
+const SZ = 34;
 
 export function Sidebar() {
   const open = useUIStore((s) => s.openModal);
@@ -42,7 +42,9 @@ export function Sidebar() {
         width: "var(--sidebar-width)",
         minWidth: "var(--sidebar-width)",
         background: "var(--bg-surface)",
-        boxShadow: "var(--neu-extruded-sm)",
+        backdropFilter: "blur(var(--overlay-blur))",
+        WebkitBackdropFilter: "blur(var(--overlay-blur))",
+        borderRight: "1px solid var(--border)",
       }}
     >
       {items.map((it) => {
@@ -61,7 +63,7 @@ export function Sidebar() {
             <div
               style={{
                 position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)",
-                width: 3, borderRadius: "0 3px 3px 0",
+                width: 2, borderRadius: "0 3px 3px 0",
                 height: isActive ? 22 : isHov ? 16 : 0,
                 background: "var(--accent)",
                 transition: "height 0.2s ease-out",
@@ -70,13 +72,12 @@ export function Sidebar() {
             />
             <button
               onClick={() => it.modal !== "navigate" && open(it.modal)}
-              className={isActive ? "neu-inset-sm" : isHov ? "neu-extruded-sm" : ""}
               style={{
                 width: SZ, height: SZ, display: "flex", alignItems: "center", justifyContent: "center",
                 borderRadius: "var(--radius-md)",
-                background: isActive ? "var(--bg-surface)" : "var(--bg-surface)",
-                boxShadow: isActive ? "var(--neu-inset-sm)" : isHov ? "var(--neu-extruded-sm)" : "none",
-                transition: "all 0.3s ease-out",
+                background: isActive ? "var(--accent-soft)" : isHov ? "var(--bg-hover)" : "transparent",
+                outline: isActive ? "1px solid var(--accent-medium)" : "none",
+                transition: "all 0.15s ease",
               }}
             >
               <it.icon
@@ -97,9 +98,10 @@ export function Sidebar() {
               >
                 <div
                   style={{
-                    background: "var(--bg-surface)",
+                    background: "var(--bg-elevated)",
+                    border: "1px solid var(--border)",
                     borderRadius: "var(--radius-md)", padding: "6px 12px",
-                    boxShadow: "var(--neu-extruded-sm)", whiteSpace: "nowrap",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.3)", whiteSpace: "nowrap",
                     display: "flex", alignItems: "center", gap: 6,
                   }}
                 >
@@ -137,15 +139,15 @@ export function Sidebar() {
           onClick={() => open("user")}
           style={{
             width: SZ, height: SZ, borderRadius: "50%",
-            background: hov === "__u" ? "var(--accent)" : "var(--bg-surface)",
-            boxShadow: hov === "__u" ? "var(--neu-extruded)" : "var(--neu-extruded-sm)",
+            background: "var(--accent-soft)",
+            outline: "1px solid var(--accent-medium)",
             display: "flex", alignItems: "center", justifyContent: "center",
-            transition: "all 0.3s ease-out",
+            transition: "all 0.15s ease",
           }}
         >
           <span style={{
             fontSize: 13,
-            color: hov === "__u" ? "#fff" : "var(--accent)",
+            color: "var(--accent)",
             fontWeight: 700,
             fontFamily: "var(--font-display)",
           }}>{initial}</span>
@@ -158,9 +160,10 @@ export function Sidebar() {
             }}
           >
             <div style={{
-              background: "var(--bg-surface)",
+              background: "var(--bg-elevated)",
+              border: "1px solid var(--border)",
               borderRadius: "var(--radius-md)", padding: "6px 12px",
-              boxShadow: "var(--neu-extruded-sm)",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
             }}>
               <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>Account</span>
             </div>
