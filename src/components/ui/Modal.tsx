@@ -10,7 +10,7 @@ interface ModalProps {
 
 export function Modal({ open, onClose, title, children, maxWidth = 480 }: ModalProps) {
   return (
-    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+    <Dialog open={open} onOpenChange={(v: boolean) => !v && onClose()}>
       <DialogContent className="sm:max-w-[480px]" style={maxWidth !== 480 ? { maxWidth } : undefined}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
