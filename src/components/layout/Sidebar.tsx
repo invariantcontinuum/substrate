@@ -37,7 +37,7 @@ export function Sidebar() {
 
   return (
     <nav
-      className="flex flex-col items-center py-5 px-2 gap-1.5 shrink-0"
+      className="flex flex-col items-center py-2 gap-px shrink-0"
       style={{
         width: "var(--sidebar-width)",
         minWidth: "var(--sidebar-width)",
@@ -64,7 +64,7 @@ export function Sidebar() {
               style={{
                 position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)",
                 width: 2, borderRadius: "0 3px 3px 0",
-                height: isActive ? 22 : isHov ? 16 : 0,
+                height: isActive ? 18 : isHov ? 12 : 0,
                 background: "var(--accent)",
                 transition: "height 0.2s ease-out",
                 boxShadow: isActive || isHov ? "0 0 8px var(--accent-glow)" : "none",
@@ -81,8 +81,8 @@ export function Sidebar() {
               }}
             >
               <it.icon
-                size={17}
-                strokeWidth={isActive ? 2.2 : 1.6}
+                size={15}
+                strokeWidth={isActive ? 2 : 1.5}
                 color={isActive ? "var(--accent)" : isHov ? "var(--text-primary)" : "var(--text-muted)"}
               />
             </button>
@@ -91,21 +91,21 @@ export function Sidebar() {
             {isHov && (
               <div
                 style={{
-                  position: "absolute", left: SZ + 12, top: "50%", transform: "translateY(-50%)",
-                  pointerEvents: "none", zIndex: 100, display: "flex", alignItems: "center", gap: 6,
-                  animation: "fadeIn 0.12s ease",
+                  position: "absolute", left: SZ + 8, top: "50%", transform: "translateY(-50%)",
+                  pointerEvents: "none", zIndex: 100, display: "flex", alignItems: "center", gap: 5,
+                  animation: "fadeIn 0.1s ease",
                 }}
               >
                 <div
                   style={{
                     background: "var(--bg-elevated)",
                     border: "1px solid var(--border)",
-                    borderRadius: "var(--radius-md)", padding: "6px 12px",
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.3)", whiteSpace: "nowrap",
-                    display: "flex", alignItems: "center", gap: 6,
+                    borderRadius: "var(--radius-sm)", padding: "3px 8px",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.4)", whiteSpace: "nowrap",
+                    display: "flex", alignItems: "center", gap: 5,
                   }}
                 >
-                  <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
+                  <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-primary)" }}>
                     {it.label}
                   </span>
                   {coming && (
@@ -131,7 +131,7 @@ export function Sidebar() {
 
       {/* User avatar */}
       <div
-        className="relative flex items-center mb-1"
+        className="relative flex items-center"
         onMouseEnter={() => setHov("__u")}
         onMouseLeave={() => setHov(null)}
       >
@@ -145,27 +145,22 @@ export function Sidebar() {
             transition: "all 0.15s ease",
           }}
         >
-          <span style={{
-            fontSize: 13,
-            color: "var(--accent)",
-            fontWeight: 700,
-            fontFamily: "var(--font-display)",
-          }}>{initial}</span>
+          <span style={{ fontSize: 11, color: "var(--accent-text)", fontWeight: 600 }}>{initial}</span>
         </button>
         {hov === "__u" && (
           <div
             style={{
-              position: "absolute", left: SZ + 12, top: "50%", transform: "translateY(-50%)",
-              pointerEvents: "none", zIndex: 100, animation: "fadeIn 0.12s ease",
+              position: "absolute", left: SZ + 8, top: "50%", transform: "translateY(-50%)",
+              pointerEvents: "none", zIndex: 100, animation: "fadeIn 0.1s ease",
             }}
           >
             <div style={{
               background: "var(--bg-elevated)",
               border: "1px solid var(--border)",
-              borderRadius: "var(--radius-md)", padding: "6px 12px",
-              boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+              borderRadius: "var(--radius-sm)", padding: "3px 8px",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
             }}>
-              <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>Account</span>
+              <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-primary)" }}>Account</span>
             </div>
           </div>
         )}

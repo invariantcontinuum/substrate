@@ -21,7 +21,7 @@ export function TopBar() {
 
   return (
     <header
-      className="flex items-center gap-4 px-5 sm:px-6 shrink-0"
+      className="flex items-center gap-2 px-2 sm:px-3 shrink-0"
       style={{
         height: "var(--topbar-height)",
         minHeight: "var(--topbar-height)",
@@ -37,31 +37,28 @@ export function TopBar() {
       {!isDesktop && (
         <button
           onClick={toggleSidebar}
-          className="glass-btn flex items-center justify-center"
-          style={{
-            width: 38, height: 38, color: "var(--text-muted)",
-            borderRadius: "var(--radius-md)", padding: 0,
-          }}
+          className="flex items-center justify-center"
+          style={{ width: 32, height: 32, color: "var(--text-muted)" }}
         >
           <Menu size={18} />
         </button>
       )}
 
       {/* Logo */}
-      <div className="flex items-center gap-2.5">
+      <div className="flex items-center gap-1.5">
         <div
           className="flex items-center justify-center"
           style={{
-            width: 32, height: 32, borderRadius: "var(--radius-md)",
+            width: 22, height: 22, borderRadius: "var(--radius-sm)",
             background: "var(--accent-soft)",
             border: "1px solid var(--accent-medium)",
           }}
         >
-          <Brain size={16} color="var(--accent)" />
+          <Brain size={12} color="var(--accent)" />
         </div>
         <span
-          className="text-[13px] font-bold hidden sm:inline font-display"
-          style={{ color: "var(--text-primary)", letterSpacing: "-0.02em", fontFamily: "var(--font-display)" }}
+          className="text-[12px] font-semibold hidden sm:inline"
+          style={{ color: "var(--text-primary)", letterSpacing: "-0.02em" }}
         >
           Substrate
         </span>
@@ -71,10 +68,14 @@ export function TopBar() {
 
       {/* Search */}
       <div
-        className="flex items-center gap-2"
-        style={{ width: isDesktop ? 260 : 170 }}
+        className="flex items-center gap-1.5 px-2 py-1 rounded-md"
+        style={{
+          width: isDesktop ? 220 : 140,
+          background: "var(--bg-hover)",
+          border: "1px solid var(--border)",
+        }}
       >
-        <Search size={13} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
+        <Search size={11} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
         <input
           type="text"
           placeholder="Search..."
@@ -82,16 +83,20 @@ export function TopBar() {
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && go()}
           disabled={!loaded}
-          className="glass-input flex-1 min-w-0"
+          className="flex-1 text-[10px] bg-transparent outline-none min-w-0"
           style={{
+            color: "var(--text-primary)",
+            fontFamily: "var(--font-mono)",
             opacity: loaded ? 1 : 0.3,
           }}
         />
       </div>
 
+      <div className="w-px h-3 hidden sm:block" style={{ background: "var(--border)" }} />
+
       {/* Stats */}
       <div
-        className="items-center gap-3 text-[10px] hidden sm:flex"
+        className="items-center gap-2 text-[10px] hidden sm:flex"
         style={{ fontFamily: "var(--font-mono)" }}
       >
         <div className="flex items-center gap-1.5">
