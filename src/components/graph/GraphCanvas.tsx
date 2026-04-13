@@ -112,8 +112,8 @@ export function GraphCanvas() {
     if (!ready || !cyRef.current) return;
     const cy = cyRef.current;
     cy.elements().remove();
-    if (nodes.length) cy.add(nodes.map((n) => ({ data: { id: n.id, label: n.label, ...n } })));
-    if (edges.length) cy.add(edges.map((e) => ({ data: { id: e.id, source: e.source, target: e.target, label: e.label, ...e } })));
+    if (nodes.length) cy.add(nodes.map((n) => ({ data: { ...n, id: n.id, label: n.label } })));
+    if (edges.length) cy.add(edges.map((e) => ({ data: { ...e, id: e.id, source: e.source, target: e.target, label: e.label } })));
     cy.layout({ name: layoutName as any, padding: isMobile ? 24 : 48, animate: false, fit: true }).run();
   }, [nodes, edges, layoutName, ready, isMobile]);
 

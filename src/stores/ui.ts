@@ -10,6 +10,7 @@ export type ModalName =
   | "adrs"
   | "drift"
   | "query"
+  | "nodeDetail"
   | null;
 
 interface UIState {
@@ -24,7 +25,7 @@ interface UIState {
 }
 
 export const useUIStore = create<UIState>((set) => ({
-  sidebarOpen: false,
+  sidebarOpen: true,
   activeModal: null,
   openModal: (activeModal) => set({ activeModal, sidebarOpen: false }),
   closeModal: () => set({ activeModal: null }),
