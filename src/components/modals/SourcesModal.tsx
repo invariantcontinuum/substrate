@@ -20,6 +20,8 @@ export function SourcesModal() {
   const { runJob, isRunning, schedules, createSchedule, toggleSchedule, deleteSchedule, purgeGraph } = useJobs();
   const setCanvasCleared = useGraphStore((s) => s.setCanvasCleared);
   const syncStatus = useGraphStore((s) => s.syncStatus);
+  const layout = useGraphStore((s) => s.layout);
+  const setLayout = useGraphStore((s) => s.setLayout);
 
   const [repoUrl, setRepoUrl] = useState(defaultRepoUrl ?? "");
   const [scheduleInterval, setScheduleInterval] = useState(60);
@@ -170,14 +172,37 @@ export function SourcesModal() {
           <div className="text-[10px] uppercase tracking-wider mb-3 font-semibold" style={{ color: "var(--text-muted)", fontFamily: "var(--font-display)" }}>
             View
           </div>
-          <button
-            onClick={() => setCanvasCleared(true)}
-            className="neu-btn flex items-center gap-1.5 px-4 py-3 text-[11px] font-medium"
-            style={{ background: "var(--bg-surface)", borderRadius: "var(--radius-lg)", color: "var(--text-secondary)" }}
-          >
-            <Trash2 size={13} />
-            Clean Canvas
-          </button>
+          <div className="flex flex-col gap-3">
+            <div className="flex gap-3">
+              {([["force", "Force"], ["hierarchical", "Hierarchy"]] as const).map(([val, label]) => {
+                const active = layout === val;
+                return (
+                  <button
+                    key={val}
+                    onClick={() => setLayout(val as "force" | "hierarchical")}
+                    className="px-5 py-3 text-[11px] font-medium"
+                    style={{
+                      background: "var(--bg-surface)",
+                      borderRadius: "var(--radius-lg)",
+                      boxShadow: active ? "var(--neu-inset)" : "var(--neu-extruded-sm)",
+                      color: active ? "var(--accent)" : "var(--text-muted)",
+                      transition: "all 0.3s ease-out",
+                    }}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              onClick={() => setCanvasCleared(true)}
+              className="neu-btn flex items-center gap-1.5 px-4 py-3 text-[11px] font-medium"
+              style={{ background: "var(--bg-surface)", borderRadius: "var(--radius-lg)", color: "var(--text-secondary)" }}
+            >
+              <Trash2 size={13} />
+              Clean Canvas
+            </button>
+          </div>
         </div>
 
         {/* Danger zone */}
