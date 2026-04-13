@@ -4,6 +4,10 @@ import { useUIStore } from "@/stores/ui";
 import { useSearch } from "@/hooks/useSearch";
 import { useGraphStore } from "@/stores/graph";
 import { Search, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 
 export function SearchModal() {
   const { activeModal, closeModal } = useUIStore();
@@ -27,82 +31,72 @@ export function SearchModal() {
     <Modal open={activeModal === "search"} onClose={() => { closeModal(); clearResults(); }} title="Search" maxWidth={560}>
       <div className="flex flex-col gap-5">
         <div className="flex gap-3">
-          <input
+          <Input
             type="text"
             placeholder="Search nodes semantically..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-            className="glass-input flex-1 text-[12px]"
+            className="flex-1 text-xs"
             autoFocus
           />
-          <button
+          <Button
+            size="sm"
             onClick={handleSearch}
             disabled={!query.trim() || searching}
-            className="glass-btn-accent flex items-center gap-1.5"
           >
             {searching ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
             Search
-          </button>
+          </Button>
         </div>
 
         <div className="flex gap-3">
-          <input
+          <Input
             type="text"
             placeholder="Filter by category..."
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
-            className="glass-input flex-1"
+            className="flex-1"
           />
-          <input
+          <Input
             type="text"
             placeholder="Filter by domain..."
             value={domainFilter}
             onChange={(e) => setDomainFilter(e.target.value)}
-            className="glass-input flex-1"
+            className="flex-1"
           />
         </div>
 
         {results.length > 0 && (
           <div className="flex flex-col gap-2">
-            <div className="section-label" style={{ fontFamily: "var(--font-display)" }}>
+            <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1 font-display">
               {results.length} results
-            </div>
+            </Label>
             {results.map((r) => (
               <button
                 key={r.node_id}
                 onClick={() => handleSelectResult(r.node_id)}
-                className="flex flex-col gap-1 px-4 py-3.5 text-left"
-                style={{
-                  background: "var(--bg-hover)", border: "1px solid var(--border)",
-                  borderRadius: "var(--radius-md)", transition: "all 0.15s ease",
-                }}
+                className="flex flex-col gap-1 rounded-md border bg-muted/50 px-4 py-3.5 text-left transition-colors hover:bg-muted"
               >
                 <div className="flex items-center gap-2">
-                  <span className="text-[12px] font-semibold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
+                  <span className="text-xs font-semibold text-foreground font-display">
                     {r.name || r.node_id.split("/").pop()}
                   </span>
                   {r.category && (
-                    <span className="text-[9px] px-2 py-0.5" style={{
-                      background: "var(--accent-soft)", color: "var(--accent-text)",
-                      borderRadius: "var(--radius-sm)", fontWeight: 600,
-                    }}>
+                    <Badge variant="secondary" className="text-[9px] px-2 py-0.5">
                       {r.category}
-                    </span>
+                    </Badge>
                   )}
                   {r.language && (
-                    <span className="text-[9px] px-2 py-0.5" style={{
-                      background: "var(--bg-hover)", color: "var(--text-muted)",
-                      borderRadius: "var(--radius-sm)",
-                    }}>
+                    <Badge variant="outline" className="text-[9px] px-2 py-0.5">
                       {r.language}
-                    </span>
+                    </Badge>
                   )}
                 </div>
                 {r.description && (
-                  <span className="text-[11px] leading-relaxed" style={{ color: "var(--text-muted)" }}>{r.description}</span>
+                  <span className="text-[11px] leading-relaxed text-muted-foreground">{r.description}</span>
                 )}
-                <span className="text-[9px]" style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
+                <span className="text-[9px] font-mono text-muted-foreground">
                   {r.node_id}
                 </span>
               </button>

@@ -4,6 +4,8 @@ import { useGraphStore } from "@/stores/graph";
 import { useUIStore } from "@/stores/ui";
 import { useSearch } from "@/hooks/useSearch";
 import { useResponsive } from "@/hooks/useResponsive";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 
 export function TopBar() {
   const { connectionStatus, stats, setSearchQuery } = useGraphStore();
@@ -35,13 +37,13 @@ export function TopBar() {
     >
       {/* Mobile hamburger */}
       {!isDesktop && (
-        <button
+        <Button
+          variant="ghost"
+          size="icon-sm"
           onClick={toggleSidebar}
-          className="flex items-center justify-center"
-          style={{ width: 32, height: 32, color: "var(--text-muted)" }}
         >
           <Menu size={18} />
-        </button>
+        </Button>
       )}
 
       {/* Logo */}
@@ -68,28 +70,21 @@ export function TopBar() {
 
       {/* Search */}
       <div
-        className="flex items-center gap-1.5 px-2 py-1 rounded-md"
-        style={{
-          width: isDesktop ? 220 : 140,
-          background: "var(--bg-hover)",
-          border: "1px solid var(--border)",
-        }}
+        className="flex items-center gap-1.5"
+        style={{ width: isDesktop ? 220 : 140 }}
       >
-        <Search size={11} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
-        <input
-          type="text"
-          placeholder="Search..."
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && go()}
-          disabled={!loaded}
-          className="flex-1 text-[10px] bg-transparent outline-none min-w-0"
-          style={{
-            color: "var(--text-primary)",
-            fontFamily: "var(--font-mono)",
-            opacity: loaded ? 1 : 0.3,
-          }}
-        />
+        <div className="relative flex w-full items-center">
+          <Search size={11} className="pointer-events-none absolute left-2 text-muted-foreground" />
+          <Input
+            type="text"
+            placeholder="Search..."
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && go()}
+            disabled={!loaded}
+            className="h-7 pl-6 text-[10px] font-mono"
+          />
+        </div>
       </div>
 
       <div className="w-px h-3 hidden sm:block" style={{ background: "var(--border)" }} />

@@ -4,6 +4,10 @@ import { useUIStore } from "@/stores/ui";
 import { useJobs } from "@/hooks/useJobs";
 import { RefreshCw, Loader2, Trash2, Clock, Power } from "lucide-react";
 import { useGraphStore } from "@/stores/graph";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 
 const SCHEDULE_OPTIONS = [
   { label: "5 min", value: 5 },
@@ -48,92 +52,92 @@ export function SourcesModal() {
       <div className="flex flex-col gap-7">
         {/* Ingest repo */}
         <div>
-          <div className="section-label" style={{ fontFamily: "var(--font-display)" }}>
+          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2.5 font-display">
             Ingest Repository
-          </div>
+          </Label>
           <div className="flex gap-3">
-            <input
+            <Input
               type="text"
               placeholder="https://github.com/owner/repo"
               value={repoUrl}
               onChange={(e) => setRepoUrl(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSync()}
-              className="glass-input flex-1"
+              className="flex-1 font-mono text-xs"
             />
-            <button
+            <Button
+              size="sm"
               onClick={handleSync}
               disabled={!repoUrl.trim() || syncing}
-              className="glass-btn-accent flex items-center gap-1.5"
             >
               {syncing ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
               Sync
-            </button>
+            </Button>
           </div>
         </div>
 
         {/* Schedule */}
         <div>
-          <div className="section-label" style={{ fontFamily: "var(--font-display)" }}>
+          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2.5 font-display">
             Schedule Sync
-          </div>
+          </Label>
           <div className="flex gap-3 items-center">
-            <select
-              value={scheduleInterval}
-              onChange={(e) => setScheduleInterval(Number(e.target.value))}
-              className="glass-input"
-            >
-              {SCHEDULE_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value} style={{ background: "var(--bg-elevated)" }}>
-                  Every {opt.label}
-                </option>
-              ))}
-            </select>
-            <button
+            <Select value={String(scheduleInterval)} onValueChange={(v) => setScheduleInterval(Number(v))}>
+              <SelectTrigger size="sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SCHEDULE_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={String(opt.value)}>
+                    Every {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={handleSchedule}
               disabled={!repoUrl.trim()}
-              className="glass-btn flex items-center gap-1.5"
-              style={{ opacity: !repoUrl.trim() ? 0.4 : 1 }}
             >
               <Clock size={13} />
               Set Schedule
-            </button>
+            </Button>
           </div>
         </div>
 
         {/* Active schedules */}
         {schedules.length > 0 && (
           <div>
-            <div className="section-label" style={{ fontFamily: "var(--font-display)" }}>
+            <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2.5 font-display">
               Active Schedules
-            </div>
+            </Label>
             <div className="flex flex-col gap-2">
               {schedules.map((s) => (
                 <div
                   key={s.id}
-                  className="flex items-center justify-between px-4 py-3 text-[11px]"
-                  style={{ background: "var(--bg-hover)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)" }}
+                  className="flex items-center justify-between rounded-md border bg-muted/50 px-4 py-3 text-[11px]"
                 >
-                  <div style={{ fontFamily: "var(--font-mono)" }}>
-                    <span style={{ color: "var(--text-primary)" }}>{s.owner}/{s.repo}</span>
-                    <span style={{ color: "var(--text-muted)" }}> / {s.job_type} / {s.interval_minutes}m</span>
+                  <div className="font-mono">
+                    <span className="text-foreground">{s.owner}/{s.repo}</span>
+                    <span className="text-muted-foreground"> / {s.job_type} / {s.interval_minutes}m</span>
                   </div>
                   <div className="flex gap-2">
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
                       onClick={() => toggleSchedule(s.id)}
                       title={s.enabled ? "Disable" : "Enable"}
-                      className="flex items-center justify-center w-7 h-7"
-                      style={{ borderRadius: "var(--radius-sm)", background: "var(--bg-hover)", border: "1px solid var(--border)" }}
                     >
-                      <Power size={12} style={{ color: s.enabled ? "var(--success)" : "var(--error)" }} />
-                    </button>
-                    <button
+                      <Power size={12} className={s.enabled ? "text-green-500" : "text-red-500"} />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
                       onClick={() => deleteSchedule(s.id)}
                       title="Delete"
-                      className="flex items-center justify-center w-7 h-7"
-                      style={{ borderRadius: "var(--radius-sm)", background: "var(--bg-hover)", border: "1px solid var(--border)" }}
                     >
-                      <Trash2 size={12} style={{ color: "var(--text-muted)" }} />
-                    </button>
+                      <Trash2 size={12} className="text-muted-foreground" />
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -143,70 +147,66 @@ export function SourcesModal() {
 
         {/* View controls */}
         <div>
-          <div className="section-label" style={{ fontFamily: "var(--font-display)" }}>
+          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2.5 font-display">
             View
-          </div>
+          </Label>
           <div className="flex flex-col gap-3">
             <div className="flex gap-3">
               {([["force", "Force"], ["hierarchical", "Hierarchy"]] as const).map(([val, label]) => {
                 const active = layout === val;
                 return (
-                  <button
+                  <Button
                     key={val}
+                    variant={active ? "secondary" : "outline"}
+                    size="sm"
                     onClick={() => setLayout(val as "force" | "hierarchical")}
-                    className="px-5 py-3 text-[11px] font-medium"
-                    style={{
-                      background: active ? "var(--accent-soft)" : "var(--bg-hover)",
-                      border: active ? "1px solid var(--accent-medium)" : "1px solid var(--border)",
-                      borderRadius: "var(--radius-md)",
-                      color: active ? "var(--accent)" : "var(--text-muted)",
-                      transition: "all 0.15s ease",
-                    }}
                   >
                     {label}
-                  </button>
+                  </Button>
                 );
               })}
             </div>
-            <button
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => setCanvasCleared(true)}
-              className="glass-btn flex items-center gap-1.5"
             >
               <Trash2 size={13} />
               Clean Canvas
-            </button>
+            </Button>
           </div>
         </div>
 
         {/* Danger zone */}
         <div>
-          <div className="section-label" style={{ color: "var(--error)", fontFamily: "var(--font-display)" }}>
+          <Label className="text-[10px] uppercase tracking-wider text-destructive mb-2.5 font-display">
             Danger Zone
-          </div>
+          </Label>
           {!showPurgeConfirm ? (
-            <button
+            <Button
+              variant="destructive"
+              size="sm"
               onClick={() => setShowPurgeConfirm(true)}
-              className="glass-btn flex items-center gap-1.5"
-              style={{ color: "var(--error)" }}
             >
               <Trash2 size={13} />
               Purge All Graph Data
-            </button>
+            </Button>
           ) : (
             <div className="flex gap-3">
-              <button
+              <Button
+                variant="destructive"
+                size="sm"
                 onClick={() => { purgeGraph(); setShowPurgeConfirm(false); }}
-                className="px-4 py-3 text-[11px] font-semibold"
-                style={{ background: "var(--error)", borderRadius: "var(--radius-md)", color: "#fff" }}
               >
                 Confirm Purge
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => setShowPurgeConfirm(false)}
-                className="glass-btn"
               >
                 Cancel
-              </button>
+              </Button>
             </div>
           )}
         </div>

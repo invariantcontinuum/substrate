@@ -16,16 +16,15 @@ export function ComingSoonModal({ name }: { name: string }) {
     <Modal open={activeModal === name} onClose={closeModal} title={title} maxWidth={360}>
       <div className="flex flex-col items-center gap-6 py-10 text-center">
         <div
-          className="w-14 h-14 rounded-2xl flex items-center justify-center float-anim"
-          style={{ background: "var(--accent-soft)", border: "1px solid var(--accent-medium)" }}
+          className="flex h-14 w-14 items-center justify-center rounded-2xl border border-primary/30 bg-primary/10 float-anim"
         >
-          <span style={{ color: "var(--accent)", fontSize: 22 }}>&#x2692;</span>
+          <span className="text-[22px] text-primary">&#x2692;</span>
         </div>
         <div>
-          <div className="text-[15px] font-bold mb-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
+          <div className="mb-2 text-[15px] font-bold text-foreground font-display">
             Coming Soon
           </div>
-          <div className="text-[12px] leading-relaxed" style={{ color: "var(--text-muted)", maxWidth: 260 }}>
+          <div className="max-w-[260px] text-xs leading-relaxed text-muted-foreground">
             {DESCRIPTIONS[name] || "This feature is under development."}
           </div>
         </div>
