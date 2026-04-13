@@ -273,7 +273,7 @@ export function GraphCanvas() {
   }, [stylesheet, themeMode]);
 
   return (
-    <div className="w-full h-full">
+    <div className="relative w-full h-full">
       <div ref={containerRef} className="w-full h-full" />
       <SignalsOverlay />
       <ViolationBadge />
