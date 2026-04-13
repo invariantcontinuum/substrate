@@ -20,12 +20,11 @@ const TYPE_COLORS: Record<string, { bg: string; border: string; text: string }> 
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex justify-between items-baseline gap-4 py-2.5">
-      <span className="text-[9px] uppercase tracking-wider font-semibold shrink-0" style={{ color: "var(--text-muted)" }}>
+      <span className="text-[9px] uppercase tracking-wider font-semibold shrink-0 text-muted-foreground">
         {label}
       </span>
       <span
-        className="text-[11px] text-right truncate"
-        style={{ color: "var(--text-secondary)", fontFamily: "var(--font-mono)" }}
+        className="text-[11px] text-right truncate text-secondary-foreground font-mono"
         title={value}
       >
         {value}
@@ -47,17 +46,9 @@ export function NodeDetailPanel() {
 
   return (
     <div
-      className="shrink-0 flex flex-col overflow-hidden"
-      style={{
-        width: 340,
-        height: "100%",
-        background: "var(--bg-surface)",
-        backdropFilter: "blur(var(--overlay-blur))",
-        borderLeft: "1px solid var(--border)",
-        animation: "slideInRight 0.2s ease-out both",
-      }}
+      className="shrink-0 flex flex-col overflow-hidden w-[340px] h-full bg-card border-l border-border backdrop-blur-md animate-[slideInRight_0.2s_ease-out_both]"
     >
-      {/* Header with type color */}
+      {/* Header with type color — dynamic colors from TYPE_COLORS must stay inline */}
       <div
         className="px-5 py-4 flex items-center justify-between shrink-0"
         style={{
@@ -72,15 +63,14 @@ export function NodeDetailPanel() {
           />
           <div className="min-w-0">
             <div
-              className="text-[13px] font-bold truncate"
-              style={{ color: colors.text, fontFamily: "var(--font-display)" }}
+              className="text-[13px] font-bold truncate font-display"
+              style={{ color: colors.text }}
               title={String(data.label || data.name || data.id)}
             >
               {String(data.label || data.name || data.id)}
             </div>
             <div
-              className="text-[9px] mt-0.5 truncate font-medium"
-              style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}
+              className="text-[9px] mt-0.5 truncate font-medium text-muted-foreground font-mono"
               title={nodeType}
             >
               {nodeType}
@@ -89,31 +79,23 @@ export function NodeDetailPanel() {
         </div>
         <button
           onClick={() => selectNode(null)}
-          className="flex items-center justify-center w-7 h-7 shrink-0"
-          style={{ borderRadius: "var(--radius-sm)", background: "var(--bg-hover)", border: "1px solid var(--border)" }}
+          className="flex items-center justify-center w-7 h-7 shrink-0 rounded-md bg-white/[0.04] border border-border"
         >
-          <X size={14} color="var(--text-muted)" />
+          <X size={14} className="text-muted-foreground" />
         </button>
       </div>
 
       {/* Scrollable body */}
       <div
-        className="flex-1 overflow-y-auto px-5 py-5"
-        style={{ overscrollBehavior: "contain" }}
+        className="flex-1 overflow-y-auto px-5 py-5 overscroll-contain"
       >
         <span
-          className="text-[9px] uppercase tracking-[0.15em] font-semibold block mb-3"
-          style={{ color: "var(--text-muted)", fontFamily: "var(--font-display)" }}
+          className="text-[9px] uppercase tracking-[0.15em] font-semibold block mb-3 text-muted-foreground font-display"
         >
           Properties
         </span>
         <div
-          className="p-4"
-          style={{
-            background: "var(--bg-hover)",
-            border: "1px solid var(--border)",
-            borderRadius: "var(--radius-md)",
-          }}
+          className="p-4 bg-white/[0.02] border border-border rounded-lg"
         >
           {Object.entries(data).map(([key, value]) => {
             if (key === "id") return null;
@@ -126,18 +108,12 @@ export function NodeDetailPanel() {
 
         {/* ID */}
         <span
-          className="text-[9px] uppercase tracking-[0.15em] font-semibold block mt-5 mb-3"
-          style={{ color: "var(--text-muted)", fontFamily: "var(--font-display)" }}
+          className="text-[9px] uppercase tracking-[0.15em] font-semibold block mt-5 mb-3 text-muted-foreground font-display"
         >
           ID
         </span>
         <div
-          className="px-4 py-3 text-[10px] break-all"
-          style={{
-            background: "var(--bg-hover)", border: "1px solid var(--border)",
-            borderRadius: "var(--radius-md)", color: "var(--text-secondary)",
-            fontFamily: "var(--font-mono)",
-          }}
+          className="px-4 py-3 text-[10px] break-all bg-white/[0.02] border border-border rounded-lg text-secondary-foreground font-mono"
         >
           {String(data.id)}
         </div>
@@ -151,18 +127,12 @@ export function NodeDetailPanel() {
           return (
             <>
               <span
-                className="text-[9px] uppercase tracking-[0.15em] font-semibold block mt-5 mb-3"
-                style={{ color: "var(--text-muted)", fontFamily: "var(--font-display)" }}
+                className="text-[9px] uppercase tracking-[0.15em] font-semibold block mt-5 mb-3 text-muted-foreground font-display"
               >
                 Metadata
               </span>
               <div
-                className="p-4"
-                style={{
-                  background: "var(--bg-hover)",
-                  border: "1px solid var(--border)",
-                  borderRadius: "var(--radius-md)",
-                }}
+                className="p-4 bg-white/[0.02] border border-border rounded-lg"
               >
                 {entries.map(([key, value]) => (
                   <DetailRow key={key} label={key} value={String(value ?? "\u2014")} />
