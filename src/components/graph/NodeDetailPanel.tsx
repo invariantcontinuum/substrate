@@ -38,7 +38,7 @@ export function NodeDetailPanel() {
   if (!selectedNodeId || !data) return null;
 
   return (
-    <div>
+    <div className="shrink-0 flex flex-col overflow-hidden w-80 h-full bg-[#0c0c12] border-l border-white/10 text-gray-200">
       <div style={{ background: colors.bg, borderBottom: `1px solid ${colors.border}44` }}>
         <div>
           <div style={{ background: colors.border }} />

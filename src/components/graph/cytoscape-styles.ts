@@ -176,7 +176,9 @@ export const darkStylesheet: cytoscape.StylesheetJsonBlock[] = [
       "target-arrow-shape": "triangle",
       "target-arrow-color": "rgba(255,255,255,0.1)",
       "arrow-scale": 0.8,
-      "curve-style": "bezier",
+      "curve-style": "unbundled-bezier",
+      "control-point-distances": 24,
+      "control-point-weights": 0.5,
     },
   },
   {
@@ -408,7 +410,9 @@ export const lightStylesheet: cytoscape.StylesheetJsonBlock[] = [
       "target-arrow-shape": "triangle",
       "target-arrow-color": "rgba(0,0,0,0.1)",
       "arrow-scale": 0.8,
-      "curve-style": "bezier",
+      "curve-style": "unbundled-bezier",
+      "control-point-distances": 24,
+      "control-point-weights": 0.5,
     },
   },
   {

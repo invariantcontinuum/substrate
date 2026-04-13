@@ -284,12 +284,8 @@ export function GraphCanvas() {
   }, [stylesheet, themeMode]);
 
   return (
-    <div
-      className="relative w-full h-full [contain:layout_paint_size] touch-none overscroll-contain"
-    >
-      <div
-        className="w-full h-full rounded-2xl overflow-hidden relative bg-[rgba(13,13,18,0.8)] border border-white/[0.06] backdrop-blur-lg"
-      >
+    <div className="relative w-full h-full">
+      <div className="w-full h-full rounded-2xl overflow-hidden bg-[rgba(16,16,24,0.65)] border border-white/10 backdrop-blur-xl shadow-2xl">
         <div ref={containerRef} className="w-full h-full" />
         <SignalsOverlay />
         <ViolationBadge />
