@@ -6,6 +6,7 @@ import { useSearch } from "@/hooks/useSearch";
 import { useResponsive } from "@/hooks/useResponsive";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export function TopBar() {
   const { connectionStatus, stats, setSearchQuery } = useGraphStore();
@@ -23,17 +24,7 @@ export function TopBar() {
 
   return (
     <header
-      className="flex items-center gap-2 px-2 sm:px-3 shrink-0"
-      style={{
-        height: "var(--topbar-height)",
-        minHeight: "var(--topbar-height)",
-        background: "var(--bg-glass)",
-        backdropFilter: "blur(var(--overlay-blur))",
-        WebkitBackdropFilter: "blur(var(--overlay-blur))",
-        borderBottom: "1px solid var(--border-glass)",
-        zIndex: 5,
-        position: "relative",
-      }}
+      className="flex items-center gap-2 px-2 sm:px-3 shrink-0 h-[var(--topbar-height)] min-h-[var(--topbar-height)] bg-[var(--bg-glass)] backdrop-blur-md border-b border-[var(--border-glass)] relative z-5"
     >
       {/* Mobile hamburger */}
       {!isDesktop && (
@@ -49,18 +40,12 @@ export function TopBar() {
       {/* Logo */}
       <div className="flex items-center gap-1.5">
         <div
-          className="flex items-center justify-center"
-          style={{
-            width: 22, height: 22, borderRadius: "var(--radius-sm)",
-            background: "var(--accent-soft)",
-            border: "1px solid var(--accent-medium)",
-          }}
+          className="flex items-center justify-center w-[22px] h-[22px] rounded-md bg-[var(--accent-soft)] border border-[var(--accent-medium)]"
         >
-          <Brain size={12} color="var(--accent)" />
+          <Brain size={12} className="text-[var(--accent-brand)]" />
         </div>
         <span
-          className="text-[12px] font-semibold hidden sm:inline"
-          style={{ color: "var(--text-primary)", letterSpacing: "-0.02em" }}
+          className="text-[12px] font-semibold hidden sm:inline text-[var(--text-primary)] tracking-tight"
         >
           Substrate
         </span>
@@ -70,8 +55,7 @@ export function TopBar() {
 
       {/* Search */}
       <div
-        className="flex items-center gap-1.5"
-        style={{ width: isDesktop ? 220 : 140 }}
+        className={cn("flex items-center gap-1.5", isDesktop ? "w-[220px]" : "w-[140px]")}
       >
         <div className="relative flex w-full items-center">
           <Search size={11} className="pointer-events-none absolute left-2 text-muted-foreground" />
@@ -87,38 +71,38 @@ export function TopBar() {
         </div>
       </div>
 
-      <div className="w-px h-3 hidden sm:block" style={{ background: "var(--border-glass)" }} />
+      <div className="w-px h-3 hidden sm:block bg-[var(--border-glass)]" />
 
       {/* Stats */}
-      <div
-        className="items-center gap-2 text-[10px] hidden sm:flex"
-        style={{ fontFamily: "var(--font-mono)" }}
-      >
+      <div className="items-center gap-2 text-[10px] hidden sm:flex font-mono">
         <div className="flex items-center gap-1.5">
           <div
-            style={{
-              width: 6, height: 6, borderRadius: "50%",
-              background: connectionStatus === "connected" ? "var(--success)"
-                : connectionStatus === "reconnecting" ? "var(--warning)" : "var(--error)",
-              boxShadow: connectionStatus === "connected" ? "0 0 8px var(--success)" : "none",
-            }}
+            className={cn(
+              "w-1.5 h-1.5 rounded-full",
+              connectionStatus === "connected" && "bg-[var(--success)] shadow-[0_0_8px_var(--success)]",
+              connectionStatus === "reconnecting" && "bg-[var(--warning)]",
+              connectionStatus === "disconnected" && "bg-[var(--error)]",
+            )}
           />
-          <span style={{
-            fontWeight: 500,
-            color: connectionStatus === "connected" ? "var(--success-text)"
-              : connectionStatus === "reconnecting" ? "var(--warning-text)" : "var(--error-text)",
-          }}>
+          <span
+            className={cn(
+              "font-medium",
+              connectionStatus === "connected" && "text-[var(--success-text)]",
+              connectionStatus === "reconnecting" && "text-[var(--warning-text)]",
+              connectionStatus === "disconnected" && "text-[var(--error-text)]",
+            )}
+          >
             {connectionStatus === "connected" ? "Live" : connectionStatus === "reconnecting" ? "..." : "Off"}
           </span>
         </div>
-        <span style={{ color: "var(--text-muted)" }}>
-          <span style={{ color: "var(--accent-text)", fontWeight: 600 }}>{stats.nodeCount}</span>n
+        <span className="text-[var(--text-muted)]">
+          <span className="text-[var(--accent-brand)] font-semibold">{stats.nodeCount}</span>n
         </span>
-        <span style={{ color: "var(--text-muted)" }}>
-          <span style={{ color: "var(--accent-text)", fontWeight: 600 }}>{stats.edgeCount}</span>e
+        <span className="text-[var(--text-muted)]">
+          <span className="text-[var(--accent-brand)] font-semibold">{stats.edgeCount}</span>e
         </span>
         {stats.violationCount > 0 && (
-          <span style={{ color: "var(--error-text)", fontWeight: 600 }}>&#x2298;{stats.violationCount}</span>
+          <span className="text-[var(--error-text)] font-semibold">&#x2298;{stats.violationCount}</span>
         )}
       </div>
     </header>
