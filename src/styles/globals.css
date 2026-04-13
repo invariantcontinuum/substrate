@@ -1,19 +1,13 @@
 @import "tailwindcss";
-@import "@fontsource-variable/plus-jakarta-sans";
-@import "@fontsource/dm-sans/400.css";
-@import "@fontsource/dm-sans/500.css";
-@import "@fontsource/dm-sans/700.css";
 
-/* ─── Tailwind v4 Theme (Dark default) ─── */
 @theme {
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 12px;
   --radius-xl: 16px;
 
-  --font-sans: "DM Sans", system-ui, sans-serif;
-  --font-display: "Plus Jakarta Sans Variable", "Plus Jakarta Sans", system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", "SF Mono", "Fira Code", monospace;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Code", "Fira Code", monospace;
 
   --color-background: oklch(0.14 0.005 285);
   --color-foreground: oklch(0.93 0.01 280);
@@ -42,36 +36,15 @@
 :root {
   color-scheme: dark;
 
-  /* App-specific tokens */
-  --overlay-blur: 16px;
-
-  /* Graph accent colors */
-  --accent-brand: #6366f1;
-  --accent-soft: rgba(99, 102, 241, 0.1);
-  --accent-medium: rgba(99, 102, 241, 0.18);
-  --accent-glow: rgba(99, 102, 241, 0.15);
-
-  /* Semantic status */
-  --success: #10b981;
-  --success-text: #6ee7b7;
-  --error: #ef4444;
-  --error-text: #fca5a5;
-  --warning: #f59e0b;
-  --warning-text: #fcd34d;
-
-  /* Surface overrides for glass panels */
-  --bg-glass: rgba(12, 12, 17, 0.7);
-  --border-glass: rgba(255, 255, 255, 0.06);
-
-  /* Text shades for inline use */
-  --text-primary: #eeeef2;
-  --text-secondary: #85859e;
+  /* Kept for FilterPanel (graph overlay) compatibility */
+  --border: rgba(255, 255, 255, 0.08);
+  --bg-surface: rgba(12, 12, 17, 0.7);
   --text-muted: #4a4a5e;
+  --text-secondary: #85859e;
 }
 
 .light {
   color-scheme: light;
-
   --color-background: oklch(0.97 0.005 260);
   --color-foreground: oklch(0.15 0.01 280);
   --color-card: oklch(1 0 0);
@@ -92,37 +65,21 @@
   --color-input: oklch(0.88 0.005 260);
   --color-ring: oklch(0.5 0.2 270);
 
-  --bg-glass: rgba(255, 255, 255, 0.85);
-  --border-glass: rgba(0, 0, 0, 0.08);
-  --text-primary: #111118;
-  --text-secondary: #64647a;
+  --border: rgba(0, 0, 0, 0.1);
+  --bg-surface: rgba(255, 255, 255, 0.85);
   --text-muted: #9e9eb2;
-  --accent-soft: rgba(99, 102, 241, 0.08);
-  --accent-medium: rgba(99, 102, 241, 0.14);
-  --accent-glow: rgba(99, 102, 241, 0.08);
-  --success-text: #059669;
-  --error-text: #dc2626;
-  --warning-text: #d97706;
+  --text-secondary: #64647a;
 }
 
-/* ─── Resets ─── */
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-
-body {
-  background: var(--color-background);
-  color: var(--color-foreground);
-  font-family: var(--font-sans);
-  -webkit-font-smoothing: antialiased;
-}
-
-::selection { background: var(--accent-soft); }
-::-webkit-scrollbar { width: 3px; }
+body { background: var(--color-background); color: var(--color-foreground); -webkit-font-smoothing: antialiased; }
+::selection { background: rgba(99, 102, 241, 0.2); }
+::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 2px; }
 button { cursor: pointer; border: none; font: inherit; }
 input, select, textarea { font: inherit; }
 
-/* ─── Keyframes (used by graph components) ─── */
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes scaleIn { from { transform: scale(0.96) translateY(6px); opacity: 0; } to { transform: scale(1) translateY(0); opacity: 1; } }
 @keyframes slideInLeft { from { transform: translateX(-100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }

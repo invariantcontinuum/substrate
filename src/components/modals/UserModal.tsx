@@ -16,18 +16,16 @@ export function UserModal() {
 
   return (
     <Modal open={activeModal === "user"} onClose={closeModal} title="Account" maxWidth={360}>
-      <div className="flex flex-col items-center gap-6 py-6">
-        <div
-          className="flex h-[72px] w-[72px] items-center justify-center rounded-full border-2 border-primary/30 bg-primary/10"
-        >
-          <span className="text-[26px] font-extrabold text-primary">
+      <div className="flex flex-col items-center gap-5 py-6">
+        <div className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-primary/30 bg-primary/10">
+          <span className="text-2xl font-extrabold text-primary">
             {username.charAt(0).toUpperCase()}
           </span>
         </div>
         <div className="text-center">
-          <div className="text-[15px] font-bold text-foreground">{username}</div>
-          {email && <div className="mt-1.5 text-[11px] text-muted-foreground">{email}</div>}
-          <Badge variant="secondary" className="mt-3">
+          <div className="text-sm font-bold text-foreground">{username}</div>
+          {email && <div className="mt-1 text-xs text-muted-foreground">{email}</div>}
+          <Badge variant="secondary" className="mt-2">
             {displayRole}
           </Badge>
         </div>
@@ -35,7 +33,6 @@ export function UserModal() {
           variant="outline"
           size="sm"
           onClick={() => { closeModal(); auth.signoutRedirect(); }}
-          className="mt-2"
         >
           <LogOut size={14} />
           Sign Out

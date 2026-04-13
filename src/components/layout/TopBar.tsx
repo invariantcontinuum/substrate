@@ -23,42 +23,25 @@ export function TopBar() {
   }, [q, setSearchQuery, search]);
 
   return (
-    <header
-      className="flex items-center gap-2.5 px-3 shrink-0 h-11 min-h-11 bg-[var(--bg-glass)] backdrop-blur-md border-b border-[var(--border-glass)] relative z-5"
-    >
-      {/* Mobile hamburger */}
+    <header className="flex items-center gap-3 px-4 h-12 shrink-0 bg-background border-b border-border">
       {!isDesktop && (
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          onClick={toggleSidebar}
-        >
+        <Button variant="ghost" size="icon-sm" onClick={toggleSidebar}>
           <Menu size={18} />
         </Button>
       )}
 
-      {/* Logo */}
-      <div className="flex items-center gap-1.5">
-        <div
-          className="flex items-center justify-center w-[22px] h-[22px] rounded-md bg-[var(--accent-soft)] border border-[var(--accent-medium)]"
-        >
-          <Brain size={12} className="text-[var(--accent-brand)]" />
+      <div className="flex items-center gap-2">
+        <div className="flex items-center justify-center w-6 h-6 rounded bg-primary/10 border border-primary/20">
+          <Brain size={14} className="text-primary" />
         </div>
-        <span
-          className="text-[12px] font-semibold hidden sm:inline text-[var(--text-primary)] tracking-tight"
-        >
-          Substrate
-        </span>
+        <span className="text-sm font-semibold hidden sm:inline">Substrate</span>
       </div>
 
       <div className="flex-1" />
 
-      {/* Search */}
-      <div
-        className={cn("flex items-center gap-1.5", isDesktop ? "w-[220px]" : "w-[140px]")}
-      >
+      <div className={cn("flex items-center gap-2", isDesktop ? "w-56" : "w-36")}>
         <div className="relative flex w-full items-center">
-          <Search size={11} className="pointer-events-none absolute left-2 text-muted-foreground" />
+          <Search size={12} className="pointer-events-none absolute left-2.5 text-muted-foreground" />
           <Input
             type="text"
             placeholder="Search..."
@@ -66,43 +49,43 @@ export function TopBar() {
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && go()}
             disabled={!loaded}
-            className="h-7 pl-6 text-[10px] font-mono"
+            className="h-7 pl-8 text-xs"
           />
         </div>
       </div>
 
-      <div className="w-px h-3 hidden sm:block bg-[var(--border-glass)]" />
+      <div className="w-px h-4 hidden sm:block bg-border" />
 
-      {/* Stats */}
-      <div className="items-center gap-2 text-[10px] hidden sm:flex font-mono">
+      <div className="items-center gap-3 text-xs hidden sm:flex font-mono">
         <div className="flex items-center gap-1.5">
           <div
             className={cn(
               "w-1.5 h-1.5 rounded-full",
-              connectionStatus === "connected" && "bg-[var(--success)] shadow-[0_0_8px_var(--success)]",
-              connectionStatus === "reconnecting" && "bg-[var(--warning)]",
-              connectionStatus === "disconnected" && "bg-[var(--error)]",
+              connectionStatus === "connected" && "bg-green-500",
+              connectionStatus === "reconnecting" && "bg-yellow-500",
+              connectionStatus === "disconnected" && "bg-red-500"
             )}
           />
           <span
             className={cn(
-              "font-medium",
-              connectionStatus === "connected" && "text-[var(--success-text)]",
-              connectionStatus === "reconnecting" && "text-[var(--warning-text)]",
-              connectionStatus === "disconnected" && "text-[var(--error-text)]",
+              connectionStatus === "connected" && "text-green-400",
+              connectionStatus === "reconnecting" && "text-yellow-400",
+              connectionStatus === "disconnected" && "text-red-400"
             )}
           >
             {connectionStatus === "connected" ? "Live" : connectionStatus === "reconnecting" ? "..." : "Off"}
           </span>
         </div>
-        <span className="text-[var(--text-muted)]">
-          <span className="text-[var(--accent-brand)] font-semibold">{stats.nodeCount}</span>n
+        <span className="text-muted-foreground">
+          <span className="text-primary font-semibold">{stats.nodeCount}</span>n
         </span>
-        <span className="text-[var(--text-muted)]">
-          <span className="text-[var(--accent-brand)] font-semibold">{stats.edgeCount}</span>e
+        <span className="text-muted-foreground">
+          <span className="text-primary font-semibold">{stats.edgeCount}</span>e
         </span>
         {stats.violationCount > 0 && (
-          <span className="text-[var(--error-text)] font-semibold">&#x2298;{stats.violationCount}</span>
+          <span className="text-red-400 font-semibold">
+            {stats.violationCount}
+          </span>
         )}
       </div>
     </header>

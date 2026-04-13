@@ -28,15 +28,13 @@ export function EnrichmentModal() {
 
   return (
     <Modal open={activeModal === "enrichment"} onClose={closeModal} title="Enrichment" maxWidth={480}>
-      <div className="flex flex-col gap-5">
-        <div className="text-xs leading-relaxed text-muted-foreground">
+      <div className="flex flex-col gap-4">
+        <p className="text-xs text-muted-foreground">
           Use local LLM to generate descriptions, classifications, and embeddings for graph nodes.
-        </div>
+        </p>
 
         <div>
-          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
-            Repository
-          </Label>
+          <Label className="text-xs text-muted-foreground mb-2 block">Repository</Label>
           <Input
             type="text"
             placeholder="https://github.com/owner/repo"
@@ -46,26 +44,17 @@ export function EnrichmentModal() {
           />
         </div>
 
-        <div className="flex gap-4">
+        <div className="flex gap-3">
           <div className="flex-1">
-            <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
-              Limit
-            </Label>
-            <Input
-              type="number"
-              value={limit}
-              onChange={(e) => setLimit(Number(e.target.value))}
-              className="w-full"
-            />
+            <Label className="text-xs text-muted-foreground mb-2 block">Limit</Label>
+            <Input type="number" value={limit} onChange={(e) => setLimit(Number(e.target.value))} className="w-full" />
           </div>
           <div className="flex-1">
-            <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
-              Mode
-            </Label>
+            <Label className="text-xs text-muted-foreground mb-2 block">Mode</Label>
             <Button
               variant={unenrichedOnly ? "secondary" : "outline"}
               size="sm"
-              className="w-full justify-start text-[11px]"
+              className="w-full justify-start"
               onClick={() => setUnenrichedOnly(!unenrichedOnly)}
             >
               {unenrichedOnly ? "Unenriched only" : "All nodes"}
@@ -73,17 +62,13 @@ export function EnrichmentModal() {
           </div>
         </div>
 
-        <Button
-          onClick={handleEnrich}
-          disabled={!repoUrl.trim() || isRunning}
-          className="w-full"
-        >
+        <Button onClick={handleEnrich} disabled={!repoUrl.trim() || isRunning} className="w-full">
           {isRunning ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
           Run Enrichment
         </Button>
 
         {latestEnrich && (
-          <div className="rounded-md border bg-muted/50 px-4 py-3 text-[11px] font-mono">
+          <div className="rounded-md border bg-muted/50 px-3 py-2 text-xs font-mono">
             <span className="text-muted-foreground">Last enrichment: </span>
             <span className={
               latestEnrich.status === "completed" ? "text-green-500"

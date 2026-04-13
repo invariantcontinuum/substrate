@@ -11,12 +11,10 @@ export function SettingsModal() {
 
   return (
     <Modal open={activeModal === "settings"} onClose={closeModal} title="Settings">
-      <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-4">
         <div>
-          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
-            Theme
-          </Label>
-          <div className="flex gap-3">
+          <Label className="text-xs text-muted-foreground mb-2 block">Theme</Label>
+          <div className="flex gap-2">
             {(["dark", "light"] as const).map((t) => {
               const active = theme === t;
               return (

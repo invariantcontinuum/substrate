@@ -14,17 +14,13 @@ export function ComingSoonModal({ name }: { name: string }) {
 
   return (
     <Modal open={activeModal === name} onClose={closeModal} title={title} maxWidth={360}>
-      <div className="flex flex-col items-center gap-6 py-10 text-center">
-        <div
-          className="flex h-14 w-14 items-center justify-center rounded-2xl border border-primary/30 bg-primary/10 float-anim"
-        >
-          <span className="text-[22px] text-primary">&#x2692;</span>
+      <div className="flex flex-col items-center gap-5 py-8 text-center">
+        <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-primary/30 bg-primary/10 float-anim">
+          <span className="text-xl text-primary">&#x2692;</span>
         </div>
         <div>
-          <div className="mb-2 text-[15px] font-bold text-foreground">
-            Coming Soon
-          </div>
-          <div className="max-w-[260px] text-xs leading-relaxed text-muted-foreground">
+          <div className="mb-1 text-sm font-bold text-foreground">Coming Soon</div>
+          <div className="max-w-xs text-xs text-muted-foreground">
             {DESCRIPTIONS[name] || "This feature is under development."}
           </div>
         </div>

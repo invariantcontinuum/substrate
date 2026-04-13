@@ -10,10 +10,8 @@ export function DashboardLayout() {
 
   return (
     <div className="flex h-dvh overflow-hidden bg-background">
-      {/* Sidebar — desktop only, fixed width */}
       {isDesktop && <Sidebar />}
 
-      {/* Main column */}
       <div className="flex flex-col flex-1 min-w-0">
         <TopBar />
         <main className="flex-1 min-h-0 overflow-hidden relative">
@@ -21,10 +19,7 @@ export function DashboardLayout() {
         </main>
       </div>
 
-      {/* Mobile drawer */}
       {!isDesktop && <MobileNav />}
-
-      {/* Modal layer */}
       <ModalRoot />
     </div>
   );

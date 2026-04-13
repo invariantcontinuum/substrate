@@ -19,14 +19,9 @@ const TYPE_COLORS: Record<string, { bg: string; border: string; text: string }> 
 
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between items-baseline gap-4 py-2.5">
-      <span className="text-[9px] uppercase tracking-wider font-semibold shrink-0 text-muted-foreground">
-        {label}
-      </span>
-      <span
-        className="text-[11px] text-right truncate text-secondary-foreground font-mono"
-        title={value}
-      >
+    <div className="flex justify-between items-baseline gap-4 py-2 border-b border-border last:border-0">
+      <span className="text-xs uppercase font-semibold shrink-0 text-muted-foreground">{label}</span>
+      <span className="text-xs text-right truncate text-secondary-foreground font-mono" title={value}>
         {value}
       </span>
     </div>
@@ -45,80 +40,48 @@ export function NodeDetailPanel() {
   if (!selectedNodeId || !data) return null;
 
   return (
-    <div
-      className="shrink-0 flex flex-col overflow-hidden w-[340px] h-full bg-card border-l border-border backdrop-blur-md animate-[slideInRight_0.2s_ease-out_both]"
-    >
-      {/* Header with type color — dynamic colors from TYPE_COLORS must stay inline */}
+    <div className="shrink-0 flex flex-col overflow-hidden w-80 h-full bg-card border-l border-border animate-[slideInRight_0.2s_ease-out_both]">
       <div
-        className="px-5 py-4 flex items-center justify-between shrink-0"
-        style={{
-          background: colors.bg,
-          borderBottom: `1px solid ${colors.border}44`,
-        }}
+        className="px-4 py-3 flex items-center justify-between shrink-0"
+        style={{ background: colors.bg, borderBottom: `1px solid ${colors.border}44` }}
       >
-        <div className="flex items-center gap-3 min-w-0">
+        <div className="flex items-center gap-2 min-w-0">
           <div
-            className="w-3.5 h-3.5 rounded-md shrink-0"
-            style={{ background: colors.border, boxShadow: `0 0 8px ${colors.border}44` }}
+            className="w-3 h-3 rounded shrink-0"
+            style={{ background: colors.border }}
           />
           <div className="min-w-0">
-            <div
-              className="text-[13px] font-bold truncate"
-              style={{ color: colors.text }}
-              title={String(data.label || data.name || data.id)}
-            >
+            <div className="text-sm font-bold truncate" style={{ color: colors.text }} title={String(data.label || data.name || data.id)}>
               {String(data.label || data.name || data.id)}
             </div>
-            <div
-              className="text-[9px] mt-0.5 truncate font-medium text-muted-foreground font-mono"
-              title={nodeType}
-            >
+            <div className="text-xs truncate font-medium text-muted-foreground font-mono" title={nodeType}>
               {nodeType}
             </div>
           </div>
         </div>
         <button
           onClick={() => selectNode(null)}
-          className="flex items-center justify-center w-7 h-7 shrink-0 rounded-md bg-white/[0.04] border border-border"
+          className="flex items-center justify-center w-7 h-7 shrink-0 rounded-md bg-white/5 border border-border hover:bg-white/10"
         >
           <X size={14} className="text-muted-foreground" />
         </button>
       </div>
 
-      {/* Scrollable body */}
-      <div
-        className="flex-1 overflow-y-auto px-5 py-5 overscroll-contain"
-      >
-        <span
-          className="text-[9px] uppercase tracking-[0.15em] font-semibold block mb-3 text-muted-foreground"
-        >
-          Properties
-        </span>
-        <div
-          className="p-4 bg-white/[0.02] border border-border rounded-lg"
-        >
+      <div className="flex-1 overflow-y-auto px-4 py-4">
+        <span className="text-xs uppercase font-semibold block mb-2 text-muted-foreground">Properties</span>
+        <div className="p-3 bg-muted/50 border border-border rounded-md">
           {Object.entries(data).map(([key, value]) => {
             if (key === "id") return null;
             if (typeof value === "object" && value !== null) return null;
-            return (
-              <DetailRow key={key} label={key} value={String(value ?? "\u2014")} />
-            );
+            return <DetailRow key={key} label={key} value={String(value ?? "—")} />;
           })}
         </div>
 
-        {/* ID */}
-        <span
-          className="text-[9px] uppercase tracking-[0.15em] font-semibold block mt-5 mb-3 text-muted-foreground"
-        >
-          ID
-        </span>
-        <div
-          className="px-4 py-3 text-[10px] break-all bg-white/[0.02] border border-border rounded-lg text-secondary-foreground font-mono"
-        >
+        <span className="text-xs uppercase font-semibold block mt-4 mb-2 text-muted-foreground">ID</span>
+        <div className="px-3 py-2 text-xs break-all bg-muted/50 border border-border rounded-md text-secondary-foreground font-mono">
           {String(data.id)}
         </div>
 
-        {/* Meta section */}
         {(() => {
           const meta = data.meta;
           if (!meta || typeof meta !== "object") return null;
@@ -126,16 +89,10 @@ export function NodeDetailPanel() {
           if (entries.length === 0) return null;
           return (
             <>
-              <span
-                className="text-[9px] uppercase tracking-[0.15em] font-semibold block mt-5 mb-3 text-muted-foreground"
-              >
-                Metadata
-              </span>
-              <div
-                className="p-4 bg-white/[0.02] border border-border rounded-lg"
-              >
+              <span className="text-xs uppercase font-semibold block mt-4 mb-2 text-muted-foreground">Metadata</span>
+              <div className="p-3 bg-muted/50 border border-border rounded-md">
                 {entries.map(([key, value]) => (
-                  <DetailRow key={key} label={key} value={String(value ?? "\u2014")} />
+                  <DetailRow key={key} label={key} value={String(value ?? "—")} />
                 ))}
               </div>
             </>
