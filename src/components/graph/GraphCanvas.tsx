@@ -192,6 +192,48 @@ export function GraphCanvas() {
       cy.on("tap", "node", handleNodeTap as unknown as cytoscape.EventHandler);
       cy.on("tap", handleBgTap as unknown as cytoscape.EventHandler);
 
+      // Middle-mouse-button drag to pan
+      const container = containerRef.current;
+      let middleDrag = false;
+      let lastX = 0;
+      let lastY = 0;
+
+      const onMouseDown = (e: MouseEvent) => {
+        if (e.button === 1) {
+          e.preventDefault();
+          middleDrag = true;
+          lastX = e.clientX;
+          lastY = e.clientY;
+          container.style.cursor = "grabbing";
+        }
+      };
+      const onMouseMove = (e: MouseEvent) => {
+        if (!middleDrag) return;
+        const dx = e.clientX - lastX;
+        const dy = e.clientY - lastY;
+        lastX = e.clientX;
+        lastY = e.clientY;
+        cy.panBy({ x: dx, y: dy });
+      };
+      const onMouseUp = (e: MouseEvent) => {
+        if (e.button === 1) {
+          middleDrag = false;
+          container.style.cursor = "";
+        }
+      };
+
+      container.addEventListener("mousedown", onMouseDown);
+      window.addEventListener("mousemove", onMouseMove);
+      window.addEventListener("mouseup", onMouseUp);
+      // Prevent default middle-click scroll behavior
+      container.addEventListener("auxclick", (e) => e.button === 1 && e.preventDefault());
+
+      (cy as any)._middleDragCleanup = () => {
+        container.removeEventListener("mousedown", onMouseDown);
+        window.removeEventListener("mousemove", onMouseMove);
+        window.removeEventListener("mouseup", onMouseUp);
+      };
+
       if (elements.length > 0) {
         cy.layout({
           name: "cose-bilkent",
@@ -224,6 +266,7 @@ export function GraphCanvas() {
     return () => {
       destroyed = true;
       if (cyRef.current) {
+        (cyRef.current as any)._middleDragCleanup?.();
         cyRef.current.destroy();
         cyRef.current = null;
       }
