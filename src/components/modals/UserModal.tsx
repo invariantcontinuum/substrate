@@ -20,12 +20,12 @@ export function UserModal() {
         <div
           className="flex h-[72px] w-[72px] items-center justify-center rounded-full border-2 border-primary/30 bg-primary/10"
         >
-          <span className="text-[26px] font-extrabold text-primary font-display">
+          <span className="text-[26px] font-extrabold text-primary">
             {username.charAt(0).toUpperCase()}
           </span>
         </div>
         <div className="text-center">
-          <div className="text-[15px] font-bold text-foreground font-display">{username}</div>
+          <div className="text-[15px] font-bold text-foreground">{username}</div>
           {email && <div className="mt-1.5 text-[11px] text-muted-foreground">{email}</div>}
           <Badge variant="secondary" className="mt-3">
             {displayRole}

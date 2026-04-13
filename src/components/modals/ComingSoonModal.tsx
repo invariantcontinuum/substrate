@@ -21,7 +21,7 @@ export function ComingSoonModal({ name }: { name: string }) {
           <span className="text-[22px] text-primary">&#x2692;</span>
         </div>
         <div>
-          <div className="mb-2 text-[15px] font-bold text-foreground font-display">
+          <div className="mb-2 text-[15px] font-bold text-foreground">
             Coming Soon
           </div>
           <div className="max-w-[260px] text-xs leading-relaxed text-muted-foreground">

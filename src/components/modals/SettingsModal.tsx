@@ -13,7 +13,7 @@ export function SettingsModal() {
     <Modal open={activeModal === "settings"} onClose={closeModal} title="Settings">
       <div className="flex flex-col gap-5">
         <div>
-          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2 font-display">
+          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
             Theme
           </Label>
           <div className="flex gap-3">

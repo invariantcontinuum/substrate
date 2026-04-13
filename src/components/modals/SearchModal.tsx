@@ -69,7 +69,7 @@ export function SearchModal() {
 
         {results.length > 0 && (
           <div className="flex flex-col gap-2">
-            <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1 font-display">
+            <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
               {results.length} results
             </Label>
             {results.map((r) => (
@@ -79,7 +79,7 @@ export function SearchModal() {
                 className="flex flex-col gap-1 rounded-md border bg-muted/50 px-4 py-3.5 text-left transition-colors hover:bg-muted"
               >
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-foreground font-display">
+                  <span className="text-xs font-semibold text-foreground">
                     {r.name || r.node_id.split("/").pop()}
                   </span>
                   {r.category && (

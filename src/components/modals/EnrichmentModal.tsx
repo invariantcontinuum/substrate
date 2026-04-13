@@ -34,7 +34,7 @@ export function EnrichmentModal() {
         </div>
 
         <div>
-          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2 font-display">
+          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
             Repository
           </Label>
           <Input
@@ -48,7 +48,7 @@ export function EnrichmentModal() {
 
         <div className="flex gap-4">
           <div className="flex-1">
-            <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2 font-display">
+            <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
               Limit
             </Label>
             <Input
@@ -59,7 +59,7 @@ export function EnrichmentModal() {
             />
           </div>
           <div className="flex-1">
-            <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2 font-display">
+            <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
               Mode
             </Label>
             <Button

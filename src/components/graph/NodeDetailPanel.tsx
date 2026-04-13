@@ -63,7 +63,7 @@ export function NodeDetailPanel() {
           />
           <div className="min-w-0">
             <div
-              className="text-[13px] font-bold truncate font-display"
+              className="text-[13px] font-bold truncate"
               style={{ color: colors.text }}
               title={String(data.label || data.name || data.id)}
             >
@@ -90,7 +90,7 @@ export function NodeDetailPanel() {
         className="flex-1 overflow-y-auto px-5 py-5 overscroll-contain"
       >
         <span
-          className="text-[9px] uppercase tracking-[0.15em] font-semibold block mb-3 text-muted-foreground font-display"
+          className="text-[9px] uppercase tracking-[0.15em] font-semibold block mb-3 text-muted-foreground"
         >
           Properties
         </span>
@@ -108,7 +108,7 @@ export function NodeDetailPanel() {
 
         {/* ID */}
         <span
-          className="text-[9px] uppercase tracking-[0.15em] font-semibold block mt-5 mb-3 text-muted-foreground font-display"
+          className="text-[9px] uppercase tracking-[0.15em] font-semibold block mt-5 mb-3 text-muted-foreground"
         >
           ID
         </span>
@@ -127,7 +127,7 @@ export function NodeDetailPanel() {
           return (
             <>
               <span
-                className="text-[9px] uppercase tracking-[0.15em] font-semibold block mt-5 mb-3 text-muted-foreground font-display"
+                className="text-[9px] uppercase tracking-[0.15em] font-semibold block mt-5 mb-3 text-muted-foreground"
               >
                 Metadata
               </span>

@@ -52,7 +52,7 @@ export function SourcesModal() {
       <div className="flex flex-col gap-5">
         {/* Ingest repo */}
         <div>
-          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2 font-display">
+          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
             Ingest Repository
           </Label>
           <div className="flex gap-3">
@@ -77,7 +77,7 @@ export function SourcesModal() {
 
         {/* Schedule */}
         <div>
-          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2 font-display">
+          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
             Schedule Sync
           </Label>
           <div className="flex gap-3 items-center">
@@ -108,7 +108,7 @@ export function SourcesModal() {
         {/* Active schedules */}
         {schedules.length > 0 && (
           <div>
-            <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2 font-display">
+            <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
               Active Schedules
             </Label>
             <div className="flex flex-col gap-2">
@@ -147,7 +147,7 @@ export function SourcesModal() {
 
         {/* View controls */}
         <div>
-          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2 font-display">
+          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
             View
           </Label>
           <div className="flex flex-col gap-3">
@@ -179,7 +179,7 @@ export function SourcesModal() {
 
         {/* Danger zone */}
         <div>
-          <Label className="text-[10px] uppercase tracking-wider text-destructive mb-2.5 font-display">
+          <Label className="text-[10px] uppercase tracking-wider text-destructive mb-2.5">
             Danger Zone
           </Label>
           {!showPurgeConfirm ? (

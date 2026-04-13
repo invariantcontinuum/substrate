@@ -47,7 +47,7 @@ export function MobileNav() {
             >
               <Brain size={15} className="text-[var(--accent-brand)]" />
             </div>
-            <span className="text-sm font-bold text-[var(--text-primary)] font-display">
+            <span className="text-sm font-bold text-[var(--text-primary)]">
               Substrate
             </span>
           </div>
@@ -79,7 +79,7 @@ export function MobileNav() {
             onClick={() => go("user")}
             className="flex items-center justify-center w-9 h-9 rounded-full bg-[var(--accent-soft)] outline outline-1 outline-[var(--accent-medium)]"
           >
-            <span className="text-[13px] font-bold text-[var(--accent-brand)] font-display">{initial}</span>
+            <span className="text-[13px] font-bold text-[var(--accent-brand)]">{initial}</span>
           </button>
           <div className="flex-1" />
           <button
