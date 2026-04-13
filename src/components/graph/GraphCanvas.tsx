@@ -285,20 +285,10 @@ export function GraphCanvas() {
 
   return (
     <div
-      className="relative w-full h-full"
-      style={{
-        contain: "layout paint size",
-        touchAction: "none",
-        overscrollBehavior: "contain",
-      }}
+      className="relative w-full h-full [contain:layout_paint_size] touch-none overscroll-contain"
     >
       <div
-        className="w-full h-full rounded-2xl overflow-hidden relative"
-        style={{
-          background: "rgba(13,13,18,0.8)",
-          border: "1px solid rgba(255,255,255,0.06)",
-          backdropFilter: "blur(12px)",
-        }}
+        className="w-full h-full rounded-2xl overflow-hidden relative bg-[rgba(13,13,18,0.8)] border border-white/[0.06] backdrop-blur-lg"
       >
         <div ref={containerRef} className="w-full h-full" />
         <SignalsOverlay />
