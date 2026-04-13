@@ -34,7 +34,8 @@ export function MobileNav() {
         className="fixed inset-0 z-40"
         style={{
           background: "var(--overlay-modal)",
-          backdropFilter: "blur(8px)",
+          backdropFilter: "blur(4px)",
+          WebkitBackdropFilter: "blur(4px)",
           animation: "fadeIn 0.12s ease both",
         }}
         onClick={() => setSidebarOpen(false)}
@@ -45,19 +46,21 @@ export function MobileNav() {
         style={{
           width: "min(300px, 85vw)",
           background: "var(--bg-surface)",
-          boxShadow: "var(--neu-extruded)",
+          backdropFilter: "blur(var(--overlay-blur))",
+          WebkitBackdropFilter: "blur(var(--overlay-blur))",
+          borderRight: "1px solid var(--border)",
           animation: "slideInLeft 0.22s cubic-bezier(0.4, 0, 0.2, 1) both",
         }}
       >
         <div
           className="flex items-center justify-between px-6 shrink-0"
-          style={{ height: 64 }}
+          style={{ height: 64, borderBottom: "1px solid var(--border)" }}
         >
           <div className="flex items-center gap-3">
             <div
               style={{
                 width: 32, height: 32, borderRadius: "var(--radius-md)",
-                background: "var(--bg-surface)", boxShadow: "var(--neu-inset-deep)",
+                background: "var(--accent-soft)", border: "1px solid var(--accent-medium)",
                 display: "flex", alignItems: "center", justifyContent: "center",
               }}
             >
@@ -69,10 +72,10 @@ export function MobileNav() {
           </div>
           <button
             onClick={() => setSidebarOpen(false)}
-            className="neu-btn flex items-center justify-center"
+            className="flex items-center justify-center"
             style={{
               width: 34, height: 34, borderRadius: "var(--radius-md)",
-              background: "var(--bg-surface)", color: "var(--text-muted)",
+              background: "var(--bg-hover)", color: "var(--text-muted)",
             }}
           >
             <X size={16} />
@@ -84,12 +87,15 @@ export function MobileNav() {
             <button
               key={it.label}
               onClick={() => go(it.modal)}
-              className="neu-btn flex items-center gap-3 px-4 py-3 text-[13px] text-left font-medium"
+              className="flex items-center gap-3 px-4 py-3 text-[13px] text-left font-medium"
               style={{
                 color: "var(--text-secondary)",
-                background: "var(--bg-surface)",
+                background: "transparent",
                 borderRadius: "var(--radius-lg)",
+                transition: "background 0.15s ease",
               }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-hover)")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
             >
               <it.icon size={17} strokeWidth={1.6} />
               {it.label}
@@ -99,12 +105,13 @@ export function MobileNav() {
 
         <div
           className="flex items-center gap-3 px-6 py-5 shrink-0"
+          style={{ borderTop: "1px solid var(--border)" }}
         >
           <button
             onClick={() => go("user")}
             style={{
               width: 36, height: 36, borderRadius: "50%",
-              background: "var(--bg-surface)", boxShadow: "var(--neu-extruded-sm)",
+              background: "var(--accent-soft)", outline: "1px solid var(--accent-medium)",
               display: "flex", alignItems: "center", justifyContent: "center",
             }}
           >
@@ -113,10 +120,10 @@ export function MobileNav() {
           <div className="flex-1" />
           <button
             onClick={() => go("settings")}
-            className="neu-btn flex items-center justify-center"
+            className="flex items-center justify-center"
             style={{
               width: 36, height: 36, borderRadius: "var(--radius-md)",
-              background: "var(--bg-surface)",
+              background: "var(--bg-hover)",
             }}
           >
             <Settings size={16} color="var(--text-muted)" />
