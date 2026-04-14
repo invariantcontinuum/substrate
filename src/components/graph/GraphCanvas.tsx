@@ -59,13 +59,17 @@ export function GraphCanvas() {
             selector: "node",
             style: {
               shape: "rectangle",
-              // Auto-size each rectangle to fit the label text.
-              width: "label",
-              height: "label",
-              "padding-left": "8px",
-              "padding-right": "8px",
-              "padding-top": "6px",
-              "padding-bottom": "6px",
+              // Size each rectangle by its label length. `width: "label"`
+              // is deprecated in cytoscape; a mapper function gives us
+              // the same auto-sizing without the deprecation warning.
+              // ~6.2px per char at font-size 10 matches the rendered
+              // text width well enough; clamp to a minimum so
+              // very-short labels still form a comfortable tap target.
+              width: (ele: cytoscape.NodeSingular) => {
+                const label = String(ele.data("label") ?? "");
+                return Math.max(36, Math.min(label.length * 6.2 + 16, 280));
+              },
+              height: 22,
               "background-color": "#fff",
               "border-width": 1,
               "border-color": "#000",
@@ -99,8 +103,10 @@ export function GraphCanvas() {
         ],
         minZoom: 0.05,
         maxZoom: 3,
-        // Faster zoom step per wheel tick. 0.15 was imperceptible on trackpads.
-        wheelSensitivity: 0.6,
+        // Cytoscape warns against customising wheelSensitivity because
+        // the step feel depends on OS/mouse/trackpad. Stick to the
+        // default so zoom speed matches the platform the user already
+        // tuned their pointer for.
         userPanningEnabled: true,
         userZoomingEnabled: true,
         autoungrabify: false,
