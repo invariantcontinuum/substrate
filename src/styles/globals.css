@@ -860,6 +860,22 @@ html, body, #root {
   margin: 4px 0;
 }
 
+/* ===== Graph truncation notice ===== */
+.graph-truncation-notice {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 12px;
+  border: 1px solid black;
+  border-radius: 999px;
+  background: white;
+  font-size: 12px;
+  white-space: nowrap;
+  z-index: 10;
+  pointer-events: none;
+}
+
 /* ===== Auth status screen ===== */
 .auth-status {
   display: flex;

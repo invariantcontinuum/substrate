@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useGraphStore } from "@/stores/graph";
 import { useUIStore } from "@/stores/ui";
 import { useResponsive } from "@/hooks/useResponsive";
@@ -7,28 +7,44 @@ import { SignalsOverlay } from "./SignalsOverlay";
 import { ViolationBadge } from "./ViolationBadge";
 import { DynamicLegend } from "./DynamicLegend";
 
+// Large force-directed layouts are O(n²) and freeze the browser.
+// Above this many nodes we switch to a cheap deterministic layout and
+// sample the graph so rendering stays responsive.
+const MAX_RENDERED_NODES = 400;
+const FORCE_LAYOUT_MAX_NODES = 200;
+
 export function GraphCanvas() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const cyRef = useRef<cytoscape.Core | null>(null);
   const [ready, setReady] = useState(false);
   const { isMobile } = useResponsive();
 
-  const {
-    nodes,
-    edges,
-    signals,
-    layoutName,
-    selectedNodeId,
-    zoom,
-    nodeSize,
-    violations,
-    setSelectedNodeId,
-    setZoom,
-    setLayoutName,
-    setPan,
-  } = useGraphStore();
+  // Subscribe to each slice individually so we only re-render on relevant changes.
+  const nodes = useGraphStore((s) => s.nodes);
+  const edges = useGraphStore((s) => s.edges);
+  const signals = useGraphStore((s) => s.signals);
+  const layoutName = useGraphStore((s) => s.layoutName);
+  const selectedNodeId = useGraphStore((s) => s.selectedNodeId);
+  const nodeSize = useGraphStore((s) => s.nodeSize);
+  const setSelectedNodeId = useGraphStore((s) => s.setSelectedNodeId);
+  const setZoom = useGraphStore((s) => s.setZoom);
+  const setLayoutName = useGraphStore((s) => s.setLayoutName);
+  const setPan = useGraphStore((s) => s.setPan);
 
-  const { openModal } = useUIStore();
+  const openModal = useUIStore((s) => s.openModal);
+
+  // Sample/trim to a manageable size before layout.
+  const displayed = useMemo(() => {
+    if (nodes.length <= MAX_RENDERED_NODES) {
+      return { nodes, edges };
+    }
+    const kept = nodes.slice(0, MAX_RENDERED_NODES);
+    const keptIds = new Set(kept.map((n) => n.id));
+    const keptEdges = edges.filter((e) => keptIds.has(e.source) && keptIds.has(e.target));
+    return { nodes: kept, edges: keptEdges };
+  }, [nodes, edges]);
+
+  const tooLarge = nodes.length > MAX_RENDERED_NODES;
 
   /* init cytoscape */
   useEffect(() => {
@@ -112,17 +128,20 @@ export function GraphCanvas() {
     if (!ready || !cyRef.current) return;
     const cy = cyRef.current;
     cy.elements().remove();
-    if (nodes.length) cy.add(nodes.map((n) => ({ data: { ...n, id: n.id, label: n.label } })));
-    if (edges.length) cy.add(edges.map((e) => ({ data: { ...e, id: e.id, source: e.source, target: e.target, label: e.label } })));
-    cy.layout({ name: layoutName as any, padding: isMobile ? 24 : 48, animate: false, fit: true }).run();
-  }, [nodes, edges, layoutName, ready, isMobile]);
+    if (displayed.nodes.length) cy.add(displayed.nodes.map((n) => ({ data: { ...n, id: n.id, label: n.label } })));
+    if (displayed.edges.length) cy.add(displayed.edges.map((e) => ({ data: { ...e, id: e.id, source: e.source, target: e.target, label: e.label } })));
+    // Pick a cheap, deterministic layout when the graph is large so we don't
+    // lock the main thread on a force-directed simulation.
+    const effectiveLayout =
+      displayed.nodes.length > FORCE_LAYOUT_MAX_NODES ? "grid" : (layoutName || "cose");
+    cy.layout({ name: effectiveLayout as any, padding: isMobile ? 24 : 48, animate: false, fit: true }).run();
+  }, [displayed, layoutName, ready, isMobile]);
 
-  /* zoom sync */
-  useEffect(() => {
-    if (!cyRef.current) return;
-    const cy = cyRef.current;
-    if (Math.abs(cy.zoom() - zoom) > 0.001) cy.zoom(zoom);
-  }, [zoom]);
+  // Zoom/pan flow one-way: cytoscape → store via the `zoom`/`pan` events
+  // registered in init. We deliberately don't push store zoom back into
+  // cytoscape here — that would create a feedback loop with the event
+  // listener (each zoom event sets store, which re-applies zoom, which
+  // fires another zoom event, etc.), locking the main thread.
 
   /* selection highlight */
   useEffect(() => {
@@ -182,6 +201,12 @@ export function GraphCanvas() {
       <div className="graph-canvas-inner">
         <div ref={containerRef} className="graph-canvas-container" />
       </div>
+
+      {tooLarge && (
+        <div className="graph-truncation-notice">
+          Showing {displayed.nodes.length} of {nodes.length} nodes — filter to view the rest.
+        </div>
+      )}
 
       <div className="graph-overlay-group">
         <SignalsOverlay />
