@@ -501,13 +501,24 @@ html, body, #root {
 }
 
 .node-detail-neighbor-type {
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  padding: 0 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  font-size: 12px;
+  line-height: 1;
   border: 1px solid black;
-  border-radius: 3px;
   flex-shrink: 0;
+}
+
+.node-detail-neighbor-name {
+  font-size: 11px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .node-detail-neighbor-id {

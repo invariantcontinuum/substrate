@@ -1,4 +1,35 @@
 import { RefreshCw, X } from "lucide-react";
+
+// Short glyphs for AGE edge types. Keyed on lowercase, underscores and
+// hyphens stripped, so DEPENDS_ON / depends-on / DependsOn all hit the
+// same entry. Falls back to a small diamond if the type is unknown.
+const REL_SYMBOL: Record<string, string> = {
+  depends: "→",
+  dependson: "→",
+  imports: "↓",
+  import: "↓",
+  exports: "↑",
+  export: "↑",
+  contains: "⊂",
+  has: "⊂",
+  calls: "⟶",
+  invokes: "⟶",
+  inherits: "↟",
+  extends: "↟",
+  implements: "⊨",
+  uses: "⟿",
+  references: "@",
+  refers: "@",
+  defines: "≡",
+  declares: "≡",
+  owns: "§",
+  related: "~",
+};
+
+function relSymbol(type: string): string {
+  const key = String(type || "").toLowerCase().replace(/[_\s-]+/g, "");
+  return REL_SYMBOL[key] || "◆";
+}
 import { useAuth } from "react-oidc-context";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
@@ -197,24 +228,40 @@ export function NodeDetailPanel() {
                 {neighbors.length === 0 ? (
                   <li className="node-detail-muted">No neighbors.</li>
                 ) : (
-                  neighbors.map((nb, i) => (
-                    <li key={`${nb.id}-${i}`} className="node-detail-neighbor">
-                      <button
-                        type="button"
-                        className="node-detail-neighbor-btn"
-                        onClick={() => setSelectedNodeId(nb.id)}
-                        title={`Jump to ${nb.id}`}
-                      >
-                        <span className="node-detail-neighbor-type">{nb.type}</span>
-                        <code className="node-detail-neighbor-id">{nb.id}</code>
-                        {typeof nb.weight === "number" && (
-                          <span className="node-detail-neighbor-weight">
-                            {nb.weight.toFixed(2)}
+                  neighbors.map((nb, i) => {
+                    const neighborNode = nodes.find((n) => n.id === nb.id) as
+                      | { name?: string; file_path?: string }
+                      | undefined;
+                    const displayName =
+                      neighborNode?.name ||
+                      neighborNode?.file_path ||
+                      String(nb.id);
+                    return (
+                      <li key={`${nb.id}-${i}`} className="node-detail-neighbor">
+                        <button
+                          type="button"
+                          className="node-detail-neighbor-btn"
+                          onClick={() => setSelectedNodeId(nb.id)}
+                          title={`${nb.type} — ${displayName}`}
+                        >
+                          <span
+                            className="node-detail-neighbor-type"
+                            aria-label={nb.type}
+                          >
+                            {relSymbol(nb.type)}
                           </span>
-                        )}
-                      </button>
-                    </li>
-                  ))
+                          <span className="node-detail-neighbor-name">
+                            {displayName}
+                          </span>
+                          {typeof nb.weight === "number" && (
+                            <span className="node-detail-neighbor-weight">
+                              {nb.weight.toFixed(2)}
+                            </span>
+                          )}
+                        </button>
+                      </li>
+                    );
+                  })
                 )}
               </ul>
             </section>
