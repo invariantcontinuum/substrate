@@ -76,11 +76,14 @@ export function useJobs() {
     }
     if (sawCompletion) {
       logger.info("graph_refetch_triggered", { reason: "job_completed" });
-      queryClient.invalidateQueries({ queryKey: ["graph"] });
+      // The graph is stored in zustand, not react-query, so invalidating
+      // the query cache alone won't refresh the canvas. Pull a fresh
+      // snapshot directly into the store.
+      void useGraphStore.getState().fetchGraph(token);
       useGraphStore.getState().setCanvasCleared(false);
       setSyncStatus("idle");
     }
-  }, [jobsQuery.data, queryClient, setSyncStatus]);
+  }, [jobsQuery.data, queryClient, setSyncStatus, token]);
 
   const schedulesQuery = useQuery<Schedule[]>({
     queryKey: ["schedules"],
@@ -100,7 +103,6 @@ export function useJobs() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["jobs"] });
-      queryClient.invalidateQueries({ queryKey: ["graph"] });
       useGraphStore.getState().setCanvasCleared(false);
     },
     onError: () => setSyncStatus("error"),
