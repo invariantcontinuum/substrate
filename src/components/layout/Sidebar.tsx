@@ -1,13 +1,16 @@
 import { useState } from "react";
 import {
   GitBranch, Plug, Sparkles, Search, Shield,
-  FileText, Activity, Terminal, Settings,
+  FileText, Activity, Terminal,
   ChevronLeft,
 } from "lucide-react";
 import { useAuth } from "react-oidc-context";
 import { useUIStore, type ModalName } from "@/stores/ui";
 
-const IMPLEMENTED = new Set(["sources", "enrichment", "search", "settings", "user"]);
+// "settings" is no longer a top-level modal — it's a tab inside the
+// user account modal. The account button at the footer of the rail is
+// the single entry point to both.
+const IMPLEMENTED = new Set(["sources", "enrichment", "search", "user"]);
 
 interface NavItem {
   icon: typeof GitBranch;
@@ -25,7 +28,6 @@ const items: NavItem[] = [
   { icon: FileText,  label: "ADRs",       modal: "adrs" },
   { icon: Activity,  label: "Drift",      modal: "drift" },
   { icon: Terminal,  label: "Query",      modal: "query" },
-  { icon: Settings,  label: "Settings",   modal: "settings" },
 ];
 
 export function Sidebar() {

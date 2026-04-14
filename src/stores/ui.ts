@@ -4,7 +4,8 @@ export type ModalName =
   | "sources"
   | "enrichment"
   | "search"
-  | "settings"
+  // Settings are integrated as a tab inside the `user` modal, not a
+  // separate top-level modal.
   | "user"
   | "policies"
   | "adrs"

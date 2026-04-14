@@ -1116,6 +1116,43 @@ html, body, #root {
   gap: 8px;
 }
 
+.user-modal-tabs {
+  display: flex;
+  gap: 0;
+  border: 1px solid black;
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.user-modal-tab {
+  flex: 1;
+  padding: 8px 12px;
+  border: 0;
+  background: white;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.user-modal-tab + .user-modal-tab {
+  border-left: 1px solid black;
+}
+
+.user-modal-tab:hover {
+  background: #f5f5f5;
+}
+
+.user-modal-tab.is-active {
+  background: #000;
+  color: #fff;
+}
+
+.user-modal-tab-check {
+  margin-left: 4px;
+  font-weight: 700;
+}
+
 .user-modal {
   display: flex;
   flex-direction: column;
