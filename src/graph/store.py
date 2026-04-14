@@ -168,14 +168,20 @@ async def get_full_snapshot() -> GraphSnapshot:
         except Exception as e:
             logger.warning("age_edge_query_failed", error=str(e))
 
-    elapsed = time.monotonic() - start
+    elapsed_ms = round((time.monotonic() - start) * 1000)
     logger.info("snapshot_fetched", node_count=len(nodes), edge_count=len(edges),
-                duration_ms=round(elapsed * 1000))
+                duration_ms=elapsed_ms)
 
     return GraphSnapshot(
         nodes=nodes,
         edges=edges,
-        meta={"node_count": len(nodes), "edge_count": len(edges)},
+        meta={
+            "node_count": len(nodes),
+            "edge_count": len(edges),
+            # Exposed so the frontend can surface "last load Xms" instead
+            # of a vague "Live" indicator.
+            "duration_ms": elapsed_ms,
+        },
     )
 
 
