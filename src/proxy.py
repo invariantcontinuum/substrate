@@ -32,7 +32,11 @@ async def init_client() -> None:
             max_keepalive_connections=20,
             keepalive_expiry=2.0,
         ),
-        timeout=httpx.Timeout(connect=5.0, read=30.0, write=10.0, pool=10.0),
+        # Read is generous (60s) so brief upstream bursts — e.g.
+        # ingestion chunking a large sync — don't trip the polling
+        # endpoints. Connect is tight so dead hosts fail fast and
+        # retry logic kicks in quickly.
+        timeout=httpx.Timeout(connect=5.0, read=60.0, write=10.0, pool=10.0),
         follow_redirects=False,
     )
     logger.info("proxy_client_initialized")
