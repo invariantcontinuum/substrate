@@ -190,19 +190,30 @@ export const useGraphStore = create<GraphState>((set) => ({
 
   fetchGraph: async (token) => {
     try {
-      const data = await apiFetch<{
-        nodes?: GraphNode[];
-        edges?: GraphEdge[];
+      // The graph service returns items in cytoscape element format —
+      // each node/edge is wrapped as `{data: {...}}`. Unwrap so the rest
+      // of the app can treat entries as flat objects keyed by id/name.
+      type CytoscapeElement<T> = { data: T } | T;
+      const raw = await apiFetch<{
+        nodes?: CytoscapeElement<GraphNode>[];
+        edges?: CytoscapeElement<GraphEdge>[];
         meta?: { node_count?: number; edge_count?: number };
       }>("/api/graph", token);
-      const nodes = data.nodes ?? [];
-      const edges = data.edges ?? [];
+
+      const unwrap = <T>(item: CytoscapeElement<T>): T =>
+        item && typeof item === "object" && "data" in item
+          ? (item.data as T)
+          : (item as T);
+
+      const nodes = (raw.nodes ?? []).map(unwrap<GraphNode>);
+      const edges = (raw.edges ?? []).map(unwrap<GraphEdge>);
+
       set({
         nodes,
         edges,
         stats: {
-          nodeCount: data.meta?.node_count ?? nodes.length,
-          edgeCount: data.meta?.edge_count ?? edges.length,
+          nodeCount: raw.meta?.node_count ?? nodes.length,
+          edgeCount: raw.meta?.edge_count ?? edges.length,
           violationCount: 0,
           lastUpdated: new Date().toISOString(),
         },
