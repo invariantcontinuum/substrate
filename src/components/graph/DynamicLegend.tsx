@@ -1,33 +1,50 @@
+import { useMemo } from "react";
 import { useGraphStore } from "@/stores/graph";
 
-const TYPE_COLORS: Record<string, string> = {
-  source: "#22d3ee",
-  config: "#fbbf24",
-  script: "#34d399",
-  doc: "#64748b",
-  data: "#38bdf8",
-  asset: "#475569",
-  service: "#3b4199",
-  database: "#065f46",
-  cache: "#047857",
-  policy: "#7c3aed",
-  adr: "#92400e",
-  incident: "#991b1b",
-  external: "#374151",
+const typePalette: Record<string, string> = {
+  default: "#000",
+  root: "#000",
 };
 
 export function DynamicLegend() {
-  const nodeCount = useGraphStore((s) => s.stats.nodeCount);
-  if (nodeCount === 0) return null;
+  const nodes = useGraphStore((s) => s.nodes);
+  const visibleTypes = useGraphStore((s) => s.filters.types);
+  const toggleTypeFilter = useGraphStore((s) => s.toggleTypeFilter);
+
+  const types = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const n of nodes) {
+      const t = String(n.type || "unknown");
+      counts.set(t, (counts.get(t) ?? 0) + 1);
+    }
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 12);
+  }, [nodes]);
+
+  if (types.length <= 1) return null;
 
   return (
-    <div className="absolute bottom-3 right-3 hidden sm:flex flex-col border border-black bg-white p-2 text-black z-10">
-      {Object.entries(TYPE_COLORS).map(([type]) => (
-        <div key={type} className="flex items-center gap-1.5">
-          <div className="w-2 h-2 border border-black bg-black" />
-          {type}
-        </div>
-      ))}
+    <div className="dynamic-legend">
+      {types.map(([t, count]) => {
+        const active = visibleTypes.has(t);
+        return (
+          <button
+            key={t}
+            type="button"
+            onClick={() => toggleTypeFilter(t)}
+            className={`dynamic-legend-item${active ? "" : " is-inactive"}`}
+            title={active ? `Hide ${t}` : `Show ${t}`}
+          >
+            <span
+              className="dynamic-legend-dot"
+              style={{ background: active ? (typePalette[t] || "#000") : "transparent" }}
+            />
+            <span className="dynamic-legend-label">{t}</span>
+            <span className="dynamic-legend-count">{count}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }

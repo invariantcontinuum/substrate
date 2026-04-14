@@ -208,9 +208,16 @@ export const useGraphStore = create<GraphState>((set) => ({
       const nodes = (raw.nodes ?? []).map(unwrap<GraphNode>);
       const edges = (raw.edges ?? []).map(unwrap<GraphEdge>);
 
-      set({
+      // Seed the visible-types filter with every type present in the
+      // snapshot so legend items default to "on" for whatever types the
+      // backend actually returned (not just the hardcoded DEFAULT_TYPES).
+      const presentTypes = new Set<string>();
+      for (const n of nodes) presentTypes.add(String(n.type || "unknown"));
+
+      set((state) => ({
         nodes,
         edges,
+        filters: { ...state.filters, types: presentTypes },
         stats: {
           nodeCount: raw.meta?.node_count ?? nodes.length,
           edgeCount: raw.meta?.edge_count ?? edges.length,
@@ -218,7 +225,7 @@ export const useGraphStore = create<GraphState>((set) => ({
           lastUpdated: new Date().toISOString(),
         },
         connectionStatus: "connected",
-      });
+      }));
     } catch (err) {
       logger.warn("fetch_graph_failed", { error: String(err) });
       set({ connectionStatus: "disconnected" });

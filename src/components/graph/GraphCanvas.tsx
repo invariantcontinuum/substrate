@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useGraphStore } from "@/stores/graph";
 import { useUIStore } from "@/stores/ui";
 import { useResponsive } from "@/hooks/useResponsive";
@@ -25,12 +25,26 @@ export function GraphCanvas() {
   const signals = useGraphStore((s) => s.signals);
   const layoutName = useGraphStore((s) => s.layoutName);
   const selectedNodeId = useGraphStore((s) => s.selectedNodeId);
+  const visibleTypes = useGraphStore((s) => s.filters.types);
   const setSelectedNodeId = useGraphStore((s) => s.setSelectedNodeId);
   const setZoom = useGraphStore((s) => s.setZoom);
   const setLayoutName = useGraphStore((s) => s.setLayoutName);
   const setPan = useGraphStore((s) => s.setPan);
 
   const openModal = useUIStore((s) => s.openModal);
+
+  // Apply the legend filter: only nodes whose type is currently toggled on
+  // are rendered, and only edges between two visible nodes survive.
+  const filtered = useMemo(() => {
+    const visibleNodes = nodes.filter((n) =>
+      visibleTypes.has(String(n.type || "unknown"))
+    );
+    const visibleIds = new Set(visibleNodes.map((n) => n.id));
+    const visibleEdges = edges.filter(
+      (e) => visibleIds.has(e.source) && visibleIds.has(e.target)
+    );
+    return { nodes: visibleNodes, edges: visibleEdges };
+  }, [nodes, edges, visibleTypes]);
 
   /* init cytoscape */
   useEffect(() => {
@@ -126,9 +140,9 @@ export function GraphCanvas() {
     const cy = cyRef.current;
     cy.batch(() => {
       cy.elements().remove();
-      if (nodes.length) {
+      if (filtered.nodes.length) {
         cy.add(
-          nodes.map((n) => {
+          filtered.nodes.map((n) => {
             const label =
               (n.label as string | undefined) ||
               (n.name as string | undefined) ||
@@ -137,9 +151,9 @@ export function GraphCanvas() {
           })
         );
       }
-      if (edges.length) {
+      if (filtered.edges.length) {
         cy.add(
-          edges.map((e) => ({
+          filtered.edges.map((e) => ({
             data: { ...e, id: e.id, source: e.source, target: e.target, label: e.label },
           }))
         );
@@ -148,9 +162,9 @@ export function GraphCanvas() {
     // Pick a cheap, deterministic layout when the graph is large so we don't
     // lock the main thread on a force-directed simulation.
     const effectiveLayout =
-      nodes.length > FORCE_LAYOUT_MAX_NODES ? "grid" : (layoutName || "cose");
+      filtered.nodes.length > FORCE_LAYOUT_MAX_NODES ? "grid" : (layoutName || "cose");
     cy.layout({ name: effectiveLayout as any, padding: isMobile ? 24 : 48, animate: false, fit: true }).run();
-  }, [nodes, edges, layoutName, ready, isMobile]);
+  }, [filtered, layoutName, ready, isMobile]);
 
   // Zoom/pan flow one-way: cytoscape → store via the `zoom`/`pan` events
   // registered in init. We deliberately don't push store zoom back into
