@@ -15,7 +15,17 @@ def _parse_url(url: str) -> str:
 async def get_pool() -> asyncpg.Pool:
     global _pool
     if _pool is None:
-        _pool = await asyncpg.create_pool(_parse_url(settings.database_url), min_size=2, max_size=10)
+        # During a sync the worker loop can easily hold most connections
+        # writing job progress / repository rows. A 10-connection pool
+        # was saturating and the /jobs + /jobs/schedules polling
+        # endpoints would queue for >30s, tripping the gateway's read
+        # timeout. Bump the cap so lightweight API reads stay
+        # responsive alongside heavy background writes.
+        _pool = await asyncpg.create_pool(
+            _parse_url(settings.database_url),
+            min_size=4,
+            max_size=25,
+        )
         logger.info("db_pool_created")
     return _pool
 
