@@ -189,13 +189,15 @@ export function NodeDetailPanel() {
               </section>
             )}
 
-            {neighbors.length > 0 && (
-              <section className="node-detail-section">
-                <h4 className="node-detail-section-title">
-                  Neighbors ({neighbors.length})
-                </h4>
-                <ul className="node-detail-neighbors">
-                  {neighbors.map((nb, i) => (
+            <section className="node-detail-section">
+              <h4 className="node-detail-section-title">
+                Neighbors ({neighbors.length})
+              </h4>
+              <ul className="node-detail-neighbors">
+                {neighbors.length === 0 ? (
+                  <li className="node-detail-muted">No neighbors.</li>
+                ) : (
+                  neighbors.map((nb, i) => (
                     <li key={`${nb.id}-${i}`} className="node-detail-neighbor">
                       <button
                         type="button"
@@ -212,10 +214,10 @@ export function NodeDetailPanel() {
                         )}
                       </button>
                     </li>
-                  ))}
-                </ul>
-              </section>
-            )}
+                  ))
+                )}
+              </ul>
+            </section>
           </>
         )}
       </div>
