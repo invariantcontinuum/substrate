@@ -136,6 +136,30 @@ async def upsert_file(
         return row["id"]
 
 
+async def update_file_embedding(file_id: str, embedding: list[float]) -> None:
+    """Fill in the summary embedding on an already-written file row."""
+    if not _pool:
+        raise RuntimeError("graph_writer not connected")
+    async with _pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE file_embeddings SET embedding = $2::vector, updated_at = now() "
+            "WHERE id = $1::uuid",
+            file_id, str(embedding),
+        )
+
+
+async def update_chunk_embedding(file_id: str, chunk_index: int, embedding: list[float]) -> None:
+    """Fill in the embedding on an already-written chunk row."""
+    if not _pool:
+        raise RuntimeError("graph_writer not connected")
+    async with _pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE content_chunks SET embedding = $3::vector "
+            "WHERE file_id = $1::uuid AND chunk_index = $2",
+            file_id, chunk_index, str(embedding),
+        )
+
+
 async def insert_chunks(file_id: str, chunks: list[dict]) -> None:
     if not _pool:
         raise RuntimeError("graph_writer not connected")

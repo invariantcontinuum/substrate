@@ -13,6 +13,7 @@ from src.chunker import chunk_file, file_summary_text
 from src.graph_writer import (
     upsert_repository, upsert_file, insert_chunks,
     write_age_nodes, write_age_edges,
+    update_file_embedding, update_chunk_embedding,
 )
 from src.llm import embed_batch
 
@@ -180,73 +181,18 @@ async def handle_sync(scope: dict, on_progress) -> None:
         total_chunks = sum(len(fi["chunks"]) for fi in file_info_list)
         meta["chunks_total"] = total_chunks
 
-        # ── 6. Batch embed file summaries ──
-        embedding_available = True
-        summary_texts = [fi["summary"] for fi in file_info_list]
-        summary_embeddings: list[list[float] | None] = [None] * len(summary_texts)
-
-        embed_start = time.monotonic()
-        file_batches_total = (len(summary_texts) + EMBED_BATCH_SIZE - 1) // EMBED_BATCH_SIZE
-        try:
-            for batch_start in range(0, len(summary_texts), EMBED_BATCH_SIZE):
-                batch = summary_texts[batch_start:batch_start + EMBED_BATCH_SIZE]
-                vectors = await embed_batch(batch)
-                for j, vec in enumerate(vectors):
-                    summary_embeddings[batch_start + j] = vec
-                meta["files_embedded"] = min(batch_start + EMBED_BATCH_SIZE, len(summary_texts))
-                batch_num = batch_start // EMBED_BATCH_SIZE + 1
-                logger.info("embedding_file_batch_complete", batch=batch_num,
-                            total_batches=file_batches_total,
-                            files_embedded=meta["files_embedded"])
-                await on_progress(meta["files_embedded"], len(nodes), meta)
-        except Exception as e:
-            logger.warning("embedding_unavailable", error=str(e))
-            embedding_available = False
-            meta["files_embedded"] = 0
-
-        # Batch embed chunks — build index for fast lookup
-        all_chunk_texts: list[str] = []
-        chunk_map: list[tuple[int, int]] = []  # (file_index, chunk_index_in_file)
-        chunk_global_idx: dict[tuple[int, int], int] = {}  # (fi_idx, ch_idx) -> global index
-        for fi_idx, fi in enumerate(file_info_list):
-            for ch_idx, ch in enumerate(fi["chunks"]):
-                chunk_global_idx[(fi_idx, ch_idx)] = len(all_chunk_texts)
-                all_chunk_texts.append(ch.content)
-                chunk_map.append((fi_idx, ch_idx))
-
-        chunk_embeddings: list[list[float] | None] = [None] * len(all_chunk_texts)
-        chunk_batches_total = (len(all_chunk_texts) + EMBED_BATCH_SIZE - 1) // EMBED_BATCH_SIZE if all_chunk_texts else 0
-        if embedding_available and all_chunk_texts:
-            logger.info("embedding_chunks_start", total_chunks=len(all_chunk_texts),
-                        total_batches=chunk_batches_total)
-            try:
-                for batch_start in range(0, len(all_chunk_texts), EMBED_BATCH_SIZE):
-                    batch = all_chunk_texts[batch_start:batch_start + EMBED_BATCH_SIZE]
-                    vectors = await embed_batch(batch)
-                    for j, vec in enumerate(vectors):
-                        chunk_embeddings[batch_start + j] = vec
-                    meta["chunks_embedded"] = min(batch_start + EMBED_BATCH_SIZE, len(all_chunk_texts))
-                    batch_num = batch_start // EMBED_BATCH_SIZE + 1
-                    logger.info("embedding_chunk_batch_complete", batch=batch_num,
-                                total_batches=chunk_batches_total,
-                                chunks_embedded=meta["chunks_embedded"])
-                    await on_progress(meta["files_embedded"], len(nodes), meta)
-            except Exception as e:
-                logger.warning("chunk_embedding_failed", error=str(e))
-                meta["chunks_embedded"] = 0
-
-        embed_elapsed = time.monotonic() - embed_start
-        logger.info("embedding_complete",
-                     files_embedded=meta["files_embedded"],
-                     chunks_embedded=meta["chunks_embedded"],
-                     duration_ms=round(embed_elapsed * 1000))
-
-        # ── 7. Write file_embeddings + content_chunks to substrate_graph ──
+        # ── 6. Write file + chunk rows (no embeddings yet) ──
+        # Previously we embedded everything first and wrote to the DB
+        # only at the end. On a 93k-file repo that kept the graph canvas
+        # empty for hours. Flip the order: persist structure right after
+        # chunking so the frontend can render the graph immediately, and
+        # fill in embeddings in-place afterwards.
         logger.info("sync_phase_graphing", total_files=len(nodes))
         meta["phase"] = "graphing"
         await on_progress(0, len(nodes), meta)
 
         file_id_map: dict[str, str] = {}
+        chunk_key_to_db: dict[tuple[int, int], tuple[str, int]] = {}
         for fi_idx, fi in enumerate(file_info_list):
             node = fi["node"]
             file_db_id = await upsert_file(
@@ -259,19 +205,17 @@ async def handle_sync(scope: dict, on_progress) -> None:
                 size_bytes=fi["size_bytes"],
                 line_count=fi["line_count"],
                 imports_count=fi["imports_count"],
-                embedding=summary_embeddings[fi_idx],
+                embedding=None,
             )
             file_id_map[node.id] = file_db_id
 
-            # Insert every chunk — keep the content even when its
-            # embedding is missing so the summary endpoint and full-text
-            # search still have something to work with. The embedding
-            # column is nullable (V5 migration) so chunks without a
-            # vector just won't participate in semantic search.
+            # Insert every chunk up-front with NULL embedding. The
+            # embedding column is nullable (V5 migration) so chunks
+            # without a vector still land and participate in summary
+            # generation and text search; semantic search skips them
+            # until their vector is backfilled below.
             chunk_dicts: list[dict] = []
             for ch_idx, ch in enumerate(fi["chunks"]):
-                global_idx = chunk_global_idx.get((fi_idx, ch_idx))
-                emb = chunk_embeddings[global_idx] if global_idx is not None else None
                 chunk_dicts.append({
                     "chunk_index": ch.chunk_index,
                     "content": ch.content,
@@ -279,8 +223,9 @@ async def handle_sync(scope: dict, on_progress) -> None:
                     "end_line": ch.end_line,
                     "token_count": ch.token_count,
                     "language": fi["language"],
-                    "embedding": emb,
+                    "embedding": None,
                 })
+                chunk_key_to_db[(fi_idx, ch_idx)] = (file_db_id, ch.chunk_index)
             if chunk_dicts:
                 await insert_chunks(file_db_id, chunk_dicts)
 
@@ -290,7 +235,9 @@ async def handle_sync(scope: dict, on_progress) -> None:
 
         logger.info("relational_writes_complete", files=len(file_id_map))
 
-        # ── 8. Write AGE nodes + edges ──
+        # ── 7. Write AGE nodes + edges immediately ──
+        # As soon as this completes the /api/graph endpoint has data to
+        # return and the frontend canvas can render the full topology.
         age_nodes = [
             {
                 "file_id": file_id_map[node.id],
@@ -313,6 +260,75 @@ async def handle_sync(scope: dict, on_progress) -> None:
         ]
         await write_age_edges(age_edges)
         logger.info("age_writes_complete", nodes=len(age_nodes), edges=len(age_edges))
+
+        # ── 8. Backfill summary embeddings ──
+        # From here on the graph is already visible; this phase just
+        # enriches it. Failures (embedding server down, 400s, etc) don't
+        # stop the sync — the job still reports completion.
+        meta["phase"] = "embedding_summaries"
+        embed_start = time.monotonic()
+        summary_texts = [fi["summary"] for fi in file_info_list]
+        file_batches_total = (len(summary_texts) + EMBED_BATCH_SIZE - 1) // EMBED_BATCH_SIZE
+
+        try:
+            for batch_start in range(0, len(summary_texts), EMBED_BATCH_SIZE):
+                batch = summary_texts[batch_start:batch_start + EMBED_BATCH_SIZE]
+                vectors = await embed_batch(batch)
+                for j, vec in enumerate(vectors):
+                    if vec is None:
+                        continue
+                    fi = file_info_list[batch_start + j]
+                    file_db_id = file_id_map.get(fi["node"].id)
+                    if file_db_id:
+                        await update_file_embedding(file_db_id, vec)
+                meta["files_embedded"] = min(batch_start + EMBED_BATCH_SIZE, len(summary_texts))
+                batch_num = batch_start // EMBED_BATCH_SIZE + 1
+                logger.info("embedding_file_batch_complete", batch=batch_num,
+                            total_batches=file_batches_total,
+                            files_embedded=meta["files_embedded"])
+                await on_progress(meta["files_embedded"], len(nodes), meta)
+        except Exception as e:
+            logger.warning("embedding_unavailable", error=str(e))
+
+        # ── 9. Backfill chunk embeddings ──
+        meta["phase"] = "embedding_chunks"
+        all_chunk_texts: list[str] = []
+        chunk_map: list[tuple[int, int]] = []  # (fi_idx, ch_idx)
+        for fi_idx, fi in enumerate(file_info_list):
+            for ch_idx, ch in enumerate(fi["chunks"]):
+                all_chunk_texts.append(ch.content)
+                chunk_map.append((fi_idx, ch_idx))
+
+        chunk_batches_total = (len(all_chunk_texts) + EMBED_BATCH_SIZE - 1) // EMBED_BATCH_SIZE if all_chunk_texts else 0
+        if all_chunk_texts:
+            logger.info("embedding_chunks_start", total_chunks=len(all_chunk_texts),
+                        total_batches=chunk_batches_total)
+            try:
+                for batch_start in range(0, len(all_chunk_texts), EMBED_BATCH_SIZE):
+                    batch = all_chunk_texts[batch_start:batch_start + EMBED_BATCH_SIZE]
+                    vectors = await embed_batch(batch)
+                    for j, vec in enumerate(vectors):
+                        if vec is None:
+                            continue
+                        key = chunk_map[batch_start + j]
+                        db_ref = chunk_key_to_db.get(key)
+                        if db_ref:
+                            file_db_id, chunk_index = db_ref
+                            await update_chunk_embedding(file_db_id, chunk_index, vec)
+                    meta["chunks_embedded"] = min(batch_start + EMBED_BATCH_SIZE, len(all_chunk_texts))
+                    batch_num = batch_start // EMBED_BATCH_SIZE + 1
+                    logger.info("embedding_chunk_batch_complete", batch=batch_num,
+                                total_batches=chunk_batches_total,
+                                chunks_embedded=meta["chunks_embedded"])
+                    await on_progress(meta["files_embedded"], len(nodes), meta)
+            except Exception as e:
+                logger.warning("chunk_embedding_failed", error=str(e))
+
+        embed_elapsed = time.monotonic() - embed_start
+        logger.info("embedding_complete",
+                     files_embedded=meta["files_embedded"],
+                     chunks_embedded=meta.get("chunks_embedded", 0),
+                     duration_ms=round(embed_elapsed * 1000))
 
         # ── 9. Store raw_event in substrate_ingestion ──
         event = GraphEvent(
