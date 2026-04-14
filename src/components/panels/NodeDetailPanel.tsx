@@ -1,6 +1,6 @@
-import { X } from "lucide-react";
+import { RefreshCw, X } from "lucide-react";
 import { useAuth } from "react-oidc-context";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import { useGraphStore } from "@/stores/graph";
 import { useUIStore } from "@/stores/ui";
@@ -64,6 +64,8 @@ export function NodeDetailPanel() {
     | (NodeDetail["node"] & { label?: string })
     | undefined;
 
+  const queryClient = useQueryClient();
+
   const detailQuery = useQuery<NodeDetail>({
     queryKey: ["node-detail", selectedNodeId],
     queryFn: () =>
@@ -74,6 +76,28 @@ export function NodeDetailPanel() {
     enabled: visible && !!token,
     staleTime: 30_000,
   });
+
+  // LLM-generated summary. The graph service caches it in the description
+  // column, so subsequent opens are cheap.
+  const summaryQuery = useQuery<{ summary: string; cached: boolean; source: string }>({
+    queryKey: ["node-summary", selectedNodeId],
+    queryFn: () =>
+      apiFetch(
+        `/api/graph/nodes/${encodeURIComponent(String(selectedNodeId))}/summary`,
+        token
+      ),
+    enabled: visible && !!token,
+    staleTime: 5 * 60_000,
+  });
+
+  const regenerateSummary = async () => {
+    if (!selectedNodeId || !token) return;
+    await apiFetch(
+      `/api/graph/nodes/${encodeURIComponent(selectedNodeId)}/summary?force=true`,
+      token
+    );
+    await queryClient.invalidateQueries({ queryKey: ["node-summary", selectedNodeId] });
+  };
 
   if (!visible) return null;
 
@@ -127,12 +151,35 @@ export function NodeDetailPanel() {
               </section>
             )}
 
-            {node.description && (
-              <section className="node-detail-section">
-                <h4 className="node-detail-section-title">Description</h4>
-                <p className="node-detail-description">{node.description}</p>
-              </section>
-            )}
+            <section className="node-detail-section">
+              <div className="node-detail-section-header">
+                <h4 className="node-detail-section-title">Summary</h4>
+                <button
+                  type="button"
+                  className="node-detail-regen-btn"
+                  onClick={regenerateSummary}
+                  disabled={summaryQuery.isFetching}
+                  title="Regenerate summary"
+                >
+                  <RefreshCw size={11} />
+                </button>
+              </div>
+              {summaryQuery.isLoading && (
+                <div className="node-detail-muted">Generating summary…</div>
+              )}
+              {summaryQuery.isError && (
+                <div className="node-detail-muted">Summary unavailable.</div>
+              )}
+              {summaryQuery.data?.summary && (
+                <p className="node-detail-description">{summaryQuery.data.summary}</p>
+              )}
+              {!summaryQuery.isLoading &&
+                !summaryQuery.isError &&
+                !summaryQuery.data?.summary &&
+                node.description && (
+                  <p className="node-detail-description">{node.description}</p>
+                )}
+            </section>
 
             {(node.first_seen || node.last_seen) && (
               <section className="node-detail-section">

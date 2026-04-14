@@ -422,6 +422,38 @@ html, body, #root {
   margin-bottom: 2px;
 }
 
+.node-detail-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+
+.node-detail-section-header .node-detail-section-title {
+  margin-bottom: 0;
+}
+
+.node-detail-regen-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: 1px solid black;
+  background: white;
+  cursor: pointer;
+  padding: 0;
+}
+
+.node-detail-regen-btn:hover:not(:disabled) {
+  background: #f5f5f5;
+}
+
+.node-detail-regen-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .node-detail-description {
   font-size: 12px;
   line-height: 1.5;
