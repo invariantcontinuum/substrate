@@ -4,9 +4,14 @@ import { useAuth } from "react-oidc-context";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import { useGraphStore } from "@/stores/graph";
-import { useUIStore } from "@/stores/ui";
 import { useSearch } from "@/hooks/useSearch";
 import { Input } from "@/components/ui/input";
+
+function formatDuration(ms: number | null | undefined): string {
+  if (ms == null) return "—";
+  if (ms < 1000) return `${ms}ms`;
+  return `${(ms / 1000).toFixed(1)}s`;
+}
 
 export function TopBar() {
   const nodes = useGraphStore((s) => s.nodes);
@@ -14,16 +19,13 @@ export function TopBar() {
   const visibleTypes = useGraphStore((s) => s.filters.types);
   const stats = useGraphStore((s) => s.stats);
   const setSearchQuery = useGraphStore((s) => s.setSearchQuery);
-  const toggleSidebar = useUIStore((s) => s.toggleSidebar);
   const { search } = useSearch();
   const auth = useAuth();
   const token = auth.user?.access_token;
   const [q, setQ] = useState("");
 
-  // Live counts mirror what's actually painted on the graph canvas,
-  // i.e. nodes whose type is currently toggled on in the legend plus the
-  // edges whose endpoints both survive. This stays in sync automatically
-  // because it's derived from the same zustand slices GraphCanvas reads.
+  // Counts reflect what's painted on the canvas after legend filtering,
+  // not raw DB totals.
   const visible = useMemo(() => {
     const keptNodes = nodes.filter((n) =>
       visibleTypes.has(String(n.type || "unknown")),
@@ -35,11 +37,10 @@ export function TopBar() {
     return { nodeCount: keptNodes.length, edgeCount: keptEdges.length };
   }, [nodes, edges, visibleTypes]);
 
-  // Live connection status — a 10s heartbeat against the gateway health
-  // check. React-query's `status` flips quickly when connectivity
-  // changes (offline, gateway restart, upstream down) without us having
-  // to thread a websocket through.
-  const healthQuery = useQuery<{ status: string }>({
+  // 10s heartbeat against /api/graph/stats to detect gateway/upstream
+  // health. Drives the status pill's colour; the label shows the last
+  // graph-load round-trip so it's a concrete metric, not just "Live".
+  const healthQuery = useQuery<{ status?: string }>({
     queryKey: ["health", "api-graph"],
     queryFn: () => apiFetch("/api/graph/stats", token),
     enabled: !!token,
@@ -48,12 +49,7 @@ export function TopBar() {
     refetchOnWindowFocus: true,
   });
 
-  const connectionStatus: "connected" | "reconnecting" | "disconnected" =
-    healthQuery.isLoading
-      ? "reconnecting"
-      : healthQuery.isError
-      ? "disconnected"
-      : "connected";
+  const healthy = !healthQuery.isError && !healthQuery.isLoading;
 
   const loaded = nodes.length > 0;
 
@@ -63,26 +59,35 @@ export function TopBar() {
     search(q.trim());
   }, [q, setSearchQuery, search]);
 
+  const roundTripLabel = formatDuration(stats.lastLoadMs);
+  const serverLabel = formatDuration(stats.lastServerMs);
+  const statusTitle = healthy
+    ? `Last load: ${roundTripLabel} round-trip (${serverLabel} server)`
+    : healthQuery.isError
+    ? "Gateway or upstream unreachable"
+    : "Checking connection…";
+
   return (
     <header className="top-nav">
-      <button onClick={toggleSidebar} className="top-nav-menu-btn" title="Toggle navigation">
-        <Brain size={16} />
-      </button>
+      <div className="top-nav-brand-group" aria-label="Substrate">
+        <span className="top-nav-brand-mark" aria-hidden="true">
+          <Brain size={16} />
+        </span>
+        <span className="top-nav-brand">Substrate</span>
+      </div>
 
-      <span className="top-nav-brand">Substrate</span>
-
-      <div className="top-nav-spacer" />
-
-      <div className="top-nav-search">
-        <Search size={12} />
-        <Input
-          type="text"
-          placeholder="Search..."
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && go()}
-          disabled={!loaded}
-        />
+      <div className="top-nav-center">
+        <div className="top-nav-search">
+          <Search size={12} />
+          <Input
+            type="text"
+            placeholder="Search..."
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && go()}
+            disabled={!loaded}
+          />
+        </div>
       </div>
 
       <div className="top-nav-stats">
@@ -92,14 +97,13 @@ export function TopBar() {
         <span title={`${visible.edgeCount} visible of ${edges.length} loaded`}>
           {visible.edgeCount}e
         </span>
-        <div className="top-nav-status">
-          <div className={`status-dot ${connectionStatus === "connected" ? "on" : "off"}`} />
-          <span>
-            {connectionStatus === "connected"
-              ? "Live"
-              : connectionStatus === "reconnecting"
-              ? "..."
-              : "Off"}
+        <div
+          className={`top-nav-status ${healthy ? "is-healthy" : healthQuery.isError ? "is-down" : "is-pending"}`}
+          title={statusTitle}
+        >
+          <div className={`status-dot ${healthy ? "on" : "off"}`} />
+          <span className="top-nav-status-label">
+            {healthy ? roundTripLabel : healthQuery.isError ? "off" : "…"}
           </span>
         </div>
         {stats.violationCount > 0 && <span>{stats.violationCount}</span>}

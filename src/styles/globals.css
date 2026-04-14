@@ -106,9 +106,14 @@ html, body, #root {
   min-width: 0;
 }
 
-/* ===== TopBar ===== */
+/* ===== TopBar =====
+ * Three-column grid: left brand, centred search, right stats. Using
+ * `grid-template-columns: 1fr auto 1fr` keeps the search visually
+ * centred regardless of how wide the brand or stats blocks are.
+ */
 .top-nav {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: 12px;
   padding: 0 16px;
@@ -118,67 +123,95 @@ html, body, #root {
   flex-shrink: 0;
 }
 
-.top-nav-menu-btn {
+.top-nav-brand-group {
   display: flex;
   align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border: 1px solid black;
-  background: white;
-  cursor: pointer;
+  gap: 8px;
+  /* Intentionally not a button — the brand is a static label, not a
+   * navigation control. */
+  user-select: none;
 }
 
-.top-nav-menu-btn:hover {
-  background: #f5f5f5;
+.top-nav-brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  color: #000;
 }
 
 .top-nav-brand {
   font-weight: 600;
   font-size: 14px;
+  letter-spacing: 0.2px;
 }
 
-.top-nav-spacer {
-  flex: 1;
+.top-nav-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .top-nav-search {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 10px;
-  height: 28px;
+  padding: 0 12px;
+  height: 30px;
+  width: min(420px, 60vw);
   border: 1px solid black;
   border-radius: 999px;
   background: white;
-  min-width: 0;
 }
 
 .top-nav-search input {
   border: 0;
   outline: 0;
   background: transparent;
-  width: 160px;
+  flex: 1;
+  min-width: 0;
   font-size: 12px;
 }
 
 @media (max-width: 640px) {
+  .top-nav {
+    grid-template-columns: auto 1fr auto;
+  }
   .top-nav-search {
-    display: none;
+    width: 100%;
   }
 }
 
 .top-nav-stats {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 10px;
   font-size: 12px;
+  font-variant-numeric: tabular-nums;
 }
 
 .top-nav-status {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 4px;
+  padding: 2px 8px;
+  border: 1px solid black;
+  border-radius: 999px;
+  background: white;
+}
+
+.top-nav-status.is-down {
+  opacity: 0.6;
+}
+
+.top-nav-status.is-pending .status-dot {
+  background: repeating-linear-gradient(45deg, #000 0 2px, transparent 2px 4px);
+}
+
+.top-nav-status-label {
+  font-size: 11px;
 }
 
 .status-dot {
@@ -205,6 +238,41 @@ html, body, #root {
   overflow-y: auto;
   background: white;
   flex-shrink: 0;
+}
+
+.side-nav-collapse {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  border: 0;
+  border-bottom: 1px solid black;
+  background: white;
+  cursor: pointer;
+}
+
+.side-nav-collapse:hover {
+  background: #f5f5f5;
+}
+
+/* Small edge handle shown when the sidebar is collapsed so the user can
+ * bring it back without a keyboard shortcut.
+ */
+.side-nav-reopen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  min-width: 20px;
+  border: 0;
+  border-right: 1px solid black;
+  background: white;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.side-nav-reopen:hover {
+  background: #f5f5f5;
 }
 
 .side-nav-item {
@@ -255,22 +323,33 @@ html, body, #root {
   flex: 1;
 }
 
+/* User avatar sits alone at the bottom of the rail: a perfect circle
+ * with generous padding so it reads as a distinct profile element,
+ * separated from the nav items above by whitespace rather than a
+ * border.
+ */
 .side-nav-footer {
   position: relative;
-  border-top: 1px solid black;
-}
-
-.side-nav-avatar {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 100%;
-  height: 56px;
-  border: 0;
+  padding: 12px 0 16px;
+}
+
+.side-nav-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid black;
+  border-radius: 50%;
   background: white;
   cursor: pointer;
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0;
 }
 
 .side-nav-avatar:hover {

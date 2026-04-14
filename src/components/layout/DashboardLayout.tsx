@@ -1,25 +1,40 @@
 import { Outlet } from "react-router-dom";
-import { Sidebar } from "./Sidebar";
+import { ChevronRight } from "lucide-react";
 import { TopBar } from "./TopBar";
+import { Sidebar } from "./Sidebar";
 import { MobileNav } from "./MobileNav";
 import { ModalRoot } from "@/components/modals/ModalRoot";
+import { useUIStore } from "@/stores/ui";
 import { useResponsive } from "@/hooks/useResponsive";
 
 export function DashboardLayout() {
+  const sidebarOpen = useUIStore((s) => s.sidebarOpen);
+  const setSidebarOpen = useUIStore((s) => s.setSidebarOpen);
   const { isDesktop } = useResponsive();
+  const showSidebar = isDesktop && sidebarOpen;
+  const showReopenHandle = isDesktop && !sidebarOpen;
 
   return (
-    <div className="flex flex-col h-screen bg-white">
+    <div className="dashboard">
       <TopBar />
-
-      <div className="flex flex-1 min-h-0 overflow-hidden">
-        {isDesktop && <Sidebar />}
-        <main className="flex-1 min-w-0 overflow-hidden">
+      <div className="dashboard-body">
+        {showSidebar && <Sidebar />}
+        {showReopenHandle && (
+          <button
+            type="button"
+            className="side-nav-reopen"
+            onClick={() => setSidebarOpen(true)}
+            title="Show sidebar"
+            aria-label="Show sidebar"
+          >
+            <ChevronRight size={16} />
+          </button>
+        )}
+        <main className="dashboard-main">
           <Outlet />
         </main>
       </div>
-
-      {!isDesktop && <MobileNav />}
+      <MobileNav />
       <ModalRoot />
     </div>
   );

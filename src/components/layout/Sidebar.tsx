@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
   GitBranch, Plug, Sparkles, Search, Shield,
   FileText, Activity, Terminal, Settings,
+  ChevronLeft,
 } from "lucide-react";
 import { useAuth } from "react-oidc-context";
 import { useUIStore, type ModalName } from "@/stores/ui";
@@ -28,13 +29,24 @@ const items: NavItem[] = [
 ];
 
 export function Sidebar() {
-  const open = useUIStore((s) => s.openModal);
+  const openModal = useUIStore((s) => s.openModal);
+  const toggleSidebar = useUIStore((s) => s.toggleSidebar);
   const auth = useAuth();
   const initial = auth.user?.profile?.name?.[0]?.toUpperCase() ?? "U";
   const [hov, setHov] = useState<string | null>(null);
 
   return (
-    <nav className="flex flex-col w-48 border-r border-black bg-white h-full">
+    <nav className="side-nav">
+      <button
+        type="button"
+        onClick={toggleSidebar}
+        className="side-nav-collapse"
+        title="Hide sidebar"
+        aria-label="Hide sidebar"
+      >
+        <ChevronLeft size={16} />
+      </button>
+
       {items.map((it) => {
         const coming = it.modal !== "navigate" && !IMPLEMENTED.has(it.modal as string);
 
@@ -43,36 +55,41 @@ export function Sidebar() {
             key={it.label}
             onMouseEnter={() => setHov(it.label)}
             onMouseLeave={() => setHov(null)}
-            className="relative"
+            className="side-nav-item"
           >
             <button
-              onClick={() => it.modal !== "navigate" && open(it.modal)}
-              className="w-full flex items-center gap-2 p-3 border-b border-black text-black text-left"
+              onClick={() => it.modal !== "navigate" && openModal(it.modal)}
+              className="side-nav-btn"
             >
               <it.icon size={16} />
               <span>{it.label}</span>
-              {coming && <span className="ml-auto border border-black px-1">soon</span>}
+              {coming && <span className="side-nav-badge">soon</span>}
             </button>
 
             {hov === it.label && (
-              <div className="absolute left-full top-0 z-50 bg-white border border-black p-2 whitespace-nowrap">
-                {it.label}
-              </div>
+              <div className="side-nav-tooltip">{it.label}</div>
             )}
           </div>
         );
       })}
 
-      <div className="flex-1" />
+      <div className="side-nav-spacer" />
 
-      <div className="relative" onMouseEnter={() => setHov("__u")} onMouseLeave={() => setHov(null)}>
-        <button onClick={() => open("user")} className="w-full p-3 border-t border-black text-black text-left">
+      <div
+        className="side-nav-footer"
+        onMouseEnter={() => setHov("__u")}
+        onMouseLeave={() => setHov(null)}
+      >
+        <button
+          onClick={() => openModal("user")}
+          className="side-nav-avatar"
+          title="Account"
+          aria-label="Account"
+        >
           {initial}
         </button>
         {hov === "__u" && (
-          <div className="absolute left-full bottom-0 z-50 bg-white border border-black p-2 whitespace-nowrap">
-            Account
-          </div>
+          <div className="side-nav-tooltip">Account</div>
         )}
       </div>
     </nav>

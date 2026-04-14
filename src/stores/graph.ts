@@ -41,6 +41,13 @@ interface GraphStats {
   edgeCount: number;
   violationCount: number;
   lastUpdated: string;
+  // Round-trip time of the most recent successful fetchGraph call. The
+  // topbar surfaces this in place of a vague "Live" indicator so the
+  // user can see whether the last refresh was fast or crawling.
+  lastLoadMs: number | null;
+  // Server-side query duration reported in the /api/graph meta payload.
+  // Useful to distinguish slow DB from slow network.
+  lastServerMs: number | null;
 }
 
 interface GraphState {
@@ -151,7 +158,7 @@ export const useGraphStore = create<GraphState>((set) => ({
   nodeSize: 24,
   setNodeSize: (nodeSize) => set({ nodeSize }),
 
-  stats: { nodeCount: 0, edgeCount: 0, violationCount: 0, lastUpdated: "" },
+  stats: { nodeCount: 0, edgeCount: 0, violationCount: 0, lastUpdated: "", lastLoadMs: null, lastServerMs: null },
   setStats: (stats) => {
     logger.info("stats_updated", { nodes: stats.nodeCount, edges: stats.edgeCount, violations: stats.violationCount });
     set({ stats });
@@ -181,7 +188,7 @@ export const useGraphStore = create<GraphState>((set) => ({
       violations: [],
       selectedNodeId: null,
       selectedNodeData: null,
-      stats: { nodeCount: 0, edgeCount: 0, violationCount: 0, lastUpdated: "" },
+      stats: { nodeCount: 0, edgeCount: 0, violationCount: 0, lastUpdated: "", lastLoadMs: null, lastServerMs: null },
       searchQuery: "",
       syncProgress: null,
       canvasCleared: true,
@@ -189,6 +196,7 @@ export const useGraphStore = create<GraphState>((set) => ({
   },
 
   fetchGraph: async (token) => {
+    const start = performance.now();
     try {
       // The graph service returns items in cytoscape element format —
       // each node/edge is wrapped as `{data: {...}}`. Unwrap so the rest
@@ -197,7 +205,7 @@ export const useGraphStore = create<GraphState>((set) => ({
       const raw = await apiFetch<{
         nodes?: CytoscapeElement<GraphNode>[];
         edges?: CytoscapeElement<GraphEdge>[];
-        meta?: { node_count?: number; edge_count?: number };
+        meta?: { node_count?: number; edge_count?: number; duration_ms?: number };
       }>("/api/graph", token);
 
       const unwrap = <T>(item: CytoscapeElement<T>): T =>
@@ -214,6 +222,9 @@ export const useGraphStore = create<GraphState>((set) => ({
       const presentTypes = new Set<string>();
       for (const n of nodes) presentTypes.add(String(n.type || "unknown"));
 
+      const lastLoadMs = Math.round(performance.now() - start);
+      const lastServerMs = raw.meta?.duration_ms ?? null;
+
       set((state) => ({
         nodes,
         edges,
@@ -223,6 +234,8 @@ export const useGraphStore = create<GraphState>((set) => ({
           edgeCount: raw.meta?.edge_count ?? edges.length,
           violationCount: 0,
           lastUpdated: new Date().toISOString(),
+          lastLoadMs,
+          lastServerMs,
         },
         connectionStatus: "connected",
       }));
