@@ -6,11 +6,19 @@ logger = structlog.get_logger()
 
 _pool: asyncpg.Pool | None = None
 
-AGE_PREAMBLE = "LOAD 'age'; SET search_path = ag_catalog, \"$user\", public;"
-
-
 async def _init_age(conn: asyncpg.Connection) -> None:
-    await conn.execute(AGE_PREAMBLE)
+    """Load the AGE shared library into each new pool connection.
+
+    We intentionally do NOT `SET search_path` here: asyncpg's pool runs
+    `RESET ALL` when releasing a connection back to the pool, which wipes
+    any SETs done in the init callback. The second query on that
+    connection then fails with `function cypher(unknown, unknown) does
+    not exist`. Instead we set search_path via `server_settings` on the
+    pool itself — that becomes the connection's startup default and
+    survives RESET ALL. LOAD is not a GUC so it persists for the
+    connection's lifetime once run here.
+    """
+    await conn.execute("LOAD 'age';")
 
 
 def _parse_url(url: str) -> str:
@@ -25,7 +33,11 @@ async def connect(database_url: str) -> None:
     global _pool
     logger.info("graph_writer_connecting")
     _pool = await asyncpg.create_pool(
-        _parse_url(database_url), min_size=2, max_size=10, init=_init_age,
+        _parse_url(database_url),
+        min_size=2,
+        max_size=10,
+        init=_init_age,
+        server_settings={"search_path": "ag_catalog,public"},
     )
     logger.info("graph_writer_connected")
 

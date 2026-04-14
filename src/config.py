@@ -7,8 +7,11 @@ class Settings(BaseSettings):
     github_token: str = ""
     app_port: int = 8081
     embedding_url: str = "http://localhost:8101/v1/embeddings"
-    embedding_model: str = "embeddinggemma-300M-Q8_0.gguf"
-    embedding_dim: int = 768
+    # The llamacpp server ignores the `model` field in the request and
+    # serves whatever model it was launched with; we keep the name here
+    # only for logging/documentation. Dim must match the served model.
+    embedding_model: str = "Qwen3-Embedding-0.6B-Q8_0.gguf"
+    embedding_dim: int = 1024
     chunk_size: int = 512
     chunk_overlap: int = 64
 
