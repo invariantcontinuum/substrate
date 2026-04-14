@@ -94,7 +94,7 @@ interface GraphState {
   clearCanvas: () => void;
 
   /* Data loading */
-  fetchGraph: () => Promise<void>;
+  fetchGraph: (token?: string) => Promise<void>;
 }
 
 const DEFAULT_TYPES = [
@@ -188,11 +188,11 @@ export const useGraphStore = create<GraphState>((set) => ({
     });
   },
 
-  fetchGraph: async () => {
+  fetchGraph: async (token) => {
     try {
       const data = await apiFetch<{ nodes?: GraphNode[]; edges?: GraphEdge[] }>(
         "/api/graph",
-        undefined
+        token
       );
       set({ nodes: data.nodes ?? [], edges: data.edges ?? [] });
     } catch (err) {

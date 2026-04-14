@@ -14,27 +14,33 @@ import { useGraphStore } from "@/stores/graph";
  */
 function RequireAuth({ children }: { children: ReactNode }) {
   const auth = useAuth();
-  const { fetchGraph } = useGraphStore();
+  const fetchGraph = useGraphStore((s) => s.fetchGraph);
+
+  const isLoading = auth.isLoading;
+  const isAuthenticated = auth.isAuthenticated;
+  const errorMessage = auth.error?.message;
+  const navigatorActive = !!auth.activeNavigator;
+  const accessToken = auth.user?.access_token;
 
   useEffect(() => {
-    if (!auth.isLoading && !auth.isAuthenticated && !auth.error && !auth.activeNavigator) {
+    if (!isLoading && !isAuthenticated && !errorMessage && !navigatorActive) {
       void auth.signinRedirect();
     }
-  }, [auth]);
+  }, [isLoading, isAuthenticated, errorMessage, navigatorActive, auth]);
 
   useEffect(() => {
-    if (auth.isAuthenticated) {
-      fetchGraph();
+    if (isAuthenticated && accessToken) {
+      void fetchGraph(accessToken);
     }
-  }, [auth.isAuthenticated, fetchGraph]);
+  }, [isAuthenticated, accessToken, fetchGraph]);
 
-  if (auth.isLoading || auth.activeNavigator) {
+  if (isLoading || navigatorActive) {
     return <div className="auth-status">Loading…</div>;
   }
-  if (auth.error) {
-    return <div className="auth-status">Authentication error: {auth.error.message}</div>;
+  if (errorMessage) {
+    return <div className="auth-status">Authentication error: {errorMessage}</div>;
   }
-  if (!auth.isAuthenticated) {
+  if (!isAuthenticated) {
     return <div className="auth-status">Redirecting to sign in…</div>;
   }
 
