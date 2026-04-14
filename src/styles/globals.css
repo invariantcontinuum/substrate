@@ -860,6 +860,16 @@ html, body, #root {
   margin: 4px 0;
 }
 
+/* ===== Auth status screen ===== */
+.auth-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  width: 100%;
+  font-size: 14px;
+}
+
 /* ===== Accessibility ===== */
 .sr-only {
   position: absolute;

@@ -1,49 +1,62 @@
+import { useEffect, type ReactNode } from "react";
+import { Route, Routes } from "react-router-dom";
 import { useAuth } from "react-oidc-context";
-import { BrowserRouter } from "react-router-dom";
-import { AppRouter } from "@/router";
+import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { GraphPage } from "@/pages/GraphPage";
+import { CallbackPage } from "@/pages/CallbackPage";
+import { useGraphStore } from "@/stores/graph";
 
-function LoadingScreen() {
-  return (
-    <div className="flex flex-col items-center justify-center h-screen gap-4 bg-white text-black">
-      <div className="border border-black p-4">
-        <span className="font-bold">S</span>
-      </div>
-      <div className="text-center">
-        <span className="block font-medium">Substrate</span>
-        <span className="block">Initializing...</span>
-      </div>
-    </div>
-  );
-}
-
-function ErrorScreen({ message }: { message: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center h-screen gap-4 bg-white text-black">
-      <div className="border border-black p-3">
-        <span className="font-bold">!</span>
-      </div>
-      <div className="text-center">
-        <span className="block font-medium">Authentication Error</span>
-        <span className="block max-w-xs">{message}</span>
-      </div>
-    </div>
-  );
-}
-
-export function App() {
+/**
+ * Guard that redirects unauthenticated users to Keycloak.
+ * Without this, the dashboard renders for anonymous users and any
+ * API request goes out with no Authorization header, causing the
+ * gateway to return 401 (the user just sees a silently failing UI).
+ */
+function RequireAuth({ children }: { children: ReactNode }) {
   const auth = useAuth();
+  const { fetchGraph } = useGraphStore();
 
-  if (auth.isLoading) return <LoadingScreen />;
-  if (auth.error) return <ErrorScreen message={auth.error.message} />;
+  useEffect(() => {
+    if (!auth.isLoading && !auth.isAuthenticated && !auth.error && !auth.activeNavigator) {
+      void auth.signinRedirect();
+    }
+  }, [auth]);
 
+  useEffect(() => {
+    if (auth.isAuthenticated) {
+      fetchGraph();
+    }
+  }, [auth.isAuthenticated, fetchGraph]);
+
+  if (auth.isLoading || auth.activeNavigator) {
+    return <div className="auth-status">Loading…</div>;
+  }
+  if (auth.error) {
+    return <div className="auth-status">Authentication error: {auth.error.message}</div>;
+  }
   if (!auth.isAuthenticated) {
-    auth.signinRedirect();
-    return <LoadingScreen />;
+    return <div className="auth-status">Redirecting to sign in…</div>;
   }
 
+  return <>{children}</>;
+}
+
+function App() {
   return (
-    <BrowserRouter>
-      <AppRouter />
-    </BrowserRouter>
+    <Routes>
+      <Route path="/callback" element={<CallbackPage />} />
+      <Route
+        path="/"
+        element={
+          <RequireAuth>
+            <DashboardLayout />
+          </RequireAuth>
+        }
+      >
+        <Route index element={<GraphPage />} />
+      </Route>
+    </Routes>
   );
 }
+
+export default App;
