@@ -23,8 +23,27 @@ logger = structlog.get_logger()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await get_pool()
+    pool = await get_pool()
     await graph_writer.connect(settings.graph_database_url)
+
+    # Any job still marked `running` in the DB at startup is a zombie
+    # from a previous process (container restart, crash, SIGKILL).
+    # Nothing is actually working on it, so fail it now to keep the UI
+    # honest and stop the frontend from polling a ghost forever.
+    async with pool.acquire() as conn:
+        result = await conn.execute(
+            """
+            UPDATE job_runs
+               SET status = 'failed',
+                   error = 'interrupted: ingestion service restarted',
+                   completed_at = now()
+             WHERE status IN ('running', 'pending')
+            """
+        )
+        # asyncpg returns the command tag, e.g. "UPDATE 2"
+        stale = int(result.split()[-1]) if result.startswith("UPDATE ") else 0
+        if stale:
+            logger.warning("zombie_jobs_failed", count=stale)
 
     register_handler("sync", handle_sync)
 
