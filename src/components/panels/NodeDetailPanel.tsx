@@ -108,9 +108,15 @@ export function NodeDetailPanel() {
     staleTime: 30_000,
   });
 
-  // LLM-generated summary. The graph service caches it in the description
-  // column, so subsequent opens are cheap.
-  const summaryQuery = useQuery<{ summary: string; cached: boolean; source: string }>({
+  // LLM-generated summary. The graph service only calls the LLM when there
+  // are indexed chunks — otherwise it returns source="no_content" and we
+  // render an honest placeholder rather than confabulated prose.
+  const summaryQuery = useQuery<{
+    summary: string;
+    cached: boolean;
+    source: "cache" | "llm" | "no_content" | "llm_failed" | "not_found";
+    chunk_count?: number;
+  }>({
     queryKey: ["node-summary", selectedNodeId],
     queryFn: () =>
       apiFetch(
@@ -189,8 +195,15 @@ export function NodeDetailPanel() {
                   type="button"
                   className="node-detail-regen-btn"
                   onClick={regenerateSummary}
-                  disabled={summaryQuery.isFetching}
-                  title="Regenerate summary"
+                  disabled={
+                    summaryQuery.isFetching ||
+                    summaryQuery.data?.source === "no_content"
+                  }
+                  title={
+                    summaryQuery.data?.source === "no_content"
+                      ? "Needs ingested content before a summary can be generated"
+                      : "Regenerate summary"
+                  }
                 >
                   <RefreshCw size={11} />
                 </button>
@@ -201,14 +214,24 @@ export function NodeDetailPanel() {
               {summaryQuery.isError && (
                 <div className="node-detail-muted">Summary unavailable.</div>
               )}
-              {summaryQuery.data?.summary && (
-                <p className="node-detail-description">{summaryQuery.data.summary}</p>
+              {summaryQuery.data?.source === "no_content" && (
+                <div className="node-detail-muted">
+                  No content has been indexed for this file yet. Run a
+                  successful sync so the ingestion service can write
+                  <code> content_chunks</code>, then regenerate.
+                </div>
               )}
-              {!summaryQuery.isLoading &&
-                !summaryQuery.isError &&
-                !summaryQuery.data?.summary &&
-                node.description && (
-                  <p className="node-detail-description">{node.description}</p>
+              {summaryQuery.data?.source === "llm_failed" && (
+                <div className="node-detail-muted">
+                  Summary model unavailable. Try again once the dense LLM
+                  service is reachable.
+                </div>
+              )}
+              {summaryQuery.data?.summary &&
+                summaryQuery.data.source !== "no_content" && (
+                  <p className="node-detail-description">
+                    {summaryQuery.data.summary}
+                  </p>
                 )}
             </section>
 
