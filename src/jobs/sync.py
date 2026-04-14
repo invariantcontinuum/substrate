@@ -263,21 +263,24 @@ async def handle_sync(scope: dict, on_progress) -> None:
             )
             file_id_map[node.id] = file_db_id
 
-            # Insert chunks that have embeddings
+            # Insert every chunk — keep the content even when its
+            # embedding is missing so the summary endpoint and full-text
+            # search still have something to work with. The embedding
+            # column is nullable (V5 migration) so chunks without a
+            # vector just won't participate in semantic search.
             chunk_dicts: list[dict] = []
             for ch_idx, ch in enumerate(fi["chunks"]):
                 global_idx = chunk_global_idx.get((fi_idx, ch_idx))
                 emb = chunk_embeddings[global_idx] if global_idx is not None else None
-                if emb is not None:
-                    chunk_dicts.append({
-                        "chunk_index": ch.chunk_index,
-                        "content": ch.content,
-                        "start_line": ch.start_line,
-                        "end_line": ch.end_line,
-                        "token_count": ch.token_count,
-                        "language": fi["language"],
-                        "embedding": emb,
-                    })
+                chunk_dicts.append({
+                    "chunk_index": ch.chunk_index,
+                    "content": ch.content,
+                    "start_line": ch.start_line,
+                    "end_line": ch.end_line,
+                    "token_count": ch.token_count,
+                    "language": fi["language"],
+                    "embedding": emb,
+                })
             if chunk_dicts:
                 await insert_chunks(file_db_id, chunk_dicts)
 

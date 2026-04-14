@@ -147,17 +147,34 @@ async def insert_chunks(file_id: str, chunks: list[dict]) -> None:
             "DELETE FROM content_chunks WHERE file_id = $1::uuid", file_id,
         )
         for ch in chunks:
-            await conn.execute(
-                """
-                INSERT INTO content_chunks
-                    (file_id, chunk_index, content, start_line, end_line,
-                     token_count, language, embedding)
-                VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8::vector)
-                """,
-                file_id, ch["chunk_index"], ch["content"],
-                ch["start_line"], ch["end_line"], ch["token_count"],
-                ch.get("language", ""), str(ch["embedding"]),
-            )
+            embedding = ch.get("embedding")
+            if embedding is None:
+                # Store the chunk without a vector. Callers (summary
+                # generation, text search) can still use it; semantic
+                # search will skip chunks with null embeddings.
+                await conn.execute(
+                    """
+                    INSERT INTO content_chunks
+                        (file_id, chunk_index, content, start_line, end_line,
+                         token_count, language, embedding)
+                    VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, NULL)
+                    """,
+                    file_id, ch["chunk_index"], ch["content"],
+                    ch["start_line"], ch["end_line"], ch["token_count"],
+                    ch.get("language", ""),
+                )
+            else:
+                await conn.execute(
+                    """
+                    INSERT INTO content_chunks
+                        (file_id, chunk_index, content, start_line, end_line,
+                         token_count, language, embedding)
+                    VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8::vector)
+                    """,
+                    file_id, ch["chunk_index"], ch["content"],
+                    ch["start_line"], ch["end_line"], ch["token_count"],
+                    ch.get("language", ""), str(embedding),
+                )
     logger.debug("chunks_inserted", file_id=file_id, count=len(chunks))
 
 
