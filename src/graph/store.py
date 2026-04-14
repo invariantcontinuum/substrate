@@ -342,6 +342,129 @@ async def search(query_embedding: list[float], limit: int = 10,
     return results
 
 
+async def ensure_node_summary(node_id: str, force: bool = False) -> dict:
+    """Return a short natural-language summary for a node.
+
+    Caches the result in `file_embeddings.description`. If a cached value
+    exists and `force` is false, returns it without calling the LLM.
+
+    Returns a dict with keys:
+      - summary: str
+      - cached: bool   (true if the description column already had content)
+      - source: "cache" | "llm" | "fallback"
+    """
+    import httpx
+
+    if not _pool:
+        raise RuntimeError("Database not connected")
+
+    logger.info("summary_start", node_id=node_id, force=force)
+
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT id::text, file_path, name, type, domain, language, description
+            FROM file_embeddings
+            WHERE id::text = $1
+            """,
+            node_id,
+        )
+        if not row:
+            logger.info("summary_node_not_found", node_id=node_id)
+            return {"summary": "", "cached": False, "source": "not_found"}
+
+        if row["description"] and not force:
+            logger.info("summary_cache_hit", node_id=node_id)
+            return {"summary": row["description"], "cached": True, "source": "cache"}
+
+        chunk_rows = await conn.fetch(
+            """
+            SELECT content, start_line, end_line
+            FROM content_chunks
+            WHERE file_id = $1::uuid
+            ORDER BY chunk_index
+            LIMIT 5
+            """,
+            node_id,
+        )
+
+    excerpts = []
+    total_chars = 0
+    for ch in chunk_rows:
+        remaining = settings.summary_chunk_sample_chars - total_chars
+        if remaining <= 0:
+            break
+        text = ch["content"][:remaining]
+        excerpts.append(f"[lines {ch['start_line']}-{ch['end_line']}]\n{text}")
+        total_chars += len(text)
+
+    excerpts_block = "\n\n".join(excerpts) if excerpts else "(no indexed content available)"
+
+    system_prompt = (
+        "You are a senior engineer summarising a single source file in a "
+        "knowledge graph. Write 2-3 plain sentences covering what the file "
+        "does, the kind of code it contains, and anything notable. No "
+        "markdown, no headings, no preamble."
+    )
+    user_prompt = (
+        f"File path: {row['file_path']}\n"
+        f"Name: {row['name']}\n"
+        f"Type: {row['type']}\n"
+        f"Language: {row['language'] or 'unknown'}\n"
+        f"Domain: {row['domain'] or '-'}\n\n"
+        f"Excerpts:\n{excerpts_block}\n\n"
+        "Summary:"
+    )
+
+    summary_text = ""
+    source = "fallback"
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            resp = await client.post(
+                settings.dense_llm_url,
+                json={
+                    "model": settings.dense_llm_model,
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    "max_tokens": settings.summary_max_tokens,
+                    "temperature": 0.2,
+                    "stream": False,
+                },
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            summary_text = (data.get("choices") or [{}])[0].get("message", {}).get(
+                "content", ""
+            ).strip()
+            if summary_text:
+                source = "llm"
+        logger.info("summary_llm_ok", node_id=node_id, length=len(summary_text))
+    except Exception as e:
+        logger.warning("summary_llm_failed", node_id=node_id, error=str(e))
+
+    if not summary_text:
+        # Last-resort deterministic fallback so the UI still gets something.
+        summary_text = (
+            f"{row['name'] or row['file_path']} — {row['type'] or 'file'}"
+            + (f" ({row['language']})" if row["language"] else "")
+            + ". Indexed from "
+            + f"{row['file_path']}."
+        )
+        source = "fallback"
+
+    async with _pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE file_embeddings SET description = $1, updated_at = now() WHERE id::text = $2",
+            summary_text,
+            node_id,
+        )
+
+    logger.info("summary_persisted", node_id=node_id, source=source)
+    return {"summary": summary_text, "cached": False, "source": source}
+
+
 async def purge_all() -> None:
     if not _pool:
         raise RuntimeError("Database not connected")

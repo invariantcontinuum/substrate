@@ -12,6 +12,7 @@ from src.graph.store import (
     edges_to_cytoscape,
     search,
     purge_all,
+    ensure_node_summary,
 )
 
 logger = structlog.get_logger()
@@ -37,6 +38,14 @@ async def get_graph():
         "edges": edges_to_cytoscape(snapshot.edges),
         "meta": snapshot.meta,
     }
+
+
+# NOTE: more specific routes must come before `/nodes/{node_id:path}`,
+# otherwise the greedy `:path` converter swallows the suffix (e.g. `/summary`).
+@router.get("/nodes/{node_id}/summary")
+async def get_node_summary(node_id: str, force: bool = False):
+    logger.info("endpoint_get_node_summary", node_id=node_id, force=force)
+    return await ensure_node_summary(node_id, force=force)
 
 
 @router.get("/nodes/{node_id:path}")
