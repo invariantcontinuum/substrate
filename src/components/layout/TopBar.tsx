@@ -9,8 +9,10 @@ import { Input } from "@/components/ui/input";
 
 function formatDuration(ms: number | null | undefined): string {
   if (ms == null) return "—";
-  if (ms < 1000) return `${ms}ms`;
-  return `${(ms / 1000).toFixed(1)}s`;
+  // Always seconds — two decimals gives sub-second precision for fast
+  // loads (e.g. `0.23s`) without losing readability on slower ones
+  // (e.g. `1.40s`).
+  return `${(ms / 1000).toFixed(2)}s`;
 }
 
 export function TopBar() {
