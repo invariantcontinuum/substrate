@@ -3,6 +3,7 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+  -webkit-tap-highlight-color: transparent;
 }
 
 html, body, #root {
@@ -14,6 +15,74 @@ html, body, #root {
   line-height: 1.4;
   color: #000;
   background: #fff;
+  /* Prevent iOS rubber-band scrolling + browser-level zoom on the page. */
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Touch targets: buttons should meet WCAG 2.5.5 (24x24 min) comfortably on
+ * phones, where fingertips are ~44px wide. On desktop the site font is
+ * dense, so keep compact defaults and upscale only on coarse pointers.
+ */
+@media (hover: none) and (pointer: coarse) {
+  button, .ui-button, .side-nav-btn, .mobile-nav-item,
+  .dynamic-legend-item, .node-detail-neighbor-btn,
+  .search-result-item, .sources-schedule-item {
+    min-height: 36px;
+  }
+}
+
+/* Cross-browser scrollbar styling for scrollable regions. Thin and
+ * unobtrusive on Chrome/Edge/Safari; slim on Firefox via scrollbar-width;
+ * iOS/Android continue to use native overlay scrollbars.
+ */
+.dynamic-legend,
+.node-detail-body,
+.node-detail-neighbors,
+.dialog-content,
+.search-modal-results,
+.sources-schedules,
+.side-nav {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.35) transparent;
+  -webkit-overflow-scrolling: touch; /* iOS momentum */
+  scroll-behavior: smooth;
+  overscroll-behavior: contain;
+}
+
+.dynamic-legend::-webkit-scrollbar,
+.node-detail-body::-webkit-scrollbar,
+.node-detail-neighbors::-webkit-scrollbar,
+.dialog-content::-webkit-scrollbar,
+.search-modal-results::-webkit-scrollbar,
+.sources-schedules::-webkit-scrollbar,
+.side-nav::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.dynamic-legend::-webkit-scrollbar-thumb,
+.node-detail-body::-webkit-scrollbar-thumb,
+.node-detail-neighbors::-webkit-scrollbar-thumb,
+.dialog-content::-webkit-scrollbar-thumb,
+.search-modal-results::-webkit-scrollbar-thumb,
+.sources-schedules::-webkit-scrollbar-thumb,
+.side-nav::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 3px;
+}
+
+.dynamic-legend::-webkit-scrollbar-track,
+.node-detail-body::-webkit-scrollbar-track,
+.node-detail-neighbors::-webkit-scrollbar-track,
+.dialog-content::-webkit-scrollbar-track,
+.search-modal-results::-webkit-scrollbar-track,
+.sources-schedules::-webkit-scrollbar-track,
+.side-nav::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 /* ===== Layout ===== */
@@ -288,6 +357,21 @@ html, body, #root {
 .graph-canvas-container {
   width: 100%;
   height: 100%;
+  /* Disable browser touch gestures on the canvas so cytoscape's own pan /
+   * pinch-zoom logic isn't fighting the page. Without this, iOS Safari
+   * swipes the viewport instead of panning the graph, and Chrome for
+   * Android triggers pull-to-refresh when you drag down.
+   */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: none;
+  -webkit-tap-highlight-color: transparent;
+  cursor: grab;
+}
+
+.graph-canvas-container:active {
+  cursor: grabbing;
 }
 
 .graph-overlay-group {

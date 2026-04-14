@@ -99,7 +99,8 @@ export function GraphCanvas() {
         ],
         minZoom: 0.05,
         maxZoom: 3,
-        wheelSensitivity: 0.15,
+        // Faster zoom step per wheel tick. 0.15 was imperceptible on trackpads.
+        wheelSensitivity: 0.6,
         userPanningEnabled: true,
         userZoomingEnabled: true,
         autoungrabify: false,
@@ -124,11 +125,43 @@ export function GraphCanvas() {
       cy.on("zoom", () => setZoom(cy.zoom()));
       cy.on("pan", () => setPan(cy.pan()));
 
+      // Two-finger trackpad scroll → pan (Chrome/Edge/Firefox/Safari desktop).
+      //
+      // Default cytoscape behaviour treats every wheel event as zoom, which
+      // breaks trackpad users who expect two-finger scroll to move the graph.
+      // Browser convention for trackpads: pinch gestures come through as
+      // wheel events with `ctrlKey === true` (including Chrome's synthetic
+      // ctrlKey for pinch), while two-finger scrolls come through without it.
+      // We intercept wheel events in the capture phase and hand off:
+      //   - ctrlKey            → let cytoscape handle (zoom)
+      //   - Shift+wheel        → horizontal pan
+      //   - plain wheel        → pan by deltaX/deltaY
+      // Attached with `passive: false` so `preventDefault()` blocks page
+      // scroll and cytoscape's own zoom.
+      const container = containerRef.current;
+      const onWheel = (e: WheelEvent) => {
+        if (e.ctrlKey) return; // pinch-zoom or Ctrl+wheel → cytoscape zooms
+        e.preventDefault();
+        e.stopPropagation();
+        // Line / page wheel modes report bigger deltas; normalise to pixels.
+        const factor = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 100 : 1;
+        const dx = (e.shiftKey ? e.deltaY : e.deltaX) * factor;
+        const dy = (e.shiftKey ? 0 : e.deltaY) * factor;
+        cy.panBy({ x: -dx, y: -dy });
+      };
+      container?.addEventListener("wheel", onWheel, { capture: true, passive: false });
+
       cyRef.current = cy;
+      (cyRef as any).__onWheel = onWheel;
       setReady(true);
     };
     init();
     return () => {
+      const container = containerRef.current;
+      const onWheel = (cyRef as any).__onWheel as EventListener | undefined;
+      if (container && onWheel) {
+        container.removeEventListener("wheel", onWheel, { capture: true } as any);
+      }
       cyRef.current?.destroy();
       cyRef.current = null;
     };
