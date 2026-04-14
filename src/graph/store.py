@@ -10,7 +10,14 @@ logger = structlog.get_logger()
 
 _pool: asyncpg.Pool | None = None
 
-AGE_PREAMBLE = "LOAD 'age'; SET search_path = ag_catalog, \"$user\", public;"
+# AGE requires (a) the shared library loaded into the session via LOAD 'age'
+# and (b) ag_catalog on the search_path so cypher() and agtype resolve.
+# We can't rely solely on `SET search_path` from the init callback because
+# asyncpg's pool runs `RESET ALL` when releasing a connection, which wipes
+# any per-session SET. Instead we set search_path via `server_settings`,
+# which becomes the connection's startup default and survives RESET ALL.
+# LOAD is not a GUC so it persists for the connection's lifetime once run
+# in the init callback.
 
 
 @dataclass
@@ -77,8 +84,8 @@ def edges_to_cytoscape(edges: list[GraphEdge]) -> list[dict]:
 
 
 async def _init_age(conn: asyncpg.Connection) -> None:
-    """Run AGE preamble on a connection so cypher() is available."""
-    await conn.execute(AGE_PREAMBLE)
+    """Load the AGE shared library into each new pool connection."""
+    await conn.execute("LOAD 'age';")
 
 
 async def connect() -> None:
@@ -88,6 +95,7 @@ async def connect() -> None:
         min_size=2,
         max_size=10,
         init=_init_age,
+        server_settings={"search_path": "ag_catalog,public"},
     )
     logger.info("pg_pool_connected", dsn=settings.database_url)
 
