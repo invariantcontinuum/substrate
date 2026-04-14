@@ -1,17 +1,37 @@
+import asyncio
 import httpx
 import structlog
 from fastapi import Request, Response, WebSocket
+from fastapi.responses import JSONResponse
 from starlette.responses import StreamingResponse
 
 logger = structlog.get_logger()
 
 _client: httpx.AsyncClient | None = None
 
+# httpx's transport `retries=N` only covers connection establishment, not
+# mid-read disconnects. We need app-level retries on RemoteProtocolError
+# for the keepalive race (uvicorn idle-closes at 5s). Idempotent verbs
+# only — we never retry non-idempotent requests automatically.
+_IDEMPOTENT_METHODS = {"GET", "HEAD", "OPTIONS", "PUT", "DELETE"}
+_RETRYABLE = (httpx.RemoteProtocolError, httpx.ReadError, httpx.WriteError)
+
 
 async def init_client() -> None:
     global _client
+    # `keepalive_expiry=2.0`: prune pooled connections after 2s of idle,
+    # well before uvicorn's default 5s idle close, so we don't reuse
+    # about-to-be-closed sockets.
+    # `retries=2` on the transport covers dropped *connects*; the
+    # app-level retry in proxy_request below covers dropped *reads*.
+    transport = httpx.AsyncHTTPTransport(retries=2)
     _client = httpx.AsyncClient(
-        limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
+        transport=transport,
+        limits=httpx.Limits(
+            max_connections=100,
+            max_keepalive_connections=20,
+            keepalive_expiry=2.0,
+        ),
         timeout=httpx.Timeout(connect=5.0, read=30.0, write=10.0, pool=10.0),
         follow_redirects=False,
     )
@@ -56,13 +76,57 @@ async def proxy_request(request: Request, upstream_base: str) -> Response:
     headers.pop("host", None)
     body = await request.body()
 
-    resp = await _client.request(
-        method=request.method,
-        url=url,
-        headers=headers,
-        content=body,
-    )
+    # App-level retry for the keepalive-race: when the upstream idle-
+    # closes a pooled connection right as we reuse it, the first read
+    # fails with RemoteProtocolError. Only retry idempotent methods so we
+    # don't double-submit a POST.
+    is_idempotent = request.method.upper() in _IDEMPOTENT_METHODS
+    attempts = 3 if is_idempotent else 1
+    last_exc: Exception | None = None
+    resp = None
+    for attempt in range(attempts):
+        try:
+            resp = await _client.request(
+                method=request.method,
+                url=url,
+                headers=headers,
+                content=body,
+            )
+            break
+        except _RETRYABLE as e:
+            last_exc = e
+            if attempt < attempts - 1:
+                await asyncio.sleep(0.1 * (2 ** attempt))
+                continue
+        except httpx.ConnectError as e:
+            logger.warning(
+                "proxy_upstream_unreachable",
+                upstream=upstream_base,
+                method=request.method,
+                path=request.url.path,
+                error=str(e),
+            )
+            return JSONResponse({"error": "upstream_unreachable"}, status_code=503)
+        except httpx.TimeoutException as e:
+            logger.warning(
+                "proxy_upstream_timeout",
+                upstream=upstream_base,
+                method=request.method,
+                path=request.url.path,
+                error=str(e),
+            )
+            return JSONResponse({"error": "upstream_timeout"}, status_code=504)
 
+    if resp is None:
+        logger.warning(
+            "proxy_upstream_disconnect",
+            upstream=upstream_base,
+            method=request.method,
+            path=request.url.path,
+            error=str(last_exc),
+            attempts=attempts,
+        )
+        return JSONResponse({"error": "upstream_disconnected"}, status_code=502)
     forwarded_headers = {
         k: v for k, v in resp.headers.items() if k.lower() not in _STRIP_FROM_UPSTREAM
     }
