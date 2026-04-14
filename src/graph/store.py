@@ -345,13 +345,20 @@ async def search(query_embedding: list[float], limit: int = 10,
 async def ensure_node_summary(node_id: str, force: bool = False) -> dict:
     """Return a short natural-language summary for a node.
 
-    Caches the result in `file_embeddings.description`. If a cached value
-    exists and `force` is false, returns it without calling the LLM.
+    Only calls the LLM when there is actual indexed content (chunks) to
+    summarise. Without content, the LLM happily confabulates — describing
+    the supposed shape of code it has never seen — which is worse than
+    saying nothing.
+
+    Caches real LLM output in `file_embeddings.description` so subsequent
+    reads are free. Does NOT cache the "no content" state so that a later
+    successful ingestion will produce a real summary on the next request.
 
     Returns a dict with keys:
-      - summary: str
-      - cached: bool   (true if the description column already had content)
-      - source: "cache" | "llm" | "fallback"
+      - summary:   str (empty when source is "no_content" or "not_found")
+      - cached:    bool (true when served from description column)
+      - source:    "cache" | "llm" | "no_content" | "llm_failed" | "not_found"
+      - chunk_count: int (how many chunks were used as input)
     """
     import httpx
 
@@ -371,11 +378,21 @@ async def ensure_node_summary(node_id: str, force: bool = False) -> dict:
         )
         if not row:
             logger.info("summary_node_not_found", node_id=node_id)
-            return {"summary": "", "cached": False, "source": "not_found"}
+            return {
+                "summary": "",
+                "cached": False,
+                "source": "not_found",
+                "chunk_count": 0,
+            }
 
         if row["description"] and not force:
             logger.info("summary_cache_hit", node_id=node_id)
-            return {"summary": row["description"], "cached": True, "source": "cache"}
+            return {
+                "summary": row["description"],
+                "cached": True,
+                "source": "cache",
+                "chunk_count": -1,
+            }
 
         chunk_rows = await conn.fetch(
             """
@@ -388,6 +405,17 @@ async def ensure_node_summary(node_id: str, force: bool = False) -> dict:
             node_id,
         )
 
+    # No indexed content → refuse to summarise. Calling the LLM with only
+    # a path and type produces plausible-sounding but fabricated prose.
+    if not chunk_rows:
+        logger.info("summary_no_content", node_id=node_id, file_path=row["file_path"])
+        return {
+            "summary": "",
+            "cached": False,
+            "source": "no_content",
+            "chunk_count": 0,
+        }
+
     excerpts = []
     total_chars = 0
     for ch in chunk_rows:
@@ -397,14 +425,15 @@ async def ensure_node_summary(node_id: str, force: bool = False) -> dict:
         text = ch["content"][:remaining]
         excerpts.append(f"[lines {ch['start_line']}-{ch['end_line']}]\n{text}")
         total_chars += len(text)
-
-    excerpts_block = "\n\n".join(excerpts) if excerpts else "(no indexed content available)"
+    excerpts_block = "\n\n".join(excerpts)
 
     system_prompt = (
         "You are a senior engineer summarising a single source file in a "
         "knowledge graph. Write 2-3 plain sentences covering what the file "
-        "does, the kind of code it contains, and anything notable. No "
-        "markdown, no headings, no preamble."
+        "does, the kind of code it contains, and anything notable. Only "
+        "describe what you can see in the excerpts — do not invent details "
+        "or speculate about what isn't shown. No markdown, no headings, "
+        "no preamble."
     )
     user_prompt = (
         f"File path: {row['file_path']}\n"
@@ -416,8 +445,6 @@ async def ensure_node_summary(node_id: str, force: bool = False) -> dict:
         "Summary:"
     )
 
-    summary_text = ""
-    source = "fallback"
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
             resp = await client.post(
@@ -438,21 +465,23 @@ async def ensure_node_summary(node_id: str, force: bool = False) -> dict:
             summary_text = (data.get("choices") or [{}])[0].get("message", {}).get(
                 "content", ""
             ).strip()
-            if summary_text:
-                source = "llm"
-        logger.info("summary_llm_ok", node_id=node_id, length=len(summary_text))
     except Exception as e:
         logger.warning("summary_llm_failed", node_id=node_id, error=str(e))
+        return {
+            "summary": "",
+            "cached": False,
+            "source": "llm_failed",
+            "chunk_count": len(chunk_rows),
+        }
 
     if not summary_text:
-        # Last-resort deterministic fallback so the UI still gets something.
-        summary_text = (
-            f"{row['name'] or row['file_path']} — {row['type'] or 'file'}"
-            + (f" ({row['language']})" if row["language"] else "")
-            + ". Indexed from "
-            + f"{row['file_path']}."
-        )
-        source = "fallback"
+        logger.warning("summary_llm_empty", node_id=node_id)
+        return {
+            "summary": "",
+            "cached": False,
+            "source": "llm_failed",
+            "chunk_count": len(chunk_rows),
+        }
 
     async with _pool.acquire() as conn:
         await conn.execute(
@@ -461,8 +490,13 @@ async def ensure_node_summary(node_id: str, force: bool = False) -> dict:
             node_id,
         )
 
-    logger.info("summary_persisted", node_id=node_id, source=source)
-    return {"summary": summary_text, "cached": False, "source": source}
+    logger.info("summary_persisted", node_id=node_id, chunks=len(chunk_rows))
+    return {
+        "summary": summary_text,
+        "cached": False,
+        "source": "llm",
+        "chunk_count": len(chunk_rows),
+    }
 
 
 async def purge_all() -> None:
