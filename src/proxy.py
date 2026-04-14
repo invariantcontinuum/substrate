@@ -26,6 +26,24 @@ async def close_client() -> None:
         logger.info("proxy_client_closed")
 
 
+# Headers that either describe the hop (so MUST NOT be forwarded per RFC 7230)
+# or that Starlette/uvicorn will re-emit on the outgoing response. Forwarding
+# them causes the downstream (nginx) to see duplicate `Date` / `Server` /
+# `Content-Length` headers and log warnings.
+_HOP_BY_HOP = {
+    "connection",
+    "keep-alive",
+    "proxy-authenticate",
+    "proxy-authorization",
+    "te",
+    "trailers",
+    "transfer-encoding",
+    "upgrade",
+}
+_SERVER_SET = {"date", "server", "content-length", "content-encoding"}
+_STRIP_FROM_UPSTREAM = _HOP_BY_HOP | _SERVER_SET
+
+
 async def proxy_request(request: Request, upstream_base: str) -> Response:
     if not _client:
         raise RuntimeError("Proxy client not initialized")
@@ -45,10 +63,14 @@ async def proxy_request(request: Request, upstream_base: str) -> Response:
         content=body,
     )
 
+    forwarded_headers = {
+        k: v for k, v in resp.headers.items() if k.lower() not in _STRIP_FROM_UPSTREAM
+    }
+
     return Response(
         content=resp.content,
         status_code=resp.status_code,
-        headers=dict(resp.headers),
+        headers=forwarded_headers,
     )
 
 
