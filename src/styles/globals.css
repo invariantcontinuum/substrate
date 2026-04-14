@@ -468,11 +468,15 @@ html, body, #root {
 
 .node-detail-neighbors {
   list-style: none;
-  padding: 0;
+  padding: 4px;
   margin: 0;
   display: flex;
   flex-direction: column;
   gap: 2px;
+  height: 220px;
+  overflow-y: auto;
+  border: 1px solid black;
+  background: white;
 }
 
 .node-detail-neighbor {
