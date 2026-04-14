@@ -10,11 +10,10 @@ export const queryClient = new QueryClient({
   },
 });
 
-const API_BASE = import.meta.env.VITE_API_URL || (
-  window.location.hostname === "localhost"
-    ? ""
-    : `${window.location.protocol}//substrate.${window.location.hostname.split(".").slice(-2).join(".")}`
-);
+// All API calls are relative — frontend nginx proxies /api, /jobs, /ingest,
+// /auth and /ws to the gateway. There is no public gateway domain, so the
+// browser only ever talks to the frontend host.
+const API_BASE = import.meta.env.VITE_API_URL || "";
 
 export async function apiFetch<T>(
   path: string,
