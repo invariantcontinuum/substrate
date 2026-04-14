@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useGraphStore } from "@/stores/graph";
 import { useUIStore } from "@/stores/ui";
 import { useResponsive } from "@/hooks/useResponsive";
@@ -7,10 +7,10 @@ import { SignalsOverlay } from "./SignalsOverlay";
 import { ViolationBadge } from "./ViolationBadge";
 import { DynamicLegend } from "./DynamicLegend";
 
-// Large force-directed layouts are O(n²) and freeze the browser.
-// Above this many nodes we switch to a cheap deterministic layout and
-// sample the graph so rendering stays responsive.
-const MAX_RENDERED_NODES = 400;
+// Above this many nodes we skip force-directed simulation (O(n²)) and
+// fall back to the deterministic `grid` layout. Cytoscape can render
+// thousands of nodes fine — the layout algorithm is what locks the
+// main thread.
 const FORCE_LAYOUT_MAX_NODES = 200;
 
 export function GraphCanvas() {
@@ -25,26 +25,12 @@ export function GraphCanvas() {
   const signals = useGraphStore((s) => s.signals);
   const layoutName = useGraphStore((s) => s.layoutName);
   const selectedNodeId = useGraphStore((s) => s.selectedNodeId);
-  const nodeSize = useGraphStore((s) => s.nodeSize);
   const setSelectedNodeId = useGraphStore((s) => s.setSelectedNodeId);
   const setZoom = useGraphStore((s) => s.setZoom);
   const setLayoutName = useGraphStore((s) => s.setLayoutName);
   const setPan = useGraphStore((s) => s.setPan);
 
   const openModal = useUIStore((s) => s.openModal);
-
-  // Sample/trim to a manageable size before layout.
-  const displayed = useMemo(() => {
-    if (nodes.length <= MAX_RENDERED_NODES) {
-      return { nodes, edges };
-    }
-    const kept = nodes.slice(0, MAX_RENDERED_NODES);
-    const keptIds = new Set(kept.map((n) => n.id));
-    const keptEdges = edges.filter((e) => keptIds.has(e.source) && keptIds.has(e.target));
-    return { nodes: kept, edges: keptEdges };
-  }, [nodes, edges]);
-
-  const tooLarge = nodes.length > MAX_RENDERED_NODES;
 
   /* init cytoscape */
   useEffect(() => {
@@ -58,15 +44,22 @@ export function GraphCanvas() {
           {
             selector: "node",
             style: {
-              width: nodeSize,
-              height: nodeSize,
+              shape: "rectangle",
+              // Auto-size each rectangle to fit the label text.
+              width: "label",
+              height: "label",
+              "padding-left": "8px",
+              "padding-right": "8px",
+              "padding-top": "6px",
+              "padding-bottom": "6px",
               "background-color": "#fff",
-              "border-width": 2,
+              "border-width": 1,
               "border-color": "#000",
               label: "data(label)",
               "font-size": 10,
               "text-valign": "center",
               "text-halign": "center",
+              "text-wrap": "none",
               color: "#000",
               "text-outline-width": 0,
             },
@@ -78,15 +71,13 @@ export function GraphCanvas() {
               "line-color": "#000",
               "target-arrow-color": "#000",
               "target-arrow-shape": "triangle",
-              "curve-style": "unbundled-bezier",
-              "control-point-distances": 24,
-              "control-point-weights": 0.5,
+              "curve-style": "straight",
             },
           },
           {
             selector: ":selected",
             style: {
-              "border-width": 4,
+              "border-width": 3,
               "border-color": "#000",
               "background-color": "#f0f0f0",
             },
@@ -98,6 +89,12 @@ export function GraphCanvas() {
         userPanningEnabled: true,
         userZoomingEnabled: true,
         autoungrabify: false,
+        // Performance tuning for large graphs (thousands of nodes):
+        // render a static texture while the user pans/zooms, and skip
+        // drawing edges during interaction.
+        textureOnViewport: true,
+        hideEdgesOnViewport: true,
+        pixelRatio: 1,
       });
 
       cy.on("tap", "node", (evt) => {
@@ -121,21 +118,39 @@ export function GraphCanvas() {
       cyRef.current?.destroy();
       cyRef.current = null;
     };
-  }, [nodeSize, setSelectedNodeId, setZoom, setPan, openModal]);
+  }, [setSelectedNodeId, setZoom, setPan, openModal]);
 
   /* update elements */
   useEffect(() => {
     if (!ready || !cyRef.current) return;
     const cy = cyRef.current;
-    cy.elements().remove();
-    if (displayed.nodes.length) cy.add(displayed.nodes.map((n) => ({ data: { ...n, id: n.id, label: n.label } })));
-    if (displayed.edges.length) cy.add(displayed.edges.map((e) => ({ data: { ...e, id: e.id, source: e.source, target: e.target, label: e.label } })));
+    cy.batch(() => {
+      cy.elements().remove();
+      if (nodes.length) {
+        cy.add(
+          nodes.map((n) => {
+            const label =
+              (n.label as string | undefined) ||
+              (n.name as string | undefined) ||
+              (n.id as string);
+            return { data: { ...n, id: n.id, label } };
+          })
+        );
+      }
+      if (edges.length) {
+        cy.add(
+          edges.map((e) => ({
+            data: { ...e, id: e.id, source: e.source, target: e.target, label: e.label },
+          }))
+        );
+      }
+    });
     // Pick a cheap, deterministic layout when the graph is large so we don't
     // lock the main thread on a force-directed simulation.
     const effectiveLayout =
-      displayed.nodes.length > FORCE_LAYOUT_MAX_NODES ? "grid" : (layoutName || "cose");
+      nodes.length > FORCE_LAYOUT_MAX_NODES ? "grid" : (layoutName || "cose");
     cy.layout({ name: effectiveLayout as any, padding: isMobile ? 24 : 48, animate: false, fit: true }).run();
-  }, [displayed, layoutName, ready, isMobile]);
+  }, [nodes, edges, layoutName, ready, isMobile]);
 
   // Zoom/pan flow one-way: cytoscape → store via the `zoom`/`pan` events
   // registered in init. We deliberately don't push store zoom back into
@@ -165,10 +180,8 @@ export function GraphCanvas() {
     });
   }, [signals]);
 
-  /* node size sync */
-  useEffect(() => {
-    cyRef.current?.style().selector("node").style("width", nodeSize).style("height", nodeSize).update();
-  }, [nodeSize]);
+  // Node size is driven by the label (shape: rectangle, width/height: "label")
+  // so there's nothing to sync here.
 
   /* keyboard shortcuts */
   useEffect(() => {
@@ -201,12 +214,6 @@ export function GraphCanvas() {
       <div className="graph-canvas-inner">
         <div ref={containerRef} className="graph-canvas-container" />
       </div>
-
-      {tooLarge && (
-        <div className="graph-truncation-notice">
-          Showing {displayed.nodes.length} of {nodes.length} nodes — filter to view the rest.
-        </div>
-      )}
 
       <div className="graph-overlay-group">
         <SignalsOverlay />

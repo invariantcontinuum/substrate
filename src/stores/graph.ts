@@ -190,13 +190,27 @@ export const useGraphStore = create<GraphState>((set) => ({
 
   fetchGraph: async (token) => {
     try {
-      const data = await apiFetch<{ nodes?: GraphNode[]; edges?: GraphEdge[] }>(
-        "/api/graph",
-        token
-      );
-      set({ nodes: data.nodes ?? [], edges: data.edges ?? [] });
+      const data = await apiFetch<{
+        nodes?: GraphNode[];
+        edges?: GraphEdge[];
+        meta?: { node_count?: number; edge_count?: number };
+      }>("/api/graph", token);
+      const nodes = data.nodes ?? [];
+      const edges = data.edges ?? [];
+      set({
+        nodes,
+        edges,
+        stats: {
+          nodeCount: data.meta?.node_count ?? nodes.length,
+          edgeCount: data.meta?.edge_count ?? edges.length,
+          violationCount: 0,
+          lastUpdated: new Date().toISOString(),
+        },
+        connectionStatus: "connected",
+      });
     } catch (err) {
       logger.warn("fetch_graph_failed", { error: String(err) });
+      set({ connectionStatus: "disconnected" });
     }
   },
 }));
