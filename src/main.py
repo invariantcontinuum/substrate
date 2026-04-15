@@ -2,7 +2,7 @@
 import structlog
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
-import asyncpg
+from fastapi.responses import JSONResponse
 
 from src.config import settings
 from src.db import close_pool
@@ -82,7 +82,7 @@ async def health():
 
 # --- Syncs (write side) ---
 
-@app.post("/api/syncs")
+@app.post("/api/syncs", status_code=202)
 async def create_sync(req: SyncRequest):
     from src.connectors.github import CONNECTORS
     pool = graph_writer.get_pool()
@@ -96,11 +96,30 @@ async def create_sync(req: SyncRequest):
             400, f"no connector registered for source_type={src_row['source_type']}")
     base = src_row["config"] if isinstance(src_row["config"], dict) else {}
     snapshot = {**base, **req.config_overrides}
-    try:
-        sid = await sync_runs.create_sync_run(req.source_id, snapshot, "user")
-    except asyncpg.UniqueViolationError:
-        raise HTTPException(409, "source already has an active sync")
-    return {"id": sid, "status": "pending"}
+    pool = graph_writer.get_pool()
+    async with pool.acquire() as conn:
+        sync_id, created = await sync_runs.ensure_active_sync(
+            conn,
+            source_id=req.source_id,
+            config_snapshot=snapshot,
+            triggered_by="user",
+        )
+    if created:
+        return {"sync_id": sync_id, "status": "pending"}
+    logger.info(
+        "api_sync_already_active",
+        source_id=req.source_id,
+        existing_sync_id=sync_id,
+    )
+    return JSONResponse(
+        status_code=409,
+        content={
+            "error": "sync_already_active",
+            "message": "A sync is already running or pending for this source.",
+            "sync_id": sync_id,
+            "status": "already_active",
+        },
+    )
 
 
 @app.post("/api/syncs/{sync_id}/cancel")
@@ -125,7 +144,7 @@ async def cancel_sync(sync_id: str):
     return {"status": "cancelled"}
 
 
-@app.post("/api/syncs/{sync_id}/retry")
+@app.post("/api/syncs/{sync_id}/retry", status_code=202)
 async def retry_sync(sync_id: str):
     pool = graph_writer.get_pool()
     async with pool.acquire() as conn:
@@ -135,12 +154,30 @@ async def retry_sync(sync_id: str):
     if not row:
         raise HTTPException(404, "sync_run not found")
     snapshot = row["config_snapshot"] if isinstance(row["config_snapshot"], dict) else {}
-    try:
-        new_id = await sync_runs.create_sync_run(
-            row["source_id"], snapshot, f"retry:{sync_id}")
-    except asyncpg.UniqueViolationError:
-        raise HTTPException(409, "source already has an active sync")
-    return {"id": new_id, "status": "pending"}
+    pool = graph_writer.get_pool()
+    async with pool.acquire() as conn:
+        new_id, created = await sync_runs.ensure_active_sync(
+            conn,
+            source_id=row["source_id"],
+            config_snapshot=snapshot,
+            triggered_by=f"retry:{sync_id}",
+        )
+    if created:
+        return {"sync_id": new_id, "status": "pending"}
+    logger.info(
+        "api_sync_already_active",
+        source_id=row["source_id"],
+        existing_sync_id=new_id,
+    )
+    return JSONResponse(
+        status_code=409,
+        content={
+            "error": "sync_already_active",
+            "message": "A sync is already running or pending for this source.",
+            "sync_id": new_id,
+            "status": "already_active",
+        },
+    )
 
 
 @app.post("/api/syncs/{sync_id}/clean")
