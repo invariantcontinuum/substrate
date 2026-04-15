@@ -41,7 +41,7 @@ export function SourcesModal() {
           onOpenSchedule={(id) => setScheduleDialogFor(id)}
           onOpenConfig={(id) => setConfigDialogFor(id)}
         />
-        <div className="sources-modal-body">
+        <div className={`sources-modal-body${activeSourceId ? " has-active-source" : ""}`}>
           <SourcesSidebar
             activeSourceId={activeSourceId}
             selectedSourceIds={selectedSourceIds}

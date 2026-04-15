@@ -1693,11 +1693,48 @@ html, body, #root {
   display: inline-flex; align-items: center; justify-content: center;
 }
 
-/* Mobile: navigate pattern */
+/* Mobile: navigate pattern.
+ * Uses a state-driven `.has-active-source` class (toggled from SourcesModal
+ * on activeSourceId change) rather than `:has(.source-detail-pane)` — Safari
+ * caches `:has()` results aggressively and doesn't always recompute when a
+ * descendant is mounted via React state, which caused the "snapshot menu
+ * doesn't appear until screen lock/unlock" bug on iPhone. */
 @media (max-width: 900px) {
   .sources-modal-body { flex-direction: column; }
   .sources-sidebar { width: 100%; min-width: 0; border-right: none; border-bottom: 1px solid var(--border-1); }
-  .sources-modal-body:has(.source-detail-pane) > .sources-sidebar { display: none; }
+  .sources-modal-body.has-active-source > .sources-sidebar { display: none; }
   .sources-modal-body > .sources-modal-detail { display: block; }
-  .sources-modal-body:not(:has(.source-detail-pane)) > .sources-modal-detail { display: none; }
+  .sources-modal-body:not(.has-active-source) > .sources-modal-detail { display: none; }
+}
+
+/* Mobile graph canvas: legend as horizontal scroll strip at top; toolbar bottom-right */
+@media (max-width: 900px) {
+  .graph-overlay-group {
+    top: var(--space-2);
+    left: var(--space-2);
+    right: var(--space-2);
+    bottom: auto;
+    flex-direction: row;
+    gap: var(--space-1);
+  }
+  .graph-overlay-group .dynamic-legend {
+    display: flex;
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    white-space: nowrap;
+    max-width: 100%;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    pointer-events: auto;
+  }
+  .graph-overlay-group .dynamic-legend-item {
+    flex-shrink: 0;
+  }
+  .graph-toolbar {
+    top: auto;
+    bottom: var(--space-3);
+    right: var(--space-3);
+    flex-direction: row;
+  }
 }
