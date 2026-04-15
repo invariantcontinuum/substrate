@@ -937,6 +937,20 @@ html, body, #root {
   z-index: 51;
 }
 
+/* The Close button is the last child of .dialog-content (rendered
+ * after the modal body) and was butting right up against whatever
+ * element ended the body — typically a form row or a list. Push it
+ * away with its own breathing room and a divider so it always reads
+ * as a separate action bar.
+ */
+.dialog-content > [data-slot="dialog-close"] {
+  display: flex;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid black;
+  align-self: flex-end;
+}
+
 .dialog-header {
   margin-bottom: 12px;
 }
