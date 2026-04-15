@@ -5,15 +5,9 @@ from src import graph_writer
 ISSUE_CAP = 1000
 
 
-def _pool():
-    if graph_writer._pool is None:
-        raise RuntimeError("graph_writer not connected")
-    return graph_writer._pool
-
-
 async def record_issue(sync_id: str, level: str, phase: str, code: str | None,
                         message: str, context: dict | None = None) -> None:
-    pool = _pool()
+    pool = graph_writer.get_pool()
     async with pool.acquire() as conn:
         existing = await conn.fetchval(
             "SELECT count(*) FROM sync_issues WHERE sync_id=$1::uuid", sync_id

@@ -42,6 +42,13 @@ async def connect(database_url: str) -> None:
     logger.info("graph_writer_connected")
 
 
+def get_pool():
+    """Return the active asyncpg pool. Raises RuntimeError if not connected."""
+    if _pool is None:
+        raise RuntimeError("graph_writer not connected")
+    return _pool
+
+
 async def disconnect() -> None:
     global _pool
     if _pool:

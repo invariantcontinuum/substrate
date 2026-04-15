@@ -3,14 +3,9 @@ from datetime import datetime, timedelta, timezone
 from src import graph_writer
 
 
-def _pool():
-    if graph_writer._pool is None:
-        raise RuntimeError("graph_writer not connected")
-    return graph_writer._pool
-
 
 async def list_schedules(source_id: str | None = None) -> list[dict]:
-    pool = _pool()
+    pool = graph_writer.get_pool()
     async with pool.acquire() as conn:
         if source_id:
             rows = await conn.fetch(
@@ -23,7 +18,7 @@ async def list_schedules(source_id: str | None = None) -> list[dict]:
 
 async def create_schedule(source_id: str, interval_minutes: int,
                            config_overrides: dict) -> dict:
-    pool = _pool()
+    pool = graph_writer.get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """INSERT INTO sync_schedules (source_id, interval_minutes, config_overrides, next_run_at)
@@ -39,7 +34,7 @@ async def create_schedule(source_id: str, interval_minutes: int,
 async def update_schedule(schedule_id: int, interval_minutes: int | None,
                            enabled: bool | None,
                            config_overrides: dict | None) -> dict | None:
-    pool = _pool()
+    pool = graph_writer.get_pool()
     sets, args = [], []
     if interval_minutes is not None:
         sets.append(f"interval_minutes=${len(args)+1}"); args.append(interval_minutes)
@@ -59,7 +54,7 @@ async def update_schedule(schedule_id: int, interval_minutes: int | None,
 
 
 async def delete_schedule(schedule_id: int) -> None:
-    pool = _pool()
+    pool = graph_writer.get_pool()
     async with pool.acquire() as conn:
         await conn.execute("DELETE FROM sync_schedules WHERE id=$1", schedule_id)
 
@@ -70,7 +65,7 @@ async def claim_due_schedules() -> list[dict]:
     Uses SELECT ... FOR UPDATE SKIP LOCKED inside a transaction so two
     scheduler workers can't double-claim the same row.
     """
-    pool = _pool()
+    pool = graph_writer.get_pool()
     now = datetime.now(timezone.utc)
     async with pool.acquire() as conn:
         async with conn.transaction():
