@@ -37,40 +37,29 @@ class FileMetadata(BaseModel):
     exports: list[str] = Field(default_factory=list)
 
 
-class JobSchedule(BaseModel):
-    id: int = 0
-    job_type: str = "sync"
-    owner: str = ""
-    repo: str = ""
-    interval_minutes: int = 60
-    enabled: bool = True
-    scope: dict = Field(default_factory=dict)
-    last_run: datetime | None = None
-    next_run: datetime | None = None
+class SourceRequest(BaseModel):
+    source_type: str = "github_repo"
+    owner: str
+    name: str
+    url: str
+    config: dict = Field(default_factory=dict)
 
 
-class JobRun(BaseModel):
-    id: str = ""
-    job_type: str
-    scope: dict = Field(default_factory=dict)
-    status: str = "pending"
-    progress_done: int = 0
-    progress_total: int = 0
-    error: str | None = None
-    started_at: datetime | None = None
-    completed_at: datetime | None = None
-
-
-class JobRequest(BaseModel):
-    job_type: str
-    scope: dict = Field(default_factory=dict)
+class SyncRequest(BaseModel):
+    source_id: str
+    config_overrides: dict = Field(default_factory=dict)
 
 
 class ScheduleRequest(BaseModel):
-    job_type: str = "sync"
-    repo_url: str = ""
-    interval_minutes: int = 60
-    scope: dict = Field(default_factory=dict)
+    source_id: str
+    interval_minutes: int
+    config_overrides: dict = Field(default_factory=dict)
+
+
+class ScheduleUpdateRequest(BaseModel):
+    interval_minutes: int | None = None
+    enabled: bool | None = None
+    config_overrides: dict | None = None
 
 
 _GITHUB_HTTPS_RE = _re.compile(r"https?://github\.com/([^/]+)/([^/.]+?)(?:\.git)?/?$")
