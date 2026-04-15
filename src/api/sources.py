@@ -1,4 +1,5 @@
 import base64
+import binascii
 import json
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
@@ -24,13 +25,18 @@ def _encode_cursor(updated_at: str, sid: str) -> str:
 
 
 def _decode_cursor(cur: str) -> tuple[str, str]:
-    parts = base64.b64decode(cur.encode()).decode().split("|", 1)
-    return parts[0], parts[1]
+    try:
+        parts = base64.b64decode(cur.encode()).decode().split("|", 1)
+        if len(parts) != 2:
+            raise ValueError("malformed cursor")
+        return parts[0], parts[1]
+    except (binascii.Error, UnicodeDecodeError, ValueError) as e:
+        raise HTTPException(400, f"invalid cursor: {e}")
 
 
 @router.get("")
 async def list_sources(limit: int = Query(25, le=100), cursor: str | None = None):
-    pool = store._pool
+    pool = store.get_pool()
     args = [limit + 1]
     where = ""
     if cursor:
@@ -57,7 +63,7 @@ async def list_sources(limit: int = Query(25, le=100), cursor: str | None = None
 
 @router.post("")
 async def create_source(req: SourceCreate):
-    pool = store._pool
+    pool = store.get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """INSERT INTO sources (source_type, owner, name, url, config)
@@ -72,7 +78,7 @@ async def create_source(req: SourceCreate):
 
 @router.get("/{source_id}")
 async def get_source(source_id: str):
-    pool = store._pool
+    pool = store.get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """SELECT id::text, source_type, owner, name, url, default_branch,
@@ -89,18 +95,22 @@ async def get_source(source_id: str):
 async def patch_source(source_id: str, req: SourcePatch):
     if req.config is None:
         raise HTTPException(400, "no fields to update")
-    pool = store._pool
+    pool = store.get_pool()
     async with pool.acquire() as conn:
-        await conn.execute(
+        result = await conn.execute(
             "UPDATE sources SET config=$2::jsonb, updated_at=now() WHERE id=$1::uuid",
             source_id, json.dumps(req.config),
         )
+    if result != "UPDATE 1":
+        raise HTTPException(404, "source not found")
     return {"status": "ok"}
 
 
 @router.delete("/{source_id}")
 async def delete_source(source_id: str):
-    pool = store._pool
+    pool = store.get_pool()
     async with pool.acquire() as conn:
-        await conn.execute("DELETE FROM sources WHERE id=$1::uuid", source_id)
+        result = await conn.execute("DELETE FROM sources WHERE id=$1::uuid", source_id)
+    if result != "DELETE 1":
+        raise HTTPException(404, "source not found")
     return {"status": "deleted"}

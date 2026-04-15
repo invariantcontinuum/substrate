@@ -1,5 +1,6 @@
 """Sync read endpoints. Write endpoints live in ingestion."""
 import base64
+import binascii
 from fastapi import APIRouter, HTTPException, Query
 from src.graph import store
 
@@ -11,14 +12,19 @@ def _encode_cursor(ts: str, sid: str) -> str:
 
 
 def _decode_cursor(cur: str) -> tuple[str, str]:
-    parts = base64.b64decode(cur.encode()).decode().split("|", 1)
-    return parts[0], parts[1]
+    try:
+        parts = base64.b64decode(cur.encode()).decode().split("|", 1)
+        if len(parts) != 2:
+            raise ValueError("malformed cursor")
+        return parts[0], parts[1]
+    except (binascii.Error, UnicodeDecodeError, ValueError) as e:
+        raise HTTPException(400, f"invalid cursor: {e}")
 
 
 @router.get("")
 async def list_syncs(source_id: str | None = None, status: str | None = None,
                      limit: int = Query(25, le=100), cursor: str | None = None):
-    pool = store._pool
+    pool = store.get_pool()
     where_parts, args = [], [limit + 1]
     if source_id:
         where_parts.append(f"source_id = ${len(args)+1}::uuid"); args.append(source_id)
@@ -54,7 +60,7 @@ async def list_syncs(source_id: str | None = None, status: str | None = None,
 
 @router.get("/{sync_id}")
 async def get_sync(sync_id: str):
-    pool = store._pool
+    pool = store.get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """SELECT id::text, source_id::text, status, ref, config_snapshot,
@@ -70,7 +76,7 @@ async def get_sync(sync_id: str):
 
 @router.get("/{sync_id}/issues")
 async def list_issues(sync_id: str, level: str | None = None, phase: str | None = None):
-    pool = store._pool
+    pool = store.get_pool()
     where_parts, args = ["sync_id=$1::uuid"], [sync_id]
     if level:
         where_parts.append(f"level=${len(args)+1}"); args.append(level)

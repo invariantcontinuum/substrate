@@ -26,7 +26,10 @@ async def get_graph(sync_ids: str = Query(..., description="Comma-separated acti
     ids = [s for s in sync_ids.split(",") if s]
     if not ids:
         raise HTTPException(400, "sync_ids required")
-    return await get_merged_graph(ids)
+    try:
+        return await get_merged_graph(ids)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
 
 
 @router.get("/nodes/{node_id:path}/summary")

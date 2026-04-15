@@ -7,7 +7,7 @@ router = APIRouter(prefix="/api/schedules")
 
 @router.get("")
 async def list_schedules(source_id: str | None = None):
-    pool = store._pool
+    pool = store.get_pool()
     async with pool.acquire() as conn:
         if source_id:
             rows = await conn.fetch(
