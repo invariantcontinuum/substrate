@@ -49,7 +49,19 @@ export function useJobs() {
     queryKey: ["jobs"],
     queryFn: () => apiFetch<JobRun[]>("/jobs", token),
     enabled: !!token,
-    refetchInterval: 5000,
+    // Adaptive polling: fast when a sync is in flight so the progress
+    // bar and "running → completed" detector feel responsive, slow
+    // otherwise so we don't hammer the gateway while the user is just
+    // browsing. Runs unconditionally as long as DashboardLayout is
+    // mounted (i.e., user is authenticated), independent of any modal
+    // being open.
+    refetchInterval: (query) => {
+      const rows = (query.state.data ?? []) as JobRun[];
+      const hasActive = rows.some(
+        (j) => j.status === "running" || j.status === "pending",
+      );
+      return hasActive ? 5_000 : 30_000;
+    },
   });
 
   // Watch the polled jobs for running→completed transitions and trigger
@@ -89,7 +101,10 @@ export function useJobs() {
     queryKey: ["schedules"],
     queryFn: () => apiFetch<Schedule[]>("/jobs/schedules", token),
     enabled: !!token,
-    refetchInterval: 30000,
+    // Schedules only change when the user edits them, so 60s idle
+    // polling is plenty; mutations (create/toggle/delete) already
+    // invalidate the query explicitly.
+    refetchInterval: 60_000,
   });
 
   const runJob = useMutation({
