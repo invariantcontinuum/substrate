@@ -232,6 +232,26 @@ export const darkStylesheet: cytoscape.StylesheetJsonBlock[] = [
       "border-color": "#ffffff",
     },
   },
+
+  // Compound parent node
+  {
+    selector: "node[?isSourceParent]",
+    style: {
+      "shape": "round-rectangle",
+      "background-opacity": 0,
+      "border-style": "dashed",
+      "border-width": 1,
+      "border-color": "rgba(153,178,221,0.35)",
+      "label": "data(label)",
+      "text-valign": "top",
+      "text-halign": "left",
+      "font-size": 10,
+      "color": "rgba(255,255,255,0.55)",
+      "text-margin-y": -4,
+      "padding": 24 as any,
+      "z-index": 0 as any,
+    },
+  },
 ];
 
 // ─── Light Stylesheet ───
@@ -464,6 +484,26 @@ export const lightStylesheet: cytoscape.StylesheetJsonBlock[] = [
     style: {
       "border-width": 3,
       "border-color": "#111827",
+    },
+  },
+
+  // Compound parent node
+  {
+    selector: "node[?isSourceParent]",
+    style: {
+      "shape": "round-rectangle",
+      "background-opacity": 0,
+      "border-style": "dashed",
+      "border-width": 1,
+      "border-color": "rgba(99,102,241,0.35)",
+      "label": "data(label)",
+      "text-valign": "top",
+      "text-halign": "left",
+      "font-size": 10,
+      "color": "rgba(0,0,0,0.55)",
+      "text-margin-y": -4,
+      "padding": 24 as any,
+      "z-index": 0 as any,
     },
   },
 ];
