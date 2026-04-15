@@ -4,6 +4,8 @@ import structlog
 
 logger = structlog.get_logger()
 
+CHUNK_SIZE = 500
+
 _pool: asyncpg.Pool | None = None
 
 async def _init_age(conn: asyncpg.Connection) -> None:
@@ -172,37 +174,79 @@ async def insert_chunks(file_id: str, sync_id: str, chunks: list[dict]) -> None:
 
 
 async def write_age_nodes(nodes: list[dict], sync_id: str, source_id: str) -> int:
-    """Each node dict needs: file_id, name, type, domain. sync_id/source_id stamped on every node. Returns number of nodes that failed to write."""
+    """Stamp sync_id+source_id on every node; batch writes via UNWIND with per-row fallback."""
     if not _pool:
         raise RuntimeError("graph_writer not connected")
     if not nodes:
         return 0
-    logger.info("age_nodes_write_start", count=len(nodes), sync_id=sync_id)
+    batch_count = (len(nodes) + CHUNK_SIZE - 1) // CHUNK_SIZE
+    logger.info("age_nodes_write_start", count=len(nodes),
+                sync_id=sync_id, batch_count=batch_count)
     start = time.monotonic()
     failed = 0
     sync_id_esc = _escape_cypher(sync_id)
     source_id_esc = _escape_cypher(source_id)
+
     async with _pool.acquire() as conn:
-        for node in nodes:
-            file_id = _escape_cypher(node["file_id"])
-            name = _escape_cypher(node["name"])
-            node_type = _escape_cypher(node["type"])
-            domain = _escape_cypher(node.get("domain", ""))
-            cypher = (
-                f"CREATE (n:File {{file_id: '{file_id}', sync_id: '{sync_id_esc}', "
-                f"source_id: '{source_id_esc}', name: '{name}', type: '{node_type}', "
-                f"domain: '{domain}'}})"
-            )
+        for i in range(0, len(nodes), CHUNK_SIZE):
+            chunk = nodes[i : i + CHUNK_SIZE]
             try:
-                await conn.execute(
-                    f"SELECT * FROM cypher('substrate', $$ {cypher} $$) AS (v agtype)"
-                )
+                await _write_age_nodes_chunk(conn, chunk, sync_id_esc, source_id_esc)
             except Exception as e:
-                failed += 1
-                logger.warning("age_node_write_failed", file_id=node["file_id"], error=str(e))
+                logger.warning("age_nodes_chunk_failed_fallback",
+                               chunk_index=i // CHUNK_SIZE, chunk_size=len(chunk),
+                               error=str(e))
+                failed += await _write_age_nodes_per_row(
+                    conn, chunk, sync_id_esc, source_id_esc
+                )
+
     elapsed = time.monotonic() - start
     logger.info("age_nodes_written", count=len(nodes), failed=failed,
                 duration_ms=round(elapsed * 1000))
+    return failed
+
+
+async def _write_age_nodes_chunk(conn, chunk, sync_id_esc, source_id_esc):
+    rows_lit = ", ".join(
+        "{{file_id: '{fid}', name: '{name}', type: '{tp}', domain: '{dom}'}}".format(
+            fid=_escape_cypher(n["file_id"]),
+            name=_escape_cypher(n["name"]),
+            tp=_escape_cypher(n["type"]),
+            dom=_escape_cypher(n.get("domain", "")),
+        )
+        for n in chunk
+    )
+    cypher = (
+        f"UNWIND [{rows_lit}] AS r "
+        f"CREATE (:File {{file_id: r.file_id, sync_id: '{sync_id_esc}', "
+        f"source_id: '{source_id_esc}', name: r.name, type: r.type, domain: r.domain}})"
+    )
+    await conn.execute(
+        f"SELECT * FROM cypher('substrate', $$ {cypher} $$) AS (v agtype)"
+    )
+
+
+async def _write_age_nodes_per_row(conn, chunk, sync_id_esc, source_id_esc):
+    """Fallback: mirrors the original per-row path, scoped to a single failing chunk."""
+    failed = 0
+    for node in chunk:
+        file_id = _escape_cypher(node["file_id"])
+        name = _escape_cypher(node["name"])
+        node_type = _escape_cypher(node["type"])
+        domain = _escape_cypher(node.get("domain", ""))
+        cypher = (
+            f"CREATE (n:File {{file_id: '{file_id}', sync_id: '{sync_id_esc}', "
+            f"source_id: '{source_id_esc}', name: '{name}', type: '{node_type}', "
+            f"domain: '{domain}'}})"
+        )
+        try:
+            await conn.execute(
+                f"SELECT * FROM cypher('substrate', $$ {cypher} $$) AS (v agtype)"
+            )
+        except Exception as e:
+            failed += 1
+            logger.warning("age_node_write_failed",
+                           file_id=node["file_id"], error=str(e))
     return failed
 
 
@@ -230,31 +274,73 @@ async def write_age_edges(edges: list[dict], sync_id: str, source_id: str) -> in
         raise RuntimeError("graph_writer not connected")
     if not edges:
         return 0
-    logger.info("age_edges_write_start", count=len(edges), sync_id=sync_id)
+    batch_count = (len(edges) + CHUNK_SIZE - 1) // CHUNK_SIZE
+    logger.info("age_edges_write_start", count=len(edges),
+                sync_id=sync_id, batch_count=batch_count)
     start = time.monotonic()
     failed = 0
     sync_id_esc = _escape_cypher(sync_id)
     source_id_esc = _escape_cypher(source_id)
+
     async with _pool.acquire() as conn:
-        for edge in edges:
-            src = _escape_cypher(edge["source_id"])
-            tgt = _escape_cypher(edge["target_id"])
-            weight = edge.get("weight", 1.0)
-            cypher = (
-                f"MATCH (a:File {{file_id: '{src}', sync_id: '{sync_id_esc}'}}), "
-                f"(b:File {{file_id: '{tgt}', sync_id: '{sync_id_esc}'}}) "
-                f"CREATE (a)-[r:DEPENDS_ON {{sync_id: '{sync_id_esc}', "
-                f"source_id: '{source_id_esc}', weight: {weight}}}]->(b)"
-            )
+        for i in range(0, len(edges), CHUNK_SIZE):
+            chunk = edges[i : i + CHUNK_SIZE]
             try:
-                await conn.execute(
-                    f"SELECT * FROM cypher('substrate', $$ {cypher} $$) AS (v agtype)"
-                )
+                await _write_age_edges_chunk(conn, chunk, sync_id_esc, source_id_esc)
             except Exception as e:
-                failed += 1
-                logger.warning("age_edge_write_failed", source=edge["source_id"],
-                               target=edge["target_id"], error=str(e))
+                logger.warning("age_edges_chunk_failed_fallback",
+                               chunk_index=i // CHUNK_SIZE, chunk_size=len(chunk),
+                               error=str(e))
+                failed += await _write_age_edges_per_row(
+                    conn, chunk, sync_id_esc, source_id_esc
+                )
+
     elapsed = time.monotonic() - start
     logger.info("age_edges_written", count=len(edges), failed=failed,
                 duration_ms=round(elapsed * 1000))
+    return failed
+
+
+async def _write_age_edges_chunk(conn, chunk, sync_id_esc, source_id_esc):
+    rows_lit = ", ".join(
+        "{{src: '{src}', tgt: '{tgt}', weight: {w}}}".format(
+            src=_escape_cypher(e["source_id"]),
+            tgt=_escape_cypher(e["target_id"]),
+            w=float(e.get("weight", 1.0)),
+        )
+        for e in chunk
+    )
+    cypher = (
+        f"UNWIND [{rows_lit}] AS r "
+        f"MATCH (a:File {{file_id: r.src, sync_id: '{sync_id_esc}'}}), "
+        f"(b:File {{file_id: r.tgt, sync_id: '{sync_id_esc}'}}) "
+        f"CREATE (a)-[:DEPENDS_ON {{sync_id: '{sync_id_esc}', "
+        f"source_id: '{source_id_esc}', weight: r.weight}}]->(b)"
+    )
+    await conn.execute(
+        f"SELECT * FROM cypher('substrate', $$ {cypher} $$) AS (v agtype)"
+    )
+
+
+async def _write_age_edges_per_row(conn, chunk, sync_id_esc, source_id_esc):
+    failed = 0
+    for edge in chunk:
+        src = _escape_cypher(edge["source_id"])
+        tgt = _escape_cypher(edge["target_id"])
+        weight = float(edge.get("weight", 1.0))
+        cypher = (
+            f"MATCH (a:File {{file_id: '{src}', sync_id: '{sync_id_esc}'}}), "
+            f"(b:File {{file_id: '{tgt}', sync_id: '{sync_id_esc}'}}) "
+            f"CREATE (a)-[r:DEPENDS_ON {{sync_id: '{sync_id_esc}', "
+            f"source_id: '{source_id_esc}', weight: {weight}}}]->(b)"
+        )
+        try:
+            await conn.execute(
+                f"SELECT * FROM cypher('substrate', $$ {cypher} $$) AS (v agtype)"
+            )
+        except Exception as e:
+            failed += 1
+            logger.warning("age_edge_write_failed",
+                           source=edge["source_id"], target=edge["target_id"],
+                           error=str(e))
     return failed
