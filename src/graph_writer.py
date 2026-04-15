@@ -112,8 +112,7 @@ async def update_file_embedding(file_id: str, embedding: list[float]) -> None:
         raise RuntimeError("graph_writer not connected")
     async with _pool.acquire() as conn:
         await conn.execute(
-            "UPDATE file_embeddings SET embedding = $2::vector, updated_at = now() "
-            "WHERE id = $1::uuid",
+            "UPDATE file_embeddings SET embedding = $2::vector WHERE id = $1::uuid",
             file_id, str(embedding),
         )
 
