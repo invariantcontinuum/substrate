@@ -73,4 +73,8 @@ async def stop_runner() -> None:
             )
         except asyncio.TimeoutError:
             logger.warning("runner_in_flight_timeout", remaining=len(_in_flight))
+            for task in list(_in_flight):
+                task.cancel()
+            # Give cancellations a moment to propagate; ignore exceptions
+            await asyncio.gather(*_in_flight, return_exceptions=True)
     logger.info("runner_stopped")
