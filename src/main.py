@@ -30,6 +30,11 @@ app.include_router(router)
 from src.api.sources import router as sources_router
 app.include_router(sources_router)
 
+from src.api.syncs import router as syncs_router
+from src.api.schedules import router as schedules_router
+app.include_router(syncs_router)
+app.include_router(schedules_router)
+
 
 @app.get("/health")
 async def health():
