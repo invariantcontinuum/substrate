@@ -8,16 +8,10 @@ pytestmark = pytest.mark.asyncio(loop_scope="session")
 
 
 @pytest_asyncio.fixture(scope="session", autouse=True)
-async def setup(graph_pool):
-    """Connect graph_writer to the real pool for the duration of the test session.
-
-    Mirrors the pattern used by test_cleanup.py, test_sync_runs.py, and
-    test_sync_issues.py: call graph_writer.connect() inside a session-scoped
-    fixture so the pool lives in the session event loop (the same loop used by
-    asyncio_mode=auto + loop_scope="session" tests). Borrowing the conftest
-    graph_pool object directly causes "Future attached to a different loop"
-    because the pool was created before the session loop was fully established.
-    """
+async def writer_connected():
+    """Session-scoped because pytest-asyncio 1.3.0's default function-scoped event loop
+    conflicts with the session-scoped graph_pool fixture; use a standalone pool via
+    graph_writer.connect() and tear it down at session end."""
     if graph_writer._pool is None:
         from tests.conftest import graph_dsn
         await graph_writer.connect(graph_dsn())
