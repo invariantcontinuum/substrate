@@ -10,8 +10,7 @@ import os as _os
 _LOG_LEVEL = getattr(_logging, _os.environ.get("LOG_LEVEL", "INFO").upper(), _logging.INFO)
 structlog.configure(
     processors=[
-        structlog.stdlib.add_log_level,
-        structlog.stdlib.filter_by_level,
+        structlog.processors.add_log_level,
         structlog.processors.TimeStamper(fmt="iso"),
         structlog.processors.JSONRenderer(),
     ],
