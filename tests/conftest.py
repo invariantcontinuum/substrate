@@ -6,7 +6,7 @@ import pytest_asyncio
 def _dsn() -> str:
     url = os.environ.get(
         "GRAPH_DATABASE_URL",
-        "postgresql://substrate:substrate@localhost:5432/substrate_graph",
+        "postgresql://substrate_graph:changeme@localhost:5432/substrate_graph",
     )
     return url.replace("postgresql+asyncpg://", "postgresql://")
 
