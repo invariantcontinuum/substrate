@@ -165,14 +165,17 @@ async def insert_chunks(file_id: str, sync_id: str, chunks: list[dict]) -> None:
                 )
 
 
-async def write_age_nodes(nodes: list[dict]) -> None:
+async def write_age_nodes(nodes: list[dict], sync_id: str, source_id: str) -> None:
+    """Each node dict needs: file_id, name, type, domain. sync_id/source_id stamped on every node."""
     if not _pool:
         raise RuntimeError("graph_writer not connected")
     if not nodes:
         return
-    logger.info("age_nodes_write_start", count=len(nodes))
+    logger.info("age_nodes_write_start", count=len(nodes), sync_id=sync_id)
     start = time.monotonic()
     failed = 0
+    sync_id_esc = _escape_cypher(sync_id)
+    source_id_esc = _escape_cypher(source_id)
     async with _pool.acquire() as conn:
         for node in nodes:
             file_id = _escape_cypher(node["file_id"])
@@ -180,8 +183,9 @@ async def write_age_nodes(nodes: list[dict]) -> None:
             node_type = _escape_cypher(node["type"])
             domain = _escape_cypher(node.get("domain", ""))
             cypher = (
-                f"MERGE (n:File {{file_id: '{file_id}'}}) "
-                f"SET n.name = '{name}', n.type = '{node_type}', n.domain = '{domain}'"
+                f"CREATE (n:File {{file_id: '{file_id}', sync_id: '{sync_id_esc}', "
+                f"source_id: '{source_id_esc}', name: '{name}', type: '{node_type}', "
+                f"domain: '{domain}'}})"
             )
             try:
                 await conn.execute(
@@ -213,23 +217,27 @@ async def cleanup_partial(sync_id: str) -> None:
         await conn.execute("DELETE FROM file_embeddings WHERE sync_id = $1::uuid", sync_id)
 
 
-async def write_age_edges(edges: list[dict]) -> None:
+async def write_age_edges(edges: list[dict], sync_id: str, source_id: str) -> None:
+    """Each edge dict needs: source_id (file_id), target_id (file_id), weight."""
     if not _pool:
         raise RuntimeError("graph_writer not connected")
     if not edges:
         return
-    logger.info("age_edges_write_start", count=len(edges))
+    logger.info("age_edges_write_start", count=len(edges), sync_id=sync_id)
     start = time.monotonic()
     failed = 0
+    sync_id_esc = _escape_cypher(sync_id)
+    source_id_esc = _escape_cypher(source_id)
     async with _pool.acquire() as conn:
         for edge in edges:
             src = _escape_cypher(edge["source_id"])
             tgt = _escape_cypher(edge["target_id"])
             weight = edge.get("weight", 1.0)
             cypher = (
-                f"MATCH (a:File {{file_id: '{src}'}}), (b:File {{file_id: '{tgt}'}}) "
-                f"MERGE (a)-[r:DEPENDS_ON]->(b) "
-                f"SET r.weight = {weight}"
+                f"MATCH (a:File {{file_id: '{src}', sync_id: '{sync_id_esc}'}}), "
+                f"(b:File {{file_id: '{tgt}', sync_id: '{sync_id_esc}'}}) "
+                f"CREATE (a)-[r:DEPENDS_ON {{sync_id: '{sync_id_esc}', "
+                f"source_id: '{source_id_esc}', weight: {weight}}}]->(b)"
             )
             try:
                 await conn.execute(
@@ -237,7 +245,8 @@ async def write_age_edges(edges: list[dict]) -> None:
                 )
             except Exception as e:
                 failed += 1
-                logger.warning("age_edge_write_failed", source=edge["source_id"], target=edge["target_id"], error=str(e))
+                logger.warning("age_edge_write_failed", source=edge["source_id"],
+                               target=edge["target_id"], error=str(e))
     elapsed = time.monotonic() - start
     logger.info("age_edges_written", count=len(edges), failed=failed,
                 duration_ms=round(elapsed * 1000))
