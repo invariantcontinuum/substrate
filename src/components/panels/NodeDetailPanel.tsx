@@ -64,6 +64,7 @@ export function NodeDetailPanel() {
         latest_sync_id?: string;
         divergent?: boolean;
         label?: string;
+        source_id?: string;
       })
     | undefined;
 
