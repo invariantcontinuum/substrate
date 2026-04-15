@@ -122,17 +122,24 @@ All modals are routed through `ModalRoot.tsx`, which mounts **only the active mo
 
 **File:** `components/modals/ModalRoot.tsx`
 
-Maps `activeModal` (`ModalName`) to the correct component. Renders nothing when no modal is open.
+Maps `activeModal` (`ModalName`) to the correct component. Renders nothing when no modal is open. Explicitly ignores `nodeDetail` because `GraphPage` mounts `NodeDetailPanel` directly.
 
 ```typescript
 type ModalName =
-  | 'graph'
   | 'sources'
   | 'enrichment'
   | 'search'
+  | 'graph'
   | 'user'
-  | 'comingSoon';
+  | 'policies'
+  | 'adrs'
+  | 'drift'
+  | 'query'
+  | 'nodeDetail'
+  | null;
 ```
+
+**Note:** `nodeDetail` is **not** rendered by `ModalRoot`; `GraphPage` handles it inline as a slide-over panel.
 
 ---
 
@@ -184,6 +191,16 @@ Graph configuration modal. Currently exposes Leiden community-detection tuning.
 **File:** `components/modals/EnrichmentModal.tsx`
 
 Placeholder explaining that enrichment now runs inline during sync.
+
+---
+
+## Inline Notices
+
+### `SyncAlreadyActiveNotice`
+
+**File:** `components/SyncAlreadyActiveNotice.tsx`
+
+Inline banner shown when a 409 `sync_already_active` response is returned. Includes an optional "View it" button to jump to the running sync.
 
 ---
 

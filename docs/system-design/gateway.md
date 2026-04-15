@@ -86,16 +86,18 @@ The Gateway validates the token on the upgrade request, then proxies the raw Web
 
 ### Smart Routing to Ingestion
 
-Write requests to `/api/syncs*` and `/api/schedules*` are routed to the **ingestion service**; everything else (including all `GET`s) goes to the **graph service**.
+Write requests to `/api/syncs*` and `/api/schedules*` are selectively routed to the **ingestion service**; everything else (including all `GET`s) goes to the **graph service**.
 
 | Route | Methods | Destination | Description |
 |-------|---------|-------------|-------------|
 | `GET /health` | GET | Gateway | Liveness check |
-| `/api/*` | All | Graph Service | Read operations + non-sync writes |
-| `/api/syncs*` | POST, PUT, DELETE, PATCH | Ingestion Service | Sync lifecycle commands |
-| `/api/schedules*` | POST, PUT, DELETE, PATCH | Ingestion Service | Schedule commands |
-| `/ingest/*` | All | Ingestion Service | Direct ingestion proxy |
-| `/auth/*` | All | Keycloak | OIDC endpoints proxy |
+| `/api/*` | GET, POST, PUT, DELETE, PATCH | Graph Service | Read operations + non-sync writes |
+| `/api/syncs*` | POST, DELETE | Ingestion Service | Sync lifecycle commands |
+| `/api/syncs*` | PUT, PATCH | Graph Service | Sync updates (read proxy) |
+| `/api/schedules*` | POST, PATCH, DELETE | Ingestion Service | Schedule commands |
+| `/api/schedules*` | PUT | Graph Service | Schedule updates (read proxy) |
+| `/ingest/*` | GET, POST, PUT, DELETE, PATCH | Ingestion Service | Direct ingestion proxy |
+| `/auth/*` | GET, POST, PUT, DELETE, PATCH | Keycloak | OIDC endpoints proxy |
 | `/ws/*` | WebSocket | Graph Service | WebSocket proxy |
 
 ---
@@ -145,9 +147,9 @@ KEYCLOAK_REALM = "substrate"
 GRAPH_SERVICE_URL = "http://substrate-graph:8082"
 INGESTION_SERVICE_URL = "http://substrate-ingestion:8081"
 
-# JWT settings
-JWT_ALGORITHM = "RS256"
-JWKS_CACHE_TTL = 300  # seconds
+# JWT settings (hardcoded)
+JWT_ALGORITHM = "RS256"      # algorithms=["RS256"] in auth.py
+JWKS_CACHE_TTL = 300         # JWKS_TTL_SECONDS = 300 in auth.py
 ```
 
 ---
@@ -214,7 +216,10 @@ CMD ["uv", "run", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "808
 
 ### Metrics
 
-- Request count by endpoint (via structured logs)
-- Response time (via structured logs)
-- JWKS cache hit rate
-- Upstream error rate
+Structured logs include:
+- `gateway_started` / `gateway_stopped` lifecycle events
+- `auth_failed` warnings
+- `upstream_error` warnings on proxy failures
+- `jwks_refreshed` when the JWKS cache is updated
+
+Per-request metrics (request count, response time, JWKS cache hit rate) are **not** currently emitted.

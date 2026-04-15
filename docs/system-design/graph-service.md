@@ -106,7 +106,7 @@ The database access layer.
 - **AGE initialization**: On every new connection, runs `LOAD 'age'` and sets `search_path = ag_catalog,public`
 - **Dataclasses**: `GraphNode`, `GraphEdge`, `GraphSnapshot`
 - **Cytoscape helpers**: Converts dataclasses to frontend-friendly `{"data": {...}}` format
-- **`get_stats()`**: Counts nodes by type and total edges via AGE
+- **`get_stats()`**: Counts `nodes_by_type` and `total_nodes` from the relational `file_embeddings` table; only `total_edges` is queried from AGE
 - **`search()`**: Vector similarity using `<=>` (cosine distance) on `file_embeddings.embedding`
 - **`ensure_node_summary()`**: The LLM summary pipeline — validates node, returns cached summary if present, fetches chunks, calls local dense LLM, persists result
 
@@ -162,7 +162,7 @@ The Graph Service uses **Apache AGE** (a PostgreSQL extension) rather than stand
 - **`:File`** with properties: `file_id`, `sync_id`, `source_id`, `name`, `type`, `domain`
 
 ### Relationship Type
-- **`depends_on`** with properties: `sync_id`, `source_id`, `weight`
+- **`depends_on`** is the canonical label used in the frontend response, but the underlying AGE edges can carry any label. `get_node_detail()` returns the actual `label(r)`, while the merged-graph snapshot query matches all outgoing relationships (`-[r]->`) and hardcodes `"depends_on"` in the serialized edge data.
 
 ### Cypher Execution
 
@@ -202,13 +202,14 @@ Example response node:
 
 | Setting | Default | Purpose |
 |---------|---------|---------|
-| `DATABASE_URL` | `postgresql+asyncpg://substrate_graph:changeme@local-postgres:5432/substrate_graph` | Postgres connection |
+| `DATABASE_URL` | `postgresql+asyncpg://substrate_graph:changeme@localhost:5432/substrate_graph` | Postgres connection |
 | `EMBEDDING_URL` | `http://localhost:8101/v1/embeddings` | Embedding service endpoint |
 | `EMBEDDING_MODEL` | `embeddinggemma-300M-Q8_0.gguf` | Model name for embedding service |
 | `DENSE_LLM_URL` | `http://localhost:8102/v1/chat/completions` | Dense LLM endpoint for summaries |
 | `DENSE_LLM_MODEL` | `qwen2.5-7b-instruct` | Model name for summaries |
 | `SUMMARY_MAX_TOKENS` | `160` | Max tokens for summary output |
 | `SUMMARY_CHUNK_SAMPLE_CHARS` | `4000` | Characters of chunk content to feed LLM |
+| `LOG_LEVEL` | `INFO` | Structlog filter level |
 | `APP_PORT` | `8082` | Service port |
 
 ---

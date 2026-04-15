@@ -211,7 +211,7 @@ Cancellation is checked every 50 files. On cancellation, partial data is cleaned
 
 - Talks to local llama-cpp at `settings.embedding_url`
 - **Truncation**: Inputs truncated to 6,000 characters before sending
-- **Batch embedding**: Sends up to 32 texts at a time
+- **Batch embedding**: The sync orchestrator (`jobs/sync.py`) batches up to 32 texts (`EMBED_BATCH_SIZE = 32`) before calling `llm.embed_batch()`
 - **Recursive bisect on 400**: If a batch gets HTTP 400, splits in half and retries each half
 
 ---
@@ -221,17 +221,14 @@ Cancellation is checked every 50 files. On cancellation, partial data is cleaned
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/health` | GET | Health check |
-| `/api/syncs` | GET | List sync runs |
 | `/api/syncs` | POST | Create new sync |
-| `/api/syncs/{sync_id}` | GET | Get sync run |
 | `/api/syncs/{sync_id}/cancel` | POST | Cancel sync |
 | `/api/syncs/{sync_id}/retry` | POST | Retry failed sync |
-| `/api/syncs/{sync_id}/clean` | POST | Clean completed/failed sync |
-| `/api/syncs/{sync_id}/purge` | DELETE | Purge sync and all data |
-| `/api/schedules` | GET | List schedules |
+| `/api/syncs/{sync_id}/clean` | POST | Clean completed/failed/cancelled sync |
+| `/api/syncs/{sync_id}` | DELETE | Purge sync and all data |
 | `/api/schedules` | POST | Create schedule |
+| `/api/schedules/{schedule_id}` | PATCH | Update schedule (interval, enabled, overrides) |
 | `/api/schedules/{schedule_id}` | DELETE | Delete schedule |
-| `/api/schedules/{schedule_id}/toggle` | POST | Toggle enabled state |
 
 ---
 
@@ -247,6 +244,7 @@ Cancellation is checked every 50 files. On cancellation, partial data is cleaned
 | `embedding_model` | `Qwen3-Embedding-0.6B-Q8_0.gguf` | Model name |
 | `embedding_dim` | `1024` | Must match served model |
 | `chunk_size` | `512` | Target tokens per chunk |
+| `log_level` | `INFO` | Structlog filter level |
 | `chunk_overlap` | `64` | Tokens to overlap |
 
 ---

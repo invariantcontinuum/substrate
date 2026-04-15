@@ -71,7 +71,6 @@ frontend/src/
 │   ├── graph/
 │   │   ├── GraphCanvas.tsx         # Main graph container + Cytoscape init
 │   │   ├── FilterPanel.tsx         # Node/layer filters (not currently mounted)
-│   │   ├── NodeDetailPanel.tsx     # Selected node details (slide-over)
 │   │   ├── SignalsOverlay.tsx      # Live signal feed
 │   │   ├── DynamicLegend.tsx       # Interactive type legend
 │   │   └── ViolationBadge.tsx      # Violation indicator
@@ -141,24 +140,26 @@ frontend/src/
 ## Component Hierarchy
 
 ```
-App
-├── AuthProvider (react-oidc-context)
-├── QueryClientProvider (TanStack Query)
-└── Routes
-    └── /callback -> CallbackPage
-    └── / -> RequireAuth -> DashboardLayout
-         ├── TopBar
-         ├── Sidebar (desktop)
-         ├── MobileNav (mobile)
-         ├── ModalRoot (active modal only)
-         ├── SwapToast (auto-swap notification)
-         └── Outlet -> GraphPage
-              ├── GraphCanvas
-              │    ├── Cytoscape instance
-              │    ├── DynamicLegend
-              │    ├── SignalsOverlay
-              │    └── ViolationBadge
-              └── NodeDetailPanel (when node selected)
+main.tsx
+└── AuthProvider (react-oidc-context)
+    └── QueryClientProvider (TanStack Query)
+        └── BrowserRouter
+            └── App
+                └── Routes
+                    └── /callback -> CallbackPage
+                    └── / -> RequireAuth -> DashboardLayout
+                         ├── TopBar
+                         ├── Sidebar (desktop)
+                         ├── MobileNav (mobile)
+                         ├── ModalRoot (active modal only)
+                         ├── SwapToast (auto-swap notification)
+                         └── Outlet -> GraphPage
+                              ├── GraphCanvas
+                              │    ├── Cytoscape instance
+                              │    ├── DynamicLegend
+                              │    ├── SignalsOverlay
+                              │    └── ViolationBadge
+                              └── NodeDetailPanel (when node selected)
 ```
 
 ---
@@ -181,6 +182,7 @@ interface GraphState {
   selectedNodeId: string | null;
   selectedNodeData: Record<string, unknown> | null;
   selectNode: (id: string | null, data?: Record<string, unknown>) => void;
+  setSelectedNodeId: (id: string | null) => void;
 
   // Filters
   filters: { types: Set<string>; layers: string[] };
@@ -203,15 +205,18 @@ interface GraphState {
   setNodeSize: (size: number) => void;
 
   // Stats / status
-  nodeCount: number;
-  edgeCount: number;
-  violationCount: number;
-  lastUpdated: number;
-  lastLoadMs: number;
-  lastServerMs: number;
+  stats: GraphStats; // { nodeCount, edgeCount, violationCount, lastUpdated: string }
+  setStats: (stats: GraphStats) => void;
   connectionStatus: 'connected' | 'disconnected' | 'reconnecting';
+  setConnectionStatus: (status: 'connected' | 'disconnected' | 'reconnecting') => void;
+  searchQuery: string;
+  setSearchQuery: (query: string) => void;
   syncStatus: 'idle' | 'syncing' | 'error';
+  setSyncStatus: (status: 'idle' | 'syncing' | 'error') => void;
   syncProgress: { done: number; total: number } | null;
+  setSyncProgress: (progress: { done: number; total: number } | null) => void;
+  lastLoadMs: number | null;
+  lastServerMs: number | null;
 
   // Canvas lifecycle
   canvasCleared: boolean;
@@ -336,7 +341,7 @@ Zoom/pan events in Cytoscape write *to* the Zustand store, but the store never w
 | Hook | Purpose |
 |------|---------|
 | `useSources` | Query `/api/sources`, mutate `createSource` / `purgeSource` |
-| `useSyncs` | **Central poller** — queries active syncs every 5s when running, 30s otherwise. Detects completions and triggers auto-swap. |
+| `useSyncs` | **Central poller** — queries active syncs every 5s when running, 30s otherwise. Detects completions and triggers auto-swap. Also exposes `startSync`, `cancelSync`, `retrySync`, `cleanSync`, and `purgeSync` mutations. |
 | `useSourceSyncs` | Infinite query for a source's sync history (`/api/syncs?source_id=...`) |
 | `useSyncIssues` | Fetches issues for a sync (`/api/syncs/{id}/issues`) |
 | `useSchedules` | Queries and mutates sync schedules |
@@ -360,6 +365,7 @@ Zoom/pan events in Cytoscape write *to* the Zustand store, but the store never w
 | `adrs` | Coming soon — ADR / WHY layer |
 | `drift` | Coming soon — drift detection |
 | `query` | Coming soon — natural language query |
+| `nodeDetail` | **Not mounted in `ModalRoot`** — handled inline by `GraphPage` as a slide-over panel |
 
 ---
 
