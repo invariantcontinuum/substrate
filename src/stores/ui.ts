@@ -26,6 +26,8 @@ interface UIState {
   setSidebarOpen: (open: boolean) => void;
   defaultRepoUrl: string | null;
   setDefaultRepoUrl: (url: string | null) => void;
+  sourcesModalTarget: { sourceId: string; expandSyncId: string | null } | null;
+  setSourcesModalTarget: (target: { sourceId: string; expandSyncId: string | null } | null) => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -37,4 +39,6 @@ export const useUIStore = create<UIState>((set) => ({
   setSidebarOpen: (sidebarOpen) => set({ sidebarOpen }),
   defaultRepoUrl: null,
   setDefaultRepoUrl: (defaultRepoUrl) => set({ defaultRepoUrl }),
+  sourcesModalTarget: null,
+  setSourcesModalTarget: (sourcesModalTarget) => set({ sourcesModalTarget }),
 }));
