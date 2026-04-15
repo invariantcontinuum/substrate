@@ -59,3 +59,30 @@ async def test_cleanup_partial_removes_all_traces():
         cnt_int = int(json.loads(str(cnt))) if cnt is not None else 0
         assert cnt_int == 0
         await conn.execute("DELETE FROM sources WHERE id = $1::uuid", src_id)
+
+
+async def test_insert_file_persists_sync_id_and_content_hash():
+    src_id = await graph_writer.ensure_source("github_repo", "octo", "files", "u")
+    pool = graph_writer._pool
+    async with pool.acquire() as conn:
+        # Pre-cleanup any prior sync_runs for idempotency
+        await conn.execute("DELETE FROM sync_runs WHERE source_id = $1::uuid", src_id)
+        sync_id = await conn.fetchval(
+            "INSERT INTO sync_runs (source_id, status) VALUES ($1::uuid, 'running') RETURNING id::text",
+            src_id,
+        )
+    file_id = await graph_writer.insert_file(
+        sync_id=sync_id, source_id=src_id, file_path="src/a.py",
+        name="a.py", file_type="source", domain="", language="python",
+        size_bytes=100, line_count=10, imports_count=0,
+        content_hash="a" * 64,
+    )
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT sync_id::text, source_id::text, content_hash FROM file_embeddings WHERE id = $1::uuid",
+            file_id,
+        )
+        assert row["sync_id"] == sync_id
+        assert row["source_id"] == src_id
+        assert row["content_hash"] == "a" * 64
+        await conn.execute("DELETE FROM sources WHERE id = $1::uuid", src_id)

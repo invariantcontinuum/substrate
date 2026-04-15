@@ -69,63 +69,39 @@ async def ensure_source(source_type: str, owner: str, name: str, url: str) -> st
         return row["id"]
 
 
-async def upsert_file(
-    repo_id: str, file_path: str, name: str, file_type: str,
+async def insert_file(
+    sync_id: str, source_id: str, file_path: str, name: str, file_type: str,
     domain: str, language: str, size_bytes: int, line_count: int,
-    imports_count: int, embedding: list[float] | None,
+    imports_count: int, content_hash: str | None = None,
+    embedding: list[float] | None = None,
 ) -> str:
+    """Insert one file row tagged with sync_id; immutable per-snapshot."""
     if not _pool:
         raise RuntimeError("graph_writer not connected")
-    logger.debug("file_upsert_start", file_path=file_path, type=file_type,
-                 has_embedding=embedding is not None)
     async with _pool.acquire() as conn:
         if embedding is not None:
             row = await conn.fetchrow(
                 """
                 INSERT INTO file_embeddings
-                    (repo_id, file_path, name, type, domain, language,
-                     size_bytes, line_count, imports_count,
-                     embedding, last_seen_at, updated_at)
-                VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9,
-                        $10::vector, now(), now())
-                ON CONFLICT (repo_id, file_path)
-                DO UPDATE SET name = EXCLUDED.name,
-                              type = EXCLUDED.type,
-                              domain = EXCLUDED.domain,
-                              language = EXCLUDED.language,
-                              size_bytes = EXCLUDED.size_bytes,
-                              line_count = EXCLUDED.line_count,
-                              imports_count = EXCLUDED.imports_count,
-                              embedding = EXCLUDED.embedding,
-                              last_seen_at = now(),
-                              updated_at = now()
+                    (sync_id, source_id, file_path, name, type, domain, language,
+                     size_bytes, line_count, imports_count, embedding, content_hash)
+                VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11::vector, $12)
                 RETURNING id::text
                 """,
-                repo_id, file_path, name, file_type, domain, language,
-                size_bytes, line_count, imports_count, str(embedding),
+                sync_id, source_id, file_path, name, file_type, domain, language,
+                size_bytes, line_count, imports_count, str(embedding), content_hash,
             )
         else:
             row = await conn.fetchrow(
                 """
                 INSERT INTO file_embeddings
-                    (repo_id, file_path, name, type, domain, language,
-                     size_bytes, line_count, imports_count,
-                     last_seen_at, updated_at)
-                VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, now(), now())
-                ON CONFLICT (repo_id, file_path)
-                DO UPDATE SET name = EXCLUDED.name,
-                              type = EXCLUDED.type,
-                              domain = EXCLUDED.domain,
-                              language = EXCLUDED.language,
-                              size_bytes = EXCLUDED.size_bytes,
-                              line_count = EXCLUDED.line_count,
-                              imports_count = EXCLUDED.imports_count,
-                              last_seen_at = now(),
-                              updated_at = now()
+                    (sync_id, source_id, file_path, name, type, domain, language,
+                     size_bytes, line_count, imports_count, content_hash)
+                VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11)
                 RETURNING id::text
                 """,
-                repo_id, file_path, name, file_type, domain, language,
-                size_bytes, line_count, imports_count,
+                sync_id, source_id, file_path, name, file_type, domain, language,
+                size_bytes, line_count, imports_count, content_hash,
             )
         return row["id"]
 
