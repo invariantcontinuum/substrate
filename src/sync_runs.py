@@ -73,6 +73,10 @@ async def fail_sync_run(sync_id: str, message: str) -> None:
             "UPDATE sync_runs SET status='failed', completed_at=now() WHERE id=$1::uuid",
             sync_id,
         )
+    # Persist the failure reason as a structured issue so the UI can show it.
+    from src import sync_issues
+    await sync_issues.record_issue(
+        sync_id, "error", "terminal", "sync_failed", message, {})
 
 
 async def cancel_sync_run(sync_id: str, message: str) -> None:
@@ -82,6 +86,9 @@ async def cancel_sync_run(sync_id: str, message: str) -> None:
             "UPDATE sync_runs SET status='cancelled', completed_at=now() WHERE id=$1::uuid",
             sync_id,
         )
+    from src import sync_issues
+    await sync_issues.record_issue(
+        sync_id, "info", "terminal", "sync_cancelled", message, {})
 
 
 async def check_sync_status(sync_id: str) -> str | None:
