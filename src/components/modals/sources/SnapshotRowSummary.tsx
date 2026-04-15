@@ -1,5 +1,5 @@
 // frontend/src/components/modals/sources/SnapshotRowSummary.tsx
-import { ChevronDown, ChevronRight, Loader2 } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import type { SyncRun } from "@/hooks/useSyncs";
 
 // Phases where progress_done/progress_total meaningfully measure % complete.
@@ -69,18 +69,12 @@ export function SnapshotRowSummary({ run, isSelected, isExpanded, onToggleSelect
         {statusChip(run.status)}
         {isRunning && (
           <span className="snapshot-row-progress">
-            {phaseHasBar ? (
-              <>
-                <span className="snapshot-row-progress-text">{phaseLabel} {pct}%</span>
-                <span className="snapshot-row-progress-bar">
-                  <span style={{ width: `${pct}%` }} />
-                </span>
-              </>
-            ) : (
-              <span className="snapshot-row-progress-text">
-                <Loader2 size={10} className="snapshot-row-progress-spinner" /> {phaseLabel || "Running"}
-              </span>
-            )}
+            <span className="snapshot-row-progress-text">
+              {phaseLabel || "Running"} {phaseHasBar && `${pct}%`}
+            </span>
+            <span className="snapshot-row-progress-bar">
+              <span style={{ width: `${phaseHasBar ? pct : 100}%` }} className={phaseHasBar ? "" : "indeterminate"} />
+            </span>
           </span>
         )}
         {(isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />)}

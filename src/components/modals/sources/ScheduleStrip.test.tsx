@@ -13,8 +13,8 @@ vi.mock("@/hooks/useSchedules", () => ({
 }));
 
 describe("ScheduleStrip", () => {
-  it("shows +Schedule when empty", () => {
+  it("shows No schedule when empty", () => {
     render(<ScheduleStrip sourceId="s1" />);
-    expect(screen.getByText(/\+ Schedule/i)).toBeInTheDocument();
+    expect(screen.getByText(/No schedule/i)).toBeInTheDocument();
   });
 });
