@@ -1,7 +1,8 @@
 import asyncio
+import json
 import structlog
-import asyncpg
-from src import graph_writer, sync_schedules, sync_runs
+from src import graph_writer, sync_schedules
+from src.sync_runs import ensure_active_sync
 
 logger = structlog.get_logger()
 
@@ -10,20 +11,42 @@ _loop_task: asyncio.Task | None = None
 POLL_INTERVAL_S = 30
 
 
-async def _tick() -> None:
+async def claim_due_schedules_once() -> None:
+    """Process one scheduler tick: claim due schedules and create sync runs.
+
+    Exposed as a named function so tests can invoke a single tick in isolation.
+    Uses ensure_active_sync so concurrent user-triggered syncs are handled
+    atomically without raising or creating duplicate rows.
+    """
     pool = graph_writer.get_pool()
     due = await sync_schedules.claim_due_schedules()
     for sched in due:
         source_id = sched["source_id"]
-        config_overrides = sched.get("config_overrides") or {}
+        raw_overrides = sched.get("config_overrides") or {}
+        config_overrides = raw_overrides if isinstance(raw_overrides, dict) else json.loads(raw_overrides or "{}")
         async with pool.acquire() as conn:
             row = await conn.fetchrow("SELECT config FROM sources WHERE id=$1::uuid", source_id)
-        base_config = (row["config"] if isinstance(row["config"], dict) else {}) if row else {}
-        merged = {**base_config, **config_overrides}
-        try:
-            await sync_runs.create_sync_run(source_id, merged, "schedule", schedule_id=sched["id"])
-        except asyncpg.UniqueViolationError:
-            logger.info("schedule_skipped_active_sync", source_id=str(source_id), schedule_id=sched["id"])
+            raw_config = (row["config"] if row else None) or {}
+            base_config = raw_config if isinstance(raw_config, dict) else json.loads(raw_config or "{}")
+            merged = {**base_config, **config_overrides}
+            sync_id, created = await ensure_active_sync(
+                conn,
+                source_id=source_id,
+                config_snapshot=merged,
+                triggered_by="schedule",
+                schedule_id=sched["id"],
+            )
+            if not created:
+                logger.info(
+                    "scheduler_sync_already_active",
+                    source_id=str(source_id),
+                    existing_sync_id=sync_id,
+                    schedule_id=sched.get("id"),
+                )
+
+
+async def _tick() -> None:
+    await claim_due_schedules_once()
 
 
 async def start_scheduler() -> None:
