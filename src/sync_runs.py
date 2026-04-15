@@ -1,5 +1,6 @@
 """Lifecycle helpers for sync_runs rows. Single source of truth for status transitions."""
 import json
+import asyncpg
 from src import graph_writer
 
 
@@ -103,11 +104,12 @@ async def update_source_last_sync(source_id: str, sync_id: str) -> None:
 
 
 async def ensure_active_sync(
-    conn,
+    conn: asyncpg.Connection,
     *,
     source_id: str,
     config_snapshot: dict,
     triggered_by: str,
+    schedule_id: int | None = None,
 ) -> tuple[str, bool]:
     """Atomic create-or-return-existing active sync for a source.
 
@@ -116,12 +118,12 @@ async def ensure_active_sync(
     """
     row = await conn.fetchrow(
         """
-        INSERT INTO sync_runs (source_id, config_snapshot, triggered_by, status)
-        VALUES ($1::uuid, $2::jsonb, $3, 'pending')
-        ON CONFLICT ON CONSTRAINT ux_sync_runs_one_active_per_source DO NOTHING
+        INSERT INTO sync_runs (source_id, config_snapshot, triggered_by, status, schedule_id)
+        VALUES ($1::uuid, $2::jsonb, $3, 'pending', $4)
+        ON CONFLICT (source_id) WHERE status IN ('pending', 'running') DO NOTHING
         RETURNING id::text
         """,
-        source_id, json.dumps(config_snapshot), triggered_by,
+        source_id, json.dumps(config_snapshot), triggered_by, schedule_id,
     )
     if row is not None:
         return row["id"], True
@@ -142,12 +144,12 @@ async def ensure_active_sync(
     # an existing row, raise so the caller sees a real error instead of looping.
     row = await conn.fetchrow(
         """
-        INSERT INTO sync_runs (source_id, config_snapshot, triggered_by, status)
-        VALUES ($1::uuid, $2::jsonb, $3, 'pending')
-        ON CONFLICT ON CONSTRAINT ux_sync_runs_one_active_per_source DO NOTHING
+        INSERT INTO sync_runs (source_id, config_snapshot, triggered_by, status, schedule_id)
+        VALUES ($1::uuid, $2::jsonb, $3, 'pending', $4)
+        ON CONFLICT (source_id) WHERE status IN ('pending', 'running') DO NOTHING
         RETURNING id::text
         """,
-        source_id, json.dumps(config_snapshot), triggered_by,
+        source_id, json.dumps(config_snapshot), triggered_by, schedule_id,
     )
     if row is not None:
         return row["id"], True

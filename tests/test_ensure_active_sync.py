@@ -57,3 +57,38 @@ async def test_raises_runtime_error_if_conflict_without_existing_row_twice():
             config_snapshot={"branch": "main"},
             triggered_by="user",
         )
+
+
+@pytest.mark.asyncio
+async def test_passes_schedule_id_when_provided():
+    conn = AsyncMock()
+    conn.fetchrow = AsyncMock(return_value={"id": "sched-sync-id"})
+    sync_id, created = await ensure_active_sync(
+        conn,
+        source_id="00000000-0000-0000-0000-000000000001",
+        config_snapshot={"branch": "main"},
+        triggered_by="schedule",
+        schedule_id=42,
+    )
+    assert (sync_id, created) == ("sched-sync-id", True)
+    # The second positional arg (after the SQL string) is source_id; schedule_id
+    # should appear as the fourth bind arg.
+    call = conn.fetchrow.call_args
+    args = call.args
+    # args[0] is the SQL, args[1:] are bind values:
+    assert args[1] == "00000000-0000-0000-0000-000000000001"
+    assert args[4] == 42
+
+
+@pytest.mark.asyncio
+async def test_schedule_id_defaults_to_none():
+    conn = AsyncMock()
+    conn.fetchrow = AsyncMock(return_value={"id": "user-sync-id"})
+    await ensure_active_sync(
+        conn,
+        source_id="00000000-0000-0000-0000-000000000001",
+        config_snapshot={"branch": "main"},
+        triggered_by="user",
+    )
+    args = conn.fetchrow.call_args.args
+    assert args[4] is None
