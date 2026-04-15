@@ -52,6 +52,8 @@ export function NodeDetailPanel() {
   const setSelectedNodeId = useGraphStore((s) => s.setSelectedNodeId);
   const activeModal = useUIStore((s) => s.activeModal);
   const closeModal = useUIStore((s) => s.closeModal);
+  const openModal = useUIStore((s) => s.openModal);
+  const setSourcesModalTarget = useUIStore((s) => s.setSourcesModalTarget);
   const auth = useAuth();
   const token = auth.user?.access_token;
   const queryClient = useQueryClient();
@@ -124,6 +126,15 @@ export function NodeDetailPanel() {
     closeModal();
   };
 
+  const openInSources = () => {
+    if (!cached?.source_id || !selectedSnapshotId) return;
+    setSourcesModalTarget({
+      sourceId: cached.source_id as string,
+      expandSyncId: selectedSnapshotId,
+    });
+    openModal("sources");
+  };
+
   const title = (node as { label?: string; name?: string; id?: string } | undefined)?.label
     || node?.name || node?.id || "Node";
 
@@ -154,6 +165,13 @@ export function NodeDetailPanel() {
                       title="Content differs across loaded snapshots">differs</span>
               )}
             </div>
+            <Button
+              onClick={openInSources}
+              disabled={!cached?.source_id || !selectedSnapshotId}
+              className="node-detail-open-in-sources"
+            >
+              Open in Sources
+            </Button>
           </section>
         )}
 
