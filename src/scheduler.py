@@ -6,6 +6,7 @@ from src import graph_writer, sync_schedules, sync_runs
 logger = structlog.get_logger()
 
 _running = False
+_loop_task: asyncio.Task | None = None
 POLL_INTERVAL_S = 30
 
 
@@ -26,7 +27,7 @@ async def _tick() -> None:
 
 
 async def start_scheduler() -> None:
-    global _running
+    global _running, _loop_task
     _running = True
 
     async def _loop():
@@ -37,10 +38,18 @@ async def start_scheduler() -> None:
                 logger.error("scheduler_error", error=str(e))
             await asyncio.sleep(POLL_INTERVAL_S)
 
-    asyncio.create_task(_loop())
+    _loop_task = asyncio.create_task(_loop())
     logger.info("scheduler_started")
 
 
 async def stop_scheduler() -> None:
-    global _running
+    global _running, _loop_task
     _running = False
+    if _loop_task is not None:
+        _loop_task.cancel()
+        try:
+            await _loop_task
+        except asyncio.CancelledError:
+            pass
+        _loop_task = None
+    logger.info("scheduler_stopped")
