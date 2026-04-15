@@ -38,12 +38,38 @@ export function useSyncs() {
     },
   });
 
+  // Fix: also populate sourceMap for sync_ids in the active set that are
+  // completed (not running), so onSyncCompleted can find same-source swaps.
+  const activeSetIds = useSyncSetStore((s) => s.syncIds);
+  const unknownIds = activeSetIds.filter(
+    (id) => !useSyncSetStore.getState().sourceMap.has(id),
+  );
+  const lookups = useQuery<Record<string, string>>({
+    queryKey: ["sync-source-lookup", [...unknownIds].sort().join(",")],
+    enabled: !!token && unknownIds.length > 0,
+    queryFn: async () => {
+      const out: Record<string, string> = {};
+      await Promise.all(
+        unknownIds.map(async (id) => {
+          try {
+            const row = await apiFetch<{ source_id: string }>(`/api/syncs/${id}`, token);
+            out[id] = row.source_id;
+          } catch {
+            // Unknown id — pruneInvalid will handle it
+          }
+        }),
+      );
+      return out;
+    },
+  });
+
   const lastSeen = useRef<Map<string, string>>(new Map());
   useEffect(() => {
     const items = active.data?.items ?? [];
-    // Refresh sourceMap for the active set so onSyncCompleted can find same-source.
+    // Build sourceMap from running syncs + any cached lookups for active-set members.
     const sm = new Map<string, string>(useSyncSetStore.getState().sourceMap);
     for (const run of items) sm.set(run.id, run.source_id);
+    for (const [k, v] of Object.entries(lookups.data ?? {})) sm.set(k, v);
     useSyncSetStore.getState().registerSourceMap(sm);
 
     let needsActiveLookup = false;
@@ -72,7 +98,7 @@ export function useSyncs() {
       qc.invalidateQueries({ queryKey: ["syncs"] });
       qc.invalidateQueries({ queryKey: ["sources"] });
     }
-  }, [active.data, qc, setSyncStatus]);
+  }, [active.data, lookups.data, qc, setSyncStatus]);
 
   const startSync = useMutation({
     mutationFn: (req: { source_id: string }) =>
