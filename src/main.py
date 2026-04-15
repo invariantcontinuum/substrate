@@ -70,13 +70,29 @@ async def _authenticate(request: Request) -> dict | None:
         return None
 
 
+def _route_to_ingestion(method: str, path: str) -> bool:
+    """Return True if this /api/* request should be proxied to ingestion
+    instead of graph. Sources CRUD and read-only endpoints stay on graph."""
+    if method == "GET":
+        return False
+    if path == "/api/syncs" or path.startswith("/api/syncs/"):
+        return method in ("POST", "DELETE")
+    if path == "/api/schedules" or path.startswith("/api/schedules/"):
+        return method in ("POST", "PATCH", "DELETE")
+    return False  # /api/sources/* and everything else stays on graph
+
+
 @app.api_route("/api/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
 async def proxy_api(request: Request, path: str):
     claims = await _authenticate(request)
     if not claims:
         return JSONResponse({"error": "unauthorized"}, status_code=401)
-
-    return await proxy_request(request, settings.graph_service_url)
+    upstream = (
+        settings.ingestion_service_url
+        if _route_to_ingestion(request.method, request.url.path)
+        else settings.graph_service_url
+    )
+    return await proxy_request(request, upstream)
 
 
 @app.api_route("/ingest/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
@@ -87,20 +103,6 @@ async def proxy_ingest(request: Request, path: str):
     return await proxy_request(request, settings.ingestion_service_url)
 
 
-@app.api_route("/jobs/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
-async def proxy_jobs(request: Request, path: str):
-    claims = await _authenticate(request)
-    if not claims:
-        return JSONResponse({"error": "unauthorized"}, status_code=401)
-    return await proxy_request(request, settings.ingestion_service_url)
-
-
-@app.api_route("/jobs", methods=["GET", "POST"])
-async def proxy_jobs_root(request: Request):
-    claims = await _authenticate(request)
-    if not claims:
-        return JSONResponse({"error": "unauthorized"}, status_code=401)
-    return await proxy_request(request, settings.ingestion_service_url)
 
 
 @app.api_route(
