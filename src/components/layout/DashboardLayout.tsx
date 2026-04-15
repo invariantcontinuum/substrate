@@ -25,14 +25,19 @@ export function DashboardLayout() {
   const token = auth.user?.access_token;
   useEffect(() => {
     if (!token) return;
-    const { hasInitialized, initializeIfNeeded, pruneInvalid } = useSyncSetStore.getState();
-    if (!hasInitialized) {
-      void initializeIfNeeded(token);
-    } else {
-      void apiFetch<{items: {id: string}[]}>(`/api/syncs?status=completed&limit=100`, token)
-        .then(({items}) => pruneInvalid(new Set(items.map((r) => r.id))))
-        .catch(() => { /* ignore */ });
-    }
+    const { initializeIfNeeded, pruneInvalid, syncIds } = useSyncSetStore.getState();
+    // 1. Always validate persisted ids against the server (catches purged/cleaned).
+    void apiFetch<{items: {id: string}[]}>(`/api/syncs?status=completed&limit=100`, token)
+      .then(({items}) => pruneInvalid(new Set(items.map((r) => r.id))))
+      .catch(() => { /* ignore */ })
+      // 2. After pruning, if the active set is empty, try to populate it from
+      // sources.last_sync_id. initializeIfNeeded is a no-op when ids exist.
+      .finally(() => {
+        if (useSyncSetStore.getState().syncIds.length === 0) {
+          void initializeIfNeeded(token);
+        }
+      });
+    void syncIds; // referenced to satisfy linter; logic above reads from store snapshot
   }, [token]);
 
   const sidebarOpen = useUIStore((s) => s.sidebarOpen);
