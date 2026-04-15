@@ -1,19 +1,11 @@
 import time
 import httpx
 import structlog
-from fastapi import APIRouter
-
+from fastapi import APIRouter, HTTPException, Query
 from src.config import settings
-from src.graph.store import (
-    get_full_snapshot,
-    get_node_with_neighbors,
-    get_stats,
-    nodes_to_cytoscape,
-    edges_to_cytoscape,
-    search,
-    purge_all,
-    ensure_node_summary,
-)
+from src.graph import store
+from src.graph.snapshot_query import get_merged_graph, get_node_detail
+from src.graph.store import get_stats, search, ensure_node_summary
 
 logger = structlog.get_logger()
 router = APIRouter(prefix="/api/graph")
@@ -30,63 +22,37 @@ async def _embed_query(query: str) -> list[float]:
 
 
 @router.get("")
-async def get_graph():
-    logger.info("endpoint_get_graph")
-    snapshot = await get_full_snapshot()
-    return {
-        "nodes": nodes_to_cytoscape(snapshot.nodes),
-        "edges": edges_to_cytoscape(snapshot.edges),
-        "meta": snapshot.meta,
-    }
+async def get_graph(sync_ids: str = Query(..., description="Comma-separated active sync_ids")):
+    ids = [s for s in sync_ids.split(",") if s]
+    if not ids:
+        raise HTTPException(400, "sync_ids required")
+    return await get_merged_graph(ids)
 
 
-# NOTE: more specific routes must come before `/nodes/{node_id:path}`,
-# otherwise the greedy `:path` converter swallows the suffix (e.g. `/summary`).
-@router.get("/nodes/{node_id}/summary")
-async def get_node_summary(node_id: str, force: bool = False):
-    logger.info("endpoint_get_node_summary", node_id=node_id, force=force)
-    return await ensure_node_summary(node_id, force=force)
+@router.get("/nodes/{node_id:path}/summary")
+async def get_node_summary(node_id: str, sync_id: str | None = None, force: bool = False):
+    return await ensure_node_summary(node_id, sync_id=sync_id, force=force)
 
 
 @router.get("/nodes/{node_id:path}")
-async def get_node(node_id: str):
-    logger.info("endpoint_get_node", node_id=node_id)
-    data = await get_node_with_neighbors(node_id)
+async def get_node(node_id: str, sync_id: str | None = None):
+    data = await get_node_detail(node_id, sync_id=sync_id)
     if not data:
-        logger.info("endpoint_get_node_not_found", node_id=node_id)
-        return {"error": "Node not found"}, 404
+        raise HTTPException(404, "node not found")
     return data
 
 
 @router.get("/stats")
 async def graph_stats():
-    logger.info("endpoint_get_stats")
     return await get_stats()
-
-
-@router.delete("")
-async def purge_graph():
-    logger.info("endpoint_purge_graph")
-    await purge_all()
-    return {"status": "purged"}
 
 
 @router.get("/search")
 async def search_graph(q: str = "", type: str = "", limit: int = 10):
-    logger.info("endpoint_search", query=q, type_filter=type or None, limit=limit)
     if not q:
         return {"results": []}
     try:
-        embed_start = time.monotonic()
         embedding = await _embed_query(q)
-        embed_elapsed = time.monotonic() - embed_start
-        logger.info("search_embedding_complete", duration_ms=round(embed_elapsed * 1000))
-    except httpx.ConnectError as e:
-        logger.warning("search_embedding_unavailable", error=str(e), query=q)
+    except httpx.ConnectError:
         return {"results": []}
-    except Exception as e:
-        logger.warning("search_embedding_failed", error=str(e), query=q)
-        return {"results": []}
-    results = await search(embedding, limit=limit, type_filter=type)
-    logger.info("endpoint_search_complete", result_count=len(results))
-    return {"results": results}
+    return {"results": await search(embedding, limit=limit, type_filter=type)}
