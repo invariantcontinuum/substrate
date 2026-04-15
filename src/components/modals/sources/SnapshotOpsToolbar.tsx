@@ -23,25 +23,34 @@ export function SnapshotOpsToolbar({ selectedSyncIds, onCleared }: Props) {
   const doUnload = () => ids.forEach(unload);
   const doRetry = async () => { for (const id of ids) await retrySync(id); };
   const doClean = async () => {
+    // TODO: replace with themed ConfirmDialog once available
     if (!confirm(`Clean ${count} snapshot${count === 1 ? "" : "s"}? Graph data will be removed; row stays as audit.`)) return;
     for (const id of ids) await cleanSync(id);
     onCleared?.();
   };
   const doPurge = async () => {
+    // TODO: replace with themed ConfirmDialog once available
     if (!confirm(`Purge ${count} snapshot${count === 1 ? "" : "s"}? Row AND data will be removed.`)) return;
     for (const id of ids) await purgeSync(id);
     onCleared?.();
   };
 
-  const allLoaded = ids.length > 0 && ids.every((id) => loadedIds.includes(id));
+  const loadedCount = ids.filter((id) => loadedIds.includes(id)).length;
+  const someLoaded = loadedCount > 0;
+  const someUnloaded = ids.length > loadedCount;
 
   return (
     <div className="snapshot-ops-toolbar">
       <span className="snapshot-ops-toolbar-group-label">Snapshot {count > 0 && `(${count})`}</span>
-      {allLoaded ? (
-        <Button onClick={doUnload} disabled={disabled}><Upload size={12} /> Unload</Button>
-      ) : (
-        <Button onClick={doLoad} disabled={disabled}><Download size={12} /> Load</Button>
+      {someUnloaded && (
+        <Button onClick={doLoad} disabled={disabled}>
+          <Download size={12} /> Load{someLoaded ? ` (${ids.length - loadedCount})` : ""}
+        </Button>
+      )}
+      {someLoaded && (
+        <Button onClick={doUnload} disabled={disabled}>
+          <Upload size={12} /> Unload{someUnloaded ? ` (${loadedCount})` : ""}
+        </Button>
       )}
       <Button onClick={doRetry} disabled={disabled}><RefreshCw size={12} /> Retry</Button>
       <Button onClick={doClean} disabled={disabled}><Eraser size={12} /> Clean</Button>
