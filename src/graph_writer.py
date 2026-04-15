@@ -176,7 +176,7 @@ async def write_age_nodes(nodes: list[dict], sync_id: str, source_id: str) -> in
     if not _pool:
         raise RuntimeError("graph_writer not connected")
     if not nodes:
-        return
+        return 0
     logger.info("age_nodes_write_start", count=len(nodes), sync_id=sync_id)
     start = time.monotonic()
     failed = 0
@@ -229,7 +229,7 @@ async def write_age_edges(edges: list[dict], sync_id: str, source_id: str) -> in
     if not _pool:
         raise RuntimeError("graph_writer not connected")
     if not edges:
-        return
+        return 0
     logger.info("age_edges_write_start", count=len(edges), sync_id=sync_id)
     start = time.monotonic()
     failed = 0
