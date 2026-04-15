@@ -28,6 +28,15 @@ function RequireAuth({ children }: { children: ReactNode }) {
     }
   }, [isLoading, isAuthenticated, errorMessage, navigatorActive, auth]);
 
+  // Keep __authToken in sync so the graph-store subscriber can call
+  // fetchGraph with the current token after sync-set changes.
+  useEffect(() => {
+    const token = auth.user?.access_token;
+    if (typeof window !== "undefined") {
+      (window as Window & { __authToken?: string }).__authToken = token;
+    }
+  }, [auth.user?.access_token]);
+
   // Load the graph snapshot once the user is signed in. Rendering is
   // capped in GraphCanvas so a large graph won't freeze the tab.
   useEffect(() => {

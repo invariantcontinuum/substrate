@@ -1,13 +1,20 @@
 import { create } from "zustand";
 import { logger } from "@/lib/logger";
 import { apiFetch } from "@/lib/api";
+import { useSyncSetStore } from "./syncSet";
 
 export interface GraphNode {
   id: string;
-  label: string;
+  label?: string;
+  name?: string;
   type: string;
   layer?: string;
   owner?: string;
+  source_id?: string;
+  file_path?: string;
+  loaded_sync_ids?: string[];
+  latest_sync_id?: string;
+  divergent?: boolean;
   [key: string]: unknown;
 }
 
@@ -16,6 +23,8 @@ export interface GraphEdge {
   source: string;
   target: string;
   label?: string;
+  loaded_sync_ids?: string[];
+  weight_max?: number;
   [key: string]: unknown;
 }
 
@@ -133,7 +142,7 @@ interface GraphState {
   resetGraphConfig: () => void;
 
   /* Data loading */
-  fetchGraph: (token?: string) => Promise<void>;
+  fetchGraph: (token?: string, syncIds?: string[]) => Promise<void>;
 }
 
 const DEFAULT_TYPES = [
@@ -236,47 +245,40 @@ export const useGraphStore = create<GraphState>((set) => ({
     });
   },
 
-  fetchGraph: async (token) => {
+  fetchGraph: async (token, syncIds = []) => {
     const start = performance.now();
+    if (!syncIds.length) {
+      set((state) => ({
+        nodes: [], edges: [], canvasCleared: false,
+        stats: { ...state.stats, nodeCount: 0, edgeCount: 0,
+                 lastUpdated: new Date().toISOString(),
+                 lastLoadMs: 0, lastServerMs: 0 },
+        connectionStatus: "connected",
+      }));
+      return;
+    }
     try {
-      // The graph service returns items in cytoscape element format —
-      // each node/edge is wrapped as `{data: {...}}`. Unwrap so the rest
-      // of the app can treat entries as flat objects keyed by id/name.
-      type CytoscapeElement<T> = { data: T } | T;
+      const url = `/api/graph?sync_ids=${encodeURIComponent(syncIds.join(","))}`;
       const raw = await apiFetch<{
-        nodes?: CytoscapeElement<GraphNode>[];
-        edges?: CytoscapeElement<GraphEdge>[];
-        meta?: { node_count?: number; edge_count?: number; duration_ms?: number };
-      }>("/api/graph", token);
-
-      const unwrap = <T>(item: CytoscapeElement<T>): T =>
-        item && typeof item === "object" && "data" in item
-          ? (item.data as T)
-          : (item as T);
-
-      const nodes = (raw.nodes ?? []).map(unwrap<GraphNode>);
-      const edges = (raw.edges ?? []).map(unwrap<GraphEdge>);
-
-      // Seed the visible-types filter with every type present in the
-      // snapshot so legend items default to "on" for whatever types the
-      // backend actually returned (not just the hardcoded DEFAULT_TYPES).
+        nodes: { data: GraphNode }[];
+        edges: { data: GraphEdge }[];
+        meta: { node_count?: number; edge_count?: number; duration_ms?: number;
+                active_sync_ids?: string[] };
+      }>(url, token);
+      const nodes = (raw.nodes ?? []).map((n) => n.data);
+      const edges = (raw.edges ?? []).map((e) => e.data);
       const presentTypes = new Set<string>();
       for (const n of nodes) presentTypes.add(String(n.type || "unknown"));
-
-      const lastLoadMs = Math.round(performance.now() - start);
-      const lastServerMs = raw.meta?.duration_ms ?? null;
-
       set((state) => ({
-        nodes,
-        edges,
+        nodes, edges,
         filters: { ...state.filters, types: presentTypes },
         stats: {
           nodeCount: raw.meta?.node_count ?? nodes.length,
           edgeCount: raw.meta?.edge_count ?? edges.length,
           violationCount: 0,
           lastUpdated: new Date().toISOString(),
-          lastLoadMs,
-          lastServerMs,
+          lastLoadMs: Math.round(performance.now() - start),
+          lastServerMs: raw.meta?.duration_ms ?? null,
         },
         connectionStatus: "connected",
       }));
@@ -286,3 +288,20 @@ export const useGraphStore = create<GraphState>((set) => ({
     }
   },
 }));
+
+// Debounced refetch on active-set changes. Initialized lazily so SSR/tests
+// without `window` don't crash.
+let refetchTimer: ReturnType<typeof setTimeout> | null = null;
+let lastSyncIdsKey = "";
+if (typeof window !== "undefined") {
+  useSyncSetStore.subscribe((state) => {
+    const key = state.syncIds.join(",");
+    if (key === lastSyncIdsKey) return;
+    lastSyncIdsKey = key;
+    if (refetchTimer) clearTimeout(refetchTimer);
+    refetchTimer = setTimeout(() => {
+      const tok = (window as Window & { __authToken?: string }).__authToken;
+      void useGraphStore.getState().fetchGraph(tok, state.syncIds);
+    }, 200);
+  });
+}
