@@ -2,7 +2,7 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    database_url: str = "postgresql+asyncpg://substrate_graph:changeme@local-postgres:5432/substrate_graph"
+    database_url: str = "postgresql+asyncpg://substrate_graph:changeme@localhost:5432/substrate_graph"
     embedding_url: str = "http://localhost:8101/v1/embeddings"
     embedding_model: str = "embeddinggemma-300M-Q8_0.gguf"
     # Dense chat LLM used for node summaries. Defaults to the lazy-llamacpp
