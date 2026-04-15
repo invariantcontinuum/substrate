@@ -1,5 +1,5 @@
 // frontend/src/components/modals/sources/UnifiedToolbar.tsx
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { RefreshCw, Clock, Settings, Square, Trash2, Download, Upload, Eraser } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -23,8 +23,8 @@ interface Props {
   onToggleSchedule: () => void;
   onSnapshotActionComplete: () => void;
   onSourceActionComplete: () => void;
-  /** Called when a sync attempt finds an already-active sync; provides the existing sync_id. */
-  onAlreadyActive?: (syncId: string) => void;
+  /** Called when a sync attempt finds an already-active sync; provides the existing sync_id and the source_id it belongs to. */
+  onAlreadyActive?: (syncId: string, sourceId: string) => void;
 }
 
 export function UnifiedToolbar(props: Props) {
@@ -39,6 +39,17 @@ export function UnifiedToolbar(props: Props) {
 
   const [interval, setInterval] = useState(60);
   const [alreadyActiveSyncId, setAlreadyActiveSyncId] = useState<string | null>(null);
+  const [alreadyActiveSourceId, setAlreadyActiveSourceId] = useState<string | null>(null);
+
+  // Auto-dismiss the "already active" notice after 6 seconds (mirrors SwapToast pattern).
+  useEffect(() => {
+    if (!alreadyActiveSyncId) return;
+    const t = setTimeout(() => {
+      setAlreadyActiveSyncId(null);
+      setAlreadyActiveSourceId(null);
+    }, 6000);
+    return () => clearTimeout(t);
+  }, [alreadyActiveSyncId]);
 
   const snapshotMode = selectedSyncIds.size > 0;
   const sourceMode = !snapshotMode && selectedSourceIds.size > 0;
@@ -82,11 +93,15 @@ export function UnifiedToolbar(props: Props) {
 
   const doSync = () => {
     setAlreadyActiveSyncId(null);
-    // Fire in parallel; capture outcome to surface already_active notice.
-    sourceIds.forEach((id) => {
-      void startSync({ source_id: id }).then((outcome) => {
-        if (outcome.kind === "already_active") {
+    setAlreadyActiveSourceId(null);
+    // Fire in parallel; capture first already_active outcome to surface in the notice.
+    let firstAlreadyActiveFound = false;
+    sourceIds.forEach((sourceId) => {
+      void startSync({ source_id: sourceId }).then((outcome) => {
+        if (outcome.kind === "already_active" && !firstAlreadyActiveFound) {
+          firstAlreadyActiveFound = true;
           setAlreadyActiveSyncId(outcome.sync_id);
+          setAlreadyActiveSourceId(sourceId);
         }
       });
     });
@@ -158,10 +173,13 @@ export function UnifiedToolbar(props: Props) {
         )}
         <Button onClick={doPurgeSource} className="danger"><Trash2 size={12} /> Purge source{multi ? "s" : ""}</Button>
       </div>
-      {alreadyActiveSyncId && (
+      {alreadyActiveSyncId && alreadyActiveSourceId && (
         <SyncAlreadyActiveNotice
           syncId={alreadyActiveSyncId}
-          onOpenSync={onAlreadyActive}
+          onOpenSync={onAlreadyActive
+            ? (syncId) => onAlreadyActive(syncId, alreadyActiveSourceId)
+            : undefined
+          }
           className="mx-2 mt-1 rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-900/30 dark:border-amber-700 px-3 py-2 text-sm flex items-center justify-between gap-3"
         />
       )}

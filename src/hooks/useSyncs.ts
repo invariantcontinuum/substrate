@@ -150,7 +150,10 @@ export function useSyncs() {
   const retrySync = useMutation<CreateSyncOutcome, Error, string>({
     mutationFn: (id) =>
       postSyncMutation(`/api/syncs/${id}/retry`, {}, token),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["syncs"] }),
+    onSuccess: (outcome, id) => {
+      if (outcome.kind === "created") setSyncStatus("syncing");
+      qc.invalidateQueries({ queryKey: ["syncs", id] });
+    },
   });
 
   const cleanSync = useMutation({
