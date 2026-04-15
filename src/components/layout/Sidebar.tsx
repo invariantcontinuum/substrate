@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "react-oidc-context";
 import { useUIStore, type ModalName } from "@/stores/ui";
+import { useSyncSetStore } from "@/stores/syncSet";
 
 // "settings" is no longer a top-level modal — it's a tab inside the
 // user account modal. The account button at the footer of the rail is
@@ -36,6 +37,7 @@ export function Sidebar() {
   const auth = useAuth();
   const initial = auth.user?.profile?.name?.[0]?.toUpperCase() ?? "U";
   const [hov, setHov] = useState<string | null>(null);
+  const loadedCount = useSyncSetStore((s) => s.syncIds.length);
 
   return (
     <nav className="side-nav">
@@ -63,7 +65,12 @@ export function Sidebar() {
               onClick={() => it.modal !== "navigate" && openModal(it.modal)}
               className="side-nav-btn"
             >
-              <it.icon size={16} />
+              <span className="nav-icon-wrap">
+                <it.icon size={16} />
+                {it.label === "Sources" && loadedCount > 0 && (
+                  <span className="nav-badge">{loadedCount}</span>
+                )}
+              </span>
               <span>{it.label}</span>
               {coming && <span className="side-nav-badge">soon</span>}
             </button>
