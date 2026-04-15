@@ -321,23 +321,31 @@ class GitHubConnector:
         owner = source["owner"]
         repo = source["name"]
         from src.config import settings
+        import shutil
         tmpdir = await _clone_repo(owner, repo, settings.github_token)
-        tree = _walk_local_tree(tmpdir)
-        file_paths = [n.id for n in parse_repo_tree(tree)]
-        ref = ""
         try:
-            head_file = os.path.join(tmpdir, ".git", "HEAD")
-            with open(head_file) as f:
-                head = f.read().strip()
-            if head.startswith("ref: "):
-                ref_path = os.path.join(tmpdir, ".git", head[5:])
-                with open(ref_path) as f:
-                    ref = f.read().strip()
-            else:
-                ref = head
+            tree = _walk_local_tree(tmpdir)
+            file_paths = [n.id for n in parse_repo_tree(tree)]
+            ref = ""
+            try:
+                head_file = os.path.join(tmpdir, ".git", "HEAD")
+                with open(head_file) as f:
+                    head = f.read().strip()
+                if head.startswith("ref: "):
+                    ref_path = os.path.join(tmpdir, ".git", head[5:])
+                    with open(ref_path) as f:
+                        ref = f.read().strip()
+                else:
+                    ref = head
+            except Exception as e:
+                logger.warning("github_ref_extract_failed", owner=owner, repo=repo, error=str(e))
+            return MaterializedTree(root_dir=tmpdir, file_paths=file_paths, ref=ref)
         except Exception:
-            pass
-        return MaterializedTree(root_dir=tmpdir, file_paths=file_paths, ref=ref)
+            # Post-clone failure: clean up tmpdir so we don't leak. sync.py's
+            # finally block can't help here because `tree` is still None at the
+            # call site.
+            shutil.rmtree(tmpdir, ignore_errors=True)
+            raise
 
 
 CONNECTORS: dict[str, SourceConnector] = {"github_repo": GitHubConnector()}
