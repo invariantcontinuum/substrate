@@ -1,5 +1,5 @@
 import pytest
-from src.connectors.github import parse_repo_tree, parse_c_includes
+from src.connectors.github import parse_repo_tree, parse_imports
 from src.schema import NodeAffected, EdgeAffected
 
 
@@ -14,11 +14,16 @@ class TestParseRepoTree:
         ]
         nodes = parse_repo_tree(tree, source="github")
         names = [n.id for n in nodes]
+        types = {n.id: n.type for n in nodes}
         assert "src/main.c" in names
         assert "lib/transfer.c" in names
         assert "lib/transfer.h" in names
-        assert "README.md" not in names
-        assert "src" not in names
+        # README.md is now included as a `doc` node (parser treats every blob
+        # as a node and classifies by extension; non-source files are no
+        # longer dropped).
+        assert "README.md" in names
+        assert types["README.md"] == "doc"
+        assert "src" not in names  # tree entries (directories) excluded
 
     def test_assigns_correct_node_types(self):
         tree = [
@@ -27,12 +32,12 @@ class TestParseRepoTree:
         ]
         nodes = parse_repo_tree(tree, source="github")
         for node in nodes:
-            assert node.type == "service"
+            assert node.type == "source"
             assert node.action == "add"
             assert node.meta.get("source") == "github"
 
 
-class TestParseCIncludes:
+class TestParseImports:
     def test_extracts_include_edges(self):
         file_id = "lib/transfer.c"
         content = '''#include "url.h"
@@ -40,7 +45,7 @@ class TestParseCIncludes:
 #include <stdlib.h>
 #include "http.h"
 '''
-        edges = parse_c_includes(file_id, content, known_files={"lib/url.h", "lib/connect.h", "lib/http.h"})
+        edges = parse_imports(file_id, content, known_files={"lib/url.h", "lib/connect.h", "lib/http.h"})
         targets = [e.target_id for e in edges]
         assert "lib/url.h" in targets
         assert "lib/connect.h" in targets
@@ -48,11 +53,11 @@ class TestParseCIncludes:
         assert len(edges) == 3
 
     def test_no_includes_returns_empty(self):
-        edges = parse_c_includes("main.c", "int main() { return 0; }", known_files=set())
+        edges = parse_imports("main.c", "int main() { return 0; }", known_files=set())
         assert edges == []
 
     def test_creates_depends_edges(self):
-        edges = parse_c_includes("a.c", '#include "b.h"\n', known_files={"b.h"})
+        edges = parse_imports("a.c", '#include "b.h"\n', known_files={"b.h"})
         assert edges[0].type == "depends"
         assert edges[0].source_id == "a.c"
         assert edges[0].target_id == "b.h"
