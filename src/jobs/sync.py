@@ -57,6 +57,22 @@ async def _check_cancelled(sync_id: str) -> None:
         raise CancelledSync()
 
 
+def _read_text_safe(filepath: str) -> str:
+    """Read a file as text, dropping NUL bytes that Postgres TEXT/JSON can't store.
+
+    Some files in real repos (binary blobs misnamed with text extensions, embedded
+    icons in docs trees, etc.) contain `\\x00`. Python tolerates them in str, but
+    Postgres rejects them with `invalid byte sequence for encoding "UTF8": 0x00`.
+    Strip them at the boundary so downstream code (chunker, content_chunks INSERT)
+    never sees them.
+    """
+    try:
+        with open(filepath, "r", errors="replace") as f:
+            return f.read().replace("\x00", "")
+    except Exception:
+        return ""
+
+
 async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None:
     """Run one sync to completion. The runner already created the sync_runs row."""
     source_id = source["id"]
@@ -117,8 +133,7 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
         for i, file_id in enumerate(parseable):
             filepath = os.path.join(tree.root_dir, file_id)
             try:
-                with open(filepath, "r", errors="replace") as f:
-                    content = f.read()
+                content = _read_text_safe(filepath)
                 file_contents[file_id] = content
                 edges = parse_imports(file_id, content, known_files)
                 all_edges.extend(edges)
@@ -145,11 +160,7 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
             filepath = os.path.join(tree.root_dir, node.id)
             content = file_contents.get(node.id, "")
             if not content:
-                try:
-                    with open(filepath, "r", errors="replace") as f:
-                        content = f.read()
-                except Exception:
-                    content = ""
+                content = _read_text_safe(filepath)
             language = _detect_language(node.id)
             line_count = content.count("\n") + 1 if content else 0
             size_bytes = len(content.encode("utf-8", errors="replace")) if content else 0
