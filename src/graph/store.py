@@ -108,145 +108,6 @@ async def disconnect() -> None:
         logger.info("pg_pool_disconnected")
 
 
-async def get_full_snapshot() -> GraphSnapshot:
-    if not _pool:
-        raise RuntimeError("Database not connected")
-
-    logger.info("snapshot_query_start")
-    start = time.monotonic()
-
-    async with _pool.acquire() as conn:
-        rows = await conn.fetch(
-            """
-            SELECT id::text, file_path, name, type, domain, language,
-                   status, first_seen_at::text, last_seen_at::text
-            FROM file_embeddings
-            """
-        )
-
-    nodes = [
-        GraphNode(
-            id=r["id"],
-            name=r["name"],
-            type=r["type"],
-            domain=r["domain"] or "",
-            status=r["status"] or "healthy",
-            source="github",
-            meta={"file_path": r["file_path"], "language": r["language"] or ""},
-            first_seen=r["first_seen_at"] or "",
-            last_seen=r["last_seen_at"] or "",
-        )
-        for r in rows
-    ]
-
-    edges: list[GraphEdge] = []
-    async with _pool.acquire() as conn:
-        try:
-            edge_rows = await conn.fetch(
-                """
-                SELECT * FROM cypher('substrate', $$
-                    MATCH (a)-[r]->(b)
-                    RETURN id(a)::text, id(b)::text, label(r), r.weight, a.file_id, b.file_id
-                $$) AS (a_id agtype, b_id agtype, rel_type agtype, weight agtype, src_file agtype, tgt_file agtype)
-                """
-            )
-            for r in edge_rows:
-                src = json.loads(str(r["src_file"])) if r["src_file"] else str(r["a_id"])
-                tgt = json.loads(str(r["tgt_file"])) if r["tgt_file"] else str(r["b_id"])
-                rel_type = json.loads(str(r["rel_type"])) if r["rel_type"] else "depends"
-                weight = json.loads(str(r["weight"])) if r["weight"] else 1.0
-                edges.append(
-                    GraphEdge(
-                        id=f"{src}->{tgt}",
-                        source=str(src),
-                        target=str(tgt),
-                        type=str(rel_type),
-                        label=str(rel_type),
-                        weight=float(weight),
-                    )
-                )
-        except Exception as e:
-            logger.warning("age_edge_query_failed", error=str(e))
-
-    elapsed_ms = round((time.monotonic() - start) * 1000)
-    logger.info("snapshot_fetched", node_count=len(nodes), edge_count=len(edges),
-                duration_ms=elapsed_ms)
-
-    return GraphSnapshot(
-        nodes=nodes,
-        edges=edges,
-        meta={
-            "node_count": len(nodes),
-            "edge_count": len(edges),
-            # Exposed so the frontend can surface "last load Xms" instead
-            # of a vague "Live" indicator.
-            "duration_ms": elapsed_ms,
-        },
-    )
-
-
-async def get_node_with_neighbors(node_id: str) -> dict:
-    if not _pool:
-        raise RuntimeError("Database not connected")
-
-    logger.info("node_query_start", node_id=node_id)
-
-    async with _pool.acquire() as conn:
-        node = await conn.fetchrow(
-            """
-            SELECT id::text, file_path, name, type, domain, language,
-                   status, description, size_bytes, line_count,
-                   first_seen_at::text, last_seen_at::text
-            FROM file_embeddings
-            WHERE id::text = $1
-            """,
-            node_id,
-        )
-
-    if not node:
-        logger.info("node_not_found", node_id=node_id)
-        return {}
-
-    neighbors: list[dict] = []
-    async with _pool.acquire() as conn:
-        try:
-            edge_rows = await conn.fetch(
-                """
-                SELECT * FROM cypher('substrate', $$
-                    MATCH (a {file_id: %s})-[r]-(b)
-                    RETURN b.file_id, label(r), r.weight
-                $$) AS (neighbor_file agtype, rel_type agtype, weight agtype)
-                """ % f"'{node_id}'"
-            )
-            for r in edge_rows:
-                nf = json.loads(str(r["neighbor_file"])) if r["neighbor_file"] else None
-                rt = json.loads(str(r["rel_type"])) if r["rel_type"] else "depends"
-                w = json.loads(str(r["weight"])) if r["weight"] else 1.0
-                if nf:
-                    neighbors.append({"id": str(nf), "type": str(rt), "weight": float(w)})
-        except Exception as e:
-            logger.warning("age_neighbor_query_failed", error=str(e))
-
-    logger.info("node_found", node_id=node_id, neighbor_count=len(neighbors))
-
-    return {
-        "node": {
-            "id": node["id"],
-            "name": node["name"],
-            "type": node["type"],
-            "domain": node["domain"] or "",
-            "language": node["language"] or "",
-            "status": node["status"] or "healthy",
-            "description": node["description"] or "",
-            "file_path": node["file_path"],
-            "size_bytes": node["size_bytes"],
-            "line_count": node["line_count"],
-            "first_seen": node["first_seen_at"] or "",
-            "last_seen": node["last_seen_at"] or "",
-        },
-        "neighbors": neighbors,
-    }
-
 
 async def get_stats() -> dict:
     if not _pool:
@@ -348,8 +209,10 @@ async def search(query_embedding: list[float], limit: int = 10,
     return results
 
 
-async def ensure_node_summary(node_id: str, force: bool = False) -> dict:
+async def ensure_node_summary(node_id: str, sync_id: str | None = None, force: bool = False) -> dict:
     """Return a short natural-language summary for a node.
+
+    node_id format: 'src_<source_id>:<file_path>'. sync_id defaults to latest.
 
     Only calls the LLM when there is actual indexed content (chunks) to
     summarise. Without content, the LLM happily confabulates — describing
@@ -371,56 +234,50 @@ async def ensure_node_summary(node_id: str, force: bool = False) -> dict:
     if not _pool:
         raise RuntimeError("Database not connected")
 
+    if not node_id.startswith("src_") or ":" not in node_id:
+        return {"summary": "", "cached": False, "source": "not_found", "chunk_count": 0}
+    src_part, file_path = node_id[4:].split(":", 1)
+    source_id = src_part
+
     logger.info("summary_start", node_id=node_id, force=force)
 
     async with _pool.acquire() as conn:
+        if sync_id is None:
+            sync_id = await conn.fetchval(
+                """SELECT fe.sync_id::text FROM file_embeddings fe
+                   JOIN sync_runs sr ON sr.id = fe.sync_id
+                   WHERE fe.source_id=$1::uuid AND fe.file_path=$2
+                   ORDER BY sr.completed_at DESC NULLS LAST LIMIT 1""",
+                source_id, file_path,
+            )
+            if not sync_id:
+                logger.info("summary_node_not_found", node_id=node_id)
+                return {"summary": "", "cached": False, "source": "not_found", "chunk_count": 0}
+
         row = await conn.fetchrow(
-            """
-            SELECT id::text, file_path, name, type, domain, language, description
-            FROM file_embeddings
-            WHERE id::text = $1
-            """,
-            node_id,
+            """SELECT id::text, file_path, name, type, domain, language, description
+               FROM file_embeddings WHERE source_id=$1::uuid AND file_path=$2 AND sync_id=$3::uuid""",
+            source_id, file_path, sync_id,
         )
         if not row:
             logger.info("summary_node_not_found", node_id=node_id)
-            return {
-                "summary": "",
-                "cached": False,
-                "source": "not_found",
-                "chunk_count": 0,
-            }
+            return {"summary": "", "cached": False, "source": "not_found", "chunk_count": 0}
 
         if row["description"] and not force:
             logger.info("summary_cache_hit", node_id=node_id)
-            return {
-                "summary": row["description"],
-                "cached": True,
-                "source": "cache",
-                "chunk_count": -1,
-            }
+            return {"summary": row["description"], "cached": True, "source": "cache", "chunk_count": -1}
 
         chunk_rows = await conn.fetch(
-            """
-            SELECT content, start_line, end_line
-            FROM content_chunks
-            WHERE file_id = $1::uuid
-            ORDER BY chunk_index
-            LIMIT 5
-            """,
-            node_id,
+            """SELECT content, start_line, end_line FROM content_chunks
+               WHERE file_id=$1::uuid ORDER BY chunk_index LIMIT 5""",
+            row["id"],
         )
 
     # No indexed content → refuse to summarise. Calling the LLM with only
     # a path and type produces plausible-sounding but fabricated prose.
     if not chunk_rows:
         logger.info("summary_no_content", node_id=node_id, file_path=row["file_path"])
-        return {
-            "summary": "",
-            "cached": False,
-            "source": "no_content",
-            "chunk_count": 0,
-        }
+        return {"summary": "", "cached": False, "source": "no_content", "chunk_count": 0}
 
     excerpts = []
     total_chars = 0
@@ -442,13 +299,9 @@ async def ensure_node_summary(node_id: str, force: bool = False) -> dict:
         "no preamble."
     )
     user_prompt = (
-        f"File path: {row['file_path']}\n"
-        f"Name: {row['name']}\n"
-        f"Type: {row['type']}\n"
-        f"Language: {row['language'] or 'unknown'}\n"
-        f"Domain: {row['domain'] or '-'}\n\n"
-        f"Excerpts:\n{excerpts_block}\n\n"
-        "Summary:"
+        f"File path: {row['file_path']}\nName: {row['name']}\nType: {row['type']}\n"
+        f"Language: {row['language'] or 'unknown'}\nDomain: {row['domain'] or '-'}\n\n"
+        f"Excerpts:\n{excerpts_block}\n\nSummary:"
     )
 
     try:
@@ -473,57 +326,19 @@ async def ensure_node_summary(node_id: str, force: bool = False) -> dict:
             ).strip()
     except Exception as e:
         logger.warning("summary_llm_failed", node_id=node_id, error=str(e))
-        return {
-            "summary": "",
-            "cached": False,
-            "source": "llm_failed",
-            "chunk_count": len(chunk_rows),
-        }
+        return {"summary": "", "cached": False, "source": "llm_failed", "chunk_count": len(chunk_rows)}
 
     if not summary_text:
         logger.warning("summary_llm_empty", node_id=node_id)
-        return {
-            "summary": "",
-            "cached": False,
-            "source": "llm_failed",
-            "chunk_count": len(chunk_rows),
-        }
+        return {"summary": "", "cached": False, "source": "llm_failed", "chunk_count": len(chunk_rows)}
 
     async with _pool.acquire() as conn:
         await conn.execute(
-            "UPDATE file_embeddings SET description = $1, updated_at = now() WHERE id::text = $2",
-            summary_text,
-            node_id,
+            "UPDATE file_embeddings SET description=$1 WHERE id=$2::uuid",
+            summary_text, row["id"],
         )
 
     logger.info("summary_persisted", node_id=node_id, chunks=len(chunk_rows))
-    return {
-        "summary": summary_text,
-        "cached": False,
-        "source": "llm",
-        "chunk_count": len(chunk_rows),
-    }
+    return {"summary": summary_text, "cached": False, "source": "llm", "chunk_count": len(chunk_rows)}
 
 
-async def purge_all() -> None:
-    if not _pool:
-        raise RuntimeError("Database not connected")
-
-    logger.info("purge_start")
-
-    async with _pool.acquire() as conn:
-        await conn.execute("DELETE FROM content_chunks")
-        await conn.execute("DELETE FROM file_embeddings")
-        await conn.execute("DELETE FROM repositories")
-        try:
-            await conn.execute(
-                """
-                SELECT * FROM cypher('substrate', $$
-                    MATCH (n) DETACH DELETE n
-                $$) AS (result agtype)
-                """
-            )
-        except Exception as e:
-            logger.warning("age_purge_failed", error=str(e))
-
-    logger.info("graph_purged")
