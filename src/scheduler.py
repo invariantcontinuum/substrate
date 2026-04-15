@@ -17,12 +17,18 @@ async def claim_due_schedules_once() -> None:
     Exposed as a named function so tests can invoke a single tick in isolation.
     Uses ensure_active_sync so concurrent user-triggered syncs are handled
     atomically without raising or creating duplicate rows.
+
+    Requires graph_writer.connect() to have been called first so the module-level
+    pool is available. Exposed as a public entry point so tests can run one tick
+    without touching the scheduler loop.
     """
     pool = graph_writer.get_pool()
     due = await sync_schedules.claim_due_schedules()
     for sched in due:
         source_id = sched["source_id"]
         raw_overrides = sched.get("config_overrides") or {}
+        # asyncpg decodes JSONB to dict by default; the str branch guards
+        # against a misconfigured codec returning the raw string.
         config_overrides = raw_overrides if isinstance(raw_overrides, dict) else json.loads(raw_overrides or "{}")
         async with pool.acquire() as conn:
             row = await conn.fetchrow("SELECT config FROM sources WHERE id=$1::uuid", source_id)
@@ -41,7 +47,7 @@ async def claim_due_schedules_once() -> None:
                     "scheduler_sync_already_active",
                     source_id=str(source_id),
                     existing_sync_id=sync_id,
-                    schedule_id=sched.get("id"),
+                    schedule_id=sched["id"],
                 )
 
 

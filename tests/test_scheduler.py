@@ -1,6 +1,7 @@
 import uuid
 import pytest
 import pytest_asyncio
+from datetime import datetime, timezone
 
 from src import graph_writer
 from src.sync_runs import ensure_active_sync
@@ -62,6 +63,14 @@ async def test_scheduler_creates_sync_run_for_due_schedule(
             source_id,
         )
     assert active_count == 1
+
+    async with graph_pool.acquire() as conn:
+        next_run_at = await conn.fetchval(
+            "SELECT next_run_at FROM sync_schedules WHERE source_id = $1::uuid",
+            source_id,
+        )
+    assert next_run_at > datetime.now(timezone.utc), \
+        "next_run_at should have advanced past now after claim"
 
 
 async def test_scheduler_does_not_duplicate_when_user_sync_already_active(
