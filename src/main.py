@@ -13,11 +13,17 @@ from src.schema import SyncRequest, ScheduleRequest, ScheduleUpdateRequest
 from src.jobs.runner import start_runner, stop_runner
 from src.scheduler import start_scheduler, stop_scheduler
 
+import logging as _logging
+import os as _os
+_LOG_LEVEL = getattr(_logging, _os.environ.get("LOG_LEVEL", "INFO").upper(), _logging.INFO)
 structlog.configure(
     processors=[
+        structlog.stdlib.add_log_level,
+        structlog.stdlib.filter_by_level,
         structlog.processors.TimeStamper(fmt="iso"),
         structlog.processors.JSONRenderer(),
-    ]
+    ],
+    wrapper_class=structlog.make_filtering_bound_logger(_LOG_LEVEL),
 )
 logger = structlog.get_logger()
 

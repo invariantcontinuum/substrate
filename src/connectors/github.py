@@ -324,8 +324,12 @@ class GitHubConnector:
         import shutil
         tmpdir = await _clone_repo(owner, repo, settings.github_token)
         try:
-            tree = _walk_local_tree(tmpdir)
-            file_paths = [n.id for n in parse_repo_tree(tree)]
+            # We intentionally don't pre-walk the tree here — sync.py walks
+            # once for the full NodeAffected list. file_paths stays empty
+            # for the GitHub connector; future connectors that already know
+            # their listing (e.g., a tar extract that produces a manifest)
+            # can populate it.
+            file_paths: list[str] = []
             ref = ""
             try:
                 head_file = os.path.join(tmpdir, ".git", "HEAD")
