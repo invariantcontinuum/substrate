@@ -100,3 +100,57 @@ async def update_source_last_sync(source_id: str, sync_id: str) -> None:
                WHERE id=$1::uuid""",
             source_id, sync_id,
         )
+
+
+async def ensure_active_sync(
+    conn,
+    *,
+    source_id: str,
+    config_snapshot: dict,
+    triggered_by: str,
+) -> tuple[str, bool]:
+    """Atomic create-or-return-existing active sync for a source.
+
+    Returns (sync_id, created). created=True → a new sync_runs row was inserted;
+    created=False → an active sync already existed and sync_id is that existing id.
+    """
+    row = await conn.fetchrow(
+        """
+        INSERT INTO sync_runs (source_id, config_snapshot, triggered_by, status)
+        VALUES ($1::uuid, $2::jsonb, $3, 'pending')
+        ON CONFLICT ON CONSTRAINT ux_sync_runs_one_active_per_source DO NOTHING
+        RETURNING id::text
+        """,
+        source_id, json.dumps(config_snapshot), triggered_by,
+    )
+    if row is not None:
+        return row["id"], True
+
+    existing = await conn.fetchval(
+        """
+        SELECT id::text FROM sync_runs
+        WHERE source_id = $1::uuid AND status IN ('pending', 'running')
+        LIMIT 1
+        """,
+        source_id,
+    )
+    if existing is not None:
+        return existing, False
+
+    # Rare: another writer terminated the active sync between our conflict and
+    # the SELECT. Try exactly one more insert; if that also conflicts without
+    # an existing row, raise so the caller sees a real error instead of looping.
+    row = await conn.fetchrow(
+        """
+        INSERT INTO sync_runs (source_id, config_snapshot, triggered_by, status)
+        VALUES ($1::uuid, $2::jsonb, $3, 'pending')
+        ON CONFLICT ON CONSTRAINT ux_sync_runs_one_active_per_source DO NOTHING
+        RETURNING id::text
+        """,
+        source_id, json.dumps(config_snapshot), triggered_by,
+    )
+    if row is not None:
+        return row["id"], True
+    raise RuntimeError(
+        "ensure_active_sync: ON CONFLICT fired twice but no active row present"
+    )
