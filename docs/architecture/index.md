@@ -1,14 +1,14 @@
 # Architecture
 
-Substrate Platform follows a **microservices architecture** with clear separation of concerns, event-driven communication, and horizontally scalable components.
+Substrate Platform follows a **microservices architecture** with clear separation of concerns. The current implementation focuses on GitHub source ingestion, graph visualization, and semantic search.
 
 ---
 
 ## Architecture Principles
 
-1. **Event-Driven**: All inter-service communication happens through NATS JetStream
-2. **Stateless Services**: Business logic services are stateless; state lives in databases
-3. **Graph-First**: The Neo4j graph is the primary data model; relational stores support it
+1. **No Mock Data**: Every node and edge comes from real repository analysis
+2. **Stateless Services**: Business logic services are stateless; state lives in PostgreSQL
+3. **Graph-First**: The Apache AGE graph inside PostgreSQL is the primary graph model
 4. **Real-Time by Default**: WebSocket connections stream live updates to clients
 5. **Local AI**: All LLM inference runs on self-hosted hardware — no external API calls
 
@@ -19,50 +19,42 @@ Substrate Platform follows a **microservices architecture** with clear separatio
 ```mermaid
 flowchart TB
     subgraph Frontend["Frontend (Port 3000)"]
-        UI[React + WASM Graph Engine]
+        UI[React + Cytoscape.js]
     end
-    
+
     subgraph Gateway["Gateway (Port 8080)"]
         GW[FastAPI Gateway]
         Auth[JWT Validation]
     end
-    
+
     subgraph Services["Backend Services"]
         ING[Ingestion Service<br/>Port 8081]
         GRAPH[Graph Service<br/>Port 8082]
-        RAG[RAG Orchestrator<br/>Port 8083]
     end
-    
+
     subgraph Infrastructure["Infrastructure"]
-        NEO4j[(Neo4j<br/>Graph DB)]
-        PG[(PostgreSQL<br/>Relational)]
-        REDIS[(Redis<br/>Cache)]
-        NATS[NATS JetStream<br/>Event Bus]
+        PG[(PostgreSQL 16)]
+        AGE[Apache AGE]
+        VEC[pgvector]
         KC[Keycloak<br/>Auth]
     end
-    
+
     subgraph AI["AI Inference"]
-        VLLM[vLLM<br/>Local LLMs]
+        LLM[lazy-lamacpp<br/>Local LLMs]
     end
-    
-    UI -->|HTTP/WebSocket| GW
-    GW -->|Proxy| ING
-    GW -->|Proxy| GRAPH
-    GW -->|Proxy| RAG
-    
-    ING -->|Publish| NATS
-    NATS -->|Consume| GRAPH
-    
+
+    UI -->|HTTP / WS| GW
+    GW -->|/ingest/*| ING
+    GW -->|/api/*| GRAPH
+    GW -->|/auth/*| KC
+
     ING -->|Write| PG
-    GRAPH -->|Read/Write| NEO4j
-    GRAPH -->|Cache| REDIS
+    ING -->|Write| AGE
     GRAPH -->|Read| PG
-    RAG -->|Query| PG
-    RAG -->|Vector Search| PG
-    
-    RAG -->|LLM Calls| VLLM
-    
-    GW -->|Validate| KC
+    GRAPH -->|Cypher| AGE
+
+    ING -->|Embed| LLM
+    GRAPH -->|Embed / Generate| LLM
 ```
 
 ---
@@ -71,11 +63,10 @@ flowchart TB
 
 | Service | Port | Language | Purpose |
 |---------|------|----------|---------|
-| **Gateway** | 8080 | Python/FastAPI | JWT auth, routing, rate limiting, WebSocket proxy |
-| **Ingestion** | 8081 | Python/FastAPI | Connector adapters, job system, scheduler |
-| **Graph Service** | 8082 | Python/FastAPI | Graph operations, policy evaluation, drift detection |
-| **RAG Orchestrator** | 8083 | Python/FastAPI | Natural language queries, embedding pipelines |
-| **Frontend** | 3000 | React/TypeScript | Dashboard UI with WASM graph rendering |
+| **Gateway** | 8080 | Python/FastAPI | JWT auth, routing, WebSocket proxy |
+| **Ingestion** | 8081 | Python/FastAPI | GitHub connector, sync orchestration, embeddings |
+| **Graph Service** | 8082 | Python/FastAPI | Graph queries, semantic search, LLM summaries |
+| **Frontend** | 3000 | React/TypeScript | Dashboard UI with Cytoscape graph |
 
 ---
 
@@ -83,11 +74,11 @@ flowchart TB
 
 | Component | Technology | Purpose |
 |-----------|------------|---------|
-| **Graph Database** | Neo4j 5.x | Architecture graph (nodes, edges, traversals) |
-| **Relational DB** | PostgreSQL 16 | Policies, events, embeddings, drift scores |
-| **Cache** | Redis 7 | Hot graph snapshots, sessions, rate limiting |
-| **Event Bus** | NATS JetStream | At-least-once delivery, stream replay |
-| **Identity** | Keycloak | OIDC auth, JWT issuance, SCIM lifecycle |
+| **Primary Database** | PostgreSQL 16 | Relational data, embeddings, graph queries |
+| **Graph Extension** | Apache AGE | Cypher graph queries inside PostgreSQL |
+| **Vector Extension** | pgvector | 1024-dimensional embeddings |
+| **Identity** | Keycloak | OIDC auth, JWT issuance |
+| **AI Inference** | lazy-lamacpp | Local embedding and dense LLM serving |
 
 ---
 
@@ -100,22 +91,19 @@ sequenceDiagram
     participant GitHub
     participant ING as Ingestion Service
     participant PG as PostgreSQL
-    participant NATS as NATS JetStream
-    participant GRAPH as Graph Service
-    participant NEO as Neo4j
-    participant REDIS as Redis
-    participant WS as WebSocket Clients
+    participant AGE as Apache AGE
+    participant LLM as lazy-lamacpp
 
-    GitHub->>ING: Webhook / API Poll
-    ING->>PG: Store raw event
-    ING->>ING: Normalize to GraphEvent
-    ING->>PG: Store graph event
-    ING->>NATS: Publish signals.graph.*
-    NATS->>GRAPH: Consume event
-    GRAPH->>NEO: MERGE nodes/edges
-    GRAPH->>REDIS: Invalidate cache
-    GRAPH->>NATS: Publish graph.updates.delta
-    GRAPH->>WS: Broadcast delta
+    GitHub->>ING: git clone --depth 1
+    ING->>ING: Discover & classify files
+    ING->>ING: Parse imports / includes
+    ING->>PG: Write file_embeddings
+    ING->>PG: Write content_chunks
+    ING->>AGE: Write File nodes & depends_on edges
+    ING->>LLM: Batch embed summaries
+    ING->>PG: Backfill embeddings
+    ING->>LLM: Batch embed chunks
+    ING->>PG: Backfill chunk embeddings
 ```
 
 ### Query Flow
@@ -124,18 +112,24 @@ sequenceDiagram
 sequenceDiagram
     participant UI as Frontend
     participant GW as Gateway
-    participant RAG as RAG Orchestrator
+    participant GRAPH as Graph Service
     participant PG as PostgreSQL
-    participant VLLM as vLLM
+    participant AGE as Apache AGE
+    participant LLM as lazy-lamacpp
 
-    UI->>GW: POST /api/query
-    GW->>RAG: Proxy with JWT
-    RAG->>PG: Embed query (pgvector)
-    RAG->>PG: Retrieve similar chunks
-    RAG->>VLLM: Generate with context
-    VLLM-->>RAG: Streaming response
-    RAG-->>GW: SSE stream
-    GW-->>UI: Grounded answer
+    UI->>GW: GET /api/graph?sync_ids=...
+    GW->>GRAPH: Proxy with JWT
+    GRAPH->>PG: Query merged snapshot
+    GRAPH->>AGE: Query edges
+    GRAPH-->>GW: Nodes + edges
+    GW-->>UI: Graph snapshot
+
+    UI->>GW: GET /api/graph/search?q=...
+    GW->>GRAPH: Proxy with JWT
+    GRAPH->>LLM: Embed query
+    GRAPH->>PG: pgvector similarity search
+    GRAPH-->>GW: Search results
+    GW-->>UI: Results
 ```
 
 ---
@@ -146,8 +140,8 @@ Substrate is designed for **self-hosted first** deployment:
 
 - Docker Compose for development and production
 - All components run on customer's infrastructure
-- Air-gapped deployment supported with OCI-compliant bundles
 - Zero external API dependencies for AI inference
+- Infrastructure provided by `home-stack` (PostgreSQL, Keycloak)
 
 See [Deployment](deployment.md) for detailed deployment patterns.
 

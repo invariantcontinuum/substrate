@@ -1,6 +1,6 @@
 # Infrastructure
 
-Substrate's infrastructure layer provides data persistence, caching, messaging, and identity services.
+Substrate's infrastructure layer provides data persistence, identity services, and local AI inference.
 
 ---
 
@@ -8,69 +8,29 @@ Substrate's infrastructure layer provides data persistence, caching, messaging, 
 
 | Component | Technology | Purpose | Port |
 |-----------|------------|---------|------|
-| Graph Database | Neo4j 5.16 | Architecture graph | 7687 |
-| Relational Database | PostgreSQL 16 | Policies, events, embeddings | 5432 |
-| Cache | Redis 7 | Hot snapshots, sessions | 6379 |
-| Event Bus | NATS 2.10 | Inter-service messaging | 4222 |
-| Identity | Keycloak | OIDC, JWT, SCIM | 8080 |
-
----
-
-## Neo4j
-
-### Role
-Primary graph database storing architecture nodes, edges, and their relationships.
-
-### Configuration
-
-```yaml
-# neo4j.conf
-server.memory.heap.initial_size=2G
-server.memory.heap.max_size=4G
-server.memory.pagecache.size=4G
-
-# Enable APOC
-dbms.security.procedures.unrestricted=apoc.*
-```
-
-### Schema Constraints
-
-```cypher
--- Node uniqueness
-CREATE CONSTRAINT service_id FOR (s:Service) REQUIRE s.id IS UNIQUE;
-CREATE CONSTRAINT database_id FOR (d:Database) REQUIRE d.id IS UNIQUE;
-CREATE CONSTRAINT cache_id FOR (c:Cache) REQUIRE c.id IS UNIQUE;
-CREATE CONSTRAINT external_id FOR (e:External) REQUIRE e.id IS UNIQUE;
-
--- Indexes
-CREATE INDEX service_name FOR (s:Service) ON (s.name);
-CREATE INDEX service_domain FOR (s:Service) ON (s.domain);
-CREATE INDEX node_status FOR (n) ON (n.status);
-```
-
-### Backup
-
-```bash
-# Online backup (Enterprise)
-neo4j-admin backup --from=localhost --backup-dir=/backups/neo4j
-
-# Offline dump (Community)
-neo4j-admin database dump neo4j --to-path=/backups/neo4j.dump
-```
+| Primary Database | PostgreSQL 16 | Relational data, embeddings, graph queries | 5432 |
+| Graph Extension | Apache AGE | Cypher graph queries inside PostgreSQL | — |
+| Vector Extension | pgvector | 1024-dimensional embeddings | — |
+| Identity | Keycloak | OIDC, JWT issuance | 8080 |
+| AI Inference | lazy-lamacpp | Local embedding and LLM serving | 8101-8105 |
 
 ---
 
 ## PostgreSQL
 
 ### Role
-Relational database for policies, events, drift scores, embeddings, and audit logs.
+
+PostgreSQL is the **single source of truth** for all Substrate data. It stores:
+- Relational metadata (sources, syncs, schedules, issues)
+- Vector embeddings (`pgvector`)
+- Graph topology (`Apache AGE`)
 
 ### Databases
 
 | Database | Owner | Purpose |
 |----------|-------|---------|
-| `substrate_ingestion` | substrate_ingestion | Ingestion service data |
-| `substrate_graph` | substrate_graph | Graph service data |
+| `substrate_graph` | `substrate_graph` | Graph service data |
+| `substrate_ingestion` | `substrate_ingestion` | Ingestion service state |
 
 ### Extensions
 
@@ -78,24 +38,16 @@ Relational database for policies, events, drift scores, embeddings, and audit lo
 -- Enable required extensions
 CREATE EXTENSION IF NOT EXISTS age;
 CREATE EXTENSION IF NOT EXISTS vector;
-CREATE EXTENSION IF NOT EXISTS pg_partman;
-```
-
-### Partitioning
-
-```sql
--- Partition drift_scores by month
-SELECT partman.create_parent(
-    'public.drift_scores',
-    'computed_at',
-    'native',
-    'monthly'
-);
 ```
 
 ### Connection Pooling
 
-Recommended: PgBouncer for production
+Both services use `asyncpg` connection pools:
+
+- **Graph Service**: Default pool sizing
+- **Ingestion Service**: Pool sized 4–25 to avoid saturation during heavy background writes
+
+For production, PgBouncer is recommended:
 
 ```ini
 [databases]
@@ -111,151 +63,122 @@ default_pool_size = 25
 
 ---
 
-## Redis
+## Apache AGE
 
 ### Role
-Caching layer for hot graph snapshots, session state, rate limiting, and distributed locks.
 
-### Configuration
+Apache AGE is a PostgreSQL extension that enables Cypher graph queries natively inside PostgreSQL. Substrate uses it instead of a standalone Neo4j server.
 
-```bash
-# redis.conf
-maxmemory 512mb
-maxmemory-policy allkeys-lru
-appendonly yes
-appendfsync everysec
+### Graph Name
+
+```sql
+-- The graph used by Substrate
+SELECT * FROM ag_catalog.create_graph('substrate');
 ```
 
-### Key Patterns
+### Cypher Execution
 
-| Pattern | Description | TTL |
-|---------|-------------|-----|
-| `graph:snapshot` | Full graph JSON | 60s |
-| `cache:deps:{id}:{depth}` | Dependency tree | On update |
-| `session:{user_id}` | User session | 30min |
-| `lock:{resource}` | Distributed lock | 60s |
-| `vllm:prefix:{hash}` | LLM KV cache | 2h |
+Queries are executed via:
+```sql
+SELECT * FROM cypher('substrate', $$
+  MATCH (a:File)-[r]->(b:File)
+  WHERE r.sync_id IN ['uuid1', 'uuid2']
+  RETURN a.file_id, b.file_id, r.weight
+$$) AS (result agtype);
+```
 
-### Persistence
+### Connection Setup
 
-- AOF (Append-Only File) enabled
-- RDB snapshots every 60 seconds
-- Rewrites triggered at 100% growth
+On every new pool connection, the Graph and Ingestion services run:
+```sql
+LOAD 'age';
+SET search_path = ag_catalog, public;
+```
+
+This is done via `asyncpg` `init` callbacks and `server_settings` to survive connection resets.
 
 ---
 
-## NATS JetStream
+## pgvector
 
 ### Role
-Event bus for inter-service communication with at-least-once delivery and stream replay.
 
-### Streams
+Stores 1024-dimensional vector embeddings for semantic search.
 
-```javascript
-// signals stream
-{
-  name: "signals",
-  subjects: ["signals.graph.*", "signals.infra.*"],
-  retention: "limits",
-  max_msgs: 1_000_000,
-  max_age: 7 * 24 * 60 * 60 * 1_000_000_000, // 7 days
-  storage: "file"
-}
+### Columns
 
-// updates stream
-{
-  name: "updates",
-  subjects: ["graph.updates.*"],
-  retention: "limits",
-  max_msgs: 100_000,
-  max_age: 24 * 60 * 60 * 1_000_000_000, // 1 day
-  storage: "memory"
-}
+| Table | Column | Type |
+|-------|--------|------|
+| `file_embeddings` | `embedding` | `vector(1024)` |
+| `content_chunks` | `embedding` | `vector(1024)` |
+
+### Search Queries
+
+```sql
+-- Cosine similarity search
+SELECT id, name, file_path, embedding <=> $1 AS distance
+FROM file_embeddings
+WHERE type = 'source'
+ORDER BY embedding <=> $1
+LIMIT 10;
 ```
 
-### Consumers
-
-```javascript
-// Graph service consumer
-{
-  name: "graph-service",
-  stream: "signals",
-  deliver_policy: "all",
-  ack_policy: "explicit",
-  ack_wait: 30_000_000_000, // 30s
-  max_deliver: 5
-}
-```
-
-### Subject Hierarchy
-
-```
-signals.graph.github.push
-signals.graph.github.pr_merge
-signals.graph.k8s.deployment
-signals.graph.terraform.apply
-graph.updates.delta
-graph.updates.stats
-```
+The `<=>` operator computes cosine distance (lower is better).
 
 ---
 
 ## Keycloak
 
 ### Role
-Identity provider for OIDC authentication, JWT issuance, and user lifecycle management.
+
+Identity provider for OIDC authentication and JWT issuance.
 
 ### Realm Configuration
 
-```json
-{
-  "realm": "substrate",
-  "enabled": true,
-  "sslRequired": "external",
-  "registrationAllowed": false,
-  "clients": [
-    {
-      "clientId": "substrate-frontend",
-      "publicClient": true,
-      "redirectUris": ["http://localhost:3000/*"],
-      "webOrigins": ["http://localhost:3000"],
-      "standardFlowEnabled": true,
-      "implicitFlowEnabled": false,
-      "directAccessGrantsEnabled": false
-    },
-    {
-      "clientId": "substrate-gateway",
-      "publicClient": false,
-      "clientAuthenticatorType": "client-secret",
-      "serviceAccountsEnabled": true
-    }
-  ],
-  "roles": {
-    "realm": [
-      { "name": "admin" },
-      { "name": "architect" },
-      { "name": "developer" },
-      { "name": "viewer" }
-    ]
-  }
-}
+- **Realm**: `substrate`
+- **Client (frontend)**: `substrate-frontend` (public client, PKCE)
+- **Issuer**: `{KEYCLOAK_URL}/realms/substrate`
+- **JWKS Endpoint**: `{KEYCLOAK_URL}/realms/substrate/protocol/openid-connect/certs`
+
+### Token Characteristics
+
+- **Algorithm**: RS256
+- **Access token lifetime**: 5 minutes
+- **Refresh token lifetime**: 30 minutes
+- **Audience verification**: Not enforced by Gateway (`verify_aud=False`)
+
+---
+
+## lazy-lamacpp (Local AI Inference)
+
+### Role
+
+On-demand local LLM serving for embeddings and summaries.
+
+### Models and Ports
+
+| Model | Port | Purpose |
+|-------|------|---------|
+| `embeddings` | 8101 | File and chunk embeddings (1024-dim) |
+| `dense` | 8102 | File summaries, dense reasoning |
+| `sparse` | 8103 | Sparse retrieval (future) |
+| `reranker` | 8104 | Search reranking (future) |
+| `coding` | 8105 | Code generation (future) |
+
+### Startup Commands
+
+```bash
+cd ~/github/lazy-lamacpp
+make start MODEL=embeddings
+make start MODEL=dense
+make status MODEL=embeddings
 ```
 
-### SCIM Integration
+### API Compatibility
 
-```json
-{
-  "enabled": true,
-  "endpoint": "/scim/v2",
-  "clientId": "substrate-scim",
-  "createUserEvent": true,
-  "deleteUserEvent": true
-}
-```
-
-SCIM events trigger Substrate graph mutations:
-- `POST /Users` → Create Developer node
-- `PATCH /Users/{id}` (active=false) → Deactivate, run key-person risk scan
+All endpoints expose an OpenAI-compatible API:
+- Embeddings: `POST /v1/embeddings`
+- Chat completions: `POST /v1/chat/completions`
 
 ---
 
@@ -265,49 +188,26 @@ SCIM events trigger Substrate graph mutations:
 
 | Component | CPU | Memory | Storage |
 |-----------|-----|--------|---------|
-| Neo4j | 2 cores | 4 GB | 50 GB |
 | PostgreSQL | 2 cores | 2 GB | 20 GB |
-| Redis | 0.5 cores | 512 MB | 10 GB |
-| NATS | 1 core | 512 MB | 10 GB |
 | Keycloak | 1 core | 1 GB | 5 GB |
+| lazy-lamacpp | 2 cores | 4 GB | 10 GB |
 
 ### Production
 
 | Component | CPU | Memory | Storage |
 |-----------|-----|--------|---------|
-| Neo4j | 8 cores | 16 GB | 500 GB SSD |
 | PostgreSQL | 4 cores | 8 GB | 200 GB SSD |
-| Redis | 2 cores | 2 GB | 50 GB |
-| NATS | 2 cores | 2 GB | 100 GB |
 | Keycloak | 2 cores | 2 GB | 20 GB |
+| lazy-lamacpp | 4 cores | 8+ GB | 20 GB |
 
 ---
 
 ## Health Checks
 
-### Neo4j
-
-```bash
-cypher-shell -u neo4j -p $PASSWORD "RETURN 1"
-```
-
 ### PostgreSQL
 
 ```bash
 pg_isready -U postgres -h localhost
-```
-
-### Redis
-
-```bash
-redis-cli ping
-# Expected: PONG
-```
-
-### NATS
-
-```bash
-nats server check
 ```
 
 ### Keycloak
@@ -316,28 +216,28 @@ nats server check
 curl http://localhost:8080/health/ready
 ```
 
+### lazy-lamacpp
+
+```bash
+curl http://localhost:8101/health
+curl http://localhost:8102/health
+```
+
 ---
 
 ## Backup Strategy
 
-### Neo4j
-- Daily online backups (Enterprise)
-- Weekly offline dumps (Community)
-- Retention: 30 days
-
 ### PostgreSQL
-- Continuous WAL archiving
-- Daily full backups
-- Point-in-time recovery
 
-### Redis
-- AOF rewrite every hour
-- RDB snapshot daily
-- Replication to secondary
+```bash
+# Backup graph database
+pg_dump -h localhost -U substrate_graph substrate_graph > substrate_graph_backup.sql
 
-### NATS
-- Stream replication
-- Periodic stream snapshots
+# Backup ingestion database
+pg_dump -h localhost -U substrate_ingestion substrate_ingestion > substrate_ingestion_backup.sql
+
+# Point-in-time recovery via WAL archiving (recommended for production)
+```
 
 ---
 
@@ -345,15 +245,14 @@ curl http://localhost:8080/health/ready
 
 ### Network
 - All inter-service traffic over internal Docker network
-- No external exposure except Gateway (8080) and Keycloak (8080)
-- TLS enabled for all connections
+- No external exposure except Gateway (8080), Keycloak (8080), and frontend (3000)
+- TLS recommended for production
 
 ### Data at Rest
-- PostgreSQL: AES-256 encryption
-- Neo4j: Native encryption
-- Redis: No sensitive data (ephemeral)
+- PostgreSQL: Enable transparent data encryption (TDE) or filesystem-level encryption
+- No sensitive data in local AI inference caches
 
 ### Access Control
-- Database users per service
-- Minimal privileges
-- No superuser access from applications
+- Database users per service (`substrate_graph`, `substrate_ingestion`)
+- Minimal privileges (no superuser access from applications)
+- Keycloak realm separation for multi-environment deployments

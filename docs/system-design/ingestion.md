@@ -8,16 +8,19 @@
 
 ## Overview
 
-The Ingestion Service is the **connector hub** that translates external tool signals into normalized graph events. It maintains the pipeline from raw data sources to the unified knowledge graph.
+The Ingestion Service orchestrates the extraction, parsing, embedding, and graph-persistence of external source code repositories. It is the **write path** of the Substrate platform.
 
 ---
 
 ## Responsibilities
 
-1. **Connector Management**: GitHub, Kubernetes, Terraform, Jira connectors
-2. **Job Scheduling**: Async job execution with progress tracking
-3. **Event Normalization**: Transform raw signals to `GraphEvent` schema
-4. **Event Publishing**: Publish to NATS for downstream consumption
+1. **Source Materialization**: Clone/download repositories into temporary scratch space
+2. **File Discovery & Classification**: Walk the repository tree and classify every file
+3. **Static Import Analysis**: Parse file contents to extract cross-file dependencies
+4. **Chunking & Embedding**: Split contents into chunks and generate vector embeddings
+5. **Graph Persistence**: Write nodes and edges into Apache AGE and PostgreSQL
+6. **Sync Lifecycle Management**: Create, cancel, retry, clean, and purge sync jobs
+7. **Scheduling**: Poll for due schedules and automatically enqueue periodic syncs
 
 ---
 
@@ -26,200 +29,190 @@ The Ingestion Service is the **connector hub** that translates external tool sig
 ```mermaid
 flowchart TB
     subgraph Sources["Data Sources"]
-        GH[GitHub API/Webhooks]
-        K8s[Kubernetes API]
-        TF[Terraform State]
-        Jira[Jira API]
+        GH[GitHub API / git clone]
     end
-    
+
     subgraph Ingestion["Ingestion Service"]
         API[FastAPI Server]
-        JOB[Job Runner]
-        SCH[Scheduler]
-        CONN[Connectors]
+        RUNNER[Job Runner]
+        SCHED[Scheduler]
+        CONN[GitHub Connector]
+        SYNC[Sync Orchestrator]
     end
-    
+
     subgraph Storage
         PG[(PostgreSQL)]
-        NATS[NATS JetStream]
+        AGE[Apache AGE]
     end
-    
-    GH -->|Webhook/Poll| API
-    K8s -->|Watch API| CONN
-    TF -->|State API| CONN
-    Jira -->|Webhook| API
-    
-    API -->|Create| JOB
-    SCH -->|Trigger| JOB
-    JOB -->|Execute| CONN
-    
-    CONN -->|Store| PG
-    CONN -->|Publish| NATS
+
+    GH -->|clone| CONN
+    CONN -->|MaterializedTree| SYNC
+    SYNC -->|write| PG
+    SYNC -->|write| AGE
+
+    API -->|create| RUNNER
+    SCHED -->|trigger| RUNNER
+    RUNNER -->|dispatch| SYNC
 ```
 
 ---
 
-## Connectors
+## Key Modules
 
-### GitHub Connector
-
-**Capabilities:**
-- Repository tree fetching
-- AST parsing (C, Python, JavaScript, Go, Rust)
-- Import/include dependency extraction
-- PR event processing
-- CODEOWNERS parsing
-
-**Configuration:**
-```python
-GITHUB_TOKEN = "ghp_..."
-GITHUB_WEBHOOK_SECRET = "..."
-FETCH_CONCURRENCY = 20  # Parallel file fetches
-```
-
-**Rate Limiting:**
-- Read `X-RateLimit-Remaining` header
-- Sleep when remaining < 50
-- Respect `X-RateLimit-Reset` timestamp
-
-### Kubernetes Connector
-
-**Capabilities:**
-- Deployment discovery
-- Service topology mapping
-- ConfigMap tracking
-- Ingress rule extraction
-
-**Configuration:**
-```python
-KUBE_CONFIG_PATH = "/etc/kube/config"
-WATCH_TIMEOUT = 300  # seconds
-POLL_INTERVAL = 60   # seconds (fallback)
-```
-
-### Terraform Connector
-
-**Capabilities:**
-- State file parsing
-- Resource dependency extraction
-- Provider version tracking
-- Module hierarchy mapping
-
-### Jira Connector
-
-**Capabilities:**
-- Issue tracking
-- Sprint synchronization
-- Epic linkage
-- Status workflow mapping
+| Module | Responsibility |
+|--------|----------------|
+| `main.py` | FastAPI app factory, lifespan management, REST endpoints |
+| `config.py` | Pydantic `BaseSettings` — database URLs, GitHub token, embedding config |
+| `db.py` | Asyncpg pool factory for the ingestion database |
+| `schema.py` | Pydantic models: `GraphEvent`, `FileMetadata`, request DTOs |
+| `chunker.py` | Line-aware text chunker with configurable size/overlap |
+| `graph_writer.py` | Graph + relational write layer with batching and fallback |
+| `llm.py` | HTTP client to the local `/v1/embeddings` endpoint |
+| `scheduler.py` | Polls every 30s, claims due schedules atomically |
+| `sync_runs.py` | Single source of truth for sync row lifecycle |
+| `sync_issues.py` | Records structured issues per sync (capped at 1,000) |
+| `sync_schedules.py` | CRUD + `claim_due_schedules()` |
+| `connectors/base.py` | `SourceConnector` protocol |
+| `connectors/github.py` | GitHub-specific connector |
+| `jobs/runner.py` | Polls for pending syncs and dispatches them |
+| `jobs/sync.py` | The actual sync orchestrator |
 
 ---
 
-## Job System
+## The GitHub Connector
 
-### Job Types
+**File:** `src/connectors/github.py`
 
-| Type | Description |
-|------|-------------|
-| `sync` | Full repository sync |
-| `incremental` | Delta sync based on timestamp |
-| `webhook` | Process incoming webhook |
-| `analyze` | Run analysis on existing data |
+### How It Works
 
-### Job Lifecycle
+The `GitHubConnector` shallow-clones repositories via `git clone --depth 1` and returns a `MaterializedTree` containing all files.
 
-```
-PENDING -> RUNNING -> COMPLETED
-                   -> FAILED
-                   -> CANCELLED
-```
+### What It Ingests
 
-### Job Schema
+All files (blobs) from the repository tree. Directories are excluded.
 
-```python
-class JobRun(BaseModel):
-    id: UUID
-    job_type: str
-    scope: dict  # {repo_url, owner, repo}
-    status: str  # pending | running | completed | failed
-    progress: dict  # {done: int, total: int}
-    result: dict | None
-    error: str | None
-    created_at: datetime
-    started_at: datetime | None
-    completed_at: datetime | None
-```
+### File Classification
 
----
+`classify_file_type()` categorizes files into:
 
-## Scheduler
+| Type | Extensions |
+|------|------------|
+| `source` | `.c`, `.py`, `.go`, `.rs`, `.ts`, `.js`, `.java`, etc. |
+| `config` | `.yaml`, `.json`, `.toml`, `Makefile`, `Dockerfile`, etc. |
+| `script` | `.sh`, `.bash`, `.ps1`, etc. |
+| `doc` | `.md`, `.rst`, `.txt`, `LICENSE`, etc. |
+| `data` | `.csv`, `.tsv`, `.sql` |
+| `asset` | Images, fonts |
+| `service` | Fallback for unrecognized extensions |
 
-### Sync Schedules
+### Import Parsing
 
-```sql
-CREATE TABLE sync_schedules (
-    id SERIAL PRIMARY KEY,
-    owner TEXT NOT NULL,
-    repo TEXT NOT NULL,
-    interval_minutes INTEGER NOT NULL DEFAULT 60,
-    enabled BOOLEAN NOT NULL DEFAULT true,
-    last_run TIMESTAMPTZ,
-    next_run TIMESTAMPTZ,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE(owner, repo)
-);
-```
+`parse_imports()` uses regex patterns per language to find local dependencies:
 
-### Schedule Options
+| Extensions | Pattern |
+|------------|---------|
+| `.c`, `.h`, `.cpp`, `.hpp` | `#include "..."` |
+| `.py` | `from X import Y` / `import X` |
+| `.js`, `.jsx`, `.ts`, `.tsx` | `import ... from '...'` / `require('...')` |
+| `.go` | `import "..."` |
+| `.rs` | `use crate::...` / `mod ...` |
+| `.pl`, `.pm` | `use ...` / `require '...'` |
+| `.sh`, `.bash` | `source ...` / `. ...` |
+| `.cmake` | `include(...)` / `find_package(...)` |
 
-- Off
-- 5 minutes
-- 15 minutes
-- 30 minutes
-- 1 hour
-- 6 hours
-- 24 hours
+Only resolved local files become edges with `type="depends"`.
 
 ---
 
-## Event Normalization
+## Sync Job Lifecycle
 
-### GraphEvent Schema
+### Status Values
 
-```python
-class GraphEvent(BaseModel):
-    source: str           # github | k8s | terraform | jira
-    event_type: str       # push | pr_merge | deployment | etc.
-    nodes_affected: list[GraphNode]
-    edges_affected: list[GraphEdge]
-    timestamp: datetime
-    
-class GraphNode(BaseModel):
-    id: str
-    type: str             # service | database | cache | external
-    name: str
-    domain: str | None
-    status: str | None
-    meta: dict
-    
-class GraphEdge(BaseModel):
-    id: str
-    source: str           # node id
-    target: str           # node id
-    type: str             # depends_on | calls | hosts
-    label: str | None
-    weight: float
+```
+pending -> running -> completed
+                 -> failed
+                 -> cancelled -> cleaned
 ```
 
-### Publishing
+### State Machine (`sync_runs.py`)
 
-```python
-# Publish to NATS
-await nats_client.publish(
-    subject=f"signals.graph.{source}.{event_type}",
-    payload=event.json()
-)
-```
+- **Partial unique index**: Guarantees only one active (`pending` or `running`) sync per source
+- `create_sync_run()`: Inserts `pending` row
+- `claim_sync_run()`: Atomically updates `pending` → `running`
+- `ensure_active_sync()`: Returns existing active sync or creates new (used by scheduler)
+- `complete_sync_run()`, `fail_sync_run()`, `cancel_sync_run()`: Terminal transitions
+
+### Runner (`jobs/runner.py`)
+
+- Polls every 2 seconds for up to 5 `pending` syncs
+- Spawns `asyncio.create_task(handle_sync(...))` for each
+- Graceful shutdown with 30s timeout for in-flight tasks
+
+### Scheduler (`scheduler.py`)
+
+- Polls every 30 seconds
+- Claims due schedules atomically (`FOR UPDATE SKIP LOCKED`)
+- Calls `ensure_active_sync()` for each due schedule
+
+### Sync Orchestrator (`jobs/sync.py`)
+
+The `handle_sync()` pipeline:
+
+1. **Materialize** — connector clones repo to temp dir
+2. **Discover** — walk tree, build `NodeAffected` list
+3. **Parse** — read files, extract import edges
+4. **Prepare** — build metadata: language, line count, SHA-256, summary text, chunks
+5. **Graphing** — write `file_embeddings` and `content_chunks` (without embeddings), then write AGE nodes/edges
+6. **Embed summaries** — batch-embed file summaries, backfill `file_embeddings.embedding`
+7. **Embed chunks** — batch-embed chunk contents, backfill `content_chunks.embedding`
+8. **Done** — mark complete, update `sources.last_sync_id`
+
+Cancellation is checked every 50 files. On cancellation, partial data is cleaned up.
+
+---
+
+## Graph Writer Batching
+
+**File:** `src/graph_writer.py`
+
+### Batch Strategy
+
+`write_age_nodes()` and `write_age_edges()` use a `CHUNK_SIZE = 500` strategy:
+
+1. **UNWIND chunk attempt** — builds a single Cypher `UNWIND [...] AS r CREATE ...` for up to 500 rows
+2. **Per-row fallback** — if the chunk fails (e.g., due to `$$` breaking dollar-quoting), falls back to individual `CREATE` statements
+
+### Relational Writes
+
+- `ensure_source()`: Idempotent insert-or-update for `sources`
+- `insert_file()`: Insert into `file_embeddings`
+- `insert_chunks()`: Insert into `content_chunks`
+- `update_file_embedding()`: Backfill embedding after batch generation
+- `update_chunk_embedding()`: Backfill chunk embedding
+
+### Cleanup
+
+`cleanup_partial(sync_id)`:
+- `MATCH (n) WHERE n.sync_id = '...' DETACH DELETE n` in AGE
+- `DELETE FROM file_embeddings WHERE sync_id = ...` (chunks cascade via FK)
+
+---
+
+## Chunking & Embedding
+
+### Chunking (`chunker.py`)
+
+- **Line-aware sliding window**: Splits by newlines, accumulates token estimates
+- **Overlap**: After emitting a chunk, walks backward to create overlap
+- **Token heuristic**: `len(text.split()) * 1.3`
+- Defaults: `chunk_size=512`, `chunk_overlap=64`
+
+### LLM Client (`llm.py`)
+
+- Talks to local llama-cpp at `settings.embedding_url`
+- **Truncation**: Inputs truncated to 6,000 characters before sending
+- **Batch embedding**: Sends up to 32 texts at a time
+- **Recursive bisect on 400**: If a batch gets HTTP 400, splits in half and retries each half
 
 ---
 
@@ -228,63 +221,85 @@ await nats_client.publish(
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/health` | GET | Health check |
-| `/jobs` | GET | List jobs |
-| `/jobs` | POST | Create job |
-| `/jobs/{id}` | GET | Get job status |
-| `/jobs/{id}/cancel` | POST | Cancel job |
-| `/ingest/schedules` | GET | List schedules |
-| `/ingest/schedules` | POST | Create schedule |
-| `/ingest/schedules/{id}` | DELETE | Delete schedule |
-| `/ingest/schedules/{id}/toggle` | POST | Toggle schedule |
-| `/webhooks/github` | POST | GitHub webhook |
+| `/api/syncs` | GET | List sync runs |
+| `/api/syncs` | POST | Create new sync |
+| `/api/syncs/{sync_id}` | GET | Get sync run |
+| `/api/syncs/{sync_id}/cancel` | POST | Cancel sync |
+| `/api/syncs/{sync_id}/retry` | POST | Retry failed sync |
+| `/api/syncs/{sync_id}/clean` | POST | Clean completed/failed sync |
+| `/api/syncs/{sync_id}/purge` | DELETE | Purge sync and all data |
+| `/api/schedules` | GET | List schedules |
+| `/api/schedules` | POST | Create schedule |
+| `/api/schedules/{schedule_id}` | DELETE | Delete schedule |
+| `/api/schedules/{schedule_id}/toggle` | POST | Toggle enabled state |
 
 ---
 
-## Performance Optimizations
+## Configuration
 
-### Parallel Fetching
-
-```python
-async with asyncio.Semaphore(20):
-    await asyncio.gather(*[
-        fetch_file(client, file)
-        for file in files
-    ])
-```
-
-### Batch Processing
-
-- Process files in batches of 100
-- Commit to PostgreSQL every batch
-- Publish progress events every 100 files
-
-### Connection Pooling
-
-Shared `httpx.AsyncClient` for all GitHub API calls:
-
-```python
-client = httpx.AsyncClient(
-    limits=httpx.Limits(
-        max_connections=50,
-        max_keepalive_connections=20
-    )
-)
-```
+| Setting | Default | Purpose |
+|---------|---------|---------|
+| `database_url` | `postgresql+asyncpg://substrate_ingestion:changeme@local-postgres:5432/substrate_ingestion` | Ingestion DB |
+| `graph_database_url` | `postgresql+asyncpg://substrate_graph:changeme@local-postgres:5432/substrate_graph` | Shared graph DB |
+| `github_token` | `""` | PAT for GitHub API and clone auth |
+| `app_port` | `8081` | FastAPI listen port |
+| `embedding_url` | `http://localhost:8101/v1/embeddings` | Embedding endpoint |
+| `embedding_model` | `Qwen3-Embedding-0.6B-Q8_0.gguf` | Model name |
+| `embedding_dim` | `1024` | Must match served model |
+| `chunk_size` | `512` | Target tokens per chunk |
+| `chunk_overlap` | `64` | Tokens to overlap |
 
 ---
 
-## Progress Tracking
+## Test Coverage
 
-Sync progress published to NATS:
+| Test File | What It Covers |
+|-----------|----------------|
+| `test_schema.py` | Pydantic model validation |
+| `test_github.py` | Tree parsing and import extraction |
+| `test_graph_writer_batching.py` | Chunked AGE writes with fallback |
+| `test_graph_writer_integration.py` | Real AGE integration (2,500 nodes) |
+| `test_cleanup.py` | Cleanup and idempotency |
+| `test_sync_runs.py` | Full sync lifecycle |
+| `test_ensure_active_sync.py` | Race-condition safety |
+| `test_sync_issues.py` | Issue capping behavior |
+| `test_scheduler.py` | Schedule-driven sync creation |
 
-```json
-{
-  "type": "sync_progress",
-  "job_id": "...",
-  "done": 250,
-  "total": 1007,
-  "percent": 24.8
-}
-```
+**Gaps:**
+- No direct tests for `jobs/sync.py` (the main orchestrator)
+- No tests for `llm.py` embedding client
+- No tests for `chunker.py`
 
-Frontend displays progress in TopBar.
+---
+
+## Ingestion Database Tables
+
+The ingestion service maintains its own PostgreSQL database (`substrate_ingestion`) with Flyway-managed migrations.
+
+### `raw_events`
+
+Buffers incoming webhook/API events before normalization.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | UUID PK | |
+| `source` | text | Event source (e.g., `github`) |
+| `event_type` | text | Event type |
+| `payload` | JSONB | Raw event payload |
+| `received_at` | timestamptz | |
+
+### `graph_events`
+
+Stores normalized graph events pending downstream processing.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | UUID PK | |
+| `source` | text | Event source |
+| `event_type` | text | Event type |
+| `nodes_affected` | JSONB | |
+| `edges_affected` | JSONB | |
+| `published` | bool | Default `false` |
+| `created_at` | timestamptz | |
+
+**Note:** These tables are part of the schema but are not actively used by the current clone-based sync pipeline, which writes directly to the shared graph database.

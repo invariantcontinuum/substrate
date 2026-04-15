@@ -2,41 +2,37 @@
 
 ## Design Philosophy
 
-Substrate's architecture follows the principle of **continuous computable governance** — the system doesn't just observe your architecture, it actively maintains alignment between intent and reality.
+Substrate's architecture is built around a single principle: **the graph should always reflect reality**. Every node and edge is derived from actual source code analysis, not manually maintained diagrams.
 
 ---
 
-## The Two Graph Layers
+## The Two Graph Layers (Future Vision)
 
-At the heart of Substrate are two graph layers that represent the duality of architectural knowledge:
+At the heart of Substrate's long-term design are two graph layers:
 
 ### Intended Graph (G_I)
 What **should** exist — the architectural intent captured from:
-- Policies (Rego rules)
-- ADRs (Architecture Decision Records)
-- Golden paths and approved topology
-- Declared infrastructure (Terraform, K8s manifests)
+- Policies (Rego rules) — *planned*
+- ADRs (Architecture Decision Records) — *planned*
+- Approved topology and golden paths — *planned*
+- Declared infrastructure — *planned*
 
 ### Observed Graph (G_R)
 What **actually** exists — the runtime reality captured from:
-- Live code dependencies (GitHub, AST parsing)
-- Running services (Kubernetes API)
-- Deployed infrastructure (Terraform state)
-- SSH-verified host state
+- Live code dependencies (GitHub, AST parsing) — **implemented**
+- Running services (Kubernetes API) — *planned*
+- Deployed infrastructure (Terraform state) — *planned*
 
-### Drift = |G_I - G_R|
+### Current Implementation
 
-The drift score quantifies the divergence between intent and reality:
+Today, Substrate builds **G_R** from GitHub repositories. The ingestion pipeline:
 
-```
-drift_score = (divergences + absences) / (convergences + divergences + absences)
-```
-
-| Term | Definition |
-|------|------------|
-| **Convergences** | Nodes/edges in both G_I and G_R |
-| **Divergences** | Nodes/edges in G_R but not G_I (shadow IT, unauthorized changes) |
-| **Absences** | Nodes/edges in G_I but not G_R (missing implementations, deprecated services) |
+1. Shallow-clones the target repository
+2. Discovers and classifies every file
+3. Parses imports/includes to extract cross-file dependencies
+4. Chunks file contents and generates embeddings
+5. Writes nodes and edges into PostgreSQL + Apache AGE
+6. Serves the merged graph through a read-only REST API
 
 ---
 
@@ -45,140 +41,98 @@ drift_score = (divergences + absences) / (convergences + divergences + absences)
 ### Gateway Service
 **Single ingress point** for all external traffic.
 
-- JWT validation via Keycloak JWKS
+- JWT validation via Keycloak JWKS (cached with TTL-based refresh)
 - Request routing to downstream services
-- API key issuance for CI/CD integrations
-- WebSocket upgrade handling
-- Rate limiting via Redis token bucket
+- WebSocket upgrade handling and proxying
+- CORS configuration for frontend origins
+
+The gateway uses a shared `httpx.AsyncClient` for connection pooling and implements app-level retries for idempotent methods.
 
 ### Ingestion Service
-**Connector hub** that translates external tool signals into normalized graph events.
+**Sync orchestrator** that transforms source code into graph data.
 
-| Connector | Data Source | Trigger |
-|-----------|-------------|---------|
-| GitHub | Repos, PRs, commits | Webhook / Poll |
-| Kubernetes | Deployments, Services | API Watch |
-| Terraform | State files | Post-apply hook |
-| Jira | Tickets, sprints | Webhook |
+| Capability | Status |
+|------------|--------|
+| GitHub connector (clone-based) | Implemented |
+| File classification (source, config, doc, etc.) | Implemented |
+| Import parsing (C, Python, JS/TS, Go, Rust, etc.) | Implemented |
+| Chunking + embedding pipeline | Implemented |
+| Sync scheduling | Implemented |
+| Kubernetes connector | Planned |
+| Terraform connector | Planned |
+| Jira connector | Planned |
 
-Each connector:
-1. Receives raw signal
-2. Normalizes to `GraphEvent` schema
-3. Publishes to NATS `signals.graph.*`
-4. Stores audit trail in PostgreSQL
+The ingestion service directly writes to the shared PostgreSQL/AGE database. There is no message bus in the current implementation.
 
 ### Graph Service
-**Graph brain** that maintains the live architecture graph.
+**Read-only query layer** over the architecture graph.
 
-**Core Functions:**
-- Event consumption from NATS
-- Neo4j graph maintenance (MERGE operations)
-- Redis snapshot caching
-- WebSocket delta broadcasting
-- Drift score computation
-- Policy evaluation via OPA
-- Simulation engine (what-if analysis)
+- Serves merged graph snapshots across multiple syncs
+- Provides semantic search via pgvector cosine similarity
+- Generates on-demand LLM summaries for individual files
+- Manages source metadata (CRUD for connected repositories)
+- Reads sync history and scheduling info (writes live in ingestion)
 
-### RAG Orchestrator (SDB)
-**Software-Defined Brain** for natural language interaction.
+### Frontend
+**React dashboard** for graph exploration and source management.
 
-**RAG Pipelines:**
-- **Standard RAG**: Factual queries about current graph state
-- **Conversational RAG**: Multi-turn sessions with context
-- **CRAG**: Corrective RAG for low-confidence retrievals
-
-**Models (local):**
-- Embedding: BGE-M3
-- LLM: Llama 3.1 8B (or larger for enterprise)
-- Reranking: bge-reranker-v2-m3
+- Cytoscape.js-based graph canvas (currently; WASM engine planned)
+- OIDC authentication via Keycloak
+- Server state managed with TanStack Query
+- Client state managed with Zustand
 
 ---
 
-## Event-Driven Architecture
+## Request Flow
+
+```mermaid
+flowchart TB
+    subgraph Browser["Browser"]
+        UI[React Frontend]
+    end
+
+    subgraph Gateway["Gateway :8080"]
+        AUTH[JWT Validation]
+        PROXY[HTTP/WS Proxy]
+    end
+
+    subgraph Services["Services"]
+        ING[Ingestion :8081]
+        GRAPH[Graph :8082]
+    end
+
+    subgraph Data["PostgreSQL + AGE"]
+        REL[(Relational Tables)]
+        AGE[(Graph :substrate)]
+    end
+
+    UI -->|HTTP / WS| Gateway
+    Gateway -->|/api/*| GRAPH
+    Gateway -->|/ingest/*| ING
+    Gateway -->|/auth/*| Keycloak
+
+    ING -->|Write| REL
+    ING -->|Write| AGE
+    GRAPH -->|Read| REL
+    GRAPH -->|Read| AGE
+```
+
+---
+
+## Data Flow: GitHub Repository to Graph
 
 ```mermaid
 flowchart LR
-    subgraph Sources["Data Sources"]
-        GH[GitHub]
-        K8s[Kubernetes]
-        TF[Terraform]
-    end
-    
-    subgraph Ingestion["Ingestion"]
-        CONN[Connectors]
-    end
-    
-    subgraph EventBus["NATS JetStream"]
-        STREAM[signals.graph.*]
-        UPDATES[graph.updates.*]
-    end
-    
-    subgraph Consumers["Consumers"]
-        GS[Graph Service]
-        WS[WebSocket Clients]
-    end
-    
-    GH --> CONN
-    K8s --> CONN
-    TF --> CONN
-    
-    CONN -->|Publish| STREAM
-    STREAM -->|Consume| GS
-    GS -->|Publish| UPDATES
-    UPDATES -->|Subscribe| WS
-```
-
-**Event Schema:**
-
-```json
-{
-  "source": "github",
-  "event_type": "pr_merge",
-  "nodes_affected": [...],
-  "edges_affected": [...],
-  "timestamp": "2026-04-12T10:30:00Z"
-}
-```
-
----
-
-## WebSocket Real-Time Protocol
-
-The frontend maintains a persistent WebSocket connection for live updates:
-
-**Connection:**
-```
-ws://gateway:8080/ws/graph?token=<JWT>
-```
-
-**Inbound Messages:**
-
-```json
-// Initial snapshot
-{
-  "type": "snapshot",
-  "nodes": [...],
-  "edges": [...],
-  "seq": 1
-}
-
-// Delta batch
-{
-  "type": "batch",
-  "events": [
-    {"op": "node_added", "data": {...}},
-    {"op": "edge_added", "data": {...}},
-    {"op": "node_updated", "data": {...}}
-  ],
-  "seq": 42
-}
-```
-
-**Outbound Messages:**
-
-```json
-{"type": "ack", "seq": 42}
-{"type": "subscribe", "filters": {"domains": ["payments"]}}
+    GH[GitHub Repo] -->|git clone --depth 1| ING
+    ING -->|discover files| DISC[File Classification]
+    ING -->|parse imports| PARSE[Dependency Extraction]
+    ING -->|chunk + embed| EMB[Embedding Pipeline]
+    ING -->|write nodes| REL[file_embeddings]
+    ING -->|write chunks| REL2[content_chunks]
+    ING -->|write edges| AGE[AGE Graph]
+    GRAPH -->|query| REL
+    GRAPH -->|Cypher| AGE
+    UI -->|/api/graph| GRAPH
 ```
 
 ---
@@ -186,63 +140,59 @@ ws://gateway:8080/ws/graph?token=<JWT>
 ## Security Architecture
 
 ### Authentication
-- Keycloak OIDC with PKCE for SPAs
-- JWT tokens with 5-minute access, 30-minute refresh
-- JWKS validation cached in Gateway (5-min TTL)
+- Keycloak OIDC with PKCE for the SPA frontend
+- JWT access tokens (RS256) validated by the Gateway
+- JWKS fetched from Keycloak with 5-minute TTL caching
 
 ### Authorization
-- RBAC from JWT group claims
-- Roles: admin, architect, developer, viewer, service-account
-- OPA policies for fine-grained access decisions
+- Currently: authentication only at the Gateway
+- Fine-grained RBAC and OPA policy evaluation are planned for future phases
 
 ### Data Protection
-- All inter-service traffic over TLS
-- mTLS for AI inference endpoints
-- SSH Runtime Connector uses Vault-signed ephemeral certificates (5-min TTL)
-- No source code or architecture data leaves the infrastructure
+- All source code analysis happens locally
+- No repository data leaves the infrastructure
+- Embeddings generated by local llama.cpp servers
 
 ---
 
 ## Scalability Considerations
 
-### Horizontal Scaling
-- Gateway: Stateless, can run multiple instances behind load balancer
-- Ingestion: Celery workers scale independently
-- Graph Service: Single instance (Neo4j consistency), but read replicas possible
+### Current Scaling Characteristics
 
-### Performance Targets
+| Component | Scaling Approach |
+|-----------|-----------------|
+| Gateway | Stateless; can run multiple instances behind a load balancer |
+| Ingestion | Single scheduler + runner; syncs are processed sequentially per source |
+| Graph Service | Stateless read-only API; horizontally scalable |
+| PostgreSQL | Vertical scaling; read replicas possible |
+
+### Performance Targets (Current)
 
 | Metric | Target | Notes |
 |--------|--------|-------|
-| Graph query | <100ms | 10K nodes |
-| PR governance check | <2s | OPA evaluation + explanation |
-| RAG response | <3s | Streaming starts <500ms |
-| Simulation | <15s | Full policy re-evaluation |
-| WebSocket delta | <100ms | From publish to render |
+| Graph query | <500ms | Depends on snapshot size and AGE query complexity |
+| Sync completion | Minutes | Varies with repository size |
+| Search response | <1s | Vector similarity over pgvector |
+| Summary generation | <10s | Local dense LLM call |
 
 ---
 
 ## Monitoring and Observability
 
 ### Structured Logging
-All services output JSON logs:
+All services output JSON logs via `structlog`:
 
 ```json
 {
-  "ts": "2026-04-12T14:23:01Z",
+  "timestamp": "2026-04-12T14:23:01Z",
   "level": "info",
   "service": "graph-service",
-  "event": "node_created",
-  "node_id": "lib/newmodule",
-  "source": "github",
-  "duration_ms": 12
+  "event": "snapshot_query",
+  "sync_count": 2,
+  "node_count": 150,
+  "duration_ms": 45
 }
 ```
 
 ### Health Checks
-Every service exposes `GET /health` with dependency checks.
-
-### Metrics (Future)
-- Prometheus for metrics collection
-- Grafana for dashboards
-- OpenTelemetry for distributed tracing
+Every service exposes `GET /health` returning `{"status": "ok"}`.

@@ -1,70 +1,6 @@
 # Data Model
 
-Substrate uses a **polyglot persistence** approach with three complementary data stores: Neo4j for graph data, PostgreSQL for relational data and embeddings, and Redis for caching and ephemeral state.
-
----
-
-## Neo4j Graph Schema
-
-The architecture graph is stored in Neo4j with typed nodes and relationships.
-
-### Node Labels
-
-| Label | Properties | Description |
-|-------|------------|-------------|
-| **Service** | id, name, domain, language, version, owner, api_type, test_coverage, efferent_coupling, page_rank, betweenness | Microservice or application component |
-| **Function** | name, signature, complexity, file, line, language | Code-level function/method |
-| **Module** | name, path, language, hash, last_modified | Code module or package |
-| **Database** | id, name, domain, status, source, meta | Database resource |
-| **Cache** | id, name, domain, status, source, meta | Cache resource (Redis, Memcached) |
-| **External** | id, name, domain, status, source, meta | External API or service |
-| **InfraResource** | name, type, provider, state, last_observed, region | Infrastructure (VM, container, etc.) |
-| **DecisionNode** | title, rationale, date, author, status, review_date, source_url | ADR - Architecture Decision Record |
-| **FailurePattern** | description, root_cause, impact, date, source, linked_policy_count | Post-mortem lesson |
-| **MemoryNode** | content, type, source, confidence, created_at, author, verified_at | Tribal knowledge capture |
-| **Policy** | name, rego_source, enforcement_level, owner, active, version, pack_id | OPA/Rego policy |
-| **IntentAssertion** | description, type, source, source_id, confidence, created_at | Declared intent |
-| **Developer** | github_handle, name, team, active, scim_id | Team member |
-| **Team** | name, keycloak_group_path, parent_team | Organizational unit |
-| **SprintNode** | sprint_id, name, start_date, end_date, status, board_id | Project sprint |
-| **Community** | level, summary, domain, node_count, updated_at | Leiden cluster |
-
-### Relationship Types
-
-| Edge Type | From → To | Properties | Description |
-|-----------|-----------|------------|-------------|
-| **CALLS** | Function → Function | count, contexts, last_seen | Function call graph |
-| **DEPENDS_ON** | Service → Service | version, import_type, confidence | Service dependency |
-| **HOSTS** | InfraResource → Service | port, protocol | Infrastructure mapping |
-| **SHOULD_CALL** | Service → Service | via, protocol, enforced_by_policy | Intended dependency |
-| **ACTUALLY_CALLS** | Service → Service | direct, via_gateway, last_observed | Observed dependency |
-| **GOVERNS** | Policy → Service | enforcement_level | Policy application |
-| **WHY** | DecisionNode → Service/Policy | context, rationale_excerpt | Decision rationale |
-| **CAUSED** | FailurePattern → Service | severity, date | Incident impact |
-| **PREVENTED_BY** | FailurePattern → Policy | date_linked | Lesson → Policy link |
-| **OWNS** | Developer/Team → Service | since, primary, confidence | Ownership |
-| **MEMBER_OF** | Developer → Team | since, role | Team membership |
-| **DOCUMENTS** | Documentation → Service | staleness_score | Documentation link |
-
-### Cypher Examples
-
-```cypher
-// Find all services in the payment domain
-MATCH (s:Service {domain: 'payment'})
-RETURN s.name, s.owner, s.status
-
-// Find blast radius: what depends on the auth service?
-MATCH (auth:Service {name: 'auth-service'})<-[:DEPENDS_ON*1..3]-(dependent)
-RETURN dependent.name, length(shortestPath((auth)<-[:DEPENDS_ON*]-(dependent))) as hops
-
-// Find WHY a policy exists
-MATCH (p:Policy {name: 'api-gateway-first'})<-[:WHY]-(adr:DecisionNode)
-RETURN adr.title, adr.rationale, adr.author
-
-// Detect circular dependencies
-MATCH path = (s:Service)-[:DEPENDS_ON*3..10]->(s)
-RETURN [n in nodes(path) | n.name] as cycle
-```
+Substrate uses **PostgreSQL with Apache AGE** as its primary data store. All relational data, vector embeddings, and graph topology live in the same database instance.
 
 ---
 
@@ -72,191 +8,266 @@ RETURN [n in nodes(path) | n.name] as cycle
 
 ### Core Tables
 
-#### nodes
-```sql
-CREATE TABLE nodes (
-  id          UUID PRIMARY KEY,
-  name        TEXT NOT NULL,
-  type        TEXT,          -- service | database | cache | external | policy | adr | incident
-  status      TEXT,          -- healthy | violation | drift | warning
-  domain      TEXT,          -- payment | auth | order | infra | ...
-  meta        JSONB,         -- sublabel, version, owner, tags
-  source      TEXT,          -- github | k8s | terraform | manual
-  first_seen  TIMESTAMPTZ,
-  last_seen   TIMESTAMPTZ,
-  embedding   vector(1024)   -- pgvector for semantic search
-);
-```
+#### `sources`
 
-#### edges
-```sql
-CREATE TABLE edges (
-  id          UUID PRIMARY KEY,
-  source_id   UUID REFERENCES nodes(id),
-  target_id   UUID REFERENCES nodes(id),
-  type        TEXT,          -- depends | why | enforces | violation | drift
-  label       TEXT,
-  weight      FLOAT DEFAULT 1.0,   -- Hebbian-style, strengthened on retrieval hits
-  meta        JSONB,
-  created_at  TIMESTAMPTZ,
-  updated_at  TIMESTAMPTZ
-);
-```
+Connected code repositories.
 
-#### adrs
-```sql
-CREATE TABLE adrs (
-  id          UUID PRIMARY KEY,
-  adr_id      TEXT UNIQUE,   -- ADR-023
-  title       TEXT,
-  context     TEXT,
-  decision    TEXT,
-  consequences TEXT,
-  status      TEXT,          -- active | superseded | deprecated
-  author      TEXT,
-  created_at  TIMESTAMPTZ,
-  embedding   vector(1024)
-);
-```
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | UUID PK | |
+| `source_type` | text | Default `github_repo` |
+| `owner` | text | Part of unique constraint |
+| `name` | text | Part of unique constraint |
+| `url` | text | |
+| `default_branch` | text | Default `main` |
+| `config` | JSONB | Ingestion config overrides |
+| `last_sync_id` | UUID → `sync_runs` | Nullable |
+| `last_synced_at` | timestamptz | |
+| `meta` | JSONB | |
+| `created_at` | timestamptz | |
+| `updated_at` | timestamptz | |
 
-#### incidents
-```sql
-CREATE TABLE incidents (
-  id          UUID PRIMARY KEY,
-  incident_id TEXT UNIQUE,   -- POST-042
-  title       TEXT,
-  summary     TEXT,
-  severity    TEXT,          -- P0 | P1 | P2 | P3
-  occurred_at TIMESTAMPTZ,
-  resolved_at TIMESTAMPTZ,
-  embedding   vector(1024)
-);
-```
+**Constraints:**
+- Unique: `(source_type, owner, name)`
 
-#### policies
-```sql
-CREATE TABLE policies (
-  id          UUID PRIMARY KEY,
-  policy_id   TEXT UNIQUE,   -- POLICY-004
-  name        TEXT,
-  description TEXT,
-  rego_source TEXT,          -- raw Rego policy text
-  status      TEXT,          -- active | draft | disabled
-  severity    TEXT,          -- block | warn | info
-  created_at  TIMESTAMPTZ,
-  updated_at  TIMESTAMPTZ
-);
-```
+#### `sync_runs`
 
-#### policy_evaluations
-```sql
-CREATE TABLE policy_evaluations (
-  id            UUID PRIMARY KEY,
-  policy_id     UUID REFERENCES policies(id),
-  trigger_type  TEXT,        -- pr | push | manual | schedule
-  trigger_ref   TEXT,        -- PR number, commit SHA, etc.
-  outcome       TEXT,        -- pass | block | warn
-  input_snapshot JSONB,      -- graph state at evaluation time
-  violations    JSONB,       -- array of violation details
-  evaluated_at  TIMESTAMPTZ
-);
-```
+Individual ingestion executions.
 
-#### drift_scores
-```sql
-CREATE TABLE drift_scores (
-  id            UUID PRIMARY KEY,
-  score         FLOAT,       -- 0.0 (perfect) to 1.0 (total divergence)
-  convergences  JSONB,       -- nodes/edges in both G_I and G_R
-  divergences   JSONB,       -- in G_R but not G_I
-  absences      JSONB,       -- in G_I but not G_R
-  computed_at   TIMESTAMPTZ
-);
-```
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | UUID PK | |
+| `source_id` | UUID FK → `sources` | ON DELETE CASCADE |
+| `status` | text | `pending \| running \| completed \| failed \| cancelled \| cleaned` |
+| `config_snapshot` | JSONB | |
+| `ref` | text | Git ref / branch |
+| `progress_done` | int | |
+| `progress_total` | int | |
+| `progress_meta` | JSONB | |
+| `stats` | JSONB | |
+| `schedule_id` | bigint | |
+| `triggered_by` | text | |
+| `started_at` | timestamptz | |
+| `completed_at` | timestamptz | |
+| `created_at` | timestamptz | |
 
-#### job_runs
-```sql
-CREATE TABLE job_runs (
-  id          UUID PRIMARY KEY,
-  job_type    TEXT NOT NULL, -- sync | ingest | analyze
-  scope       JSONB,         -- {repo_url, owner, repo} etc.
-  status      TEXT,          -- pending | running | completed | failed
-  progress    JSONB,         -- {done: N, total: M}
-  result      JSONB,
-  error       TEXT,
-  created_at  TIMESTAMPTZ,
-  started_at  TIMESTAMPTZ,
-  completed_at TIMESTAMPTZ
-);
-```
+**Indexes:**
+- `idx_sync_runs_source_completed`
+- `idx_sync_runs_active` (partial, active statuses)
+- Partial unique: `ux_sync_runs_one_active_per_source` — one active run per source
 
-#### why_edges
-```sql
-CREATE TABLE why_edges (
-  id          UUID PRIMARY KEY,
-  source_type TEXT,          -- adr | incident
-  source_id   UUID,          -- references adrs or incidents
-  target_type TEXT,          -- policy | node | edge
-  target_id   UUID,
-  label       TEXT,
-  created_at  TIMESTAMPTZ
-);
-```
+#### `sync_issues`
 
-### Partitioning
+Structured warnings/errors recorded during a sync.
 
-**drift_scores** is partitioned by month for efficient time-series queries:
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | bigserial PK | |
+| `sync_id` | UUID FK → `sync_runs` | |
+| `level` | text | `info \| warning \| error` |
+| `phase` | text | e.g. `parsing`, `graphing`, `embedding` |
+| `code` | text | Error code |
+| `message` | text | Human-readable message |
+| `context` | JSONB | Additional context |
+| `occurred_at` | timestamptz | |
 
-```sql
--- Using pg_partman
-SELECT partman.create_parent('public.drift_scores', 'computed_at', 'native', 'monthly');
-```
+**Behavior:** Hard-capped at 1,000 issues per sync to prevent table blowup.
 
-### Indexes
+#### `sync_schedules`
 
-```sql
--- Vector similarity search
-CREATE INDEX ON nodes USING ivfflat (embedding vector_cosine_ops);
-CREATE INDEX ON adrs USING ivfflat (embedding vector_cosine_ops);
+Periodic sync configuration.
 
--- Graph traversal
-CREATE INDEX idx_edges_source ON edges(source_id);
-CREATE INDEX idx_edges_target ON edges(target_id);
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | bigserial PK | |
+| `source_id` | UUID FK → `sources` | |
+| `interval_minutes` | int | |
+| `config_overrides` | JSONB | |
+| `enabled` | bool | |
+| `last_run_at` | timestamptz | |
+| `next_run_at` | timestamptz | |
+| `created_at` | timestamptz | |
 
--- Time-series queries
-CREATE INDEX idx_drift_scores_time ON drift_scores(computed_at DESC);
-CREATE INDEX idx_policy_eval_time ON policy_evaluations(evaluated_at DESC);
+**Constraints:**
+- Unique: `(source_id, interval_minutes)`
 
--- Full-text search
-CREATE INDEX idx_nodes_fts ON nodes USING gin(to_tsvector('english', name || ' ' || COALESCE(meta->>'description', '')));
+#### `file_embeddings`
+
+The main node table — one row per file per sync.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | UUID PK | |
+| `sync_id` | UUID FK → `sync_runs` | |
+| `source_id` | UUID FK → `sources` | |
+| `file_path` | text | |
+| `name` | text | Display name |
+| `type` | text | `source \| test \| config \| script \| doc \| data \| asset \| service` |
+| `domain` | text | Default `''` |
+| `language` | text | Detected language |
+| `size_bytes` | int | |
+| `line_count` | int | |
+| `description` | text | LLM-generated summary (cached) |
+| `exports` | text[] | |
+| `imports_count` | int | |
+| `status` | text | Default `healthy` |
+| `embedding` | `vector(1024)` | pgvector file-level embedding |
+| `content_hash` | char(64) | SHA-256 for divergence detection |
+| `last_commit_sha` | text | |
+| `last_commit_at` | timestamptz | |
+| `created_at` | timestamptz | |
+
+**Constraints:**
+- Unique: `(sync_id, file_path)`
+
+#### `content_chunks`
+
+Text chunks for RAG and detailed retrieval.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | UUID PK | |
+| `file_id` | UUID FK → `file_embeddings` | CASCADE on delete |
+| `sync_id` | UUID FK → `sync_runs` | |
+| `chunk_index` | int | 0-based |
+| `content` | text | Chunk text |
+| `start_line` | int | |
+| `end_line` | int | |
+| `token_count` | int | |
+| `language` | text | |
+| `chunk_type` | text | Default `block` |
+| `symbols` | text[] | |
+| `embedding` | `vector(1024)` | pgvector chunk-level embedding |
+| `created_at` | timestamptz | |
+
+**Constraints:**
+- Unique: `(file_id, chunk_index)`
+
+**Indexes:**
+- `idx_content_chunks_file`
+- `idx_content_chunks_sync`
+- `idx_content_chunks_fts` (GIN full-text search)
+
+---
+
+## Apache AGE Graph Schema
+
+Substrate uses **Apache AGE** (a PostgreSQL extension) instead of a standalone Neo4j server. The graph is named **`substrate`**.
+
+### Node Type
+
+**`:File`** — represents a source file.
+
+Properties:
+- `file_id` → `file_embeddings.id`
+- `sync_id` → `sync_runs.id`
+- `source_id` → `sources.id`
+- `name` → display name
+- `type` → file classification
+- `domain` → domain label
+
+### Relationship Type
+
+**`depends_on`** — represents a dependency between files.
+
+Properties:
+- `sync_id` → which sync run created the edge
+- `source_id` → repository source
+- `weight` → numeric strength of the relationship
+
+### Cypher Queries Used
+
+```cypher
+-- Count all edges
+MATCH ()-[r]->() RETURN count(r)
+
+-- Get edges for specific syncs
+MATCH (a:File)-[r]->(b:File)
+WHERE r.sync_id IN ['uuid1', 'uuid2']
+RETURN a.source_id, a.file_id, b.source_id, b.file_id, r.weight, r.sync_id
+
+-- Get neighbors of a specific file
+MATCH (a:File {file_id: '...', sync_id: '...'})-[r]-(b:File)
+WHERE r.sync_id = '...'
+RETURN b.file_id, label(r), r.weight
 ```
 
 ---
 
-## Redis Key Taxonomy
+## Snapshot Query System
 
-| Key Pattern | TTL | Purpose |
-|-------------|-----|---------|
-| `graph:snapshot` | 60s | Hot graph snapshot (JSON) |
-| `cache:deps:{service_id}:{depth}` | Until graph update | Service dependency tree |
-| `cache:blast:{node_id}` | 30min | Blast radius computation result |
-| `session:{user_id}` | 30min | WebSocket session state |
-| `lock:pr:{pr_id}` | 60s | Distributed lock for PR processing |
-| `lock:infra:{workspace}` | 120s | Distributed lock for Terraform parsing |
-| `result:pr:{sha256}` | Until next commit | Deduplication: code graph delta |
-| `vllm:prefix:{hash}` | 2h | vLLM prefix KV cache backing |
+When the frontend requests a graph visualization, the Graph Service runs the **snapshot query** to merge multiple syncs:
+
+1. **Node resolution** — Uses a SQL window function to pick the *latest* version of each file across the requested syncs:
+   ```sql
+   row_number() OVER (
+     PARTITION BY source_id, file_path
+     ORDER BY completed_at DESC
+   )
+   ```
+
+2. **Divergence detection** — Marks a node as `divergent: true` when the same `(source_id, file_path)` appears in multiple requested syncs with different `content_hash` values.
+
+3. **Edge retrieval** — Queries AGE for all `depends_on` edges where `r.sync_id` is in the requested set, then deduplicates and aggregates by `(source, target)` pair.
+
+---
+
+## Node Identity Format
+
+Nodes in the API and frontend are identified by:
+
+```
+src_<source_id>:<file_path>
+```
+
+Example:
+```
+src_550e8400-e29b-41d4-a716-446655440000:src/main.py
+```
+
+This format is used in:
+- Frontend graph element IDs
+- API path parameters (`/api/graph/nodes/{node_id}`)
+- AGE neighbor resolution
+
+---
+
+## Embeddings Pipeline
+
+### File-Level Embeddings
+
+Stored in `file_embeddings.embedding`. Generated from a summary string:
+
+```
+path: src/main.py
+type: source
+language: python
+
+<first 100 lines of file>
+```
+
+### Chunk-Level Embeddings
+
+Stored in `content_chunks.embedding`. Generated from the raw chunk content.
+
+### Model Configuration
+
+| Setting | Default |
+|---------|---------|
+| Model | `Qwen3-Embedding-0.6B-Q8_0.gguf` |
+| Dimensions | 1024 |
+| Chunk size | 512 tokens |
+| Chunk overlap | 64 tokens |
+| Endpoint | `http://localhost:8101/v1/embeddings` |
 
 ---
 
 ## Data Retention
 
-| Data Type | Retention | Storage |
-|-----------|-----------|---------|
-| Drift scores | 12 months | PostgreSQL (partitioned) |
-| Policy violations | Indefinite | PostgreSQL (compliance) |
-| Institutional memory | Indefinite | Neo4j |
-| Agent audit log | Indefinite | PostgreSQL (append-only) |
-| Simulation results | 90 days | PostgreSQL |
-| Activity logs | 12 months | PostgreSQL |
-| NATS streams | 7 days | NATS JetStream |
-| Redis sessions | 30 minutes | Redis (TTL) |
+| Data Type | Retention | Notes |
+|-----------|-----------|-------|
+| Sync runs | Indefinite | Can be cleaned/purged via API |
+| File embeddings | Per sync | Deleted when sync is purged |
+| Content chunks | Per sync | Cascades on file_embeddings delete |
+| AGE graph nodes | Per sync | Removed by `cleanup_partial(sync_id)` |
+| Source metadata | Indefinite | Unless source is deleted |

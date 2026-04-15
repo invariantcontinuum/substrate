@@ -8,13 +8,17 @@
 
 ## Overview
 
-The Gateway is the **single ingress point** for all external traffic. It handles:
+The Gateway is the **single ingress point** for all external traffic. It is intentionally thin — it authenticates requests and proxies them to downstream services without transforming payloads.
 
-- JWT authentication and validation
-- Request routing to downstream services
-- WebSocket proxying for real-time updates
-- Rate limiting
-- API key management for CI/CD integrations
+---
+
+## Responsibilities
+
+1. **JWT Authentication**: Validates Bearer tokens via Keycloak JWKS
+2. **Request Routing**: Proxies HTTP requests to Graph or Ingestion services
+3. **WebSocket Proxying**: Upgrades and relays WS connections to the Graph Service
+4. **CORS Handling**: Configured for frontend origins
+5. **Connection Resilience**: Retry logic and keepalive tuning for upstream calls
 
 ---
 
@@ -25,35 +29,29 @@ flowchart LR
     subgraph Clients
         UI[Frontend UI]
         CLI[CLI Tools]
-        CI[CI/CD]
     end
-    
+
     subgraph Gateway["Gateway (Port 8080)"]
         AUTH[JWT Validation]
-        RATE[Rate Limiter]
         PROXY[HTTP Proxy]
         WS_PROXY[WS Proxy]
     end
-    
+
     subgraph Services
         ING[Ingestion :8081]
         GRAPH[Graph :8082]
-        RAG[RAG :8083]
-        KC[Keycloak :8080]
+        KC[Keycloak]
     end
-    
+
     UI -->|HTTP| Gateway
     UI -->|WebSocket| Gateway
-    CLI -->|API Key| Gateway
-    CI -->|API Key| Gateway
-    
-    AUTH --> RATE --> PROXY
-    
+
+    AUTH --> PROXY
+
     PROXY -->|/api/*| GRAPH
-    PROXY -->|/jobs/*| ING
-    PROXY -->|/query/*| RAG
+    PROXY -->|/ingest/*| ING
     PROXY -->|/auth/*| KC
-    
+
     WS_PROXY -->|/ws/*| GRAPH
 ```
 
@@ -63,17 +61,15 @@ flowchart LR
 
 ### JWT Validation
 
-1. Extract Bearer token from `Authorization` header
-2. Decode JWT header to get `kid` (key ID)
-3. Fetch JWKS from Keycloak (cached in Redis, TTL 1h)
+1. Extract Bearer token from `Authorization` header (HTTP) or `?token=` query param (WebSocket)
+2. Parse the unverified JWT header to get `kid` (key ID)
+3. Fetch JWKS from Keycloak (cached with 5-minute TTL)
 4. Validate:
    - Signature (RS256)
    - Expiration (`exp`)
    - Issuer (`iss`)
-   - Audience (`aud`)
-5. Extract claims and attach as headers to proxied request:
-   - `X-User-ID`
-   - `X-User-Roles`
+   - **Audience is NOT verified** (`verify_aud=False`)
+5. If valid, proxy the request upstream
 
 ### WebSocket Auth
 
@@ -82,38 +78,61 @@ Token passed as query parameter:
 ws://localhost:8080/ws/graph?token=<JWT>
 ```
 
-Gateway validates on upgrade request, then proxies raw WebSocket. Frontend reconnects with fresh token before expiry.
+The Gateway validates the token on the upgrade request, then proxies the raw WebSocket bi-directionally.
 
 ---
 
-## API Routes
+## Routing Logic
 
-| Route | Destination | Description |
-|-------|-------------|-------------|
-| `GET /health` | Gateway | Health check with dependency status |
-| `GET /api/*` | Graph Service | Graph API proxy |
-| `POST /jobs/*` | Ingestion Service | Job management proxy |
-| `POST /query/*` | RAG Orchestrator | Query API proxy |
-| `GET /auth/*` | Keycloak | OIDC endpoints proxy |
-| `WS /ws/*` | Graph Service | WebSocket proxy |
+### Smart Routing to Ingestion
+
+Write requests to `/api/syncs*` and `/api/schedules*` are routed to the **ingestion service**; everything else (including all `GET`s) goes to the **graph service**.
+
+| Route | Methods | Destination | Description |
+|-------|---------|-------------|-------------|
+| `GET /health` | GET | Gateway | Liveness check |
+| `/api/*` | All | Graph Service | Read operations + non-sync writes |
+| `/api/syncs*` | POST, PUT, DELETE, PATCH | Ingestion Service | Sync lifecycle commands |
+| `/api/schedules*` | POST, PUT, DELETE, PATCH | Ingestion Service | Schedule commands |
+| `/ingest/*` | All | Ingestion Service | Direct ingestion proxy |
+| `/auth/*` | All | Keycloak | OIDC endpoints proxy |
+| `/ws/*` | WebSocket | Graph Service | WebSocket proxy |
 
 ---
 
-## Rate Limiting
+## Key Modules
 
-Redis-backed token bucket algorithm:
+### `config.py`
 
-```python
-# Per-user rate limit
-key = f"rate_limit:user:{user_id}"
-limit = 1000  # requests
-window = 3600  # per hour
+Pydantic `BaseSettings` configuration:
 
-# Per-API-key rate limit
-key = f"rate_limit:key:{api_key}"
-limit = 10000
-window = 3600
-```
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `KEYCLOAK_URL` | `http://local-keycloak:8080` | Keycloak base URL |
+| `KEYCLOAK_REALM` | `substrate` | Realm name |
+| `KEYCLOAK_ISSUER` | `""` | Override JWT issuer |
+| `GRAPH_SERVICE_URL` | `http://substrate-graph:8082` | Graph service base URL |
+| `INGESTION_SERVICE_URL` | `http://substrate-ingestion:8081` | Ingestion service base URL |
+| `REDIS_URL` | `redis://local-redis:6379` | **Currently unused** |
+
+### `auth.py`
+
+- `validate_token(token, public_key, issuer)`: Decodes and validates JWT
+- `JWKSClient`: Fetches and caches JWKS from Keycloak with TTL-based refresh and background refresh on stale cache
+
+### `proxy.py`
+
+- `init_client()` / `close_client()`: Manages a global `httpx.AsyncClient`
+- `proxy_request()`: Forwards requests with app-level retries (up to 3 attempts, exponential backoff) for idempotent methods on connection errors
+- `proxy_websocket()`: Bi-directional relay between client and upstream WebSocket
+
+### `main.py`
+
+FastAPI application with lifespan management:
+- Initializes `JWKSClient` and proxy HTTP client on startup
+- Closes the proxy client on shutdown
+- Mounts CORS middleware
+- Defines route handlers for all paths
 
 ---
 
@@ -123,14 +142,12 @@ window = 3600
 # Environment variables
 KEYCLOAK_URL = "http://local-keycloak:8080"
 KEYCLOAK_REALM = "substrate"
-REDIS_URL = "redis://local-redis:6379"
-GRAPH_SERVICE_URL = "http://graph-service:8082"
-INGESTION_SERVICE_URL = "http://ingestion:8081"
-RAG_SERVICE_URL = "http://rag:8083"
+GRAPH_SERVICE_URL = "http://substrate-graph:8082"
+INGESTION_SERVICE_URL = "http://substrate-ingestion:8081"
 
 # JWT settings
 JWT_ALGORITHM = "RS256"
-JWT_CACHE_TTL = 3600  # seconds
+JWKS_CACHE_TTL = 300  # seconds
 ```
 
 ---
@@ -144,25 +161,23 @@ Shared `httpx.AsyncClient` at app startup:
 ```python
 limits = httpx.Limits(
     max_connections=100,
-    max_keepalive_connections=20
+    max_keepalive_connections=20,
+    keepalive_expiry=2.0
 )
 client = httpx.AsyncClient(limits=limits)
 ```
 
-### JWKS Caching
-
-- Fetch on first request
-- Cache in Redis with 1-hour TTL
-- Background refresh at 5-minute mark
+The `keepalive_expiry=2.0s` is intentionally shorter than uvicorn's default 5s idle timeout to prevent reuse of stale pooled connections.
 
 ### Error Handling
 
 | Error | Response |
 |-------|----------|
 | Invalid JWT | 401 Unauthorized |
-| Expired JWT | 401 + refresh hint |
-| Rate limited | 429 Too Many Requests |
-| Service unavailable | 503 Service Unavailable |
+| Expired JWT | 401 Unauthorized |
+| Upstream connect error | 503 Service Unavailable |
+| Upstream timeout | 504 Gateway Timeout |
+| Persistent disconnect | 502 Bad Gateway |
 
 ---
 
@@ -171,14 +186,18 @@ client = httpx.AsyncClient(limits=limits)
 ```dockerfile
 FROM python:3.12-slim
 
-WORKDIR /app
-COPY pyproject.toml .
-RUN pip install uv && uv pip install --system -e .
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-COPY src/ ./src/
+WORKDIR /app
+
+COPY pyproject.toml .
+RUN uv sync --no-dev --frozen 2>/dev/null || uv sync --no-dev
+
+COPY src/ src/
+
 EXPOSE 8080
 
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["uv", "run", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8080"]
 ```
 
 ---
@@ -189,18 +208,13 @@ CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8080"]
 
 ```json
 {
-  "status": "ok",
-  "checks": {
-    "redis": "ok",
-    "keycloak": "ok"
-  },
-  "timestamp": "2026-04-12T10:30:00Z"
+  "status": "ok"
 }
 ```
 
-### Metrics (Future)
+### Metrics
 
-- Request count by endpoint
-- Response time percentiles
-- JWT validation cache hit rate
-- Rate limit hits
+- Request count by endpoint (via structured logs)
+- Response time (via structured logs)
+- JWKS cache hit rate
+- Upstream error rate

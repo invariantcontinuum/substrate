@@ -8,11 +8,10 @@ Substrate uses a carefully curated technology stack optimized for performance, m
 
 | Component | Technology | Version | Purpose |
 |-----------|------------|---------|---------|
-| Gateway | Python + FastAPI | 3.12 | API gateway, auth, routing |
-| Ingestion | Python + FastAPI | 3.12 | Connector adapters, jobs |
-| Graph | Python + FastAPI | 3.12 | Graph operations, policies |
-| RAG | Python + FastAPI | 3.12 | Natural language queries |
-| Frontend | React + TypeScript | 19 / 5.3 | Dashboard UI |
+| Gateway | Python + FastAPI | 3.12 | API gateway, auth, routing, WS proxy |
+| Ingestion | Python + FastAPI | 3.12 | Sync orchestration, GitHub connector, embeddings |
+| Graph | Python + FastAPI | 3.12 | Graph queries, search, summaries |
+| Frontend | React + TypeScript | 18 / 5.x | Dashboard UI |
 
 ### Python Stack
 
@@ -21,25 +20,26 @@ Substrate uses a carefully curated technology stack optimized for performance, m
 fastapi = "^0.115"
 uvicorn = { extras = ["standard"], version = "^0.34" }
 pydantic = "^2.10"
+pydantic-settings = "^2.0"
 
 # Database
-neo4j = "^5.28"
+asyncpg = "^0.30"
 psycopg = { extras = ["binary", "pool"], version = "^3.2" }
-redis = "^5.2"
-
-# Messaging
-nats-py = { extras = ["jetstream"], version = "^2.9" }
-celery = { extras = ["redis"], version = "^5.4" }
 
 # HTTP
 httpx = "^0.28"
+websockets = "^15.0"
 
 # Auth
-python-jose = { extras = ["cryptography"], version = "^3.3" }
-python-keycloak = "^5.3"
+pyjwt = "^2.10"
+cryptography = "^44.0"
 
-# Embeddings
-sentence-transformers = "^3.4"
+# Logging
+structlog = "^25.0"
+
+# Testing
+pytest = "^8.3"
+pytest-asyncio = "^0.25"
 ```
 
 ### Frontend Stack
@@ -47,20 +47,24 @@ sentence-transformers = "^3.4"
 ```json
 {
   "dependencies": {
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "react-router": "^7.2",
-    "@tanstack/react-query": "^5.66",
-    "zustand": "^5.0.3",
-    "react-oidc-context": "^3.2.0",
-    "@invariantcontinuum/graph": "latest",
-    "tailwindcss": "^4.0",
-    "framer-motion": "^12.4"
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^7.0",
+    "@tanstack/react-query": "^5.96.2",
+    "zustand": "^5.0.12",
+    "react-oidc-context": "^3.3.1",
+    "oidc-client-ts": "^3.1.0",
+    "cytoscape": "^3.30",
+    "lucide-react": "^0.474",
+    "@base-ui/react": "^1.0",
+    "clsx": "^2.1",
+    "tailwindcss": "^4.0"
   },
   "devDependencies": {
     "vite": "^6.1",
     "typescript": "^5.7",
-    "@types/react": "^19.0"
+    "vitest": "^3.0",
+    "@testing-library/react": "^16.2"
   }
 }
 ```
@@ -71,55 +75,48 @@ sentence-transformers = "^3.4"
 
 | Component | Technology | Version | Purpose |
 |-----------|------------|---------|---------|
-| Graph Database | Neo4j | 5.16 | Architecture graph |
-| Relational DB | PostgreSQL | 16 | Policies, events, embeddings |
-| Cache | Redis | 7 | Hot snapshots, sessions |
-| Event Bus | NATS | 2.10 | JetStream messaging |
-| Identity | Keycloak | latest | OIDC, JWT, SCIM |
+| Primary Database | PostgreSQL | 16 | Relational data, embeddings, graph queries |
+| Graph Extension | Apache AGE | latest | Cypher graph queries inside PostgreSQL |
+| Vector Extension | pgvector | latest | 1024-dimensional embeddings |
+| Identity | Keycloak | latest | OIDC, JWT issuance |
+
+**Note:** While Redis and NATS are mentioned in early architectural planning, the current implementation uses direct service-to-service HTTP calls and shared PostgreSQL. Redis is configured in the Gateway but unused in the current code.
 
 ### PostgreSQL Extensions
 
 ```sql
--- Graph queries (alternative to Neo4j for some use cases)
-CREATE EXTENSION age;
+-- Graph queries via Cypher
+CREATE EXTENSION IF NOT EXISTS age;
 
 -- Vector embeddings
-CREATE EXTENSION vector;
-
--- Time-series partitioning
-CREATE EXTENSION pg_partman;
+CREATE EXTENSION IF NOT EXISTS vector;
 ```
 
 ---
 
 ## AI/ML Stack
 
-All AI inference runs **locally** on self-hosted hardware (NVIDIA DGX Spark or equivalent).
+All AI inference runs **locally** via `lazy-lamacpp` (llama.cpp server endpoints).
 
-| Model | Size | Port | Purpose |
-|-------|------|------|---------|
-| Llama 4 Scout (MoE) | 109B / 17B active | 8000 | Global reasoning, simulation |
-| Dense 70B + Multi-LoRA | 70B | 8001 | Extraction, explanation, NL→Cypher |
-| Qwen2.5-Coder | 32B | 8002 | Fix PR generation, AST enrichment |
-| BGE-M3 | - | 8003 | All embeddings |
-| bge-reranker-v2-m3 | - | 8004 | Hybrid search reranking |
-| SDXL + ControlNet | - | 8005 | Visualizations (on-demand) |
+| Model | Port | Purpose |
+|-------|------|---------|
+| `Qwen3-Embedding-0.6B-Q8_0.gguf` | 8101 | File and chunk embeddings (1024-dim) |
+| `qwen2.5-7b-instruct` | 8102 | File summaries and dense reasoning |
 
-### vLLM Configuration
+### Embedding Configuration
 
-```bash
-# Llama 4 Scout (always resident)
-vllm serve meta-llama/Llama-4-Scout-17B-16E \
-  --port 8000 \
-  --tensor-parallel-size 1 \
-  --max-model-len 128000 \
-  --quantization fp4
+```python
+EMBEDDING_URL = "http://localhost:8101/v1/embeddings"
+EMBEDDING_MODEL = "Qwen3-Embedding-0.6B-Q8_0.gguf"
+EMBEDDING_DIM = 1024
+```
 
-# Dense 70B + Multi-LoRA (always resident)
-vllm serve meta-llama/Llama-3.3-70B-Instruct \
-  --port 8001 \
-  --enable-lora \
-  --lora-modules extract:./adapters/extract resolve:./adapters/resolve
+### Summary LLM Configuration
+
+```python
+DENSE_LLM_URL = "http://localhost:8102/v1/chat/completions"
+DENSE_LLM_MODEL = "qwen2.5-7b-instruct"
+SUMMARY_MAX_TOKENS = 160
 ```
 
 ---
@@ -128,31 +125,11 @@ vllm serve meta-llama/Llama-3.3-70B-Instruct \
 
 | Component | Technology | Purpose |
 |-----------|------------|---------|
-| Engine | Rust + WASM | Core graph engine |
-| Rendering | WebGL2 | GPU-accelerated rendering |
-| Layout | Barnes-Hut N-body | Force-directed positioning |
-| Text | MSDF | Signed distance field fonts |
+| Engine | Cytoscape.js | Client-side graph rendering |
+| Layout | `cose` (Compound Spring Embedder) | Force-directed layout |
+| Fallback | `grid` | Used when >200 nodes for performance |
 
-### Rust Workspace Structure
-
-```
-graph/
-├── graph-core/      # Data structures, algorithms
-├── graph-layout/    # Position computation
-├── graph-render/    # WebGL2 rendering
-└── graph-wasm/      # WASM bindings
-```
-
-### Key Rust Dependencies
-
-```toml
-[dependencies]
-petgraph = "0.7"          # Graph data structures
-wasm-bindgen = "0.2"      # JS interop
-web-sys = "0.3"           # Browser APIs
-nalgebra = "0.33"         # Linear algebra
-rayon = "1.10"            # Parallelism (native)
-```
+**Future:** The `@invariantcontinuum/graph` WASM+WebGL package is under active development to replace Cytoscape.js for larger graph performance.
 
 ---
 
@@ -161,17 +138,16 @@ rayon = "1.10"            # Parallelism (native)
 | Tool | Purpose |
 |------|---------|
 | uv | Python environment management |
+| hatchling | Python build backend |
 | Ruff | Python linting and formatting |
-| Flyway | PostgreSQL migrations |
-| neo4j-migrations | Neo4j migrations |
 | Vite | Frontend build tool |
-| wasm-pack | Rust/WASM build |
+| Vitest | Frontend testing |
 
 ---
 
 ## Browser Support
 
-**Modern evergreen only:**
+**Modern evergreen browsers:**
 
 | Browser | Minimum Version |
 |---------|-----------------|
@@ -180,26 +156,23 @@ rayon = "1.10"            # Parallelism (native)
 | Safari | 16+ |
 
 **Required Features:**
-- WebGL2
-- WASM SIMD
-- SharedArrayBuffer
 - ES2022
+- CSS custom properties
+- IntersectionObserver (for infinite scroll)
 
 ---
 
 ## Licensing
 
-All dependencies are open-source with permissive licenses:
+All core dependencies are open-source with permissive licenses:
 
 | Dependency | License |
 |------------|---------|
 | PostgreSQL | PostgreSQL License |
-| Redis | BSD 3-Clause |
-| NATS | Apache 2.0 |
-| Keycloak | Apache 2.0 |
-| Neo4j (Community) | GPL v3 |
-| OPA | Apache 2.0 |
+| Apache AGE | Apache 2.0 |
 | pgvector | PostgreSQL License |
-| vLLM | Apache 2.0 |
-| BGE-M3 | MIT |
-| Llama 4 | Meta Llama 4 Community License |
+| Keycloak | Apache 2.0 |
+| FastAPI | MIT |
+| React | MIT |
+| Cytoscape.js | MIT |
+| cytoscape-cose-bilkent | MIT | *Installed but not currently imported* |

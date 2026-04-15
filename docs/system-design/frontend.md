@@ -1,14 +1,14 @@
 # Frontend
 
 **Port:** 3000  
-**Stack:** React 19 + TypeScript 5 + Vite + Tailwind CSS v4  
+**Stack:** React 19 + TypeScript 6 + Vite  
 **Repository:** `frontend/`
 
 ---
 
 ## Overview
 
-The Frontend is a React-based dashboard that provides the governance workbench interface. It features a custom WASM/WebGL graph engine for hardware-accelerated visualization of architecture graphs.
+The Frontend is a React-based dashboard that provides the governance workbench interface. It renders architecture graphs using Cytoscape.js, manages source connections, and provides semantic search over the codebase.
 
 ---
 
@@ -23,28 +23,23 @@ flowchart TB
             Query[TanStack Query]
             Auth[OIDC Auth]
         end
-        
-        subgraph GraphEngine["Graph Engine (WASM)"]
-            WASM[Rust/WASM]
-            WEBGL[WebGL2 Renderer]
-            WORKER[Web Worker]
+
+        subgraph GraphEngine["Graph Engine"]
+            CY[Cytoscape.js]
         end
     end
-    
+
     subgraph Backend
         GW[Gateway]
     end
-    
+
     UI -->|HTTP| Query
     Query -->|Fetch| GW
-    
-    UI -->|Canvas| WASM
-    WASM -->|Offscreen| WORKER
-    WASM -->|GL| WEBGL
-    
+
+    UI -->|DOM| CY
+
     State -->|Props| UI
     Auth -->|Token| Query
-    Auth -->|Token| WASM
 ```
 
 ---
@@ -53,15 +48,18 @@ flowchart TB
 
 | Layer | Technology | Purpose |
 |-------|------------|---------|
-| Framework | React 19 | UI framework |
+| Framework | React 19.2.4 | UI framework |
 | Language | TypeScript 5 | Type safety |
 | Build Tool | Vite 6 | Dev server, bundling |
-| Styling | Tailwind CSS v4 | Utility-first CSS |
+| Routing | react-router-dom | Client-side routing |
+| Styling | CSS custom properties + Tailwind | Theming and utilities |
 | State | Zustand 5 | Client state |
 | Data | TanStack Query 5 | Server state, caching |
-| Auth | react-oidc-context | OIDC integration |
-| Animation | Framer Motion 12 | Transitions |
-| Graph | @invariantcontinuum/graph | WASM graph engine |
+| Auth | react-oidc-context + oidc-client-ts | OIDC integration |
+| Graph | Cytoscape.js | Graph rendering |
+| UI Primitives | @base-ui/react | Headless dialog, select |
+| Icons | lucide-react | Iconography |
+| Testing | Vitest + @testing-library/react | Unit/component tests |
 
 ---
 
@@ -71,39 +69,71 @@ flowchart TB
 frontend/src/
 ├── components/
 │   ├── graph/
-│   │   ├── GraphCanvas.tsx      # Main graph container
-│   │   ├── FilterPanel.tsx      # Node type filters
-│   │   ├── NodeDetailPanel.tsx  # Selected node details
-│   │   ├── SignalsOverlay.tsx   # Live signal feed
-│   │   ├── DynamicLegend.tsx    # Type legend
-│   │   └── ViolationBadge.tsx   # Violation indicator
+│   │   ├── GraphCanvas.tsx         # Main graph container + Cytoscape init
+│   │   ├── FilterPanel.tsx         # Node/layer filters (not currently mounted)
+│   │   ├── NodeDetailPanel.tsx     # Selected node details (slide-over)
+│   │   ├── SignalsOverlay.tsx      # Live signal feed
+│   │   ├── DynamicLegend.tsx       # Interactive type legend
+│   │   └── ViolationBadge.tsx      # Violation indicator
 │   ├── layout/
-│   │   ├── DashboardLayout.tsx  # Shell layout
-│   │   ├── Sidebar.tsx          # Icon navigation
-│   │   ├── TopBar.tsx           # Controls, search
-│   │   └── MobileNav.tsx        # Mobile navigation
+│   │   ├── DashboardLayout.tsx     # Shell layout, mounts global hooks
+│   │   ├── Sidebar.tsx             # Icon navigation rail
+│   │   ├── TopBar.tsx              # Brand, search, stats, health
+│   │   └── MobileNav.tsx           # Bottom tab bar (mobile)
 │   ├── modals/
-│   │   ├── SourcesModal.tsx     # GitHub source config
-│   │   ├── SearchModal.tsx      # Global search
-│   │   └── SettingsModal.tsx    # User settings
-│   └── ui/                      # shadcn/ui components
+│   │   ├── ModalRoot.tsx           # Routes active modal
+│   │   ├── SourcesModal.tsx        # Source + sync management
+│   │   ├── GraphModal.tsx          # Graph config (Leiden tuning)
+│   │   ├── SearchModal.tsx         # Semantic search
+│   │   ├── UserModal.tsx           # Account + settings
+│   │   ├── EnrichmentModal.tsx     # Placeholder / info modal
+│   │   └── sources/                # Sources modal sub-components
+│   │       ├── SourcesSidebar.tsx
+│   │       ├── SourceDetailPane.tsx
+│   │       ├── SnapshotList.tsx
+│   │       ├── SnapshotRow.tsx
+│   │       ├── SnapshotRowSummary.tsx
+│   │       ├── SnapshotIssuesInline.tsx
+│   │       ├── AddSourceInput.tsx
+│   │       ├── ScheduleStrip.tsx
+│   │       ├── DetailHeader.tsx
+│   │       ├── SourceListItem.tsx
+│   │       └── UnifiedToolbar.tsx
+│   ├── panels/
+│   │   └── NodeDetailPanel.tsx     # Right-panel node metadata
+│   └── ui/                         # Shared UI primitives
+│       ├── Modal.tsx
+│       ├── dialog.tsx
+│       ├── input.tsx
+│       ├── button.tsx
+│       ├── badge.tsx
+│       ├── label.tsx
+│       └── select.tsx
 ├── hooks/
-│   ├── useJobs.ts               # Job management
-│   ├── useSearch.ts             # Search functionality
-│   └── useResponsive.ts         # Responsive breakpoints
+│   ├── useSources.ts               # Source queries + mutations
+│   ├── useSyncs.ts                 # Central sync poller + mutations
+│   ├── useSourceSyncs.ts           # Infinite sync history for a source
+│   ├── useSyncIssues.ts            # Sync issue fetching
+│   ├── useSchedules.ts             # Schedule queries + mutations
+│   ├── useSearch.ts                # Semantic search hook
+│   └── useResponsive.ts            # Desktop/mobile breakpoint
 ├── lib/
-│   ├── api.ts                   # API client
-│   ├── auth.ts                  # Auth helpers
-│   └── utils.ts                 # Utilities
+│   ├── api.ts                      # API client wrapper
+│   ├── auth.ts                     # OIDC configuration
+│   ├── logger.ts                   # Structured logging helper
+│   ├── utils.ts                    # General utilities
+│   └── cytoscapeLoader.ts          # Dynamic Cytoscape import
 ├── pages/
-│   ├── GraphPage.tsx            # Main graph view
-│   └── CallbackPage.tsx         # OIDC callback
+│   ├── GraphPage.tsx               # Main graph view
+│   └── CallbackPage.tsx            # OIDC callback handler
 ├── stores/
-│   ├── graph.ts                 # Graph state
-│   ├── ui.ts                    # UI state
-│   └── theme.ts                 # Theme state
-├── main.tsx                     # Entry point
-└── App.tsx                      # Root component
+│   ├── graph.ts                    # Graph runtime state
+│   ├── ui.ts                       # UI chrome state
+│   ├── theme.ts                    # Dark/light theme (persisted)
+│   └── syncSet.ts                  # Active snapshot set (persisted)
+├── main.tsx                        # Entry point
+├── App.tsx                         # Root component + router
+└── router.tsx                      # (unused) router definition
 ```
 
 ---
@@ -114,220 +144,269 @@ frontend/src/
 App
 ├── AuthProvider (react-oidc-context)
 ├── QueryClientProvider (TanStack Query)
-└── DashboardLayout
-     ├── Sidebar
-     ├── TopBar
-     │    ├── Repo URL input
-     │    ├── Sync button
-     │    ├── Schedule dropdown
-     │    ├── Search bar
-     │    └── Stats display
-     └── GraphPage
-          ├── GraphCanvas
-          │    ├── Graph (WASM)
-          │    ├── SignalsOverlay
-          │    ├── ViolationBadge
-          │    └── DynamicLegend
-          └── NodeDetailPanel
+└── Routes
+    └── /callback -> CallbackPage
+    └── / -> RequireAuth -> DashboardLayout
+         ├── TopBar
+         ├── Sidebar (desktop)
+         ├── MobileNav (mobile)
+         ├── ModalRoot (active modal only)
+         ├── SwapToast (auto-swap notification)
+         └── Outlet -> GraphPage
+              ├── GraphCanvas
+              │    ├── Cytoscape instance
+              │    ├── DynamicLegend
+              │    ├── SignalsOverlay
+              │    └── ViolationBadge
+              └── NodeDetailPanel (when node selected)
 ```
-
----
-
-## Graph Engine Integration
-
-### WASM Package
-
-```bash
-npm install @invariantcontinuum/graph
-```
-
-### React Wrapper
-
-```tsx
-import { Graph } from '@invariantcontinuum/graph/react';
-
-function GraphCanvas() {
-  const { data: snapshot } = useQuery({
-    queryKey: ['graph'],
-    queryFn: fetchGraph
-  });
-
-  return (
-    <Graph
-      snapshot={snapshot}
-      wsUrl="ws://localhost:8080/ws/graph"
-      authToken={token}
-      layout="force"
-      onNodeClick={handleNodeClick}
-      onStatsChange={setStats}
-      onLegendChange={setLegend}
-    />
-  );
-}
-```
-
-### Graph Props
-
-| Prop | Type | Description |
-|------|------|-------------|
-| `snapshot` | GraphSnapshot | Initial node/edge data |
-| `wsUrl` | string | WebSocket endpoint |
-| `authToken` | string | JWT for auth |
-| `layout` | 'force' \| 'hierarchical' | Layout algorithm |
-| `filter` | GraphFilter | Type/domain filters |
-| `onNodeClick` | (node) => void | Click handler |
-| `onStatsChange` | (stats) => void | Stats update handler |
-| `onLegendChange` | (legend) => void | Legend update handler |
 
 ---
 
 ## State Management
 
-### Graph Store (Zustand)
+### Graph Store (`stores/graph.ts`)
+
+Zustand store for graph runtime state:
 
 ```typescript
 interface GraphState {
+  // Data
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  signals: GraphSignal[];
+  violations: GraphViolation[];
+
   // Selection
   selectedNodeId: string | null;
-  selectedNodeData: NodeData | null;
-  
+  selectedNodeData: Record<string, unknown> | null;
+  selectNode: (id: string | null, data?: Record<string, unknown>) => void;
+
   // Filters
-  filters: {
-    types: Set<string>;
-    domains: Set<string>;
-    status: Set<string>;
-  };
-  
+  filters: { types: Set<string>; layers: string[] };
+  toggleTypeFilter: (type: string) => void;
+  setFilters: (filters: GraphFilters) => void;
+  resetFilters: () => void;
+
   // Layout
   layout: 'force' | 'hierarchical';
-  
-  // Stats
-  stats: GraphStats;
-  
-  // Canvas state
-  canvasCleared: boolean;
-  
-  // Actions
-  selectNode: (id: string | null, data?: NodeData) => void;
-  setFilter: (key: string, values: Set<string>) => void;
   setLayout: (layout: 'force' | 'hierarchical') => void;
+  layoutName: string;
+  setLayoutName: (name: string) => void;
+
+  // Viewport
+  zoom: number;
+  setZoom: (z: number) => void;
+  pan: { x: number; y: number };
+  setPan: (p: { x: number; y: number }) => void;
+  nodeSize: number;
+  setNodeSize: (size: number) => void;
+
+  // Stats / status
+  nodeCount: number;
+  edgeCount: number;
+  violationCount: number;
+  lastUpdated: number;
+  lastLoadMs: number;
+  lastServerMs: number;
+  connectionStatus: 'connected' | 'disconnected' | 'reconnecting';
+  syncStatus: 'idle' | 'syncing' | 'error';
+  syncProgress: { done: number; total: number } | null;
+
+  // Canvas lifecycle
+  canvasCleared: boolean;
+  setCanvasCleared: (v: boolean) => void;
   clearCanvas: () => void;
+
+  // Config
+  graphConfig: GraphConfig;
+  setGraphConfig: (next: Partial<GraphConfig>) => void;
+  setLeidenConfig: (next: Partial<GraphConfig['leiden']>) => void;
+  resetGraphConfig: () => void;
+
+  // Data loading
+  fetchGraph: (token?: string, syncIds?: string[]) => Promise<void>;
 }
 ```
 
-### UI Store (Zustand)
+**Auto-refetch behavior:** The store subscribes to `syncSetStore` and automatically calls `fetchGraph` (debounced 200ms) whenever the active snapshot set changes.
+
+### UI Store (`stores/ui.ts`)
 
 ```typescript
 interface UIState {
-  // Modals
-  activeModal: string | null;
-  openModal: (name: string) => void;
+  sidebarOpen: boolean;
+  activeModal: ModalName;
+  openModal: (modal: ModalName) => void;
   closeModal: () => void;
-  
-  // Theme
-  theme: 'dark' | 'light';
-  setTheme: (theme: 'dark' | 'light') => void;
-  
-  // Default repo for SourcesModal
+  toggleSidebar: () => void;
+  setSidebarOpen: (open: boolean) => void;
   defaultRepoUrl: string | null;
+  setDefaultRepoUrl: (url: string | null) => void;
+  sourcesModalTarget: { sourceId: string; expandSyncId: string | null } | null;
+  setSourcesModalTarget: (target: ...) => void;
 }
 ```
+
+### Sync Set Store (`stores/syncSet.ts`)
+
+Persisted to `localStorage`:
+
+```typescript
+interface SyncSetState {
+  syncIds: string[];
+  hasInitialized: boolean;
+  pendingSwap: PendingSwap | null;
+  sourceMap: Map<string, string>; // syncId -> sourceId
+
+  load: (syncId: string) => void;
+  unload: (syncId: string) => void;
+  setActiveSet: (ids: string[]) => void;
+  onSyncCompleted: (run: SyncRunSummary, sourceLabel: string) => void;
+  undoSwap: () => void;
+  pruneInvalid: (validSyncIds: Set<string>) => void;
+  registerSourceMap: (m: Map<string, string>) => void;
+  initializeIfNeeded: (token?: string) => Promise<void>;
+}
+```
+
+**Auto-swap:** When a running sync completes for a source that is already loaded, the old snapshot is automatically replaced with the new one, and a `SwapToast` appears with an undo button.
+
+### Theme Store (`stores/theme.ts`)
+
+Persisted to `localStorage`. Default theme is **`light`**.
+
+Applies `data-theme`, `.dark`/`.light` classes, and `color-scheme` to `<html>` immediately on load and on hydration to prevent flash.
 
 ---
 
 ## Authentication
 
-### OIDC Configuration
+### OIDC Configuration (`lib/auth.ts`)
 
 ```typescript
 const oidcConfig = {
-  authority: 'http://localhost:8080/auth/realms/substrate',
-  client_id: 'substrate-frontend',
-  redirect_uri: 'http://localhost:3000/callback',
+  authority: `${import.meta.env.VITE_KEYCLOAK_URL}/realms/${import.meta.env.VITE_KEYCLOAK_REALM}`,
+  client_id: import.meta.env.VITE_KEYCLOAK_CLIENT_ID,
+  redirect_uri: `${window.location.origin}/callback`,
   scope: 'openid profile email',
-  automaticSilentRenew: true
+  automaticSilentRenew: true,
+  userStore: new WebStorageStateStore({ store: window.sessionStorage })
 };
 ```
 
 ### Auth Flow
 
-1. No token → redirect to Keycloak
+1. No token → `react-oidc-context` redirects to Keycloak
 2. Keycloak authenticates → redirects with auth code
-3. Exchange code for access_token (5min) + refresh_token (30min)
-4. Tokens stored in sessionStorage
+3. Code exchanged for access_token + refresh_token
+4. Tokens stored in `sessionStorage`
 5. Silent refresh before expiry
+6. `App.tsx` exposes token on `window.__authToken` for the graph store subscriber
 
 ---
 
-## Real-Time Updates
+## Graph Canvas (`GraphCanvas.tsx`)
 
-### WebSocket Connection
+### Cytoscape Configuration
 
+- Performance flags: `textureOnViewport: true`, `hideEdgesOnViewport: true`, `pixelRatio: 1`
+- Nodes grouped by `source_id` into compound parent nodes (`src:<id>`)
+- Layout: `cose` (force-directed) by default
+- Fallback to `grid` layout when filtered node count > 200 to avoid UI freezes
+
+### Keyboard Shortcuts
+
+| Key | Action |
+|-----|--------|
+| `Ctrl/Cmd + 0` | Fit graph to viewport |
+| `Ctrl/Cmd + +` | Zoom in |
+| `Ctrl/Cmd + -` | Zoom out |
+| `Escape` | Deselect node, close modal |
+| `L` | Relayout graph |
+
+### One-Way Viewport Flow
+
+Zoom/pan events in Cytoscape write *to* the Zustand store, but the store never writes *back* to Cytoscape. This prevents feedback loops.
+
+---
+
+## Custom Hooks
+
+| Hook | Purpose |
+|------|---------|
+| `useSources` | Query `/api/sources`, mutate `createSource` / `purgeSource` |
+| `useSyncs` | **Central poller** — queries active syncs every 5s when running, 30s otherwise. Detects completions and triggers auto-swap. |
+| `useSourceSyncs` | Infinite query for a source's sync history (`/api/syncs?source_id=...`) |
+| `useSyncIssues` | Fetches issues for a sync (`/api/syncs/{id}/issues`) |
+| `useSchedules` | Queries and mutates sync schedules |
+| `useSearch` | Wraps `/api/graph/search` with local result state |
+| `useResponsive` | Returns `{ isDesktop, isMobile }` based on 1024px breakpoint |
+
+---
+
+## Modal System
+
+`ModalRoot.tsx` mounts **only the active modal**. This prevents unrelated data hooks from running in the background.
+
+| Modal | Purpose |
+|-------|---------|
+| `sources` | Source management, sync history, scheduling |
+| `graph` | Graph configuration (Leiden communities) |
+| `search` | Semantic search interface |
+| `user` | Account info and theme settings |
+| `enrichment` | Info about inline enrichment |
+| `policies` | Coming soon — policy engine |
+| `adrs` | Coming soon — ADR / WHY layer |
+| `drift` | Coming soon — drift detection |
+| `query` | Coming soon — natural language query |
+
+---
+
+## API Layer (`lib/api.ts`)
+
+```typescript
+export async function apiFetch<T>(
+  path: string,
+  token?: string,
+  options?: RequestInit
+): Promise<T>
 ```
-ws://gateway:8080/ws/graph?token=<JWT>
-```
 
-### Delta Handling
+- Injects `Authorization: Bearer <token>`
+- Logs request start, duration, and outcome via `lib/logger.ts`
+- Throws on non-OK responses
 
-The WASM engine handles deltas internally:
-- `node_added` → Fade in animation
-- `edge_added` → Fade in with delay
-- `node_updated` → Update properties
-- `node_removed` → Fade out
+All API calls use **relative paths**:
+- `/api/*` → Gateway → Graph Service
+- `/ingest/*` → Gateway → Ingestion Service
+- `/auth/*` → Gateway → Keycloak
 
-### Signals Overlay
+### Production Nginx Proxy
 
-Live feed of system events:
-- Job lifecycle (sync started, progress, complete)
-- WebSocket deltas (N nodes added)
-- Future: policy evaluations, violations
+In the Docker image, an nginx server handles routing:
 
----
+| Location | Upstream |
+|----------|----------|
+| `/api/` | `host.docker.internal:8180/api/` |
+| `/jobs` | `host.docker.internal:8180` |
+| `/ingest/` | `host.docker.internal:8180/ingest/` |
+| `/ws/` | `host.docker.internal:8180/ws/` (WebSocket upgrade) |
+| `/auth/` | `host.docker.internal:8180/auth/` |
+| `/docs` | Built-in MkDocs static site |
+| `/health` | Returns `200 healthy` |
 
-## Design System
-
-### Colors
-
-| Token | Value | Usage |
-|-------|-------|-------|
-| `bg-primary` | `#060608` | Page background |
-| `bg-surface` | `#0d0d12` | Card surfaces |
-| `bg-elevated` | `#13131a` | Elevated elements |
-| `text-primary` | `#f0f0f5` | Primary text |
-| `text-secondary` | `#8888a0` | Secondary text |
-| `accent-indigo` | `#6366f1` | Primary accent |
-| `success` | `#10b981` | Success states |
-| `warning` | `#f59e0b` | Warning states |
-| `error` | `#ef4444` | Error states |
-
-### Typography
-
-| Element | Font | Size |
-|---------|------|------|
-| UI | Inter | 14px base |
-| Code | JetBrains Mono | 13px |
-| Graph Labels | Inter | 11px |
+The `docker-entrypoint.sh` strips IPv6 `host.docker.internal` entries from `/etc/hosts` to prevent nginx from attempting unreachable IPv6 connections.
 
 ---
 
-## Performance
+## Performance Optimizations
 
-### Optimizations
-
-- WASM runs in Web Worker (off main thread)
-- WebGL instanced rendering (1 draw call per shape type)
-- Viewport culling (only visible nodes rendered)
-- React Query caching (stale-while-revalidate)
-- Lazy loading for modals
-
-### Targets
-
-| Metric | Target |
-|--------|--------|
-| First Contentful Paint | <1.5s |
-| Time to Interactive | <3s |
-| Graph render (10K nodes) | 60fps |
-| Memory usage | <500MB |
+- **Modal isolation**: Only the active modal renders
+- **Sync polling at layout level**: `useSyncs()` runs in `DashboardLayout`, not inside modals
+- **React Query caching**: `staleTime: 30_000` default
+- **Graph performance guardrails**: Falls back to `grid` layout for large graphs (>200 nodes)
+- **Dynamic imports**: Cytoscape is loaded lazily via `lib/cytoscapeLoader.ts`
 
 ---
 
@@ -339,17 +418,15 @@ Live feed of system events:
 // vite.config.ts
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import wasm from 'vite-plugin-wasm';
 
 export default defineConfig({
-  plugins: [react(), wasm()],
-  optimizeDeps: {
-    exclude: ['@invariantcontinuum/graph']
-  },
+  plugins: [react()],
   server: {
     port: 3000,
     proxy: {
       '/api': 'http://localhost:8080',
+      '/ingest': 'http://localhost:8080',
+      '/auth': 'http://localhost:8080',
       '/ws': {
         target: 'ws://localhost:8080',
         ws: true
@@ -357,4 +434,21 @@ export default defineConfig({
     }
   }
 });
+```
+
+---
+
+## Testing
+
+| Test File | Coverage |
+|-----------|----------|
+| `syncSet.test.ts` | Sync set store logic, auto-swap, undo |
+| `useSyncs.test.ts` | Sync polling hook behavior |
+| `ScheduleStrip.test.tsx` | Schedule display component |
+| `SnapshotRow.test.tsx` | Snapshot row rendering |
+
+Run tests with:
+```bash
+npm run test        # Vitest watch mode
+npm run test:run    # Single run
 ```

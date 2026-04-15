@@ -1,6 +1,6 @@
 # Deployment
 
-Substrate is designed for **self-hosted first** deployment with support for development, production, and air-gapped environments.
+Substrate is designed for **self-hosted first** deployment with support for development and production environments.
 
 ---
 
@@ -8,64 +8,116 @@ Substrate is designed for **self-hosted first** deployment with support for deve
 
 ### Development Mode
 - Single machine (laptop or workstation)
-- Docker Compose with all services
-- Local AI via Ollama (CPU) or vLLM (GPU if available)
+- Docker Compose with application services
+- Local AI via `lazy-lamacpp` (on-demand model serving)
+- Infrastructure (PostgreSQL, Keycloak) provided by `home-stack`
 
 ### Production Mode
 - Docker Compose on dedicated server
-- NVIDIA DGX Spark or equivalent for AI inference
-- Separate infrastructure and application services
-
-### Air-Gapped Mode
-- Zero internet connectivity required
-- OCI-compliant container bundle
-- Ed25519-signed license validation
+- Persistent volumes for PostgreSQL
+- Local or remote AI inference endpoints
 
 ---
 
 ## Docker Compose Structure
 
 ```yaml
-# compose.yaml - Application Services Only
+# compose.yaml - Application Services
+name: substrate-platform
+
+# All services communicate with each other and with the home-stack infra
+# (Keycloak, Postgres, Redis) exclusively via host.docker.internal on the
+# host's published ports. No shared docker bridge network is used.
+
+x-host-aliases: &host-aliases
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+
 services:
   gateway:
     build: ./services/gateway
-    ports: ["8080:8080"]
-    networks: [substrate, local-infra-network]
+    container_name: substrate-gateway
+    ports: ["8180:8080"]
     environment:
-      KEYCLOAK_URL: http://local-keycloak:8080
-      REDIS_URL: redis://local-redis:6379
+      KEYCLOAK_URL: http://host.docker.internal:8080
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-substrate}
+      KEYCLOAK_ISSUER: https://auth.invariantcontinuum.io/realms/substrate
+      GRAPH_SERVICE_URL: http://host.docker.internal:8182
+      INGESTION_SERVICE_URL: http://host.docker.internal:8181
+      REDIS_URL: redis://host.docker.internal:6379
+    <<: *host-aliases
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   ingestion:
     build: ./services/ingestion
-    ports: ["8081:8081"]
-    networks: [substrate, local-infra-network]
+    container_name: substrate-ingestion
+    ports: ["8181:8081"]
     environment:
-      NATS_URL: nats://local-nats-1:4222
-      DATABASE_URL: postgresql+asyncpg://.../substrate_ingestion
+      FLYWAY_URL: jdbc:postgresql://host.docker.internal:5432/substrate_ingestion
+      FLYWAY_USER: substrate_ingestion
+      FLYWAY_PASSWORD: ${INGESTION_DB_PASSWORD}
+      DATABASE_URL: postgresql+asyncpg://substrate_ingestion:${INGESTION_DB_PASSWORD}@host.docker.internal:5432/substrate_ingestion
+      GRAPH_DATABASE_URL: postgresql+asyncpg://substrate_graph:${GRAPH_DB_PASSWORD}@host.docker.internal:5432/substrate_graph
+      EMBEDDING_URL: http://host.docker.internal:8101/v1/embeddings
+      GITHUB_TOKEN: ${GITHUB_TOKEN}
+      APP_PORT: "8081"
+    <<: *host-aliases
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   graph-service:
     build: ./services/graph
-    ports: ["8082:8082"]
-    networks: [substrate, local-infra-network]
+    container_name: substrate-graph
+    ports: ["8182:8082"]
     environment:
-      NEO4J_URL: bolt://local-neo4j:7687
-      NATS_URL: nats://local-nats-1:4222
-      REDIS_URL: redis://local-redis:6379
+      FLYWAY_URL: jdbc:postgresql://host.docker.internal:5432/substrate_graph
+      FLYWAY_USER: substrate_graph
+      FLYWAY_PASSWORD: ${GRAPH_DB_PASSWORD}
+      DATABASE_URL: postgresql+asyncpg://substrate_graph:${GRAPH_DB_PASSWORD}@host.docker.internal:5432/substrate_graph
+      EMBEDDING_URL: http://host.docker.internal:8101/v1/embeddings
+      DENSE_LLM_URL: http://host.docker.internal:8102/v1/chat/completions
+      APP_PORT: "8082"
+    <<: *host-aliases
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        GITHUB_TOKEN: ${GITHUB_TOKEN}
+    container_name: substrate-frontend
     ports: ["3000:3000"]
-    networks: [substrate]
-    environment:
-      VITE_API_URL: http://localhost:8080
+    <<: *host-aliases
+    networks: [local-infra-network]
+    restart: unless-stopped
 
 networks:
-  substrate:
-    driver: bridge
   local-infra-network:
-    external: true  # Provided by home-stack
+    external: true
 ```
+
+### Frontend Dockerfile Notes
+
+The frontend image is a multi-stage build:
+1. **Node stage**: Builds the React app with Vite (authenticates to GitHub Packages via `GITHUB_TOKEN` build arg)
+2. **Python/MkDocs stage**: Builds the documentation site from `frontend/docs/`
+3. **Nginx stage**: Serves the React app at `/` and documentation at `/docs`
+
+If MkDocs fails during the build, a placeholder HTML page is used so the image still assembles successfully.
 
 ---
 
@@ -76,8 +128,8 @@ networks:
 | Resource | Specification |
 |----------|---------------|
 | CPU | 8 cores |
-| RAM | 32 GB |
-| Storage | 100 GB SSD |
+| RAM | 16 GB |
+| Storage | 50 GB SSD |
 | GPU | Optional |
 
 ### Recommended (Production)
@@ -85,36 +137,9 @@ networks:
 | Resource | Specification |
 |----------|---------------|
 | CPU | 16+ cores |
-| RAM | 128 GB (DGX Spark unified memory) |
-| Storage | 500 GB NVMe SSD |
-| GPU | NVIDIA DGX Spark (GB10 Grace Blackwell) |
-
-### DGX Spark Memory Allocation
-
-| Allocation | Size | Mode |
-|------------|------|------|
-| OS + vLLM overhead | 8.0 GB | Fixed |
-| Llama 4 Scout (MoE, FP4) | 55.0 GB | Always resident |
-| Dense 70B + Multi-LoRA (FP8) | 38.0 GB | Always resident |
-| BGE-M3 embedding | 0.6 GB | Always resident |
-| bge-reranker-v2-m3 | 0.3 GB | Always resident |
-| KV cache pool (FP8, 128k context) | 26.1 GB | Dynamic |
-| Qwen2.5-Coder-32B (on-demand) | 18.0 GB | Load on demand |
-
----
-
-## Deployment Split: Bare Metal vs Container
-
-Due to the GB10 unified memory architecture, vLLM endpoints run **bare metal** while other services run in containers:
-
-| Component | Deployment | Reason |
-|-----------|------------|--------|
-| vLLM endpoints | systemd | NUMA-aware allocation required |
-| Neo4j | Docker | Stateful, no GPU dependency |
-| PostgreSQL | Docker | Clean extension management |
-| Redis | Docker | Standard deployment |
-| NATS | Docker | Lightweight, no GPU |
-| All Substrate services | Docker | Stateless, portable |
+| RAM | 32+ GB |
+| Storage | 200 GB NVMe SSD |
+| GPU | Optional (speeds up embeddings/summaries) |
 
 ---
 
@@ -125,23 +150,22 @@ Due to the GB10 unified memory architecture, vLLM endpoints run **bare metal** w
 cd ~/github/danycrafts/home-stack
 docker compose up -d
 
-# 2. Wait for health checks
-./scripts/wait-for-infra.sh
+# 2. Wait for PostgreSQL and Keycloak to be healthy
+# (home-stack includes health checks)
 
-# 3. Run migrations
-make migrate
+# 3. Start required LLM models
+cd ~/github/lazy-lamacpp
+make start MODEL=embeddings
+make start MODEL=dense
 
 # 4. Start Substrate services
 cd ~/github/invariantcontinuum/substrate-platform
 docker compose up -d
 
-# 5. Start vLLM (bare metal)
-sudo systemctl start vllm-embed
-sudo systemctl start vllm-dense
-sudo systemctl start vllm-scout
-
-# 6. Verify
-./scripts/health-check.sh
+# 5. Verify
+curl http://localhost:8080/health
+curl http://localhost:8081/health
+curl http://localhost:8082/health
 ```
 
 ---
@@ -151,56 +175,38 @@ sudo systemctl start vllm-scout
 ### Required Environment Variables
 
 ```bash
-# Database
-POSTGRES_PASSWORD=...
-NEO4J_PASSWORD=...
-REDIS_PASSWORD=...
+# Gateway
+KEYCLOAK_URL=http://local-keycloak:8080
+KEYCLOAK_REALM=substrate
+GRAPH_SERVICE_URL=http://substrate-graph:8082
+INGESTION_SERVICE_URL=http://substrate-ingestion:8081
 
 # Ingestion
+DATABASE_URL=postgresql+asyncpg://substrate_ingestion:changeme@local-postgres:5432/substrate_ingestion
+GRAPH_DATABASE_URL=postgresql+asyncpg://substrate_graph:changeme@local-postgres:5432/substrate_graph
 GITHUB_TOKEN=ghp_...
-GITHUB_WEBHOOK_SECRET=...
+EMBEDDING_URL=http://localhost:8101/v1/embeddings
 
-# Keycloak
-KEYCLOAK_ADMIN_PASSWORD=...
-KEYCLOAK_CLIENT_SECRET=...
+# Graph Service
+DATABASE_URL=postgresql+asyncpg://substrate_graph:changeme@local-postgres:5432/substrate_graph
+EMBEDDING_URL=http://localhost:8101/v1/embeddings
+DENSE_LLM_URL=http://localhost:8102/v1/chat/completions
 
-# AI
-LLM_BASE_URL=http://localhost:8000/v1
-EMBEDDING_MODEL=BAAI/bge-m3
-```
-
-### Profile-Based Deployment
-
-```bash
-# Development (CPU, no GPU)
-docker compose --profile cpu-dev up
-
-# Production (with GPU)
-docker compose --profile gpu up
-
-# With observability
-docker compose --profile gpu --profile observability up
+# Frontend
+VITE_KEYCLOAK_URL=https://auth.invariantcontinuum.io
+VITE_KEYCLOAK_REALM=substrate
+VITE_KEYCLOAK_CLIENT_ID=substrate-frontend
 ```
 
 ---
 
 ## Migration Management
 
-| Database | Tool | Command |
-|----------|------|---------|
-| PostgreSQL | Flyway | `flyway migrate` |
-| Neo4j | neo4j-migrations | `neo4j-migrations migrate` |
-| NATS | Idempotent script | `./scripts/nats-init.sh` |
+| Database | Tool | Location |
+|----------|------|----------|
+| PostgreSQL | SQL migrations | `services/graph/migrations/`<br>`services/ingestion/migrations/` |
 
-### Flyway Configuration
-
-```properties
-flyway.url=jdbc:postgresql://localhost:5432/substrate_graph
-flyway.user=substrate_graph
-flyway.password=${DB_PASSWORD}
-flyway.locations=filesystem:./migrations/postgresql
-flyway.baselineOnMigrate=true
-```
+Migrations are applied automatically on service startup or manually via the service-specific migration scripts.
 
 ---
 
@@ -209,74 +215,15 @@ flyway.baselineOnMigrate=true
 ### PostgreSQL
 
 ```bash
-# Backup
-pg_dump -h localhost -U substrate_graph substrate_graph > backup.sql
+# Backup the graph database
+pg_dump -h localhost -U substrate_graph substrate_graph > substrate_graph_backup.sql
+
+# Backup the ingestion database
+pg_dump -h localhost -U substrate_ingestion substrate_ingestion > substrate_ingestion_backup.sql
 
 # Restore
-psql -h localhost -U substrate_graph substrate_graph < backup.sql
+psql -h localhost -U substrate_graph substrate_graph < substrate_graph_backup.sql
 ```
-
-### Neo4j
-
-```bash
-# Backup (enterprise feature)
-neo4j-admin backup --from=localhost --backup-dir=/backups/neo4j
-
-# Restore
-neo4j-admin restore --from=/backups/neo4j --database=neo4j --force
-```
-
-### Redis
-
-Redis uses AOF persistence. Backup the appendonly.aof file.
-
----
-
-## Air-Gapped Deployment
-
-### Bundle Contents
-
-```
-substrate-airgap-bundle/
-├── images/
-│   ├── substrate-gateway.tar
-│   ├── substrate-ingestion.tar
-│   ├── substrate-graph.tar
-│   ├── substrate-frontend.tar
-│   ├── neo4j.tar
-│   ├── postgres.tar
-│   └── ...
-├── models/
-│   ├── llama-4-scout-fp4.gguf
-│   ├── dense-70b-fp8.gguf
-│   └── ...
-├── licenses/
-│   └── public-key.pem
-├── compose.yaml
-├── install.sh
-└── README.md
-```
-
-### Installation
-
-```bash
-# 1. Load images
-docker load -i images/substrate-gateway.tar
-
-# 2. Copy models
-sudo mkdir -p /opt/substrate/models
-sudo cp models/* /opt/substrate/models/
-
-# 3. Install license
-sudo cp licenses/public-key.pem /etc/substrate/
-
-# 4. Run installer
-sudo ./install.sh
-```
-
-### Offline License Validation
-
-Licenses are Ed25519-signed JWT tokens containing plan tier and feature entitlements. Validation uses a pre-distributed public key with no outbound network call.
 
 ---
 
@@ -289,9 +236,6 @@ Licenses are Ed25519-signed JWT tokens containing plan tier and feature entitlem
 curl http://localhost:8080/health
 curl http://localhost:8081/health
 curl http://localhost:8082/health
-
-# Infrastructure health
-curl http://localhost:3000/health
 ```
 
 ### Logs
@@ -300,38 +244,39 @@ curl http://localhost:3000/health
 # Service logs
 docker logs -f substrate-gateway
 docker logs -f substrate-graph
+docker logs -f substrate-ingestion
 
 # All services
 docker compose logs -f
-
-# Infrastructure
-docker logs -f local-neo4j
-docker logs -f local-postgres
 ```
 
 ---
 
 ## Troubleshooting
 
-### Common Issues
+### PostgreSQL connection refused
 
-**Neo4j connection refused:**
 ```bash
-# Check if Neo4j is healthy
-docker exec local-neo4j cypher-shell -u neo4j -p $NEO4J_PASSWORD "RETURN 1"
+# Check if PostgreSQL is healthy
+docker exec local-postgres pg_isready -U postgres
 ```
 
-**NATS stream not found:**
+### Graph empty after sync
+
 ```bash
-# Reinitialize streams
-./scripts/nats-init.sh
+# Check sync status
+curl http://localhost:8081/api/syncs
+
+# Check for sync issues
+curl http://localhost:8082/api/syncs/{sync_id}/issues
 ```
 
-**Graph empty after sync:**
-```bash
-# Check job status
-curl http://localhost:8081/jobs
+### Embeddings failing
 
-# Check NATS consumers
-nats consumer list
+```bash
+# Verify embedding server is running
+curl http://localhost:8101/health
+
+# Or check lazy-lamacpp status
+cd ~/github/lazy-lamacpp && make status MODEL=embeddings
 ```

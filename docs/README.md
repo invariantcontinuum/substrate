@@ -18,9 +18,14 @@ docs/
 │   ├── gateway.md
 │   ├── ingestion.md
 │   ├── graph-service.md
-│   ├── rag-orchestrator.md
 │   ├── frontend.md
-│   └── infrastructure.md
+│   ├── infrastructure.md
+│   └── graph-edge-symbols.md
+├── developer-guide/            # Developer reference
+│   ├── index.md
+│   ├── api-reference.md
+│   ├── environment-variables.md
+│   └── frontend-components.md
 ├── product-pitch/              # Product pitch materials
 │   ├── index.md
 │   ├── elevator-pitch.md

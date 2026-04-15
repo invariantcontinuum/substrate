@@ -83,10 +83,15 @@ nav:
     - system-design/gateway.md
     - system-design/ingestion.md
     - system-design/graph-service.md
-    - system-design/rag-orchestrator.md
     - system-design/frontend.md
-    - system-design/graph-edge-symbols.md
     - system-design/infrastructure.md
+    - system-design/graph-edge-symbols.md
+  - Developer Guide:
+    - developer-guide/index.md
+    - developer-guide/api-reference.md
+    - developer-guide/environment-variables.md
+    - developer-guide/frontend-components.md
+    - developer-guide/migrations.md
   - Product Pitch:
     - product-pitch/index.md
     - product-pitch/elevator-pitch.md
