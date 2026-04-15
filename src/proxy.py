@@ -1,9 +1,12 @@
 import asyncio
 import httpx
 import structlog
+import websockets
 from fastapi import Request, Response, WebSocket
 from fastapi.responses import JSONResponse
+from fastapi.websockets import WebSocketDisconnect
 from starlette.responses import StreamingResponse
+from websockets.exceptions import ConnectionClosedOK, ConnectionClosedError
 
 logger = structlog.get_logger()
 
@@ -143,10 +146,8 @@ async def proxy_request(request: Request, upstream_base: str) -> Response:
 
 
 async def proxy_websocket(
-    websocket: WebSocket, upstream_base: str, path: str, token: str
+    websocket, upstream_base: str, path: str, token: str
 ) -> None:
-    import websockets
-
     ws_base = upstream_base.replace("http://", "ws://").replace("https://", "wss://")
     ws_url = f"{ws_base}{path}?token={token}"
 
@@ -154,28 +155,47 @@ async def proxy_websocket(
 
     try:
         async with websockets.connect(ws_url) as upstream:
-            import asyncio
 
             async def client_to_upstream():
                 try:
                     while True:
                         data = await websocket.receive_text()
                         await upstream.send(data)
-                except Exception:
-                    pass
+                except (WebSocketDisconnect, ConnectionClosedOK):
+                    logger.info("ws_relay_client_closed",
+                                direction="client_to_upstream")
+                except ConnectionClosedError as e:
+                    logger.warning("ws_relay_upstream_closed_error",
+                                   direction="client_to_upstream", error=str(e))
+                except Exception as e:
+                    logger.warning("ws_relay_unexpected",
+                                   direction="client_to_upstream", error=str(e))
 
             async def upstream_to_client():
                 try:
                     async for message in upstream:
                         await websocket.send_text(str(message))
-                except Exception:
-                    pass
+                except (WebSocketDisconnect, ConnectionClosedOK):
+                    logger.info("ws_relay_client_closed",
+                                direction="upstream_to_client")
+                except ConnectionClosedError as e:
+                    logger.warning("ws_relay_upstream_closed_error",
+                                   direction="upstream_to_client", error=str(e))
+                except Exception as e:
+                    logger.warning("ws_relay_unexpected",
+                                   direction="upstream_to_client", error=str(e))
 
             await asyncio.gather(client_to_upstream(), upstream_to_client())
-    except Exception:
-        pass
+    except (WebSocketDisconnect, ConnectionClosedOK):
+        logger.info("ws_relay_client_closed", direction="outer")
+    except ConnectionClosedError as e:
+        logger.warning("ws_relay_upstream_closed_error",
+                       direction="outer", error=str(e))
+    except Exception as e:
+        logger.warning("ws_relay_unexpected",
+                       direction="outer", error=str(e))
     finally:
         try:
             await websocket.close()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("ws_relay_close_failed", error=str(e))
