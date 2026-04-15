@@ -65,18 +65,24 @@ async def delete_schedule(schedule_id: int) -> None:
 
 
 async def claim_due_schedules() -> list[dict]:
-    """Return schedules whose next_run_at is past; advance next_run_at."""
+    """Atomically fetch+advance schedules whose next_run_at is past.
+
+    Uses SELECT ... FOR UPDATE SKIP LOCKED inside a transaction so two
+    scheduler workers can't double-claim the same row.
+    """
     pool = _pool()
     now = datetime.now(timezone.utc)
     async with pool.acquire() as conn:
-        rows = await conn.fetch(
-            """SELECT * FROM sync_schedules
-               WHERE enabled = true AND (next_run_at IS NULL OR next_run_at <= $1)""",
-            now,
-        )
-        for r in rows:
-            await conn.execute(
-                "UPDATE sync_schedules SET last_run_at=$1, next_run_at=$2 WHERE id=$3",
-                now, now + timedelta(minutes=r["interval_minutes"]), r["id"],
+        async with conn.transaction():
+            rows = await conn.fetch(
+                """SELECT * FROM sync_schedules
+                   WHERE enabled = true AND (next_run_at IS NULL OR next_run_at <= $1)
+                   FOR UPDATE SKIP LOCKED""",
+                now,
             )
+            for r in rows:
+                await conn.execute(
+                    "UPDATE sync_schedules SET last_run_at=$1, next_run_at=$2 WHERE id=$3",
+                    now, now + timedelta(minutes=r["interval_minutes"]), r["id"],
+                )
     return [dict(r) for r in rows]
