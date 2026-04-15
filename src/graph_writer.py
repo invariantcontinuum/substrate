@@ -130,30 +130,24 @@ async def update_chunk_embedding(file_id: str, chunk_index: int, embedding: list
         )
 
 
-async def insert_chunks(file_id: str, chunks: list[dict]) -> None:
+async def insert_chunks(file_id: str, sync_id: str, chunks: list[dict]) -> None:
+    """Insert chunks for one file. Embeddings may be None — backfilled later."""
     if not _pool:
         raise RuntimeError("graph_writer not connected")
     if not chunks:
         return
-    logger.debug("chunks_insert_start", file_id=file_id, chunk_count=len(chunks))
     async with _pool.acquire() as conn:
-        await conn.execute(
-            "DELETE FROM content_chunks WHERE file_id = $1::uuid", file_id,
-        )
         for ch in chunks:
             embedding = ch.get("embedding")
             if embedding is None:
-                # Store the chunk without a vector. Callers (summary
-                # generation, text search) can still use it; semantic
-                # search will skip chunks with null embeddings.
                 await conn.execute(
                     """
                     INSERT INTO content_chunks
-                        (file_id, chunk_index, content, start_line, end_line,
+                        (file_id, sync_id, chunk_index, content, start_line, end_line,
                          token_count, language, embedding)
-                    VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, NULL)
+                    VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, NULL)
                     """,
-                    file_id, ch["chunk_index"], ch["content"],
+                    file_id, sync_id, ch["chunk_index"], ch["content"],
                     ch["start_line"], ch["end_line"], ch["token_count"],
                     ch.get("language", ""),
                 )
@@ -161,15 +155,14 @@ async def insert_chunks(file_id: str, chunks: list[dict]) -> None:
                 await conn.execute(
                     """
                     INSERT INTO content_chunks
-                        (file_id, chunk_index, content, start_line, end_line,
+                        (file_id, sync_id, chunk_index, content, start_line, end_line,
                          token_count, language, embedding)
-                    VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8::vector)
+                    VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9::vector)
                     """,
-                    file_id, ch["chunk_index"], ch["content"],
+                    file_id, sync_id, ch["chunk_index"], ch["content"],
                     ch["start_line"], ch["end_line"], ch["token_count"],
                     ch.get("language", ""), str(embedding),
                 )
-    logger.debug("chunks_inserted", file_id=file_id, count=len(chunks))
 
 
 async def write_age_nodes(nodes: list[dict]) -> None:
