@@ -3,6 +3,7 @@ import { useGraphStore } from "@/stores/graph";
 import { useUIStore } from "@/stores/ui";
 import { useResponsive } from "@/hooks/useResponsive";
 import { loadCytoscape } from "@/lib/cytoscapeLoader";
+import { useSources } from "@/hooks/useSources";
 import { SignalsOverlay } from "./SignalsOverlay";
 import { ViolationBadge } from "./ViolationBadge";
 import { DynamicLegend } from "./DynamicLegend";
@@ -45,6 +46,40 @@ export function GraphCanvas() {
     );
     return { nodes: visibleNodes, edges: visibleEdges };
   }, [nodes, edges, visibleTypes]);
+
+  const { sources } = useSources();
+  const sourceLabelMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const s of sources) m.set(s.id, `${s.owner}/${s.name}`);
+    return m;
+  }, [sources]);
+
+  const elementsWithParents = useMemo(() => {
+    const uniqueSourceIds = new Set<string>();
+    for (const n of filtered.nodes) {
+      const sid = (n as { source_id?: string }).source_id;
+      if (sid) uniqueSourceIds.add(sid);
+    }
+    const parentEls = Array.from(uniqueSourceIds).map((sid) => ({
+      group: "nodes" as const,
+      data: {
+        id: `src:${sid}`,
+        label: sourceLabelMap.get(sid) ?? sid.slice(0, 8),
+        isSourceParent: true,
+      },
+      selectable: false,
+      grabbable: false,
+    }));
+    const childNodeEls = filtered.nodes.map((n) => {
+      const sid = (n as { source_id?: string }).source_id;
+      return {
+        group: "nodes" as const,
+        data: { ...n, parent: sid ? `src:${sid}` : undefined },
+      };
+    });
+    const edgeEls = filtered.edges.map((e) => ({ group: "edges" as const, data: { ...e } }));
+    return [...parentEls, ...childNodeEls, ...edgeEls];
+  }, [filtered.nodes, filtered.edges, sourceLabelMap]);
 
   /* init cytoscape */
   useEffect(() => {
@@ -100,6 +135,23 @@ export function GraphCanvas() {
               "background-color": "#f0f0f0",
             },
           },
+          {
+            selector: "node[?isSourceParent]",
+            style: {
+              shape: "rectangle",
+              "background-opacity": 0,
+              "border-style": "dashed" as any,
+              "border-width": 1,
+              "border-color": "rgba(100,120,180,0.5)",
+              label: "data(label)",
+              "text-valign": "top",
+              "text-halign": "left",
+              "font-size": 10,
+              color: "rgba(0,0,0,0.5)",
+              "text-margin-y": -4 as any,
+              padding: "24px" as any,
+            },
+          },
         ],
         minZoom: 0.05,
         maxZoom: 3,
@@ -147,31 +199,29 @@ export function GraphCanvas() {
     const cy = cyRef.current;
     cy.batch(() => {
       cy.elements().remove();
-      if (filtered.nodes.length) {
+      if (elementsWithParents.length) {
         cy.add(
-          filtered.nodes.map((n) => {
-            const label =
-              (n.label as string | undefined) ||
-              (n.name as string | undefined) ||
-              (n.id as string);
-            return { data: { ...n, id: n.id, label } };
+          elementsWithParents.map((el) => {
+            if (el.group === "nodes") {
+              const d = el.data as Record<string, unknown>;
+              const label =
+                (d.label as string | undefined) ||
+                (d.name as string | undefined) ||
+                (d.id as string);
+              return { ...el, data: { ...d, label } };
+            }
+            return el;
           })
-        );
-      }
-      if (filtered.edges.length) {
-        cy.add(
-          filtered.edges.map((e) => ({
-            data: { ...e, id: e.id, source: e.source, target: e.target, label: e.label },
-          }))
         );
       }
     });
     // Pick a cheap, deterministic layout when the graph is large so we don't
     // lock the main thread on a force-directed simulation.
+    const childNodeCount = filtered.nodes.length;
     const effectiveLayout =
-      filtered.nodes.length > FORCE_LAYOUT_MAX_NODES ? "grid" : (layoutName || "cose");
+      childNodeCount > FORCE_LAYOUT_MAX_NODES ? "grid" : (layoutName || "cose");
     cy.layout({ name: effectiveLayout as any, padding: 30, animate: false, fit: true }).run();
-  }, [filtered, layoutName, ready, isMobile]);
+  }, [elementsWithParents, filtered.nodes.length, layoutName, ready, isMobile]);
 
   // Zoom/pan flow one-way: cytoscape → store via the `zoom`/`pan` events
   // registered in init. We deliberately don't push store zoom back into
