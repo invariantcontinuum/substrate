@@ -13,7 +13,7 @@ type Tab = "account" | "settings";
 export function UserModal() {
   const { activeModal, closeModal } = useUIStore();
   const auth = useAuth();
-  const { theme, toggleTheme } = useThemeStore();
+  const { theme, setTheme } = useThemeStore();
   const [tab, setTab] = useState<Tab>("account");
 
   const profile = auth.user?.profile;
@@ -72,20 +72,41 @@ export function UserModal() {
         <div className="settings-modal">
           <div>
             <Label>Theme</Label>
-            <div className="settings-modal-themes">
-              {(["dark", "light"] as const).map((t) => {
+            <div
+              className="settings-modal-themes"
+              role="radiogroup"
+              aria-label="Color theme"
+            >
+              {(["light", "dark"] as const).map((t) => {
                 const active = theme === t;
+                const Icon = t === "dark" ? Moon : Sun;
                 return (
-                  <Button
+                  <button
                     key={t}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
                     onClick={() => {
-                      if (!active) toggleTheme();
+                      // setTheme is idempotent — calling it on the active
+                      // theme is a no-op. Smoother than toggleTheme,
+                      // because it never accidentally flips when the
+                      // user re-clicks the active option.
+                      setTheme(t);
                     }}
+                    className={`theme-option${active ? " is-active" : ""}`}
                   >
-                    {t === "dark" ? <Moon size={15} /> : <Sun size={15} />}
-                    {t.charAt(0).toUpperCase() + t.slice(1)}
-                    {active && <span className="user-modal-tab-check"> ✓</span>}
-                  </Button>
+                    <span className="theme-option-icon" aria-hidden="true">
+                      <Icon size={16} />
+                    </span>
+                    <span className="theme-option-label">
+                      {t.charAt(0).toUpperCase() + t.slice(1)}
+                    </span>
+                    {active && (
+                      <span className="theme-option-check" aria-hidden="true">
+                        ✓
+                      </span>
+                    )}
+                  </button>
                 );
               })}
             </div>
