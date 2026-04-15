@@ -51,28 +51,22 @@ async def disconnect() -> None:
         logger.info("graph_writer_disconnected")
 
 
-async def upsert_repository(owner: str, repo: str, url: str, total_files: int, total_edges: int) -> str:
+async def ensure_source(source_type: str, owner: str, name: str, url: str) -> str:
+    """Insert source if not present; return its id."""
     if not _pool:
         raise RuntimeError("graph_writer not connected")
     async with _pool.acquire() as conn:
         row = await conn.fetchrow(
             """
-            INSERT INTO repositories (owner, name, url, total_files, total_edges, last_sync_at, status, updated_at)
-            VALUES ($1, $2, $3, $4, $5, now(), 'syncing', now())
-            ON CONFLICT (owner, name)
-            DO UPDATE SET url = EXCLUDED.url,
-                          total_files = EXCLUDED.total_files,
-                          total_edges = EXCLUDED.total_edges,
-                          last_sync_at = now(),
-                          status = 'syncing',
-                          updated_at = now()
+            INSERT INTO sources (source_type, owner, name, url)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (source_type, owner, name) DO UPDATE
+                SET url = EXCLUDED.url, updated_at = now()
             RETURNING id::text
             """,
-            owner, repo, url, total_files, total_edges,
+            source_type, owner, name, url,
         )
-        repo_id = row["id"]
-        logger.info("repository_upserted", owner=owner, repo=repo, id=repo_id)
-        return repo_id
+        return row["id"]
 
 
 async def upsert_file(
@@ -230,6 +224,24 @@ async def write_age_nodes(nodes: list[dict]) -> None:
     elapsed = time.monotonic() - start
     logger.info("age_nodes_written", count=len(nodes), failed=failed,
                 duration_ms=round(elapsed * 1000))
+
+
+async def cleanup_partial(sync_id: str) -> None:
+    """Drop every row produced by a single sync_id across AGE + relational tables."""
+    if not _pool:
+        raise RuntimeError("graph_writer not connected")
+    sync_id_esc = _escape_cypher(sync_id)
+    async with _pool.acquire() as conn:
+        try:
+            await conn.execute(
+                f"SELECT * FROM cypher('substrate', $$ "
+                f"MATCH (n) WHERE n.sync_id = '{sync_id_esc}' DETACH DELETE n "
+                f"$$) AS (v agtype)"
+            )
+        except Exception as e:
+            logger.warning("age_cleanup_failed", sync_id=sync_id, error=str(e))
+        # content_chunks cascades on file_embeddings delete; deleting file_embeddings is enough.
+        await conn.execute("DELETE FROM file_embeddings WHERE sync_id = $1::uuid", sync_id)
 
 
 async def write_age_edges(edges: list[dict]) -> None:
