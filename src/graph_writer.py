@@ -164,8 +164,8 @@ async def insert_chunks(file_id: str, sync_id: str, chunks: list[dict]) -> None:
                 )
 
 
-async def write_age_nodes(nodes: list[dict], sync_id: str, source_id: str) -> None:
-    """Each node dict needs: file_id, name, type, domain. sync_id/source_id stamped on every node."""
+async def write_age_nodes(nodes: list[dict], sync_id: str, source_id: str) -> int:
+    """Each node dict needs: file_id, name, type, domain. sync_id/source_id stamped on every node. Returns number of nodes that failed to write."""
     if not _pool:
         raise RuntimeError("graph_writer not connected")
     if not nodes:
@@ -196,6 +196,7 @@ async def write_age_nodes(nodes: list[dict], sync_id: str, source_id: str) -> No
     elapsed = time.monotonic() - start
     logger.info("age_nodes_written", count=len(nodes), failed=failed,
                 duration_ms=round(elapsed * 1000))
+    return failed
 
 
 async def cleanup_partial(sync_id: str) -> None:
@@ -216,8 +217,8 @@ async def cleanup_partial(sync_id: str) -> None:
         await conn.execute("DELETE FROM file_embeddings WHERE sync_id = $1::uuid", sync_id)
 
 
-async def write_age_edges(edges: list[dict], sync_id: str, source_id: str) -> None:
-    """Each edge dict needs: source_id (file_id), target_id (file_id), weight."""
+async def write_age_edges(edges: list[dict], sync_id: str, source_id: str) -> int:
+    """Each edge dict needs: source_id (file_id), target_id (file_id), weight. Returns number of edges that failed to write."""
     if not _pool:
         raise RuntimeError("graph_writer not connected")
     if not edges:
@@ -249,3 +250,4 @@ async def write_age_edges(edges: list[dict], sync_id: str, source_id: str) -> No
     elapsed = time.monotonic() - start
     logger.info("age_edges_written", count=len(edges), failed=failed,
                 duration_ms=round(elapsed * 1000))
+    return failed
