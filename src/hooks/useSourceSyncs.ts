@@ -23,7 +23,7 @@ export function useSourceSyncs(sourceId: string | null, status?: string) {
       params.set("source_id", sourceId as string);
       params.set("limit", "25");
       if (status) params.set("status", status);
-      if (pageParam) params.set("cursor", pageParam);
+      if (pageParam) params.set("cursor", pageParam as string);
       return apiFetch<SyncsPage>(`/api/syncs?${params.toString()}`, token);
     },
     getNextPageParam: (last) => last.next_cursor,
