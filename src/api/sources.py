@@ -1,0 +1,106 @@
+import base64
+import json
+from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel
+from src.graph import store
+
+router = APIRouter(prefix="/api/sources")
+
+
+class SourceCreate(BaseModel):
+    source_type: str = "github_repo"
+    owner: str
+    name: str
+    url: str
+    config: dict = {}
+
+
+class SourcePatch(BaseModel):
+    config: dict | None = None
+
+
+def _encode_cursor(updated_at: str, sid: str) -> str:
+    return base64.b64encode(f"{updated_at}|{sid}".encode()).decode()
+
+
+def _decode_cursor(cur: str) -> tuple[str, str]:
+    parts = base64.b64decode(cur.encode()).decode().split("|", 1)
+    return parts[0], parts[1]
+
+
+@router.get("")
+async def list_sources(limit: int = Query(25, le=100), cursor: str | None = None):
+    pool = store._pool
+    args = [limit + 1]
+    where = ""
+    if cursor:
+        ts, sid = _decode_cursor(cursor)
+        where = "WHERE (updated_at, id) < ($2::timestamptz, $3::uuid)"
+        args += [ts, sid]
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            f"""SELECT id::text, source_type, owner, name, url, default_branch,
+                       config, last_sync_id::text, last_synced_at::text,
+                       updated_at::text
+                FROM sources {where}
+                ORDER BY updated_at DESC, id DESC
+                LIMIT $1""",
+            *args,
+        )
+    items = [dict(r) for r in rows[:limit]]
+    next_cursor = (
+        _encode_cursor(rows[limit]["updated_at"], rows[limit]["id"])
+        if len(rows) > limit else None
+    )
+    return {"items": items, "next_cursor": next_cursor, "total": None}
+
+
+@router.post("")
+async def create_source(req: SourceCreate):
+    pool = store._pool
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """INSERT INTO sources (source_type, owner, name, url, config)
+               VALUES ($1, $2, $3, $4, $5::jsonb)
+               ON CONFLICT (source_type, owner, name) DO UPDATE
+                   SET url=EXCLUDED.url, config=EXCLUDED.config, updated_at=now()
+               RETURNING id::text""",
+            req.source_type, req.owner, req.name, req.url, json.dumps(req.config),
+        )
+    return {"id": row["id"]}
+
+
+@router.get("/{source_id}")
+async def get_source(source_id: str):
+    pool = store._pool
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """SELECT id::text, source_type, owner, name, url, default_branch,
+                      config, last_sync_id::text, last_synced_at::text
+               FROM sources WHERE id=$1::uuid""",
+            source_id,
+        )
+    if not row:
+        raise HTTPException(404)
+    return dict(row)
+
+
+@router.patch("/{source_id}")
+async def patch_source(source_id: str, req: SourcePatch):
+    if req.config is None:
+        raise HTTPException(400, "no fields to update")
+    pool = store._pool
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE sources SET config=$2::jsonb, updated_at=now() WHERE id=$1::uuid",
+            source_id, json.dumps(req.config),
+        )
+    return {"status": "ok"}
+
+
+@router.delete("/{source_id}")
+async def delete_source(source_id: str):
+    pool = store._pool
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM sources WHERE id=$1::uuid", source_id)
+    return {"status": "deleted"}

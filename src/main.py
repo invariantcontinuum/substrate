@@ -27,6 +27,9 @@ app = FastAPI(title="Substrate Graph Service", lifespan=lifespan)
 
 app.include_router(router)
 
+from src.api.sources import router as sources_router
+app.include_router(sources_router)
+
 
 @app.get("/health")
 async def health():
