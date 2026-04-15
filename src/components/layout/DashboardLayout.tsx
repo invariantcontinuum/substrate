@@ -6,6 +6,7 @@ import { TopBar } from "./TopBar";
 import { Sidebar } from "./Sidebar";
 import { MobileNav } from "./MobileNav";
 import { ModalRoot } from "@/components/modals/ModalRoot";
+import { SwapToast } from "@/components/SwapToast";
 import { useUIStore } from "@/stores/ui";
 import { useResponsive } from "@/hooks/useResponsive";
 import { useSyncs } from "@/hooks/useSyncs";
@@ -62,6 +63,7 @@ export function DashboardLayout() {
       </div>
       <MobileNav />
       <ModalRoot />
+      <SwapToast />
     </div>
   );
 }
