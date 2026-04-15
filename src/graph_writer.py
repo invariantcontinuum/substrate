@@ -193,6 +193,9 @@ async def write_age_nodes(nodes: list[dict], sync_id: str, source_id: str) -> in
             try:
                 await _write_age_nodes_chunk(conn, chunk, sync_id_esc, source_id_esc)
             except Exception as e:
+                # asyncpg auto-commit: each conn.execute() is its own implicit transaction,
+                # so a failed chunk does not leave the connection in an aborted state.
+                # Per-row fallback on the same conn is safe.
                 logger.warning("age_nodes_chunk_failed_fallback",
                                chunk_index=i // CHUNK_SIZE, chunk_size=len(chunk),
                                error=str(e))
@@ -269,7 +272,10 @@ async def cleanup_partial(sync_id: str) -> None:
 
 
 async def write_age_edges(edges: list[dict], sync_id: str, source_id: str) -> int:
-    """Each edge dict needs: source_id (file_id), target_id (file_id), weight. Returns number of edges that failed to write."""
+    """Stamp sync_id+source_id on every edge; batch writes via UNWIND with per-row fallback.
+
+    Each edge dict needs: source_id (file_id), target_id (file_id), weight.
+    Returns number of edges that failed to write."""
     if not _pool:
         raise RuntimeError("graph_writer not connected")
     if not edges:
@@ -288,6 +294,9 @@ async def write_age_edges(edges: list[dict], sync_id: str, source_id: str) -> in
             try:
                 await _write_age_edges_chunk(conn, chunk, sync_id_esc, source_id_esc)
             except Exception as e:
+                # asyncpg auto-commit: each conn.execute() is its own implicit transaction,
+                # so a failed chunk does not leave the connection in an aborted state.
+                # Per-row fallback on the same conn is safe.
                 logger.warning("age_edges_chunk_failed_fallback",
                                chunk_index=i // CHUNK_SIZE, chunk_size=len(chunk),
                                error=str(e))
@@ -323,6 +332,7 @@ async def _write_age_edges_chunk(conn, chunk, sync_id_esc, source_id_esc):
 
 
 async def _write_age_edges_per_row(conn, chunk, sync_id_esc, source_id_esc):
+    """Fallback: mirrors the original per-row path, scoped to a single failing chunk."""
     failed = 0
     for edge in chunk:
         src = _escape_cypher(edge["source_id"])

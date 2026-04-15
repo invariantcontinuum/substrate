@@ -91,3 +91,22 @@ async def test_write_age_edges_uses_chunked_unwind_when_many_rows():
     assert conn.execute.call_count == 2
     for call in conn.execute.call_args_list:
         assert "UNWIND" in call.args[0]
+
+
+@pytest.mark.asyncio
+async def test_write_age_edges_fallback_to_per_row_on_chunk_failure():
+    # First call (chunk) raises; next 500 calls (per-row fallback) succeed.
+    side_effects = [RuntimeError("AGE edge chunk blew up")] + [None] * 500
+    pool, conn = _make_pool(execute_side_effect=side_effects)
+    edges = [
+        {"source_id": f"a{i}", "target_id": f"b{i}", "weight": 1.0}
+        for i in range(500)
+    ]
+    with patch.object(graph_writer, "_pool", pool):
+        failed = await graph_writer.write_age_edges(
+            edges, sync_id="00000000-0000-0000-0000-000000000001",
+            source_id="00000000-0000-0000-0000-000000000002",
+        )
+    assert failed == 0
+    # 1 chunk attempt + 500 per-row fallbacks = 501 total.
+    assert conn.execute.call_count == 501
