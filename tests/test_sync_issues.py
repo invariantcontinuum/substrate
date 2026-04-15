@@ -11,9 +11,8 @@ pytestmark = pytest.mark.asyncio(loop_scope="session")
 @pytest_asyncio.fixture(scope="session", autouse=True)
 async def setup(graph_pool):
     if graph_writer._pool is None:
-        from src.config import settings
-        url = settings.graph_database_url.replace("local-postgres", "localhost")
-        await graph_writer.connect(url)
+        from tests.conftest import graph_dsn
+        await graph_writer.connect(graph_dsn())
     yield
 
 

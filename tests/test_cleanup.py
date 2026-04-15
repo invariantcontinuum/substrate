@@ -8,9 +8,9 @@ pytestmark = pytest.mark.asyncio(loop_scope="session")
 
 @pytest_asyncio.fixture(scope="session", autouse=True)
 async def setup(graph_pool):
-    await graph_writer.connect(
-        "postgresql://substrate_graph:changeme@localhost:5432/substrate_graph"
-    )
+    if graph_writer._pool is None:
+        from tests.conftest import graph_dsn
+        await graph_writer.connect(graph_dsn())
     yield
     await graph_writer.disconnect()
 

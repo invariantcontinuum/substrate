@@ -11,6 +11,10 @@ def _graph_dsn() -> str:
     return url.replace("postgresql+asyncpg://", "postgresql://")
 
 
+def graph_dsn() -> str:
+    return _graph_dsn()
+
+
 @pytest_asyncio.fixture(scope="session")
 async def graph_pool():
     pool = await asyncpg.create_pool(
