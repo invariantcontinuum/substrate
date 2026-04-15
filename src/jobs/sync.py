@@ -1,25 +1,28 @@
+import asyncio
+import hashlib
 import os
-import time
 import shutil
+import time
 import structlog
 from src.config import settings
 from src.connectors.github import (
-    _clone_repo, _walk_local_tree, parse_repo_tree, parse_imports,
-    PARSEABLE_EXTENSIONS,
+    parse_imports, PARSEABLE_EXTENSIONS,
 )
-from src.schema import GraphEvent, EdgeAffected, parse_repo_url
-from src.db import get_pool
+from src.connectors.base import MaterializedTree
+from src.connectors.github import CONNECTORS
+from src import graph_writer, sync_runs, sync_issues
 from src.chunker import chunk_file, file_summary_text
-from src.graph_writer import (
-    upsert_repository, upsert_file, insert_chunks,
-    write_age_nodes, write_age_edges,
-    update_file_embedding, update_chunk_embedding,
-)
 from src.llm import embed_batch
 
 logger = structlog.get_logger()
 
 EMBED_BATCH_SIZE = 32
+CANCELLATION_POLL_EVERY_N = 50
+
+
+class CancelledSync(Exception):
+    pass
+
 
 _LANG_MAP: dict[str, str] = {
     ".c": "c", ".h": "c", ".cpp": "cpp", ".hpp": "cpp", ".cc": "cpp",
@@ -48,110 +51,98 @@ def _detect_language(file_path: str) -> str:
     return ""
 
 
-async def handle_sync(scope: dict, on_progress) -> None:
-    owner = scope.get("owner", "")
-    repo = scope.get("repo", "")
-    repo_url = scope.get("repo_url", "")
+async def _check_cancelled(sync_id: str) -> None:
+    status = await sync_runs.check_sync_status(sync_id)
+    if status == "cancelled":
+        raise CancelledSync()
 
-    if repo_url and not (owner and repo):
-        owner, repo = parse_repo_url(repo_url)
 
-    if not owner or not repo:
-        raise ValueError("scope must include owner+repo or repo_url")
-
-    repo_label = f"{owner}/{repo}"
+async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None:
+    """Run one sync to completion. The runner already created the sync_runs row."""
+    source_id = source["id"]
+    source_type = source["source_type"]
+    label = f"{source['owner']}/{source['name']}"
     sync_start = time.monotonic()
-    logger.info("sync_started", owner=owner, repo=repo)
+    logger.info("sync_started", sync_id=sync_id, source=label)
+
+    if not await sync_runs.claim_sync_run(sync_id):
+        logger.info("sync_already_claimed_or_cancelled", sync_id=sync_id)
+        return
+
+    connector = CONNECTORS.get(source_type)
+    if not connector:
+        await sync_issues.record_issue(
+            sync_id, "error", "startup", "no_connector",
+            f"No connector registered for source_type={source_type}", {})
+        await sync_runs.fail_sync_run(sync_id, "no connector")
+        return
+
     meta = {
-        "phase": "cloning", "repo": repo_label,
+        "phase": "cloning", "source": label,
         "files_total": 0, "files_parseable": 0,
         "files_parsed": 0, "files_embedded": 0,
         "chunks_total": 0, "chunks_embedded": 0,
         "edges_found": 0, "nodes_by_type": {},
     }
-    await on_progress(0, 0, meta)
+    await sync_runs.update_sync_progress(sync_id, 0, 0, meta)
 
-    # ── 1. Clone ──
-    logger.info("sync_phase_cloning", owner=owner, repo=repo)
-    clone_start = time.monotonic()
-    tmpdir = await _clone_repo(owner, repo, settings.github_token)
-    clone_elapsed = time.monotonic() - clone_start
-    logger.info("clone_complete", owner=owner, repo=repo,
-                duration_ms=round(clone_elapsed * 1000))
-
+    tree: MaterializedTree | None = None
     try:
-        # ── 2. Discover files ──
-        logger.info("sync_phase_discovering")
+        tree = await connector.materialize(source, scratch_dir="/tmp")
+        if tree.ref:
+            await sync_runs.set_ref(sync_id, tree.ref)
+        await _check_cancelled(sync_id)
+
         meta["phase"] = "discovering"
-        await on_progress(0, 0, meta)
+        await sync_runs.update_sync_progress(sync_id, 0, 0, meta)
 
-        tree = _walk_local_tree(tmpdir)
-        nodes = parse_repo_tree(tree)
+        from src.connectors.github import parse_repo_tree, _walk_local_tree
+        local_tree = _walk_local_tree(tree.root_dir)
+        nodes = parse_repo_tree(local_tree)
         known_files = {n.id for n in nodes}
-
         type_counts: dict[str, int] = {}
         for n in nodes:
             type_counts[n.type] = type_counts.get(n.type, 0) + 1
-
         parseable = [
             n.id for n in nodes
             if "." in n.id and "." + n.id.rsplit(".", 1)[-1] in PARSEABLE_EXTENSIONS
         ]
+        meta.update({"files_total": len(nodes), "files_parseable": len(parseable),
+                     "nodes_by_type": type_counts})
+        await sync_runs.update_sync_progress(sync_id, 0, len(nodes), meta)
 
-        meta.update({
-            "files_total": len(nodes),
-            "files_parseable": len(parseable),
-            "nodes_by_type": type_counts,
-        })
-        await on_progress(0, len(nodes), meta)
-        logger.info("discovery_complete", files_total=len(nodes),
-                     files_parseable=len(parseable), types=type_counts)
-
-        # ── 3. Parse imports ──
-        logger.info("sync_phase_parsing", files_to_parse=len(parseable))
         meta["phase"] = "parsing"
-        all_edges: list[EdgeAffected] = []
+        all_edges = []
         file_contents: dict[str, str] = {}
-
         for i, file_id in enumerate(parseable):
-            filepath = os.path.join(tmpdir, file_id)
+            filepath = os.path.join(tree.root_dir, file_id)
             try:
                 with open(filepath, "r", errors="replace") as f:
                     content = f.read()
                 file_contents[file_id] = content
                 edges = parse_imports(file_id, content, known_files)
                 all_edges.extend(edges)
-            except Exception:
-                pass
-
+            except Exception as e:
+                await sync_issues.record_issue(
+                    sync_id, "warning", "parsing", "parse_failed",
+                    f"Could not parse {file_id}", {"file_path": file_id, "error": str(e)})
             done = i + 1
             meta["files_parsed"] = done
             meta["edges_found"] = len(all_edges)
-            if done % 50 == 0 or done == len(parseable):
-                await on_progress(done, len(nodes), meta)
+            if done % CANCELLATION_POLL_EVERY_N == 0 or done == len(parseable):
+                await sync_runs.update_sync_progress(sync_id, done, len(nodes), meta)
+                await _check_cancelled(sync_id)
 
-        logger.info("parsing_complete", files_parsed=len(parseable), edges_found=len(all_edges))
-
-        # Build edge lookup for imports_count per file
         edge_count_by_source: dict[str, int] = {}
         for edge in all_edges:
             edge_count_by_source[edge.source_id] = edge_count_by_source.get(edge.source_id, 0) + 1
 
-        # ── 4. Upsert repository ──
-        repo_id = await upsert_repository(
-            owner, repo, f"https://github.com/{owner}/{repo}",
-            total_files=len(nodes), total_edges=len(all_edges),
-        )
+        meta["phase"] = "preparing"
+        await sync_runs.update_sync_progress(sync_id, 0, len(nodes), meta)
 
-        # ── 5. Build summaries + chunks for all files ──
-        logger.info("sync_phase_embedding", total_files=len(nodes))
-        meta["phase"] = "embedding"
-        await on_progress(0, len(nodes), meta)
-
-        # Collect file info for all nodes (not just parseable)
         file_info_list: list[dict] = []
         for node in nodes:
-            filepath = os.path.join(tmpdir, node.id)
+            filepath = os.path.join(tree.root_dir, node.id)
             content = file_contents.get(node.id, "")
             if not content:
                 try:
@@ -159,150 +150,118 @@ async def handle_sync(scope: dict, on_progress) -> None:
                         content = f.read()
                 except Exception:
                     content = ""
-
             language = _detect_language(node.id)
             line_count = content.count("\n") + 1 if content else 0
             size_bytes = len(content.encode("utf-8", errors="replace")) if content else 0
-
+            content_hash = hashlib.sha256(content.encode("utf-8", errors="replace")).hexdigest() if content else None
             summary = file_summary_text(node.id, node.type, language, content)
             chunks = chunk_file(content, settings.chunk_size, settings.chunk_overlap) if content.strip() else []
-
             file_info_list.append({
-                "node": node,
-                "content": content,
-                "language": language,
-                "line_count": line_count,
-                "size_bytes": size_bytes,
-                "summary": summary,
-                "chunks": chunks,
+                "node": node, "content": content, "language": language,
+                "line_count": line_count, "size_bytes": size_bytes,
+                "content_hash": content_hash,
+                "summary": summary, "chunks": chunks,
                 "imports_count": edge_count_by_source.get(node.id, 0),
             })
 
         total_chunks = sum(len(fi["chunks"]) for fi in file_info_list)
         meta["chunks_total"] = total_chunks
 
-        # ── 6. Write file + chunk rows (no embeddings yet) ──
-        # Previously we embedded everything first and wrote to the DB
-        # only at the end. On a 93k-file repo that kept the graph canvas
-        # empty for hours. Flip the order: persist structure right after
-        # chunking so the frontend can render the graph immediately, and
-        # fill in embeddings in-place afterwards.
-        logger.info("sync_phase_graphing", total_files=len(nodes))
         meta["phase"] = "graphing"
-        await on_progress(0, len(nodes), meta)
+        await sync_runs.update_sync_progress(sync_id, 0, len(nodes), meta)
 
         file_id_map: dict[str, str] = {}
-        chunk_key_to_db: dict[tuple[int, int], tuple[str, int]] = {}
         for fi_idx, fi in enumerate(file_info_list):
             node = fi["node"]
-            file_db_id = await upsert_file(
-                repo_id=repo_id,
-                file_path=node.id,
-                name=node.name,
-                file_type=node.type,
-                domain=node.domain,
-                language=fi["language"],
-                size_bytes=fi["size_bytes"],
-                line_count=fi["line_count"],
+            file_db_id = await graph_writer.insert_file(
+                sync_id=sync_id, source_id=source_id,
+                file_path=node.id, name=node.name, file_type=node.type,
+                domain=node.domain, language=fi["language"],
+                size_bytes=fi["size_bytes"], line_count=fi["line_count"],
                 imports_count=fi["imports_count"],
-                embedding=None,
+                content_hash=fi["content_hash"],
             )
             file_id_map[node.id] = file_db_id
 
-            # Insert every chunk up-front with NULL embedding. The
-            # embedding column is nullable (V5 migration) so chunks
-            # without a vector still land and participate in summary
-            # generation and text search; semantic search skips them
-            # until their vector is backfilled below.
-            chunk_dicts: list[dict] = []
-            for ch_idx, ch in enumerate(fi["chunks"]):
-                chunk_dicts.append({
-                    "chunk_index": ch.chunk_index,
-                    "content": ch.content,
-                    "start_line": ch.start_line,
-                    "end_line": ch.end_line,
-                    "token_count": ch.token_count,
-                    "language": fi["language"],
-                    "embedding": None,
-                })
-                chunk_key_to_db[(fi_idx, ch_idx)] = (file_db_id, ch.chunk_index)
+            chunk_dicts = [{
+                "chunk_index": ch.chunk_index, "content": ch.content,
+                "start_line": ch.start_line, "end_line": ch.end_line,
+                "token_count": ch.token_count, "language": fi["language"],
+                "embedding": None,
+            } for ch in fi["chunks"]]
             if chunk_dicts:
-                await insert_chunks(file_db_id, chunk_dicts)
+                await graph_writer.insert_chunks(file_db_id, sync_id, chunk_dicts)
 
             done = fi_idx + 1
-            if done % 50 == 0 or done == len(file_info_list):
-                await on_progress(done, len(nodes), meta)
+            if done % CANCELLATION_POLL_EVERY_N == 0 or done == len(file_info_list):
+                await sync_runs.update_sync_progress(sync_id, done, len(nodes), meta)
+                await _check_cancelled(sync_id)
 
-        logger.info("relational_writes_complete", files=len(file_id_map))
-
-        # ── 7. Write AGE nodes + edges immediately ──
-        # As soon as this completes the /api/graph endpoint has data to
-        # return and the frontend canvas can render the full topology.
         age_nodes = [
-            {
-                "file_id": file_id_map[node.id],
-                "name": node.name,
-                "type": node.type,
-                "domain": node.domain,
-            }
+            {"file_id": file_id_map[node.id], "name": node.name,
+             "type": node.type, "domain": node.domain}
             for node in nodes if node.id in file_id_map
         ]
-        await write_age_nodes(age_nodes)
+        node_failures = await graph_writer.write_age_nodes(age_nodes, sync_id, source_id)
+        if node_failures:
+            await sync_issues.record_issue(
+                sync_id, "warning", "graphing", "age_node_partial_failure",
+                f"{node_failures} of {len(age_nodes)} AGE nodes failed to write",
+                {"failed": node_failures, "total": len(age_nodes)})
 
         age_edges = [
-            {
-                "source_id": file_id_map[edge.source_id],
-                "target_id": file_id_map[edge.target_id],
-                "weight": 1.0,
-            }
+            {"source_id": file_id_map[edge.source_id],
+             "target_id": file_id_map[edge.target_id], "weight": 1.0}
             for edge in all_edges
             if edge.source_id in file_id_map and edge.target_id in file_id_map
         ]
-        await write_age_edges(age_edges)
-        logger.info("age_writes_complete", nodes=len(age_nodes), edges=len(age_edges))
+        edge_failures = await graph_writer.write_age_edges(age_edges, sync_id, source_id)
+        if edge_failures:
+            await sync_issues.record_issue(
+                sync_id, "warning", "graphing", "age_edge_partial_failure",
+                f"{edge_failures} of {len(age_edges)} AGE edges failed to write",
+                {"failed": edge_failures, "total": len(age_edges)})
+        await _check_cancelled(sync_id)
 
-        # ── 8. Backfill summary embeddings ──
-        # From here on the graph is already visible; this phase just
-        # enriches it. Failures (embedding server down, 400s, etc) don't
-        # stop the sync — the job still reports completion.
         meta["phase"] = "embedding_summaries"
-        embed_start = time.monotonic()
         summary_texts = [fi["summary"] for fi in file_info_list]
-        file_batches_total = (len(summary_texts) + EMBED_BATCH_SIZE - 1) // EMBED_BATCH_SIZE
-
         try:
             for batch_start in range(0, len(summary_texts), EMBED_BATCH_SIZE):
                 batch = summary_texts[batch_start:batch_start + EMBED_BATCH_SIZE]
                 vectors = await embed_batch(batch)
                 for j, vec in enumerate(vectors):
                     if vec is None:
+                        await sync_issues.record_issue(
+                            sync_id, "warning", "embedding_summaries", "embedding_null",
+                            "Embedding server returned null for file",
+                            {"file_path": file_info_list[batch_start + j]["node"].id})
                         continue
                     fi = file_info_list[batch_start + j]
                     file_db_id = file_id_map.get(fi["node"].id)
                     if file_db_id:
-                        await update_file_embedding(file_db_id, vec)
+                        await graph_writer.update_file_embedding(file_db_id, vec)
                 meta["files_embedded"] = min(batch_start + EMBED_BATCH_SIZE, len(summary_texts))
-                batch_num = batch_start // EMBED_BATCH_SIZE + 1
-                logger.info("embedding_file_batch_complete", batch=batch_num,
-                            total_batches=file_batches_total,
-                            files_embedded=meta["files_embedded"])
-                await on_progress(meta["files_embedded"], len(nodes), meta)
+                await sync_runs.update_sync_progress(sync_id, meta["files_embedded"], len(nodes), meta)
+                await _check_cancelled(sync_id)
+        except CancelledSync:
+            raise
         except Exception as e:
-            logger.warning("embedding_unavailable", error=str(e))
+            await sync_issues.record_issue(
+                sync_id, "warning", "embedding_summaries", "embedding_unavailable",
+                f"Embedding server unreachable: {e}", {})
 
-        # ── 9. Backfill chunk embeddings ──
         meta["phase"] = "embedding_chunks"
         all_chunk_texts: list[str] = []
-        chunk_map: list[tuple[int, int]] = []  # (fi_idx, ch_idx)
-        for fi_idx, fi in enumerate(file_info_list):
-            for ch_idx, ch in enumerate(fi["chunks"]):
+        chunk_map: list[tuple[str, int]] = []
+        for fi in file_info_list:
+            file_db_id = file_id_map.get(fi["node"].id)
+            if not file_db_id:
+                continue
+            for ch in fi["chunks"]:
                 all_chunk_texts.append(ch.content)
-                chunk_map.append((fi_idx, ch_idx))
+                chunk_map.append((file_db_id, ch.chunk_index))
 
-        chunk_batches_total = (len(all_chunk_texts) + EMBED_BATCH_SIZE - 1) // EMBED_BATCH_SIZE if all_chunk_texts else 0
         if all_chunk_texts:
-            logger.info("embedding_chunks_start", total_chunks=len(all_chunk_texts),
-                        total_batches=chunk_batches_total)
             try:
                 for batch_start in range(0, len(all_chunk_texts), EMBED_BATCH_SIZE):
                     batch = all_chunk_texts[batch_start:batch_start + EMBED_BATCH_SIZE]
@@ -310,46 +269,38 @@ async def handle_sync(scope: dict, on_progress) -> None:
                     for j, vec in enumerate(vectors):
                         if vec is None:
                             continue
-                        key = chunk_map[batch_start + j]
-                        db_ref = chunk_key_to_db.get(key)
-                        if db_ref:
-                            file_db_id, chunk_index = db_ref
-                            await update_chunk_embedding(file_db_id, chunk_index, vec)
+                        file_db_id, chunk_index = chunk_map[batch_start + j]
+                        await graph_writer.update_chunk_embedding(file_db_id, chunk_index, vec)
                     meta["chunks_embedded"] = min(batch_start + EMBED_BATCH_SIZE, len(all_chunk_texts))
-                    batch_num = batch_start // EMBED_BATCH_SIZE + 1
-                    logger.info("embedding_chunk_batch_complete", batch=batch_num,
-                                total_batches=chunk_batches_total,
-                                chunks_embedded=meta["chunks_embedded"])
-                    await on_progress(meta["files_embedded"], len(nodes), meta)
+                    await sync_runs.update_sync_progress(sync_id, meta["files_embedded"], len(nodes), meta)
+                    await _check_cancelled(sync_id)
+            except CancelledSync:
+                raise
             except Exception as e:
-                logger.warning("chunk_embedding_failed", error=str(e))
+                await sync_issues.record_issue(
+                    sync_id, "warning", "embedding_chunks", "embedding_unavailable",
+                    f"Chunk embedding failed: {e}", {})
 
-        embed_elapsed = time.monotonic() - embed_start
-        logger.info("embedding_complete",
-                     files_embedded=meta["files_embedded"],
-                     chunks_embedded=meta.get("chunks_embedded", 0),
-                     duration_ms=round(embed_elapsed * 1000))
-
-        # ── 9. Store raw_event in substrate_ingestion ──
-        event = GraphEvent(
-            source="github", event_type="sync",
-            nodes_affected=nodes, edges_affected=all_edges,
-        )
-        pool = await get_pool()
-        await pool.execute(
-            "INSERT INTO raw_events (source, event_type, payload) VALUES ($1, $2, $3)",
-            "github", "sync", event.model_dump_json(),
-        )
-
-        # ── 10. Done ──
         meta["phase"] = "done"
-        await on_progress(len(nodes), len(nodes), meta)
+        await sync_runs.update_sync_progress(sync_id, len(nodes), len(nodes), meta)
         sync_elapsed = time.monotonic() - sync_start
-        logger.info("sync_job_complete", owner=owner, repo=repo,
-                     nodes=len(nodes), edges=len(all_edges),
-                     chunks=total_chunks, files_embedded=meta["files_embedded"],
-                     chunks_embedded=meta.get("chunks_embedded", 0),
-                     duration_ms=round(sync_elapsed * 1000))
+        stats = {
+            "nodes": len(age_nodes), "edges": len(age_edges),
+            "files_embedded": meta["files_embedded"],
+            "chunks": total_chunks, "chunks_embedded": meta.get("chunks_embedded", 0),
+            "duration_ms": round(sync_elapsed * 1000),
+        }
+        await sync_runs.complete_sync_run(sync_id, stats)
+        await sync_runs.update_source_last_sync(source_id, sync_id)
+        logger.info("sync_completed", sync_id=sync_id, **stats)
 
+    except CancelledSync:
+        logger.info("sync_cancelled", sync_id=sync_id)
+        await graph_writer.cleanup_partial(sync_id)
+    except Exception as e:
+        logger.error("sync_failed", sync_id=sync_id, error=str(e))
+        await graph_writer.cleanup_partial(sync_id)
+        await sync_runs.fail_sync_run(sync_id, str(e))
     finally:
-        shutil.rmtree(tmpdir, ignore_errors=True)
+        if tree and tree.root_dir:
+            shutil.rmtree(tree.root_dir, ignore_errors=True)
