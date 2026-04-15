@@ -1,63 +1,10 @@
-"""Sync endpoints for the graph service.
-
-Read operations (GET) are served directly. The single write endpoint
-(POST /api/syncs) is also present here; in production the gateway routes
-POST requests to the ingestion service, but having the handler here means
-direct graph-service clients (including the test suite) get the same
-202/409 contract.
-"""
+"""Sync read endpoints. Write endpoints live in ingestion."""
 import base64
 import binascii
-import structlog
 from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel
 from src.graph import store
-from src import sync_runs
-
-logger = structlog.get_logger()
 
 router = APIRouter(prefix="/api/syncs")
-
-
-class SyncCreate(BaseModel):
-    source_id: str
-    config_snapshot: dict = {}
-
-
-@router.post("", status_code=202)
-async def create_sync(req: SyncCreate):
-    pool = store.get_pool()
-    async with pool.acquire() as conn:
-        src = await conn.fetchval(
-            "SELECT id FROM sources WHERE id=$1::uuid", req.source_id
-        )
-    if not src:
-        raise HTTPException(404, "source not found")
-    pool = store.get_pool()
-    async with pool.acquire() as conn:
-        sync_id, created = await sync_runs.ensure_active_sync(
-            conn,
-            source_id=req.source_id,
-            config_snapshot=req.config_snapshot,
-            triggered_by="user",
-        )
-    if created:
-        return {"sync_id": sync_id, "status": "pending"}
-    logger.info(
-        "api_sync_already_active",
-        source_id=req.source_id,
-        existing_sync_id=sync_id,
-    )
-    return JSONResponse(
-        status_code=409,
-        content={
-            "error": "sync_already_active",
-            "message": "A sync is already running or pending for this source.",
-            "sync_id": sync_id,
-            "status": "already_active",
-        },
-    )
 
 
 def _encode_cursor(ts: str, sid: str) -> str:
