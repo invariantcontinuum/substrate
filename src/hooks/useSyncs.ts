@@ -7,6 +7,37 @@ import { logger } from "@/lib/logger";
 import { useGraphStore } from "@/stores/graph";
 import { useSyncSetStore, type SyncRunSummary } from "@/stores/syncSet";
 
+// Tagged outcome type for startSync / retrySync mutations.
+// 409 sync_already_active is NOT an error — it returns `kind: "already_active"`.
+export type CreateSyncOutcome =
+  | { kind: "created"; sync_id: string }
+  | { kind: "already_active"; sync_id: string };
+
+async function postSyncMutation(
+  url: string,
+  body: Record<string, unknown>,
+  token: string | undefined,
+): Promise<CreateSyncOutcome> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+  });
+  if (res.status === 202) {
+    const data = await res.json() as { sync_id: string; status?: string };
+    return { kind: "created", sync_id: data.sync_id };
+  }
+  if (res.status === 409) {
+    const data = await res.json() as { error?: string; sync_id?: string };
+    if (data?.error === "sync_already_active" && data.sync_id) {
+      return { kind: "already_active", sync_id: data.sync_id };
+    }
+  }
+  throw new Error(`Unexpected sync response: ${res.status}`);
+}
+
 export interface SyncRun {
   id: string;
   source_id: string;
@@ -100,14 +131,11 @@ export function useSyncs() {
     }
   }, [active.data, lookups.data, qc, setSyncStatus]);
 
-  const startSync = useMutation({
-    mutationFn: (req: { source_id: string }) =>
-      apiFetch<{ id: string }>("/api/syncs", token, {
-        method: "POST",
-        body: JSON.stringify({ ...req, config_overrides: {} }),
-      }),
-    onSuccess: () => {
-      setSyncStatus("syncing");
+  const startSync = useMutation<CreateSyncOutcome, Error, { source_id: string }>({
+    mutationFn: (req) =>
+      postSyncMutation("/api/syncs", { ...req, config_overrides: {} }, token),
+    onSuccess: (outcome) => {
+      if (outcome.kind === "created") setSyncStatus("syncing");
       qc.invalidateQueries({ queryKey: ["syncs"] });
     },
     onError: () => setSyncStatus("error"),
@@ -119,9 +147,9 @@ export function useSyncs() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["syncs"] }),
   });
 
-  const retrySync = useMutation({
-    mutationFn: (id: string) =>
-      apiFetch<{ id: string }>(`/api/syncs/${id}/retry`, token, { method: "POST" }),
+  const retrySync = useMutation<CreateSyncOutcome, Error, string>({
+    mutationFn: (id) =>
+      postSyncMutation(`/api/syncs/${id}/retry`, {}, token),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["syncs"] }),
   });
 

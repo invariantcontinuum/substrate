@@ -66,6 +66,7 @@ export function SourcesModal() {
           onToggleSchedule={() => setScheduleExpanded((v) => !v)}
           onSnapshotActionComplete={() => setSelectedSyncIds(new Set())}
           onSourceActionComplete={() => setSelectedSourceIds(new Set())}
+          onAlreadyActive={(syncId) => setInitialExpandSyncId(syncId)}
         />
         <div className={`sources-modal-body${activeSourceId ? " has-active-source" : ""}`}>
           <SourcesSidebar

@@ -8,6 +8,7 @@ import { useSyncs } from "@/hooks/useSyncs";
 import { useSources } from "@/hooks/useSources";
 import { useSchedules } from "@/hooks/useSchedules";
 import { useSyncSetStore } from "@/stores/syncSet";
+import { SyncAlreadyActiveNotice } from "@/components/SyncAlreadyActiveNotice";
 
 const INTERVAL_OPTIONS = [
   { label: "5 min", value: 5 }, { label: "15 min", value: 15 },
@@ -22,11 +23,13 @@ interface Props {
   onToggleSchedule: () => void;
   onSnapshotActionComplete: () => void;
   onSourceActionComplete: () => void;
+  /** Called when a sync attempt finds an already-active sync; provides the existing sync_id. */
+  onAlreadyActive?: (syncId: string) => void;
 }
 
 export function UnifiedToolbar(props: Props) {
   const { selectedSourceIds, selectedSyncIds, scheduleExpanded, onToggleSchedule,
-          onSnapshotActionComplete, onSourceActionComplete } = props;
+          onSnapshotActionComplete, onSourceActionComplete, onAlreadyActive } = props;
   const { startSync, cancelSync, cleanSync, purgeSync, activeSyncs } = useSyncs();
   const { purgeSource } = useSources();
   const { createSchedule } = useSchedules();
@@ -35,6 +38,7 @@ export function UnifiedToolbar(props: Props) {
   const loadedIds = useSyncSetStore((s) => s.syncIds);
 
   const [interval, setInterval] = useState(60);
+  const [alreadyActiveSyncId, setAlreadyActiveSyncId] = useState<string | null>(null);
 
   const snapshotMode = selectedSyncIds.size > 0;
   const sourceMode = !snapshotMode && selectedSourceIds.size > 0;
@@ -77,8 +81,15 @@ export function UnifiedToolbar(props: Props) {
   const syncLabel = multi ? `Sync (${sourceIds.length} sources)` : "Sync";
 
   const doSync = () => {
-    // Fire-and-forget, parallel.
-    sourceIds.forEach((id) => { void startSync({ source_id: id }); });
+    setAlreadyActiveSyncId(null);
+    // Fire in parallel; capture outcome to surface already_active notice.
+    sourceIds.forEach((id) => {
+      void startSync({ source_id: id }).then((outcome) => {
+        if (outcome.kind === "already_active") {
+          setAlreadyActiveSyncId(outcome.sync_id);
+        }
+      });
+    });
     onSourceActionComplete();
   };
   const doStop = () => {
@@ -147,6 +158,13 @@ export function UnifiedToolbar(props: Props) {
         )}
         <Button onClick={doPurgeSource} className="danger"><Trash2 size={12} /> Purge source{multi ? "s" : ""}</Button>
       </div>
+      {alreadyActiveSyncId && (
+        <SyncAlreadyActiveNotice
+          syncId={alreadyActiveSyncId}
+          onOpenSync={onAlreadyActive}
+          className="mx-2 mt-1 rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-900/30 dark:border-amber-700 px-3 py-2 text-sm flex items-center justify-between gap-3"
+        />
+      )}
       {scheduleExpanded && (
         <div className="unified-schedule-row">
           <Label>Every</Label>
