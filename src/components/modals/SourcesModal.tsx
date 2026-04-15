@@ -49,10 +49,10 @@ export function SourcesModal() {
 
   return (
     <Modal open={activeModal === "sources"} onClose={closeModal} title="Sources" maxWidth={520}>
-      <div className="flex flex-col gap-5">
+      <div className="sources-modal">
         <div>
-          <Label className="block mb-2">Ingest Repository</Label>
-          <div className="flex gap-2">
+          <Label>Ingest Repository</Label>
+          <div className="sources-modal-row">
             <Input
               type="text"
               placeholder="https://github.com/owner/repo"
@@ -68,8 +68,8 @@ export function SourcesModal() {
         </div>
 
         <div>
-          <Label className="block mb-2">Schedule Sync</Label>
-          <div className="flex gap-2 items-center">
+          <Label>Schedule Sync</Label>
+          <div className="sources-modal-row">
             <Select value={String(scheduleInterval)} onValueChange={(v: string | null) => v && setScheduleInterval(Number(v))}>
               <SelectTrigger>
                 <SelectValue />
@@ -91,15 +91,15 @@ export function SourcesModal() {
 
         {schedules.length > 0 && (
           <div>
-            <Label className="block mb-2">Active Schedules</Label>
-            <div className="flex flex-col gap-2">
+            <Label>Active Schedules</Label>
+            <div className="sources-schedules">
               {schedules.map((s) => (
-                <div key={s.id} className="flex items-center justify-between border border-black p-2">
+                <div key={s.id} className="sources-schedule-item">
                   <div>
                     <span>{s.owner}/{s.repo}</span>
                     <span> / {s.job_type} / {s.interval_minutes}m</span>
                   </div>
-                  <div className="flex gap-1">
+                  <div className="sources-schedule-actions">
                     <Button onClick={() => toggleSchedule(s.id)} title={s.enabled ? "Disable" : "Enable"}>
                       <Power size={12} />
                     </Button>
@@ -114,11 +114,10 @@ export function SourcesModal() {
         )}
 
         <div>
-          <Label className="block mb-2">View</Label>
-          <div className="flex flex-col gap-2">
-            <div className="flex gap-2">
+          <Label>View</Label>
+          <div className="sources-view">
+            <div className="sources-view-row">
               {([["force", "Force"], ["hierarchical", "Hierarchy"]] as const).map(([val, label]) => {
-                const active = layout === val;
                 return (
                   <Button key={val} onClick={() => setLayout(val as "force" | "hierarchical")}>
                     {label}
@@ -134,14 +133,14 @@ export function SourcesModal() {
         </div>
 
         <div>
-          <Label className="block mb-2">Danger Zone</Label>
+          <Label>Danger Zone</Label>
           {!showPurgeConfirm ? (
             <Button onClick={() => setShowPurgeConfirm(true)}>
               <Trash2 size={14} />
               Purge All Graph Data
             </Button>
           ) : (
-            <div className="flex gap-2">
+            <div className="sources-purge-row">
               <Button onClick={() => { purgeGraph(); setShowPurgeConfirm(false); }}>
                 Confirm Purge
               </Button>

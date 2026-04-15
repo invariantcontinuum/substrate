@@ -29,8 +29,8 @@ export function SearchModal() {
 
   return (
     <Modal open={activeModal === "search"} onClose={() => { closeModal(); clearResults(); }} title="Search" maxWidth={560}>
-      <div className="flex flex-col gap-4">
-        <div className="flex gap-2">
+      <div className="search-modal">
+        <div className="search-modal-row">
           <Input
             type="text"
             placeholder="Search nodes semantically..."
@@ -45,23 +45,23 @@ export function SearchModal() {
           </Button>
         </div>
 
-        <div className="flex gap-2">
+        <div className="search-modal-row">
           <Input type="text" placeholder="Filter by category..." value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} />
           <Input type="text" placeholder="Filter by domain..." value={domainFilter} onChange={(e) => setDomainFilter(e.target.value)} />
         </div>
 
         {results.length > 0 && (
-          <div className="flex flex-col gap-2">
+          <div className="search-modal-results">
             <Label>{results.length} results</Label>
             {results.map((r) => (
-              <button key={r.node_id} onClick={() => handleSelectResult(r.node_id)} className="border border-black p-2 text-left bg-white text-black">
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold">{r.name || r.node_id.split("/").pop()}</span>
+              <button key={r.node_id} onClick={() => handleSelectResult(r.node_id)} className="search-result-item">
+                <div className="search-result-header">
+                  <span className="search-result-name">{r.name || r.node_id.split("/").pop()}</span>
                   {r.category && <Badge>{r.category}</Badge>}
                   {r.language && <Badge>{r.language}</Badge>}
                 </div>
-                {r.description && <div className="text-black">{r.description}</div>}
-                <div className="text-black">{r.node_id}</div>
+                {r.description && <div className="search-result-desc">{r.description}</div>}
+                <div className="search-result-id">{r.node_id}</div>
               </button>
             ))}
           </div>

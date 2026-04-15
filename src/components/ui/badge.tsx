@@ -1,19 +1,9 @@
-import { mergeProps } from "@base-ui/react/merge-props";
-import { useRender } from "@base-ui/react/use-render";
-import { cn } from "@/lib/utils";
+import * as React from "react";
 
-interface BadgeProps extends useRender.ComponentProps<"span"> {
+interface BadgeProps extends React.ComponentProps<"span"> {
   variant?: "default" | "secondary" | "destructive" | "outline" | "ghost" | "link";
 }
 
-export function Badge({ className, variant = "default", render, ...props }: BadgeProps) {
-  return useRender({
-    defaultTagName: "span",
-    props: mergeProps<"span">(
-      { className: cn("border border-black text-black bg-white px-2 py-0.5", className) },
-      props
-    ),
-    render,
-    state: { slot: "badge", variant },
-  });
+export function Badge({ className = "", ...props }: BadgeProps) {
+  return <span data-slot="badge" className={`ui-badge ${className}`} {...props} />;
 }

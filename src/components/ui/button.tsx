@@ -1,17 +1,16 @@
-import { Button as ButtonPrimitive } from "@base-ui/react/button";
-import { cn } from "@/lib/utils";
+import * as React from "react";
 
-interface ButtonProps extends ButtonPrimitive.Props {
-  variant?: "default" | "outline" | "ghost" | "destructive" | "secondary" | "link";
-  size?: "default" | "sm" | "icon" | "icon-sm" | "icon-xs";
-}
+export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement>;
 
-export function Button({ className, ...props }: ButtonProps) {
-  return (
-    <ButtonPrimitive
-      data-slot="button"
-      className={cn("border border-black text-black bg-white px-3 py-1", className)}
-      {...props}
-    />
-  );
-}
+export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ className = "", ...props }, ref) => {
+    return (
+      <button
+        ref={ref}
+        className={`ui-button ${className}`}
+        {...props}
+      />
+    );
+  }
+);
+Button.displayName = "Button";

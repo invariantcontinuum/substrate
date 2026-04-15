@@ -28,11 +28,11 @@ export function EnrichmentModal() {
 
   return (
     <Modal open={activeModal === "enrichment"} onClose={closeModal} title="Enrichment" maxWidth={480}>
-      <div className="flex flex-col gap-4">
+      <div className="enrichment-modal">
         <p>Use local LLM to generate descriptions, classifications, and embeddings for graph nodes.</p>
 
         <div>
-          <Label className="block mb-2">Repository</Label>
+          <Label>Repository</Label>
           <Input
             type="text"
             placeholder="https://github.com/owner/repo"
@@ -41,26 +41,26 @@ export function EnrichmentModal() {
           />
         </div>
 
-        <div className="flex gap-3">
-          <div className="flex-1">
-            <Label className="block mb-2">Limit</Label>
+        <div className="enrichment-modal-row">
+          <div className="enrichment-modal-field">
+            <Label>Limit</Label>
             <Input type="number" value={limit} onChange={(e) => setLimit(Number(e.target.value))} />
           </div>
-          <div className="flex-1">
-            <Label className="block mb-2">Mode</Label>
-            <Button onClick={() => setUnenrichedOnly(!unenrichedOnly)} className="w-full justify-start">
+          <div className="enrichment-modal-field">
+            <Label>Mode</Label>
+            <Button onClick={() => setUnenrichedOnly(!unenrichedOnly)}>
               {unenrichedOnly ? "Unenriched only" : "All nodes"}
             </Button>
           </div>
         </div>
 
-        <Button onClick={handleEnrich} disabled={!repoUrl.trim() || isRunning} className="w-full">
+        <Button onClick={handleEnrich} disabled={!repoUrl.trim() || isRunning}>
           {isRunning ? <Loader2 size={14} /> : <Sparkles size={14} />}
           Run Enrichment
         </Button>
 
         {latestEnrich && (
-          <div className="border border-black p-2">
+          <div className="enrichment-modal-status">
             <span>Last enrichment: </span>
             <span>{latestEnrich.status}</span>
             {latestEnrich.progress_total > 0 && (

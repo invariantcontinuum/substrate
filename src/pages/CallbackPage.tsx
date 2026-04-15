@@ -7,14 +7,15 @@ export function CallbackPage() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (auth.isAuthenticated) {
-      navigate("/graph", { replace: true });
+    if (!auth.isLoading) {
+      navigate(auth.isAuthenticated ? "/" : "/", { replace: true });
     }
-  }, [auth.isAuthenticated, navigate]);
+  }, [auth.isLoading, auth.isAuthenticated, navigate]);
 
   return (
-    <div className="flex items-center justify-center h-screen bg-white text-black">
-      Authenticating...
+    <div className="callback-page">
+      <div className="callback-spinner" />
+      <p>Signing in…</p>
     </div>
   );
 }
