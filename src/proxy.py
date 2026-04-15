@@ -146,7 +146,7 @@ async def proxy_request(request: Request, upstream_base: str) -> Response:
 
 
 async def proxy_websocket(
-    websocket, upstream_base: str, path: str, token: str
+    websocket: WebSocket, upstream_base: str, path: str, token: str
 ) -> None:
     ws_base = upstream_base.replace("http://", "ws://").replace("https://", "wss://")
     ws_url = f"{ws_base}{path}?token={token}"

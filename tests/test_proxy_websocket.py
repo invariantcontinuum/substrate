@@ -1,5 +1,6 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+from fastapi import WebSocket
 from fastapi.websockets import WebSocketDisconnect
 from websockets.exceptions import ConnectionClosedOK, ConnectionClosedError
 
@@ -27,11 +28,11 @@ class _FakeUpstream:
 
 
 def _make_ws(receive_side_effects):
-    ws = AsyncMock()
-    ws.accept = AsyncMock()
-    ws.close = AsyncMock()
+    ws = AsyncMock(spec=WebSocket)
     ws.receive_text = AsyncMock(side_effect=receive_side_effects)
     ws.send_text = AsyncMock()
+    ws.accept = AsyncMock()
+    ws.close = AsyncMock()
     return ws
 
 
@@ -42,8 +43,9 @@ async def test_client_normal_disconnect_logs_info():
     with patch("src.proxy.websockets.connect", return_value=upstream), \
          patch("src.proxy.logger") as logger:
         await proxy_websocket(ws, "http://upstream", "/ws/path", "token")
-    events = [c.args[0] for c in logger.info.call_args_list]
-    assert "ws_relay_client_closed" in events
+    calls = [c for c in logger.info.call_args_list if c.args[0] == "ws_relay_client_closed"]
+    assert calls, "no ws_relay_client_closed call found"
+    assert any(c.kwargs.get("direction") in {"client_to_upstream", "upstream_to_client", "outer"} for c in calls)
 
 
 @pytest.mark.asyncio
@@ -53,8 +55,10 @@ async def test_upstream_closed_error_logs_warning():
     with patch("src.proxy.websockets.connect", return_value=upstream), \
          patch("src.proxy.logger") as logger:
         await proxy_websocket(ws, "http://upstream", "/ws/path", "token")
-    events = [c.args[0] for c in logger.warning.call_args_list]
-    assert "ws_relay_upstream_closed_error" in events
+    calls = [c for c in logger.warning.call_args_list if c.args[0] == "ws_relay_upstream_closed_error"]
+    assert calls, "no ws_relay_upstream_closed_error call found"
+    assert any(c.kwargs.get("direction") for c in calls)
+    assert any("error" in c.kwargs and c.kwargs["error"] for c in calls)
 
 
 @pytest.mark.asyncio
@@ -64,8 +68,10 @@ async def test_unexpected_exception_logs_warning():
     with patch("src.proxy.websockets.connect", return_value=upstream), \
          patch("src.proxy.logger") as logger:
         await proxy_websocket(ws, "http://upstream", "/ws/path", "token")
-    events = [c.args[0] for c in logger.warning.call_args_list]
-    assert "ws_relay_unexpected" in events
+    calls = [c for c in logger.warning.call_args_list if c.args[0] == "ws_relay_unexpected"]
+    assert calls, "no ws_relay_unexpected call found"
+    assert any(c.kwargs.get("direction") for c in calls)
+    assert any("error" in c.kwargs and c.kwargs["error"] for c in calls)
 
 
 @pytest.mark.asyncio
@@ -76,5 +82,6 @@ async def test_close_failure_logs_warning():
     with patch("src.proxy.websockets.connect", return_value=upstream), \
          patch("src.proxy.logger") as logger:
         await proxy_websocket(ws, "http://upstream", "/ws/path", "token")
-    events = [c.args[0] for c in logger.warning.call_args_list]
-    assert "ws_relay_close_failed" in events
+    calls = [c for c in logger.warning.call_args_list if c.args[0] == "ws_relay_close_failed"]
+    assert calls, "no ws_relay_close_failed call found"
+    assert any("error" in c.kwargs and c.kwargs["error"] for c in calls)
