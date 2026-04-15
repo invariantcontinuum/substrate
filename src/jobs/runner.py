@@ -7,7 +7,10 @@ from src.jobs.sync import handle_sync
 logger = structlog.get_logger()
 
 _running = False
+_loop_task: asyncio.Task | None = None
+_in_flight: set[asyncio.Task] = set()
 POLL_INTERVAL_S = 2.0
+SHUTDOWN_TIMEOUT_S = 30.0
 
 
 async def _fetch_pending() -> list[dict]:
@@ -26,7 +29,7 @@ async def _fetch_pending() -> list[dict]:
 
 
 async def start_runner() -> None:
-    global _running
+    global _running, _loop_task
     _running = True
 
     async def _loop():
@@ -39,15 +42,35 @@ async def start_runner() -> None:
                         "owner": r["owner"], "name": r["name"], "url": r["url"],
                     }
                     config_snapshot = r["config_snapshot"] if isinstance(r["config_snapshot"], dict) else {}
-                    asyncio.create_task(handle_sync(r["sync_id"], source, config_snapshot))
+                    task = asyncio.create_task(handle_sync(r["sync_id"], source, config_snapshot))
+                    _in_flight.add(task)
+                    task.add_done_callback(_in_flight.discard)
             except Exception as e:
                 logger.error("runner_loop_error", error=str(e))
             await asyncio.sleep(POLL_INTERVAL_S)
 
-    asyncio.create_task(_loop())
+    _loop_task = asyncio.create_task(_loop())
     logger.info("runner_started")
 
 
 async def stop_runner() -> None:
-    global _running
+    """Stop polling, then await in-flight syncs (with timeout)."""
+    global _running, _loop_task
     _running = False
+    if _loop_task is not None:
+        _loop_task.cancel()
+        try:
+            await _loop_task
+        except asyncio.CancelledError:
+            pass
+        _loop_task = None
+    if _in_flight:
+        logger.info("runner_awaiting_in_flight", count=len(_in_flight))
+        try:
+            await asyncio.wait_for(
+                asyncio.gather(*_in_flight, return_exceptions=True),
+                timeout=SHUTDOWN_TIMEOUT_S,
+            )
+        except asyncio.TimeoutError:
+            logger.warning("runner_in_flight_timeout", remaining=len(_in_flight))
+    logger.info("runner_stopped")
