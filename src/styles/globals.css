@@ -260,6 +260,12 @@ html, body, #root {
   padding: var(--space-2);
   gap: var(--space-1);
   overflow-y: auto;
+  /* Spec: setting overflow-y to auto promotes overflow-x to auto too,
+   * which surfaces a horizontal scrollbar whenever the avatar's hover
+   * transform nudges its bounding box past the rail's edge. Pin x to
+   * hidden so the scaled avatar just clips against the rounded border
+   * instead of triggering a scrollbar. */
+  overflow-x: hidden;
 }
 
 .side-nav-collapse {
@@ -375,8 +381,12 @@ html, body, #root {
 
 .side-nav-avatar:hover {
   background: var(--accent-hover);
-  transform: scale(1.04);
-  transition: transform var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
+  /* Subtle outward halo instead of a width-changing scale, so we don't
+   * collide with the rail's narrow column. */
+  box-shadow: 0 0 0 4px var(--focus-ring);
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
 }
 
 /* ---- Mobile Nav ---- */
