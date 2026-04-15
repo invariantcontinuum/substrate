@@ -45,7 +45,6 @@ export function SnapshotRowSummary({ run, isSelected, isExpanded, onToggleSelect
         type="button"
         className="snapshot-row-body"
         onClick={onToggleExpand}
-        disabled={!hasIssues && !isRunning}
       >
         <span className="snapshot-row-ts">{formatTs(run.completed_at ?? run.created_at)}</span>
         {statusChip(run.status)}
@@ -57,7 +56,7 @@ export function SnapshotRowSummary({ run, isSelected, isExpanded, onToggleSelect
             </span>
           </span>
         )}
-        {hasIssues && (isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />)}
+        {(isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />)}
       </button>
     </div>
   );
