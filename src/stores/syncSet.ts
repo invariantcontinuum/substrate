@@ -81,32 +81,15 @@ export const useSyncSetStore = create<SyncSetState>()(
 
       registerSourceMap: (m) => set({ sourceMap: m }),
 
-      initializeIfNeeded: async (token) => {
-        if (!token) return;
-        // Re-init whenever the active set is empty, regardless of hasInitialized.
-        // The original "first session only" gate left users stranded if they
-        // opened the app once before any source existed: hasInitialized went
-        // true with empty ids and no later session would auto-load.
-        // hasInitialized still distinguishes "we've fetched at least once" so
-        // that sub-project D's "new source first sync — do not auto-add" rule
-        // can read it; that rule will live in onSyncCompleted, not here.
-        if (get().syncIds.length > 0) return;
-        try {
-          const res = await fetch(`${window.location.origin}/api/sources?limit=100`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          const data = await res.json();
-          const ids = (data.items ?? [])
-            .map((s: { last_sync_id: string | null }) => s.last_sync_id)
-            .filter((x: string | null): x is string => !!x);
-          // Only flip hasInitialized once we've actually populated something.
-          // An empty result means "no sources yet"; we'll try again next mount.
-          if (ids.length > 0) {
-            set({ syncIds: ids, hasInitialized: true });
-          }
-        } catch (e) {
-          logger.warn("init_active_set_failed", { error: String(e) });
-        }
+      initializeIfNeeded: async (_token) => {
+        // Intentionally does NOT auto-load any snapshots. Canvas preserves
+        // the last explicitly-loaded set from this browser/device via
+        // localStorage. If localStorage is empty (new browser/device/private
+        // window, or user cleared storage), the canvas stays empty — the
+        // user picks what to load from the Sources modal.
+        // pruneInvalid still runs from DashboardLayout to drop stale ids
+        // before this is called.
+        set({ hasInitialized: true });
       },
     }),
     {

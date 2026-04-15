@@ -1,6 +1,24 @@
 // frontend/src/components/modals/sources/SnapshotRowSummary.tsx
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, Loader2 } from "lucide-react";
 import type { SyncRun } from "@/hooks/useSyncs";
+
+// Phases where progress_done/progress_total meaningfully measure % complete.
+// After "graphing" finishes the per-file chunking loop, progress_done hits its
+// ceiling (= total files) while the sync is still doing AGE writes + embedding.
+// Showing "100%" during those phases is misleading — we switch to a phase
+// label + spinner instead.
+const PROGRESS_BAR_PHASES = new Set(["discovering", "parsing", "preparing", "graphing"]);
+
+const PHASE_LABEL: Record<string, string> = {
+  cloning: "Cloning repo",
+  discovering: "Discovering files",
+  parsing: "Parsing imports",
+  preparing: "Preparing chunks",
+  graphing: "Writing graph",
+  embedding_summaries: "Embedding file summaries",
+  embedding_chunks: "Embedding chunks",
+  done: "Finalising",
+};
 
 interface Props {
   run: SyncRun;
@@ -27,10 +45,11 @@ function statusChip(status: string) {
 }
 
 export function SnapshotRowSummary({ run, isSelected, isExpanded, onToggleSelect, onToggleExpand }: Props) {
-  const hasIssues = run.status === "failed" || run.status === "cancelled";
   const isRunning = run.status === "running";
   const pct = run.progress_total > 0 ? Math.round((run.progress_done / run.progress_total) * 100) : 0;
   const phase = (run.progress_meta as { phase?: string } | null)?.phase ?? "";
+  const phaseHasBar = PROGRESS_BAR_PHASES.has(phase);
+  const phaseLabel = PHASE_LABEL[phase] ?? phase;
 
   return (
     <div className={`snapshot-row-summary${isExpanded ? " is-expanded" : ""}`}>
@@ -50,10 +69,18 @@ export function SnapshotRowSummary({ run, isSelected, isExpanded, onToggleSelect
         {statusChip(run.status)}
         {isRunning && (
           <span className="snapshot-row-progress">
-            <span className="snapshot-row-progress-text">{phase} {pct}%</span>
-            <span className="snapshot-row-progress-bar">
-              <span style={{ width: `${pct}%` }} />
-            </span>
+            {phaseHasBar ? (
+              <>
+                <span className="snapshot-row-progress-text">{phaseLabel} {pct}%</span>
+                <span className="snapshot-row-progress-bar">
+                  <span style={{ width: `${pct}%` }} />
+                </span>
+              </>
+            ) : (
+              <span className="snapshot-row-progress-text">
+                <Loader2 size={10} className="snapshot-row-progress-spinner" /> {phaseLabel || "Running"}
+              </span>
+            )}
           </span>
         )}
         {(isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />)}

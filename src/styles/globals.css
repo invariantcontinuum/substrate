@@ -1627,6 +1627,7 @@ html, body, #root {
 .snapshot-row-progress { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-xs); opacity: 0.7; }
 .snapshot-row-progress-bar { display: inline-block; width: 80px; height: 3px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; }
 .snapshot-row-progress-bar > span { display: block; height: 100%; background: var(--accent-soft); transition: width 0.3s ease; }
+.snapshot-row-progress-spinner { animation: spin 1s linear infinite; vertical-align: -1px; margin-right: 4px; }
 
 .sync-issues-inline {
   padding: 10px 12px; margin: 4px 0 8px 22px;
