@@ -62,3 +62,54 @@ class TestParseImports:
         assert edges[0].source_id == "a.c"
         assert edges[0].target_id == "b.h"
         assert edges[0].action == "add"
+
+
+class TestGoImports:
+    def test_single_line_import(self):
+        content = 'package foo\nimport "fmt"\n'
+        edges = parse_imports("x.go", content, known_files={"fmt"})
+        assert [e.target_id for e in edges] == ["fmt"]
+
+    def test_grouped_imports(self):
+        content = (
+            "package foo\n"
+            "import (\n"
+            '    "fmt"\n'
+            '    "net/http"\n'
+            '    "os"\n'
+            ")\n"
+        )
+        known = {"fmt", "net/http", "os"}
+        edges = parse_imports("x.go", content, known_files=known)
+        assert sorted(e.target_id for e in edges) == ["fmt", "net/http", "os"]
+
+    def test_grouped_with_aliases_underscores_dots(self):
+        content = (
+            "import (\n"
+            '    foo "github.com/bar/baz"\n'
+            '    _ "side/effects"\n'
+            '    . "dot/import"\n'
+            ")\n"
+        )
+        known = {"github.com/bar/baz", "side/effects", "dot/import"}
+        edges = parse_imports("x.go", content, known_files=known)
+        assert sorted(e.target_id for e in edges) == [
+            "dot/import", "github.com/bar/baz", "side/effects",
+        ]
+
+    def test_mixed_single_and_grouped(self):
+        content = (
+            'import "solo"\n'
+            "\n"
+            "import (\n"
+            '    "a"\n'
+            '    "b"\n'
+            ")\n"
+        )
+        known = {"solo", "a", "b"}
+        edges = parse_imports("x.go", content, known_files=known)
+        assert sorted(e.target_id for e in edges) == ["a", "b", "solo"]
+
+    def test_no_imports_returns_empty(self):
+        edges = parse_imports("x.go", "package foo\n\nfunc main() {}\n", known_files=set())
+        assert edges == []

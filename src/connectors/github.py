@@ -17,12 +17,16 @@ IMPORT_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     (".c .h .cpp .hpp .cc", re.compile(r'#include\s+"([^"]+)"')),
     (".py", re.compile(r"(?:from\s+([\w.]+)\s+import|import\s+([\w.]+))")),
     (".js .jsx .ts .tsx", re.compile(r"""(?:import\s+.*?from\s+['"]([^'"]+)['"]|require\s*\(\s*['"]([^'"]+)['"]\s*\))""")),
-    (".go", re.compile(r'import\s+"([^"]+)"')),
+    # .go handled by _extract_go_imports (grouped-import form needs a two-pass match).
     (".rs", re.compile(r"(?:use\s+(?:crate::)?([\w:]+)|mod\s+(\w+))")),
     (".pl .pm", re.compile(r"""(?:use\s+([\w:]+)|require\s+['"]([^'"]+)['"])""")),
     (".sh .bash", re.compile(r"""(?:source\s+['"]?([^'";\s]+)|\.(?:\s+)['"]?([^'";\s]+))""")),
     (".cmake", re.compile(r"(?:include\s*\(\s*(\S+)\s*\)|find_package\s*\(\s*(\S+))")),
 ]
+
+_GO_IMPORT_SINGLE = re.compile(r'^\s*import\s+"([^"]+)"', re.MULTILINE)
+_GO_IMPORT_GROUP = re.compile(r'import\s*\(\s*([\s\S]*?)\)')
+_GO_IMPORT_PATH = re.compile(r'"([^"]+)"')
 
 PARSEABLE_EXTENSIONS = {
     ".c", ".h", ".cpp", ".hpp", ".cc",
@@ -152,21 +156,44 @@ def _resolve_import(file_id: str, raw_import: str, known_files: set[str]) -> str
     return None
 
 
-def parse_imports(file_id: str, content: str, known_files: set[str]) -> list[EdgeAffected]:
-    ext = "." + file_id.rsplit(".", 1)[-1] if "." in file_id else ""
-    edges: list[EdgeAffected] = []
-    seen: set[str] = set()
+def _extract_go_imports(content: str) -> list[str]:
+    """Extract Go import paths, handling both single-line and grouped forms.
+
+    Grouped imports are standard in real Go code, so a single `import "path"`
+    regex catches almost nothing. Here we run two passes: one for the single
+    form, one for the parenthesised group form where each quoted path on its
+    own line is an import (optional alias / underscore / dot prefix ignored)."""
+    imports: list[str] = []
+    for m in _GO_IMPORT_SINGLE.finditer(content):
+        imports.append(m.group(1))
+    for m in _GO_IMPORT_GROUP.finditer(content):
+        for p in _GO_IMPORT_PATH.finditer(m.group(1)):
+            imports.append(p.group(1))
+    return imports
+
+
+def _extract_regex_imports(ext: str, content: str) -> list[str]:
+    raws: list[str] = []
     for extensions_str, pattern in IMPORT_PATTERNS:
         if ext not in extensions_str.split():
             continue
         for match in pattern.finditer(content):
             raw = next((g for g in match.groups() if g is not None), None)
-            if not raw:
-                continue
-            target = _resolve_import(file_id, raw, known_files)
-            if target and target != file_id and target not in seen:
-                seen.add(target)
-                edges.append(EdgeAffected(source_id=file_id, target_id=target, type="depends", action="add"))
+            if raw:
+                raws.append(raw)
+    return raws
+
+
+def parse_imports(file_id: str, content: str, known_files: set[str]) -> list[EdgeAffected]:
+    ext = "." + file_id.rsplit(".", 1)[-1] if "." in file_id else ""
+    raws = _extract_go_imports(content) if ext == ".go" else _extract_regex_imports(ext, content)
+    edges: list[EdgeAffected] = []
+    seen: set[str] = set()
+    for raw in raws:
+        target = _resolve_import(file_id, raw, known_files)
+        if target and target != file_id and target not in seen:
+            seen.add(target)
+            edges.append(EdgeAffected(source_id=file_id, target_id=target, type="depends", action="add"))
     return edges
 
 
