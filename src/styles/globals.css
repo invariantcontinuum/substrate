@@ -194,11 +194,14 @@ html, body, #root {
 
 @media (max-width: 640px) {
   .top-nav {
-    grid-template-columns: auto 1fr auto;
+    /* Drop the centre column entirely on phones — the search lives in
+     * its own dedicated modal anyway, so the bar can give the brand
+     * and stats more room. */
+    grid-template-columns: 1fr auto;
     margin: var(--space-2) var(--space-2) 0;
     height: 50px;
   }
-  .top-nav-search { width: 100%; }
+  .top-nav-center { display: none; }
 }
 
 .top-nav-stats {
@@ -1255,6 +1258,78 @@ html, body, #root {
 .theme-option-label { flex: 1; text-align: left; }
 
 .theme-option-check { font-weight: var(--fw-bold); }
+
+/* ---- Graph Config Modal ---- */
+.graph-config {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.graph-config-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.graph-config-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.graph-config-section-title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-display);
+  font-size: var(--text-md);
+  font-weight: var(--fw-semibold);
+  color: var(--fg);
+}
+
+.graph-config-section-help {
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+  line-height: var(--leading-loose);
+}
+
+.graph-config-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+@media (max-width: 480px) {
+  .graph-config-grid { grid-template-columns: 1fr; }
+}
+
+.graph-config-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 4px var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface-elevated);
+  font-size: var(--text-xs);
+  font-weight: var(--fw-medium);
+  cursor: pointer;
+  user-select: none;
+}
+
+.graph-config-toggle input { accent-color: var(--accent); cursor: pointer; }
+
+.graph-config-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
 
 /* ---- User Modal ---- */
 .user-modal {

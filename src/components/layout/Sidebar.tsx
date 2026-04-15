@@ -10,7 +10,7 @@ import { useUIStore, type ModalName } from "@/stores/ui";
 // "settings" is no longer a top-level modal — it's a tab inside the
 // user account modal. The account button at the footer of the rail is
 // the single entry point to both.
-const IMPLEMENTED = new Set(["sources", "enrichment", "search", "user"]);
+const IMPLEMENTED = new Set(["graph", "sources", "enrichment", "search", "user"]);
 
 interface NavItem {
   icon: typeof GitBranch;
@@ -20,7 +20,7 @@ interface NavItem {
 }
 
 const items: NavItem[] = [
-  { icon: GitBranch, label: "Graph",      modal: "navigate", active: true },
+  { icon: GitBranch, label: "Graph",      modal: "graph", active: true },
   { icon: Plug,      label: "Sources",    modal: "sources" },
   { icon: Sparkles,  label: "Enrichment", modal: "enrichment" },
   { icon: Search,    label: "Search",     modal: "search" },

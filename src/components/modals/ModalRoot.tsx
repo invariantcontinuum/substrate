@@ -4,6 +4,7 @@ import { UserModal } from "./UserModal";
 import { SourcesModal } from "./SourcesModal";
 import { EnrichmentModal } from "./EnrichmentModal";
 import { SearchModal } from "./SearchModal";
+import { GraphModal } from "./GraphModal";
 
 // Only mount the modal that matches the active name. Previously every
 // modal component rendered as long as ANY modal was open, which meant
@@ -14,6 +15,7 @@ import { SearchModal } from "./SearchModal";
 // `nodeDetail` is handled inline by GraphPage (its own panel component),
 // so it's not in this map.
 const MODAL_COMPONENTS: Partial<Record<NonNullable<ModalName>, React.ComponentType>> = {
+  graph: GraphModal,
   sources: SourcesModal,
   enrichment: EnrichmentModal,
   search: SearchModal,

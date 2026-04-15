@@ -4,7 +4,7 @@ import { useUIStore, type ModalName } from "@/stores/ui";
 // Settings live inside the Account modal as a tab — no dedicated
 // bottom-nav slot for them on mobile.
 const items: { icon: typeof GitBranch; label: string; modal: ModalName }[] = [
-  { icon: GitBranch, label: "Graph",      modal: "sources" },
+  { icon: GitBranch, label: "Graph",      modal: "graph" },
   { icon: Plug,      label: "Sources",    modal: "sources" },
   { icon: Sparkles,  label: "Enrichment", modal: "enrichment" },
   { icon: Search,    label: "Search",     modal: "search" },

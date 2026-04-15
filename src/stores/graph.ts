@@ -36,6 +36,32 @@ export interface GraphFilters {
   layers: string[];
 }
 
+/**
+ * User-tweakable graph rendering parameters. Currently focused on
+ * Leiden community detection; structured so we can add more groups
+ * (force layout, spatial pruning, edge bundling, etc.) without
+ * breaking the persisted shape.
+ */
+export interface GraphConfig {
+  leiden: {
+    enabled: boolean;
+    resolution: number;     // typical 0.1 – 5; higher = more, smaller communities
+    beta: number;           // randomness during refinement (0 – 0.1 normal)
+    iterations: number;     // refinement passes (1 – 20)
+    minClusterSize: number; // suppress communities below this many nodes
+  };
+}
+
+const DEFAULT_GRAPH_CONFIG: GraphConfig = {
+  leiden: {
+    enabled: false,
+    resolution: 1.0,
+    beta: 0.01,
+    iterations: 10,
+    minClusterSize: 4,
+  },
+};
+
 interface GraphStats {
   nodeCount: number;
   edgeCount: number;
@@ -99,6 +125,12 @@ interface GraphState {
   canvasCleared: boolean;
   setCanvasCleared: (v: boolean) => void;
   clearCanvas: () => void;
+
+  /* Rendering / clustering config */
+  graphConfig: GraphConfig;
+  setGraphConfig: (next: Partial<GraphConfig>) => void;
+  setLeidenConfig: (next: Partial<GraphConfig["leiden"]>) => void;
+  resetGraphConfig: () => void;
 
   /* Data loading */
   fetchGraph: (token?: string) => Promise<void>;
@@ -178,6 +210,15 @@ export const useGraphStore = create<GraphState>((set) => ({
 
   canvasCleared: false,
   setCanvasCleared: (canvasCleared) => set({ canvasCleared }),
+
+  graphConfig: DEFAULT_GRAPH_CONFIG,
+  setGraphConfig: (next) =>
+    set((state) => ({ graphConfig: { ...state.graphConfig, ...next } })),
+  setLeidenConfig: (next) =>
+    set((state) => ({
+      graphConfig: { ...state.graphConfig, leiden: { ...state.graphConfig.leiden, ...next } },
+    })),
+  resetGraphConfig: () => set({ graphConfig: DEFAULT_GRAPH_CONFIG }),
 
   clearCanvas: () => {
     logger.info("canvas_cleared");

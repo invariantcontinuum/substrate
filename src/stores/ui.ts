@@ -4,6 +4,9 @@ export type ModalName =
   | "sources"
   | "enrichment"
   | "search"
+  // Graph-rendering / clustering / layout configuration. Exposed via
+  // the Graph item in the side nav.
+  | "graph"
   // Settings are integrated as a tab inside the `user` modal, not a
   // separate top-level modal.
   | "user"
