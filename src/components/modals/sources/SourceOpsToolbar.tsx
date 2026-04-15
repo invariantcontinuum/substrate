@@ -30,6 +30,7 @@ export function SourceOpsToolbar({ selectedSourceIds, onOpenSchedule, onOpenConf
     }
   };
   const doPurgeSource = async () => {
+    // TODO: replace with themed ConfirmDialog once available
     if (!confirm(`Purge ${count} source${count === 1 ? "" : "s"} and all snapshots?`)) return;
     for (const id of selectedSourceIds) await purgeSource(id);
   };
