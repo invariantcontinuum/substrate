@@ -1,35 +1,6 @@
+// frontend/src/components/panels/NodeDetailPanel.tsx
+import { useEffect, useState } from "react";
 import { RefreshCw, X } from "lucide-react";
-
-// Short glyphs for AGE edge types. Keyed on lowercase, underscores and
-// hyphens stripped, so DEPENDS_ON / depends-on / DependsOn all hit the
-// same entry. Falls back to a small diamond if the type is unknown.
-const REL_SYMBOL: Record<string, string> = {
-  depends: "→",
-  dependson: "→",
-  imports: "↓",
-  import: "↓",
-  exports: "↑",
-  export: "↑",
-  contains: "⊂",
-  has: "⊂",
-  calls: "⟶",
-  invokes: "⟶",
-  inherits: "↟",
-  extends: "↟",
-  implements: "⊨",
-  uses: "⟿",
-  references: "@",
-  refers: "@",
-  defines: "≡",
-  declares: "≡",
-  owns: "§",
-  related: "~",
-};
-
-function relSymbol(type: string): string {
-  const key = String(type || "").toLowerCase().replace(/[_\s-]+/g, "");
-  return REL_SYMBOL[key] || "◆";
-}
 import { useAuth } from "react-oidc-context";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
@@ -37,21 +8,24 @@ import { useGraphStore } from "@/stores/graph";
 import { useUIStore } from "@/stores/ui";
 import { Button } from "@/components/ui/button";
 
-// Shape returned by GET /api/graph/nodes/{id} — see services/graph/src/graph/store.py.
+const REL_SYMBOL: Record<string, string> = {
+  depends: "→", dependson: "→", imports: "↓", import: "↓",
+  exports: "↑", export: "↑", contains: "⊂", has: "⊂",
+  calls: "⟶", invokes: "⟶", inherits: "↟", extends: "↟",
+  implements: "⊨", uses: "⟿", references: "@", refers: "@",
+  defines: "≡", declares: "≡", owns: "§", related: "~",
+};
+
+function relSymbol(t: string): string {
+  return REL_SYMBOL[String(t || "").toLowerCase().replace(/[_\s-]+/g, "")] || "◆";
+}
+
 interface NodeDetail {
   node: {
-    id: string;
-    name?: string;
-    type?: string;
-    domain?: string;
-    language?: string;
-    status?: string;
-    description?: string;
-    file_path?: string;
-    size_bytes?: number | null;
-    line_count?: number | null;
-    first_seen?: string;
-    last_seen?: string;
+    id: string; name?: string; type?: string; domain?: string;
+    language?: string; status?: string; description?: string;
+    file_path?: string; size_bytes?: number | null; line_count?: number | null;
+    sync_id?: string; content_hash?: string | null; created_at?: string;
   };
   neighbors: Array<{ id: string; type: string; weight: number }>;
 }
@@ -61,13 +35,6 @@ function formatBytes(n?: number | null) {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function formatTs(s?: string) {
-  if (!s) return "—";
-  const d = new Date(s);
-  if (Number.isNaN(d.getTime())) return s;
-  return d.toLocaleString();
 }
 
 function Row({ label, value, mono }: { label: string; value: React.ReactNode; mono?: boolean }) {
@@ -87,66 +54,78 @@ export function NodeDetailPanel() {
   const closeModal = useUIStore((s) => s.closeModal);
   const auth = useAuth();
   const token = auth.user?.access_token;
+  const queryClient = useQueryClient();
+
+  const cached = nodes.find((n) => n.id === selectedNodeId) as
+    | (NodeDetail["node"] & {
+        loaded_sync_ids?: string[];
+        latest_sync_id?: string;
+        divergent?: boolean;
+        label?: string;
+      })
+    | undefined;
+
+  const [selectedSnapshotId, setSelectedSnapshotId] = useState<string | null>(null);
+
+  // Reset snapshot selection when node changes; default to latest_sync_id.
+  useEffect(() => {
+    setSelectedSnapshotId(cached?.latest_sync_id ?? null);
+  }, [selectedNodeId, cached?.latest_sync_id]);
 
   const visible = activeModal === "nodeDetail" && !!selectedNodeId;
 
-  // Seed from the snapshot while the detail endpoint is fetching.
-  const cached = nodes.find((n) => n.id === selectedNodeId) as
-    | (NodeDetail["node"] & { label?: string })
-    | undefined;
-
-  const queryClient = useQueryClient();
-
   const detailQuery = useQuery<NodeDetail>({
-    queryKey: ["node-detail", selectedNodeId],
-    queryFn: () =>
-      apiFetch<NodeDetail>(
-        `/api/graph/nodes/${encodeURIComponent(String(selectedNodeId))}`,
-        token
-      ),
+    queryKey: ["node-detail", selectedNodeId, selectedSnapshotId],
+    queryFn: () => {
+      const sp = selectedSnapshotId ? `?sync_id=${selectedSnapshotId}` : "";
+      return apiFetch<NodeDetail>(
+        `/api/graph/nodes/${encodeURIComponent(String(selectedNodeId))}${sp}`, token);
+    },
     enabled: visible && !!token,
     staleTime: 30_000,
   });
 
-  // LLM-generated summary. The graph service only calls the LLM when there
-  // are indexed chunks — otherwise it returns source="no_content" and we
-  // render an honest placeholder rather than confabulated prose.
   const summaryQuery = useQuery<{
-    summary: string;
-    cached: boolean;
+    summary: string; cached: boolean;
     source: "cache" | "llm" | "no_content" | "llm_failed" | "not_found";
     chunk_count?: number;
   }>({
-    queryKey: ["node-summary", selectedNodeId],
-    queryFn: () =>
-      apiFetch(
-        `/api/graph/nodes/${encodeURIComponent(String(selectedNodeId))}/summary`,
-        token
-      ),
+    queryKey: ["node-summary", selectedNodeId, selectedSnapshotId],
+    queryFn: () => {
+      const sp = selectedSnapshotId ? `?sync_id=${selectedSnapshotId}` : "";
+      return apiFetch(
+        `/api/graph/nodes/${encodeURIComponent(String(selectedNodeId))}/summary${sp}`, token);
+    },
     enabled: visible && !!token,
     staleTime: 5 * 60_000,
   });
 
   const regenerateSummary = async () => {
     if (!selectedNodeId || !token) return;
+    const sp = selectedSnapshotId
+      ? `?sync_id=${selectedSnapshotId}&force=true`
+      : "?force=true";
     await apiFetch(
-      `/api/graph/nodes/${encodeURIComponent(selectedNodeId)}/summary?force=true`,
-      token
-    );
-    await queryClient.invalidateQueries({ queryKey: ["node-summary", selectedNodeId] });
+      `/api/graph/nodes/${encodeURIComponent(selectedNodeId)}/summary${sp}`, token);
+    await queryClient.invalidateQueries({
+      queryKey: ["node-summary", selectedNodeId, selectedSnapshotId],
+    });
   };
 
   if (!visible) return null;
 
   const node = detailQuery.data?.node ?? cached;
   const neighbors = detailQuery.data?.neighbors ?? [];
+  const loadedSyncIds = cached?.loaded_sync_ids ?? [];
+  const latestSyncId = cached?.latest_sync_id;
 
   const close = () => {
     setSelectedNodeId(null);
     closeModal();
   };
 
-  const title = (node as any)?.label || node?.name || node?.id || "Node";
+  const title = (node as { label?: string; name?: string; id?: string } | undefined)?.label
+    || node?.name || node?.id || "Node";
 
   return (
     <div className="node-detail-panel">
@@ -156,12 +135,30 @@ export function NodeDetailPanel() {
       </div>
 
       <div className="node-detail-body">
-        {detailQuery.isLoading && !cached && (
-          <div className="node-detail-muted">Loading…</div>
+        {loadedSyncIds.length > 0 && (
+          <section className="node-detail-section">
+            <h4 className="node-detail-section-title">Snapshot</h4>
+            <div className="node-detail-snapshot-picker">
+              <select
+                value={selectedSnapshotId ?? ""}
+                onChange={(e) => setSelectedSnapshotId(e.target.value)}
+              >
+                {loadedSyncIds.map((id) => (
+                  <option key={id} value={id}>
+                    {id === latestSyncId ? "Latest — " : ""}{id.slice(0, 8)}
+                  </option>
+                ))}
+              </select>
+              {cached?.divergent && (
+                <span className="node-detail-divergent-badge"
+                      title="Content differs across loaded snapshots">differs</span>
+              )}
+            </div>
+          </section>
         )}
-        {detailQuery.isError && (
-          <div className="node-detail-muted">Failed to load details.</div>
-        )}
+
+        {detailQuery.isLoading && !cached && <div className="node-detail-muted">Loading…</div>}
+        {detailQuery.isError && <div className="node-detail-muted">Failed to load details.</div>}
 
         {node && (
           <>
@@ -195,97 +192,49 @@ export function NodeDetailPanel() {
                   type="button"
                   className="node-detail-regen-btn"
                   onClick={regenerateSummary}
-                  disabled={
-                    summaryQuery.isFetching ||
-                    summaryQuery.data?.source === "no_content"
-                  }
-                  title={
-                    summaryQuery.data?.source === "no_content"
-                      ? "Needs ingested content before a summary can be generated"
-                      : "Regenerate summary"
-                  }
-                >
+                  disabled={summaryQuery.isFetching || summaryQuery.data?.source === "no_content"}
+                  title="Regenerate summary">
                   <RefreshCw size={11} />
                 </button>
               </div>
-              {summaryQuery.isLoading && (
-                <div className="node-detail-muted">Generating summary…</div>
-              )}
-              {summaryQuery.isError && (
-                <div className="node-detail-muted">Summary unavailable.</div>
-              )}
+              {summaryQuery.isLoading && <div className="node-detail-muted">Generating summary…</div>}
               {summaryQuery.data?.source === "no_content" && (
                 <div className="node-detail-muted">
-                  No content has been indexed for this file yet. Run a
-                  successful sync so the ingestion service can write
-                  <code> content_chunks</code>, then regenerate.
+                  No content has been indexed for this snapshot. Run a successful sync.
                 </div>
               )}
-              {summaryQuery.data?.source === "llm_failed" && (
-                <div className="node-detail-muted">
-                  Summary model unavailable. Try again once the dense LLM
-                  service is reachable.
-                </div>
+              {summaryQuery.data?.summary && summaryQuery.data.source !== "no_content" && (
+                <p className="node-detail-description">{summaryQuery.data.summary}</p>
               )}
-              {summaryQuery.data?.summary &&
-                summaryQuery.data.source !== "no_content" && (
-                  <p className="node-detail-description">
-                    {summaryQuery.data.summary}
-                  </p>
-                )}
             </section>
 
-            {(node.first_seen || node.last_seen) && (
-              <section className="node-detail-section">
-                <h4 className="node-detail-section-title">Timeline</h4>
-                {node.first_seen && <Row label="First seen" value={formatTs(node.first_seen)} />}
-                {node.last_seen && <Row label="Last seen" value={formatTs(node.last_seen)} />}
-              </section>
-            )}
-
             <section className="node-detail-section">
-              <h4 className="node-detail-section-title">
-                Neighbors ({neighbors.length})
-              </h4>
+              <h4 className="node-detail-section-title">Neighbors ({neighbors.length})</h4>
               <ul className="node-detail-neighbors">
                 {neighbors.length === 0 ? (
                   <li className="node-detail-muted">No neighbors.</li>
-                ) : (
-                  neighbors.map((nb, i) => {
-                    const neighborNode = nodes.find((n) => n.id === nb.id) as
-                      | { name?: string; file_path?: string }
-                      | undefined;
-                    const displayName =
-                      neighborNode?.name ||
-                      neighborNode?.file_path ||
-                      String(nb.id);
-                    return (
-                      <li key={`${nb.id}-${i}`} className="node-detail-neighbor">
-                        <button
-                          type="button"
-                          className="node-detail-neighbor-btn"
-                          onClick={() => setSelectedNodeId(nb.id)}
-                          title={`${nb.type} — ${displayName}`}
-                        >
-                          <span
-                            className="node-detail-neighbor-type"
-                            aria-label={nb.type}
-                          >
-                            {relSymbol(nb.type)}
-                          </span>
-                          <span className="node-detail-neighbor-name">
-                            {displayName}
-                          </span>
-                          {typeof nb.weight === "number" && (
-                            <span className="node-detail-neighbor-weight">
-                              {nb.weight.toFixed(2)}
-                            </span>
-                          )}
-                        </button>
-                      </li>
-                    );
-                  })
-                )}
+                ) : neighbors.map((nb, i) => {
+                  const neighborNode = nodes.find((n) => n.id === nb.id) as
+                    | { name?: string; file_path?: string } | undefined;
+                  const displayName = neighborNode?.name || neighborNode?.file_path || String(nb.id);
+                  return (
+                    <li key={`${nb.id}-${i}`} className="node-detail-neighbor">
+                      <button
+                        type="button"
+                        className="node-detail-neighbor-btn"
+                        onClick={() => setSelectedNodeId(nb.id)}
+                        title={`${nb.type} — ${displayName}`}>
+                        <span className="node-detail-neighbor-type" aria-label={nb.type}>
+                          {relSymbol(nb.type)}
+                        </span>
+                        <span className="node-detail-neighbor-name">{displayName}</span>
+                        {typeof nb.weight === "number" && (
+                          <span className="node-detail-neighbor-weight">{nb.weight.toFixed(2)}</span>
+                        )}
+                      </button>
+                    </li>
+                  );
+                })}
               </ul>
             </section>
           </>
