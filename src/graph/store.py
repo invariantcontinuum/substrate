@@ -109,6 +109,13 @@ async def disconnect() -> None:
 
 
 
+def get_pool() -> asyncpg.Pool:
+    """Return the active asyncpg pool. Raises RuntimeError if not connected."""
+    if _pool is None:
+        raise RuntimeError("Database not connected")
+    return _pool
+
+
 async def get_stats() -> dict:
     if not _pool:
         raise RuntimeError("Database not connected")
@@ -230,6 +237,7 @@ async def ensure_node_summary(node_id: str, sync_id: str | None = None, force: b
       - chunk_count: int (how many chunks were used as input)
     """
     import httpx
+    import uuid as _uuid
 
     if not _pool:
         raise RuntimeError("Database not connected")
@@ -238,6 +246,15 @@ async def ensure_node_summary(node_id: str, sync_id: str | None = None, force: b
         return {"summary": "", "cached": False, "source": "not_found", "chunk_count": 0}
     src_part, file_path = node_id[4:].split(":", 1)
     source_id = src_part
+    try:
+        source_id = str(_uuid.UUID(source_id))
+    except (ValueError, AttributeError, TypeError):
+        return {"summary": "", "cached": False, "source": "not_found", "chunk_count": 0}
+    if sync_id is not None:
+        try:
+            sync_id = str(_uuid.UUID(sync_id))
+        except (ValueError, AttributeError, TypeError):
+            return {"summary": "", "cached": False, "source": "not_found", "chunk_count": 0}
 
     logger.info("summary_start", node_id=node_id, force=force)
 
