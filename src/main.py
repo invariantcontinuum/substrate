@@ -23,10 +23,13 @@ logger = structlog.get_logger()
 
 
 async def _reap_zombies() -> None:
+    """Reap rows in 'running' status — they were mid-sync when the service died.
+    'pending' rows are left alone; the runner will pick them up on next poll.
+    """
     pool = graph_writer.get_pool()
     async with pool.acquire() as conn:
         zombies = await conn.fetch(
-            "SELECT id::text FROM sync_runs WHERE status IN ('running','pending')"
+            "SELECT id::text FROM sync_runs WHERE status = 'running'"
         )
     for row in zombies:
         sid = row["id"]
@@ -76,11 +79,16 @@ async def health():
 
 @app.post("/api/syncs")
 async def create_sync(req: SyncRequest):
+    from src.connectors.github import CONNECTORS
     pool = graph_writer.get_pool()
     async with pool.acquire() as conn:
-        src_row = await conn.fetchrow("SELECT config FROM sources WHERE id=$1::uuid", req.source_id)
+        src_row = await conn.fetchrow(
+            "SELECT source_type, config FROM sources WHERE id=$1::uuid", req.source_id)
     if not src_row:
         raise HTTPException(404, "source not found")
+    if src_row["source_type"] not in CONNECTORS:
+        raise HTTPException(
+            400, f"no connector registered for source_type={src_row['source_type']}")
     base = src_row["config"] if isinstance(src_row["config"], dict) else {}
     snapshot = {**base, **req.config_overrides}
     try:
@@ -92,10 +100,23 @@ async def create_sync(req: SyncRequest):
 
 @app.post("/api/syncs/{sync_id}/cancel")
 async def cancel_sync(sync_id: str):
-    status = await sync_runs.check_sync_status(sync_id)
-    if status not in ("pending", "running"):
+    pool = graph_writer.get_pool()
+    async with pool.acquire() as conn:
+        result = await conn.execute(
+            """UPDATE sync_runs SET status='cancelled', completed_at=now()
+               WHERE id=$1::uuid AND status IN ('pending','running')""",
+            sync_id,
+        )
+    if result != "UPDATE 1":
+        # Either the row doesn't exist OR it already terminated
+        async with pool.acquire() as conn:
+            status = await conn.fetchval("SELECT status FROM sync_runs WHERE id=$1::uuid", sync_id)
+        if status is None:
+            raise HTTPException(404, "sync_run not found")
         raise HTTPException(409, f"sync is in terminal state: {status}")
-    await sync_runs.cancel_sync_run(sync_id, "user requested")
+    # Record the cancel reason as an issue (mirrors what cancel_sync_run did before)
+    await sync_issues.record_issue(
+        sync_id, "info", "terminal", "sync_cancelled", "user requested", {})
     return {"status": "cancelled"}
 
 
@@ -119,9 +140,22 @@ async def retry_sync(sync_id: str):
 
 @app.post("/api/syncs/{sync_id}/clean")
 async def clean_sync(sync_id: str):
+    pool = graph_writer.get_pool()
+    # Atomic: clean only if the row is in a terminal state. Mid-flight syncs
+    # cannot be cleaned (cancel them first, then clean).
+    async with pool.acquire() as conn:
+        status = await conn.fetchval("SELECT status FROM sync_runs WHERE id=$1::uuid", sync_id)
+    if status is None:
+        raise HTTPException(404, "sync_run not found")
+    if status not in ("completed", "failed", "cancelled"):
+        raise HTTPException(409, f"sync must be in terminal state to clean (got: {status})")
     await graph_writer.cleanup_partial(sync_id)
-    async with graph_writer.get_pool().acquire() as conn:
-        await conn.execute("UPDATE sync_runs SET status='cleaned' WHERE id=$1::uuid", sync_id)
+    async with pool.acquire() as conn:
+        # Conditional update so a concurrent purge or another clean is a no-op.
+        await conn.execute(
+            "UPDATE sync_runs SET status='cleaned' WHERE id=$1::uuid AND status=$2",
+            sync_id, status,
+        )
     return {"status": "cleaned"}
 
 
