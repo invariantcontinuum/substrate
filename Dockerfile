@@ -33,6 +33,10 @@ COPY docs /src/docs
 RUN mkdocs build --site-dir /src/site \
     || (mkdir -p /src/site && echo '<html><body><h1>Documentation build skipped</h1></body></html>' > /src/site/index.html)
 
+# Inject <base> tag so relative asset URLs resolve under /docs/ regardless
+# of whether the browser address bar shows /docs or /docs/.
+RUN find /src/site -name "*.html" -exec sed -i 's|<head>|<head><base href="/docs/">|' {} +
+
 # Production stage
 FROM nginx:alpine
 
