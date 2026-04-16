@@ -20,10 +20,22 @@ export function useSources() {
   const token = auth.user?.access_token;
   const qc = useQueryClient();
 
+  // Sources rarely change between user actions (they only change when a
+  // user creates/purges one — both already invalidate this query below).
+  // Letting react-query's default refetchOnWindowFocus:true fire here
+  // produces a brand-new `items` array on every tab/devtools toggle,
+  // which cascades into GraphCanvas: sourceLabelMap rebuilds →
+  // elementsWithParents rebuilds → cy.elements().remove(); cy.add(...);
+  // cy.layout().run(). For a 100k-node graph that's ~30-60s of blank
+  // canvas every time the user clicks back to the tab. Pin staleTime
+  // and disable focus refetch so the only refresh paths are explicit
+  // mutations (createSource, purgeSource).
   const list = useQuery({
     queryKey: ["sources"],
     queryFn: () => apiFetch<{ items: Source[] }>("/api/sources?limit=100", token),
     enabled: !!token,
+    refetchOnWindowFocus: false,
+    staleTime: 5 * 60_000,
   });
 
   const create = useMutation({

@@ -31,6 +31,7 @@ export function GraphCanvas() {
   const setZoom = useGraphStore((s) => s.setZoom);
   const setLayoutName = useGraphStore((s) => s.setLayoutName);
   const setPan = useGraphStore((s) => s.setPan);
+  const finalizeLoad = useGraphStore((s) => s.finalizeLoad);
 
   const openModal = useUIStore((s) => s.openModal);
 
@@ -220,8 +221,13 @@ export function GraphCanvas() {
     const childNodeCount = filtered.nodes.length;
     const effectiveLayout =
       childNodeCount > FORCE_LAYOUT_MAX_NODES ? "grid" : (layoutName || "cose");
-    cy.layout({ name: effectiveLayout as any, padding: 30, animate: false, fit: true }).run();
-  }, [elementsWithParents, filtered.nodes.length, layoutName, ready, isMobile]);
+    const layout = cy.layout({ name: effectiveLayout as any, padding: 30, animate: false, fit: true });
+    // Finalise the topbar load timer once the layout actually settles —
+    // that's when the user sees the graph, not when the fetch returned.
+    // No-op unless a fetchGraph is awaiting (loadStartedAt set).
+    layout.one("layoutstop", () => finalizeLoad());
+    layout.run();
+  }, [elementsWithParents, filtered.nodes.length, layoutName, ready, isMobile, finalizeLoad]);
 
   // Zoom/pan flow one-way: cytoscape → store via the `zoom`/`pan` events
   // registered in init. We deliberately don't push store zoom back into

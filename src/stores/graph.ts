@@ -76,13 +76,20 @@ interface GraphStats {
   edgeCount: number;
   violationCount: number;
   lastUpdated: string;
-  // Round-trip time of the most recent successful fetchGraph call. The
-  // topbar surfaces this in place of a vague "Live" indicator so the
-  // user can see whether the last refresh was fast or crawling.
+  // End-to-end load time: from fetchGraph start until the canvas layout
+  // settles. Captures fetch + JSON parse + reconciliation + Cytoscape
+  // add/layout, so the topbar reflects what the user actually waited for.
+  // Finalised by GraphCanvas via finalizeLoad() on `layoutstop`.
   lastLoadMs: number | null;
+  // Network/parse round-trip time for /api/graph alone.
+  lastFetchMs: number | null;
   // Server-side query duration reported in the /api/graph meta payload.
   // Useful to distinguish slow DB from slow network.
   lastServerMs: number | null;
+  // Internal: timestamp (performance.now) when the in-flight fetchGraph
+  // started. Non-null while a load is awaiting layoutstop. GraphCanvas
+  // reads this to decide whether to call finalizeLoad after a layout.
+  loadStartedAt: number | null;
 }
 
 interface GraphState {
@@ -143,6 +150,9 @@ interface GraphState {
 
   /* Data loading */
   fetchGraph: (token?: string, syncIds?: string[]) => Promise<void>;
+  // Called by GraphCanvas after Cytoscape's `layoutstop` so the topbar
+  // timer reflects fetch + render, not just the network round-trip.
+  finalizeLoad: () => void;
 }
 
 const DEFAULT_TYPES = [
@@ -199,7 +209,7 @@ export const useGraphStore = create<GraphState>((set) => ({
   nodeSize: 24,
   setNodeSize: (nodeSize) => set({ nodeSize }),
 
-  stats: { nodeCount: 0, edgeCount: 0, violationCount: 0, lastUpdated: "", lastLoadMs: null, lastServerMs: null },
+  stats: { nodeCount: 0, edgeCount: 0, violationCount: 0, lastUpdated: "", lastLoadMs: null, lastFetchMs: null, lastServerMs: null, loadStartedAt: null },
   setStats: (stats) => {
     logger.info("stats_updated", { nodes: stats.nodeCount, edges: stats.edgeCount, violations: stats.violationCount });
     set({ stats });
@@ -238,7 +248,7 @@ export const useGraphStore = create<GraphState>((set) => ({
       violations: [],
       selectedNodeId: null,
       selectedNodeData: null,
-      stats: { nodeCount: 0, edgeCount: 0, violationCount: 0, lastUpdated: "", lastLoadMs: null, lastServerMs: null },
+      stats: { nodeCount: 0, edgeCount: 0, violationCount: 0, lastUpdated: "", lastLoadMs: null, lastFetchMs: null, lastServerMs: null, loadStartedAt: null },
       searchQuery: "",
       syncProgress: null,
       canvasCleared: true,
@@ -247,16 +257,12 @@ export const useGraphStore = create<GraphState>((set) => ({
 
   fetchGraph: async (token, syncIds = []) => {
     const start = performance.now();
-    if (!syncIds.length) {
-      set((state) => ({
-        nodes: [], edges: [], canvasCleared: false,
-        stats: { ...state.stats, nodeCount: 0, edgeCount: 0,
-                 lastUpdated: new Date().toISOString(),
-                 lastLoadMs: 0, lastServerMs: 0 },
-        connectionStatus: "connected",
-      }));
-      return;
-    }
+    // Empty syncIds is a no-op — never clear an already-loaded graph
+    // implicitly. The canvas only empties via the explicit clearCanvas
+    // action or when the user removes every sync from the active set
+    // through the SyncSet store. Token-refresh re-renders used to land
+    // here and wipe the user's graph; that bug stays fixed by this guard.
+    if (!syncIds.length) return;
     try {
       const url = `/api/graph?sync_ids=${encodeURIComponent(syncIds.join(","))}`;
       const raw = await apiFetch<{
@@ -269,6 +275,7 @@ export const useGraphStore = create<GraphState>((set) => ({
       const edges = (raw.edges ?? []).map((e) => e.data);
       const presentTypes = new Set<string>();
       for (const n of nodes) presentTypes.add(String(n.type || "unknown"));
+      const fetchMs = Math.round(performance.now() - start);
       set((state) => ({
         nodes, edges,
         filters: { ...state.filters, types: presentTypes },
@@ -277,8 +284,12 @@ export const useGraphStore = create<GraphState>((set) => ({
           edgeCount: raw.meta?.edge_count ?? edges.length,
           violationCount: 0,
           lastUpdated: new Date().toISOString(),
-          lastLoadMs: Math.round(performance.now() - start),
+          // lastLoadMs stays as the previous load's value until the
+          // canvas finishes laying out the new data (finalizeLoad).
+          lastLoadMs: state.stats.lastLoadMs,
+          lastFetchMs: fetchMs,
           lastServerMs: raw.meta?.duration_ms ?? null,
+          loadStartedAt: start,
         },
         connectionStatus: "connected",
       }));
@@ -287,12 +298,37 @@ export const useGraphStore = create<GraphState>((set) => ({
       set({ connectionStatus: "disconnected" });
     }
   },
+
+  finalizeLoad: () =>
+    set((state) => {
+      const t0 = state.stats.loadStartedAt;
+      if (t0 == null) return {};
+      return {
+        stats: {
+          ...state.stats,
+          lastLoadMs: Math.round(performance.now() - t0),
+          loadStartedAt: null,
+        },
+      };
+    }),
 }));
 
 // Debounced refetch on active-set changes. Initialized lazily so SSR/tests
 // without `window` don't crash.
+//
+// `lastSyncIdsKey` is seeded from the already-hydrated store (zustand
+// persist runs synchronously during create()). Without this seed, the
+// FIRST mutation after mount — typically DashboardLayout's pruneInvalid,
+// which produces a new array reference with identical contents — would
+// fire a redundant fetchGraph alongside App.tsx's initial-load effect.
+// Two concurrent /api/graph requests for the same syncIds produced a
+// double cy.add+layout cycle for ~100k node graphs, which the user
+// experienced as the canvas going blank right after it first appeared.
 let refetchTimer: ReturnType<typeof setTimeout> | null = null;
-let lastSyncIdsKey = "";
+let lastSyncIdsKey =
+  typeof window !== "undefined"
+    ? useSyncSetStore.getState().syncIds.join(",")
+    : "";
 if (typeof window !== "undefined") {
   useSyncSetStore.subscribe((state) => {
     const key = state.syncIds.join(",");

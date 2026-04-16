@@ -39,16 +39,21 @@ export function TopBar() {
     return { nodeCount: keptNodes.length, edgeCount: keptEdges.length };
   }, [nodes, edges, visibleTypes]);
 
-  // 10s heartbeat against /api/graph/stats to detect gateway/upstream
-  // health. Drives the status pill's colour; the label shows the last
-  // graph-load round-trip so it's a concrete metric, not just "Live".
+  // Low-frequency heartbeat against /api/graph/stats to detect
+  // gateway/upstream health. Drives the status pill's colour; the
+  // label shows the last graph-load time so it's a concrete metric,
+  // not just "Live". Polled every 60s (was 10s — the old cadence
+  // produced ~6 stats requests/min per open tab, drowning real
+  // request signal in the gateway logs and waking the graph service
+  // for nothing). Focus refetch is off because focus events fire on
+  // every tab/devtools toggle and were the main source of churn.
   const healthQuery = useQuery<{ status?: string }>({
     queryKey: ["health", "api-graph"],
     queryFn: () => apiFetch("/api/graph/stats", token),
     enabled: !!token,
-    refetchInterval: 10_000,
+    refetchInterval: 60_000,
     retry: false,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 
   const healthy = !healthQuery.isError && !healthQuery.isLoading;
@@ -61,10 +66,11 @@ export function TopBar() {
     search(q.trim());
   }, [q, setSearchQuery, search]);
 
-  const roundTripLabel = formatDuration(stats.lastLoadMs);
+  const loadLabel = formatDuration(stats.lastLoadMs);
+  const fetchLabel = formatDuration(stats.lastFetchMs);
   const serverLabel = formatDuration(stats.lastServerMs);
   const statusTitle = healthy
-    ? `Last load: ${roundTripLabel} round-trip (${serverLabel} server)`
+    ? `Last load: ${loadLabel} end-to-end (fetch ${fetchLabel}, server ${serverLabel})`
     : healthQuery.isError
     ? "Gateway or upstream unreachable"
     : "Checking connection…";
@@ -105,7 +111,7 @@ export function TopBar() {
         >
           <div className={`status-dot ${healthy ? "on" : "off"}`} />
           <span className="top-nav-status-label">
-            {healthy ? roundTripLabel : healthQuery.isError ? "off" : "…"}
+            {healthy ? loadLabel : healthQuery.isError ? "off" : "…"}
           </span>
         </div>
         {stats.violationCount > 0 && <span>{stats.violationCount}</span>}
