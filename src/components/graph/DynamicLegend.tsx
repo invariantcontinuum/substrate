@@ -2,8 +2,20 @@ import { useMemo } from "react";
 import { useGraphStore } from "@/stores/graph";
 
 const typePalette: Record<string, string> = {
-  default: "#000",
-  root: "#000",
+  service: "#3b4199",
+  database: "#065f46",
+  cache: "#047857",
+  policy: "#7c3aed",
+  adr: "#92400e",
+  incident: "#991b1b",
+  external: "#374151",
+  source: "#3b4199",
+  config: "#374151",
+  script: "#92400e",
+  doc: "#374151",
+  data: "#065f46",
+  asset: "#374151",
+  default: "rgba(255,255,255,0.12)",
 };
 
 export function DynamicLegend() {
@@ -38,7 +50,7 @@ export function DynamicLegend() {
           >
             <span
               className="dynamic-legend-dot"
-              style={{ background: active ? (typePalette[t] || "#000") : "transparent" }}
+              style={{ background: active ? (typePalette[t] || typePalette.default) : "transparent" }}
             />
             <span className="dynamic-legend-label">{t}</span>
             <span className="dynamic-legend-count">{count}</span>

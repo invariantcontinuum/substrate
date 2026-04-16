@@ -5,9 +5,11 @@ export function ViolationBadge() {
   if (!violations.length) return null;
 
   return (
-    <div className="violation-badge">
+    <div className="violation-badge violation-pulse">
       <span className="violation-badge-dot" />
-      <span>{violations.length} violation{violations.length > 1 ? "s" : ""}</span>
+      <span>
+        {violations.length} violation{violations.length > 1 ? "s" : ""} detected
+      </span>
     </div>
   );
 }

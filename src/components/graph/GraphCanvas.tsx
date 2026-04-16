@@ -11,12 +11,262 @@ import { DynamicLegend } from "./DynamicLegend";
 const FORCE_LAYOUT_MAX_NODES = 5000;
 const NODES_PER_ROW = 50;
 const MAX_LABEL_CHARS = 32;
-const NODE_W = MAX_LABEL_CHARS * 6.2 + 16; // ~214px — fits 32 chars at font-size 10
+const NODE_W = 214;
 const NODE_H = 22;
 const GAP_X = 20;
 const GAP_Y = 10;
 const CELL_W = NODE_W + GAP_X;
 const CELL_H = NODE_H + GAP_Y;
+
+const cyStylesheet = [
+  {
+    selector: "node",
+    style: {
+      "background-color": "#0d0d12",
+      "border-width": 1.5,
+      "border-color": "rgba(255,255,255,0.12)",
+      label: "data(label)",
+      color: "#c0c0d8",
+      "font-size": 11,
+      "font-family": "Inter, sans-serif",
+      "font-weight": 500,
+      "text-valign": "center",
+      "text-halign": "center",
+      "text-wrap": "none",
+      width: 110,
+      height: 38,
+      shape: "roundrectangle",
+      padding: "8px" as any,
+      "z-index": 10,
+    },
+  },
+  {
+    selector: 'node[type="service"]',
+    style: {
+      "background-color": "#0f0f1f",
+      "border-color": "#3b4199",
+      "border-width": 1.5,
+      color: "#c7d2fe",
+    },
+  },
+  {
+    selector: 'node[type="database"]',
+    style: {
+      "background-color": "#0a1a14",
+      "border-color": "#065f46",
+      "border-width": 1.5,
+      color: "#6ee7b7",
+      shape: "barrel",
+    },
+  },
+  {
+    selector: 'node[type="cache"]',
+    style: {
+      "background-color": "#0a1a14",
+      "border-color": "#047857",
+      color: "#6ee7b7",
+      shape: "barrel",
+    },
+  },
+  {
+    selector: 'node[type="policy"]',
+    style: {
+      "background-color": "#150a2a",
+      "border-color": "#7c3aed",
+      "border-width": 2,
+      color: "#d8b4fe",
+      shape: "diamond",
+      width: 110,
+      height: 48,
+    },
+  },
+  {
+    selector: 'node[type="adr"]',
+    style: {
+      "background-color": "#1a1400",
+      "border-color": "#92400e",
+      color: "#fcd34d",
+      shape: "roundrectangle",
+      width: 80,
+      height: 32,
+      "font-size": 10,
+    },
+  },
+  {
+    selector: 'node[type="incident"]',
+    style: {
+      "background-color": "#1a0505",
+      "border-color": "#991b1b",
+      color: "#fca5a5",
+      shape: "roundrectangle",
+      width: 80,
+      height: 32,
+      "font-size": 10,
+    },
+  },
+  {
+    selector: 'node[type="external"]',
+    style: {
+      "background-color": "#0d1117",
+      "border-color": "#374151",
+      color: "#9ca3af",
+      shape: "roundrectangle",
+      width: 90,
+      height: 32,
+      "font-size": 10,
+    },
+  },
+  {
+    selector: 'node[type="source"]',
+    style: {
+      "background-color": "#0f0f1f",
+      "border-color": "#3b4199",
+      "border-width": 1.5,
+      color: "#c7d2fe",
+    },
+  },
+  {
+    selector: 'node[type="config"]',
+    style: {
+      "background-color": "#0d1117",
+      "border-color": "#374151",
+      color: "#9ca3af",
+    },
+  },
+  {
+    selector: 'node[type="script"]',
+    style: {
+      "background-color": "#1a1400",
+      "border-color": "#92400e",
+      color: "#fcd34d",
+    },
+  },
+  {
+    selector: 'node[type="doc"]',
+    style: {
+      "background-color": "#0d1117",
+      "border-color": "#374151",
+      color: "#9ca3af",
+    },
+  },
+  {
+    selector: 'node[type="data"]',
+    style: {
+      "background-color": "#0a1a14",
+      "border-color": "#065f46",
+      color: "#6ee7b7",
+    },
+  },
+  {
+    selector: 'node[type="asset"]',
+    style: {
+      "background-color": "#0d1117",
+      "border-color": "#374151",
+      color: "#9ca3af",
+    },
+  },
+  {
+    selector: 'node[status="violation"]',
+    style: {
+      "background-color": "#1a0505",
+      "border-color": "#ef4444",
+      "border-width": 2,
+      color: "#fca5a5",
+    },
+  },
+  {
+    selector: "edge",
+    style: {
+      width: 1,
+      "line-color": "rgba(255,255,255,0.1)",
+      "target-arrow-color": "rgba(255,255,255,0.15)",
+      "target-arrow-shape": "triangle",
+      "curve-style": "bezier",
+      "arrow-scale": 0.8,
+      label: "",
+      "font-size": 9,
+      color: "#666680",
+      "text-background-color": "#060608",
+      "text-background-opacity": 1,
+      "text-background-padding": "2px" as any,
+    },
+  },
+  {
+    selector: 'edge[type="depends"]',
+    style: {
+      "line-color": "rgba(99,102,241,0.3)",
+      "target-arrow-color": "rgba(99,102,241,0.4)",
+    },
+  },
+  {
+    selector: 'edge[type="violation"]',
+    style: {
+      "line-color": "#ef4444",
+      "target-arrow-color": "#ef4444",
+      width: 2,
+      "line-style": "dashed",
+      "line-dash-pattern": [6, 3] as any,
+      label: "data(label)",
+      color: "#ef4444",
+      "font-size": 9,
+    },
+  },
+  {
+    selector: 'edge[type="enforces"]',
+    style: {
+      "line-color": "rgba(168,85,247,0.5)",
+      "target-arrow-color": "rgba(168,85,247,0.6)",
+      "line-style": "dotted",
+      width: 1.5,
+    },
+  },
+  {
+    selector: 'edge[type="why"]',
+    style: {
+      "line-color": "rgba(245,158,11,0.5)",
+      "target-arrow-color": "rgba(245,158,11,0.6)",
+      "line-style": "dashed",
+      "line-dash-pattern": [4, 4] as any,
+      width: 1.5,
+      label: "data(label)",
+      color: "#f59e0b",
+      "font-size": 8,
+    },
+  },
+  {
+    selector: 'edge[type="drift"]',
+    style: {
+      "line-color": "rgba(239,68,68,0.3)",
+      "target-arrow-color": "rgba(239,68,68,0.3)",
+      "line-style": "dashed",
+    },
+  },
+  {
+    selector: ":selected",
+    style: {
+      "border-width": 3,
+      "border-color": "#6366f1",
+      "background-color": "#13131f",
+    },
+  },
+  {
+    selector: "node[?isSourceParent]",
+    style: {
+      shape: "roundrectangle",
+      "background-opacity": 0,
+      "border-style": "dashed" as any,
+      "border-width": 1,
+      "border-color": "rgba(99,102,241,0.25)",
+      label: "data(label)",
+      "text-valign": "top",
+      "text-halign": "left",
+      "font-size": 10,
+      color: "rgba(192,192,216,0.5)",
+      "text-margin-y": -4 as any,
+      padding: "24px" as any,
+    },
+  },
+];
 
 export function GraphCanvas() {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -24,7 +274,6 @@ export function GraphCanvas() {
   const [ready, setReady] = useState(false);
   const { isMobile } = useResponsive();
 
-  // Subscribe to each slice individually so we only re-render on relevant changes.
   const nodes = useGraphStore((s) => s.nodes);
   const edges = useGraphStore((s) => s.edges);
   const signals = useGraphStore((s) => s.signals);
@@ -39,8 +288,6 @@ export function GraphCanvas() {
 
   const openModal = useUIStore((s) => s.openModal);
 
-  // Apply the legend filter: only nodes whose type is currently toggled on
-  // are rendered, and only edges between two visible nodes survive.
   const filtered = useMemo(() => {
     const visibleNodes = nodes.filter((n) =>
       visibleTypes.has(String(n.type || "unknown"))
@@ -94,66 +341,13 @@ export function GraphCanvas() {
       const cy = cytoscape({
         container: containerRef.current,
         elements: [],
-        style: [
-          {
-            selector: "node",
-            style: {
-              shape: "rectangle",
-              width: NODE_W,
-              height: NODE_H,
-              "background-color": "#fff",
-              "border-width": 1,
-              "border-color": "#000",
-              label: "data(label)",
-              "font-size": 10,
-              "text-valign": "center",
-              "text-halign": "center",
-              "text-wrap": "none",
-              color: "#000",
-              "text-outline-width": 0,
-            },
-          },
-          {
-            selector: "edge",
-            style: {
-              width: 1,
-              "line-color": "#000",
-              "target-arrow-color": "#000",
-              "target-arrow-shape": "triangle",
-              "curve-style": "straight",
-            },
-          },
-          {
-            selector: ":selected",
-            style: {
-              "border-width": 3,
-              "border-color": "#000",
-              "background-color": "#f0f0f0",
-            },
-          },
-          {
-            selector: "node[?isSourceParent]",
-            style: {
-              shape: "rectangle",
-              "background-opacity": 0,
-              "border-style": "dashed" as any,
-              "border-width": 1,
-              "border-color": "rgba(100,120,180,0.5)",
-              label: "data(label)",
-              "text-valign": "top",
-              "text-halign": "left",
-              "font-size": 10,
-              color: "rgba(0,0,0,0.5)",
-              "text-margin-y": -4 as any,
-              padding: "24px" as any,
-            },
-          },
-        ],
+        style: cyStylesheet as any,
         minZoom: 0.05,
         maxZoom: 3,
         userPanningEnabled: true,
         userZoomingEnabled: true,
         autoungrabify: false,
+        boxSelectionEnabled: false,
         textureOnViewport: true,
         hideEdgesOnViewport: true,
         pixelRatio: 1,
@@ -184,8 +378,7 @@ export function GraphCanvas() {
 
   const [loading, setLoading] = useState(false);
 
-  /* update elements — chunked add so the main thread yields between
-     batches and the rest of the UI stays interactive during large loads */
+  /* update elements */
   useEffect(() => {
     if (!ready || !cyRef.current) return;
     const cy = cyRef.current;
@@ -211,15 +404,11 @@ export function GraphCanvas() {
 
     (async () => {
       setLoading(true);
-      // Yield so React can paint the loading indicator before we start
       await new Promise((r) => setTimeout(r, 0));
       if (cancelled) return;
 
       cy.elements().remove();
 
-      // Add elements in batches, yielding between them so the browser
-      // can process events (clicks, scrolls, React renders). Each batch
-      // is wrapped in cy.batch() to suppress per-element style recalcs.
       const CHUNK = 5000;
       for (let i = 0; i < mapped.length; i += CHUNK) {
         if (cancelled) return;
@@ -291,12 +480,9 @@ export function GraphCanvas() {
           cyRef.current?.zoom(cyRef.current.zoom() * 0.9);
         }
       }
-      if (e.key === "Escape") {
-        setSelectedNodeId(null);
-      }
-      if (e.key.toLowerCase() === "l" && !e.ctrlKey && !e.metaKey) {
+      if (e.key === "Escape") setSelectedNodeId(null);
+      if (e.key.toLowerCase() === "l" && !e.ctrlKey && !e.metaKey)
         setLayoutName(layoutName === "cose" ? "breadthfirst" : "cose");
-      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -306,19 +492,29 @@ export function GraphCanvas() {
     <div className="graph-canvas">
       <div className="graph-canvas-inner">
         <div ref={containerRef} className="graph-canvas-container" />
-        {loading && <div className="graph-loading-overlay">Loading graph…</div>}
+        {loading && (
+          <div className="graph-loading-overlay">
+            <span className="graph-loading-text">initialising graph engine...</span>
+          </div>
+        )}
       </div>
 
-      <div className="graph-overlay-group">
+      <div className="graph-overlay-bottom-left">
         <SignalsOverlay />
+      </div>
+
+      <div className="graph-overlay-top-right">
         <ViolationBadge />
+      </div>
+
+      <div className="graph-overlay-bottom-right">
         <DynamicLegend />
       </div>
 
       <div className="graph-toolbar">
-        <button onClick={() => cyRef.current?.fit(undefined, 48)} title="Fit">⊘</button>
+        <button onClick={() => cyRef.current?.fit(undefined, 48)} title="Fit">&#x2298;</button>
         <button onClick={() => cyRef.current?.zoom(cyRef.current.zoom() * 1.1)} title="Zoom in">+</button>
-        <button onClick={() => cyRef.current?.zoom(cyRef.current.zoom() * 0.9)} title="Zoom out">−</button>
+        <button onClick={() => cyRef.current?.zoom(cyRef.current.zoom() * 0.9)} title="Zoom out">&minus;</button>
         <button onClick={() => setLayoutName(layoutName === "cose" ? "breadthfirst" : "cose")} title="Relayout">L</button>
       </div>
     </div>

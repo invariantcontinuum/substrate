@@ -460,8 +460,8 @@ html, body, #root {
   position: relative;
   min-width: 0;
   border-radius: var(--radius-lg);
-  border: 1px solid var(--glass-border);
-  background: var(--surface-elevated);
+  border: 1px solid rgba(255,255,255,0.06);
+  background: #060608;
   overflow: hidden;
 }
 
@@ -481,41 +481,63 @@ html, body, #root {
   -webkit-tap-highlight-color: transparent;
 }
 
+.graph-canvas-container {
+  background: transparent;
+}
+
 .graph-loading-overlay {
   position: absolute;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
-  color: var(--fg-muted, #666);
   pointer-events: none;
   z-index: 5;
 }
 
-.graph-overlay-group {
+.graph-loading-text {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: #4a4a60;
+}
+
+.graph-overlay-bottom-left {
   position: absolute;
   left: var(--space-3);
   bottom: var(--space-3);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  pointer-events: none;
   z-index: var(--z-overlay-panel);
+  pointer-events: none;
+}
+
+.graph-overlay-top-right {
+  position: absolute;
+  right: var(--space-3);
+  top: var(--space-3);
+  z-index: var(--z-overlay-panel);
+  pointer-events: none;
+}
+
+.graph-overlay-bottom-right {
+  position: absolute;
+  right: var(--space-3);
+  bottom: var(--space-3);
+  z-index: var(--z-overlay-panel);
+  pointer-events: none;
 }
 
 .graph-toolbar {
   position: absolute;
   right: var(--space-3);
-  top: var(--space-3);
+  top: 50%;
+  transform: translateY(-50%);
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-  background: var(--glass-bg);
-  border: 1px solid var(--glass-border);
+  background: rgba(13,13,18,0.8);
+  border: 1px solid rgba(255,255,255,0.06);
   border-radius: var(--radius-md);
   padding: 4px;
-  backdrop-filter: blur(var(--blur-sm));
+  backdrop-filter: blur(12px);
   z-index: var(--z-overlay-panel);
 }
 
@@ -531,10 +553,10 @@ html, body, #root {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--fg-muted);
+  color: #8888a0;
 }
 
-.graph-toolbar button:hover { background: var(--surface-hover); color: var(--fg); }
+.graph-toolbar button:hover { background: rgba(255,255,255,0.06); color: #f0f0f5; }
 
 /* ---- Node Detail Panel ---- */
 .node-detail-panel {
@@ -785,88 +807,93 @@ html, body, #root {
 }
 
 /* ---- Signals + Violations + Legend overlays ---- */
-.signals-overlay,
-.violation-badge,
-.dynamic-legend {
-  background: var(--glass-bg);
-  border: 1px solid var(--glass-border);
-  backdrop-filter: blur(var(--blur-sm)) saturate(150%);
-  -webkit-backdrop-filter: blur(var(--blur-sm)) saturate(150%);
-  pointer-events: auto;
+/* Styled to match substrate-web hero graph: dark glass, mono font,
+   colored dots, pulsing violation badge. */
+
+@keyframes violation-pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 12px rgba(239,68,68,0.5); }
+  50% { opacity: 0.6; box-shadow: 0 0 28px rgba(239,68,68,0.8); }
 }
 
+.violation-pulse { animation: violation-pulse 2s ease-in-out infinite; }
+
+/* --- Signals overlay (bottom-left, monospace live feed) --- */
 .signals-overlay {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: var(--space-2);
-  border-radius: var(--radius-md);
-  font-size: var(--text-xs);
+  gap: 2px;
+  pointer-events: auto;
 }
 
 .signals-overlay-row {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  padding: 4px var(--space-2);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: #8888a0;
+  white-space: nowrap;
 }
 
-.signals-overlay-type { font-weight: var(--fw-semibold); color: var(--accent); }
-.signals-overlay-node { color: var(--fg-muted); }
-.signals-overlay-time { color: var(--fg-subtle); margin-left: auto; }
+.signals-overlay-dot { font-size: 5px; flex-shrink: 0; }
+.signals-overlay-label { font-weight: 500; color: #c0c0d8; }
+.signals-overlay-node { color: #8888a0; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
 
+/* --- Violation badge (top-right, red pulse) --- */
 .violation-badge {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
-  padding: 4px var(--space-3);
-  border-radius: var(--radius-pill);
-  font-size: var(--text-xs);
-  color: var(--fg);
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: #fca5a5;
+  background: rgba(239,68,68,0.1);
+  border: 1px solid rgba(239,68,68,0.4);
+  pointer-events: auto;
 }
 
 .violation-badge-dot {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  background: var(--danger);
+  background: #ef4444;
+  box-shadow: 0 0 6px #ef4444;
 }
 
+/* --- Dynamic legend (bottom-right, colored dots per type) --- */
 .dynamic-legend {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: var(--space-2);
-  border-radius: var(--radius-md);
-  font-size: var(--text-xs);
-  max-height: 260px;
-  overflow-y: auto;
+  gap: 3px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: #4a4a60;
+  pointer-events: auto;
 }
 
 .dynamic-legend-item {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  padding: 3px var(--space-2);
+  gap: 6px;
+  padding: 2px 4px;
   border: 0;
   background: transparent;
   font: inherit;
-  color: var(--fg);
+  color: #8888a0;
   cursor: pointer;
   text-align: left;
   border-radius: var(--radius-sm);
 }
 
-.dynamic-legend-item:hover { background: var(--surface-hover); }
-.dynamic-legend-item.is-inactive { opacity: 0.42; }
+.dynamic-legend-item:hover { color: #f0f0f5; }
+.dynamic-legend-item.is-inactive { opacity: 0.35; }
 
 .dynamic-legend-dot {
   width: 8px;
   height: 8px;
-  border-radius: 50%;
-  border: 1px solid var(--border-strong);
+  border-radius: 2px;
   flex-shrink: 0;
 }
 
@@ -878,7 +905,7 @@ html, body, #root {
 }
 
 .dynamic-legend-count {
-  color: var(--fg-subtle);
+  color: #4a4a60;
   font-variant-numeric: tabular-nums;
 }
 
@@ -1735,34 +1762,13 @@ html, body, #root {
   .sources-modal-body:not(.has-active-source) > .sources-modal-detail { display: none; }
 }
 
-/* Mobile graph canvas: legend as horizontal scroll strip at top; toolbar bottom-right */
+/* Mobile graph canvas */
 @media (max-width: 900px) {
-  .graph-overlay-group {
-    top: var(--space-2);
-    left: var(--space-2);
-    right: var(--space-2);
-    bottom: auto;
-    flex-direction: row;
-    gap: var(--space-1);
-  }
-  .graph-overlay-group .dynamic-legend {
-    display: flex;
-    flex-direction: row;
-    overflow-x: auto;
-    overflow-y: hidden;
-    white-space: nowrap;
-    max-width: 100%;
-    flex-wrap: nowrap;
-    -webkit-overflow-scrolling: touch;
-    pointer-events: auto;
-  }
-  .graph-overlay-group .dynamic-legend-item {
-    flex-shrink: 0;
-  }
+  .graph-overlay-bottom-right { display: none; }
   .graph-toolbar {
     top: auto;
     bottom: var(--space-3);
-    right: var(--space-3);
+    transform: none;
     flex-direction: row;
   }
 }
