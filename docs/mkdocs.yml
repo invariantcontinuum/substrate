@@ -1,7 +1,7 @@
 site_name: Substrate Platform Documentation
 site_description: Structural Integrity Platform - Documentation
 site_author: Invariant Continuum Technologies
-site_url: https://invariantcontinuum.github.io/substrate-platform
+site_url: https://app.invariantcontinuum.io/docs
 
 theme:
   name: material
@@ -71,13 +71,21 @@ extra:
     provider: mike
 
 nav:
-  - Home: index.md
-  - Architecture:
+  - Home:
+    - index.md
+    - Roadmap: roadmap.md
+  - Basics:
     - architecture/index.md
     - architecture/overview.md
-    - architecture/data-model.md
-    - architecture/tech-stack.md
-    - architecture/deployment.md
+    - tech-stack: architecture/tech-stack.md
+  - Tutorials:
+    - Your First Sync: developer-guide/index.md
+  - Reference:
+    - API Reference: developer-guide/api-reference.md
+    - Data Model: architecture/data-model.md
+    - Environment Variables: developer-guide/environment-variables.md
+    - Frontend Components: developer-guide/frontend-components.md
+    - DB Migrations: developer-guide/migrations.md
   - System Design:
     - system-design/index.md
     - system-design/gateway.md
@@ -86,35 +94,34 @@ nav:
     - system-design/frontend.md
     - system-design/infrastructure.md
     - system-design/graph-edge-symbols.md
-  - Developer Guide:
-    - developer-guide/index.md
-    - developer-guide/api-reference.md
-    - developer-guide/environment-variables.md
-    - developer-guide/frontend-components.md
-    - developer-guide/migrations.md
-  - Product Pitch:
-    - product-pitch/index.md
-    - product-pitch/elevator-pitch.md
-    - product-pitch/investor-questions.md
-    - product-pitch/revenue-streams.md
-    - product-pitch/competitive-landscape.md
-  - Product Market Fit:
-    - product-market-fit/index.md
-    - product-market-fit/unique-selling-points.md
-    - product-market-fit/capability-matrix.md
-    - product-market-fit/pricing.md
-  - Problems Solved:
-    - problems-solved/index.md
-    - problems-solved/structural-drift.md
-    - problems-solved/institutional-memory.md
-    - problems-solved/ai-code-governance.md
-    - problems-solved/governance-gaps.md
-  - Target Audience:
-    - target-audience/index.md
-    - target-audience/vp-engineering.md
-    - target-audience/staff-engineers.md
-    - target-audience/security-teams.md
-    - target-audience/devops-platform.md
-    - target-audience/scrum-masters.md
+  - Deployment & Ops:
+    - deployment: architecture/deployment.md
+    - Troubleshooting: developer-guide/troubleshooting.md
+    - Local LLM Setup: developer-guide/llm-setup.md
+  - Business & Product:
+    - Product Pitch:
+      - product-pitch/index.md
+      - product-pitch/elevator-pitch.md
+      - product-pitch/investor-questions.md
+      - product-pitch/revenue-streams.md
+      - product-pitch/competitive-landscape.md
+    - Product Market Fit:
+      - product-market-fit/index.md
+      - product-market-fit/unique-selling-points.md
+      - product-market-fit/capability-matrix.md
+      - product-market-fit/pricing.md
+    - Problems Solved:
+      - problems-solved/index.md
+      - problems-solved/structural-drift.md
+      - problems-solved/institutional-memory.md
+      - problems-solved/ai-code-governance.md
+      - problems-solved/governance-gaps.md
+    - Target Audience:
+      - target-audience/index.md
+      - target-audience/vp-engineering.md
+      - target-audience/staff-engineers.md
+      - target-audience/security-teams.md
+      - target-audience/devops-platform.md
+      - target-audience/scrum-masters.md
 
 copyright: Copyright &copy; 2026 Invariant Continuum Technologies
