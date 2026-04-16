@@ -8,11 +8,15 @@ import { SignalsOverlay } from "./SignalsOverlay";
 import { ViolationBadge } from "./ViolationBadge";
 import { DynamicLegend } from "./DynamicLegend";
 
-// Above this many nodes we skip force-directed simulation (O(n²)) and
-// fall back to the deterministic `grid` layout. Cytoscape can render
-// thousands of nodes fine — the layout algorithm is what locks the
-// main thread.
 const FORCE_LAYOUT_MAX_NODES = 5000;
+const NODES_PER_ROW = 50;
+const MAX_LABEL_CHARS = 32;
+const NODE_W = MAX_LABEL_CHARS * 6.2 + 16; // ~214px — fits 32 chars at font-size 10
+const NODE_H = 22;
+const GAP_X = 20;
+const GAP_Y = 10;
+const CELL_W = NODE_W + GAP_X;
+const CELL_H = NODE_H + GAP_Y;
 
 export function GraphCanvas() {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -95,11 +99,8 @@ export function GraphCanvas() {
             selector: "node",
             style: {
               shape: "rectangle",
-              width: (ele: cytoscape.NodeSingular) => {
-                const label = String(ele.data("label") ?? "");
-                return Math.max(36, Math.min(label.length * 6.2 + 16, 280));
-              },
-              height: 22,
+              width: NODE_W,
+              height: NODE_H,
               "background-color": "#fff",
               "border-width": 1,
               "border-color": "#000",
@@ -190,14 +191,20 @@ export function GraphCanvas() {
     const cy = cyRef.current;
     let cancelled = false;
 
+    let childIdx = 0;
     const mapped = elementsWithParents.map((el) => {
       if (el.group === "nodes") {
         const d = el.data as Record<string, unknown>;
-        const label =
+        const raw =
           (d.label as string | undefined) ||
           (d.name as string | undefined) ||
           (d.id as string);
-        return { ...el, data: { ...d, label } };
+        const label = raw.length > MAX_LABEL_CHARS
+          ? raw.slice(0, MAX_LABEL_CHARS) + "\u2026"
+          : raw;
+        const isParent = !!d.isSourceParent;
+        const gridIndex = isParent ? undefined : childIdx++;
+        return { ...el, data: { ...d, label, gridIndex } };
       }
       return el;
     });
@@ -224,9 +231,19 @@ export function GraphCanvas() {
       if (cancelled) return;
 
       const childNodeCount = filtered.nodes.length;
-      const effectiveLayout =
-        childNodeCount > FORCE_LAYOUT_MAX_NODES ? "grid" : (layoutName || "cose");
-      const layout = cy.layout({ name: effectiveLayout as any, padding: 30, animate: false, fit: true });
+      const usePreset = childNodeCount > FORCE_LAYOUT_MAX_NODES;
+      const layout = usePreset
+        ? cy.layout({
+            name: "preset",
+            positions: (node: cytoscape.NodeSingular) => {
+              const idx = node.data("gridIndex") as number | undefined;
+              if (idx == null) return undefined;
+              return { x: (idx % NODES_PER_ROW) * CELL_W, y: Math.floor(idx / NODES_PER_ROW) * CELL_H };
+            },
+            fit: true,
+            padding: 30,
+          } as any)
+        : cy.layout({ name: (layoutName || "cose") as any, padding: 30, animate: false, fit: true });
       layout.one("layoutstop", () => {
         finalizeLoad();
         setLoading(false);
