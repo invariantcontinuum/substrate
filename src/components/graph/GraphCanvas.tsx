@@ -181,34 +181,60 @@ export function GraphCanvas() {
     };
   }, [setSelectedNodeId, setZoom, setPan, openModal]);
 
-  /* update elements */
+  const [loading, setLoading] = useState(false);
+
+  /* update elements — chunked add so the main thread yields between
+     batches and the rest of the UI stays interactive during large loads */
   useEffect(() => {
     if (!ready || !cyRef.current) return;
     const cy = cyRef.current;
-    cy.batch(() => {
-      cy.elements().remove();
-      if (elementsWithParents.length) {
-        cy.add(
-          elementsWithParents.map((el) => {
-            if (el.group === "nodes") {
-              const d = el.data as Record<string, unknown>;
-              const label =
-                (d.label as string | undefined) ||
-                (d.name as string | undefined) ||
-                (d.id as string);
-              return { ...el, data: { ...d, label } };
-            }
-            return el;
-          })
-        );
+    let cancelled = false;
+
+    const mapped = elementsWithParents.map((el) => {
+      if (el.group === "nodes") {
+        const d = el.data as Record<string, unknown>;
+        const label =
+          (d.label as string | undefined) ||
+          (d.name as string | undefined) ||
+          (d.id as string);
+        return { ...el, data: { ...d, label } };
       }
+      return el;
     });
-    const childNodeCount = filtered.nodes.length;
-    const effectiveLayout =
-      childNodeCount > FORCE_LAYOUT_MAX_NODES ? "grid" : (layoutName || "cose");
-    const layout = cy.layout({ name: effectiveLayout as any, padding: 30, animate: false, fit: true });
-    layout.one("layoutstop", () => finalizeLoad());
-    layout.run();
+
+    (async () => {
+      setLoading(true);
+      // Yield so React can paint the loading indicator before we start
+      await new Promise((r) => setTimeout(r, 0));
+      if (cancelled) return;
+
+      cy.elements().remove();
+
+      // Add elements in batches, yielding between them so the browser
+      // can process events (clicks, scrolls, React renders). Each batch
+      // is wrapped in cy.batch() to suppress per-element style recalcs.
+      const CHUNK = 5000;
+      for (let i = 0; i < mapped.length; i += CHUNK) {
+        if (cancelled) return;
+        cy.batch(() => cy.add(mapped.slice(i, i + CHUNK)));
+        if (i + CHUNK < mapped.length) {
+          await new Promise((r) => setTimeout(r, 0));
+        }
+      }
+      if (cancelled) return;
+
+      const childNodeCount = filtered.nodes.length;
+      const effectiveLayout =
+        childNodeCount > FORCE_LAYOUT_MAX_NODES ? "grid" : (layoutName || "cose");
+      const layout = cy.layout({ name: effectiveLayout as any, padding: 30, animate: false, fit: true });
+      layout.one("layoutstop", () => {
+        finalizeLoad();
+        setLoading(false);
+      });
+      layout.run();
+    })();
+
+    return () => { cancelled = true; };
   }, [elementsWithParents, filtered.nodes.length, layoutName, ready, isMobile, finalizeLoad]);
 
   /* selection highlight */
@@ -263,6 +289,7 @@ export function GraphCanvas() {
     <div className="graph-canvas">
       <div className="graph-canvas-inner">
         <div ref={containerRef} className="graph-canvas-container" />
+        {loading && <div className="graph-loading-overlay">Loading graph…</div>}
       </div>
 
       <div className="graph-overlay-group">
