@@ -14,14 +14,6 @@ import { DynamicLegend } from "./DynamicLegend";
 // main thread.
 const FORCE_LAYOUT_MAX_NODES = 5000;
 
-// Above this many nodes we switch the edge renderer from `straight` +
-// triangle arrows to `haystack` and drop arrows entirely. `haystack`
-// skips per-edge geometry and arrow-tip drawing — for ~67k edges that's
-// the difference between 5-10 fps pan and 30-60 fps. Arrows on a 100k
-// graph aren't readable anyway; if the user wants direction they zoom
-// to a sub-graph (TODO: future zoom-aware style restoration).
-const HUGE_GRAPH_NODES = 10000;
-
 export function GraphCanvas() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const cyRef = useRef<cytoscape.Core | null>(null);
@@ -81,18 +73,9 @@ export function GraphCanvas() {
     }));
     const childNodeEls = filtered.nodes.map((n) => {
       const sid = (n as { source_id?: string }).source_id;
-      // Bake label + width into data() once at build time so the
-      // per-render width mapper (which used to call ele.data() and
-      // recompute on every paint) never runs. For 93k nodes that
-      // mapper was a measurable chunk of pan/zoom cost.
-      const label =
-        (n.label as string | undefined) ||
-        (n.name as string | undefined) ||
-        (n.id as string);
-      const width = Math.max(36, Math.min(label.length * 6.2 + 16, 280));
       return {
         group: "nodes" as const,
-        data: { ...n, parent: sid ? `src:${sid}` : undefined, label, width },
+        data: { ...n, parent: sid ? `src:${sid}` : undefined },
       };
     });
     const edgeEls = filtered.edges.map((e) => ({ group: "edges" as const, data: { ...e } }));
@@ -112,11 +95,10 @@ export function GraphCanvas() {
             selector: "node",
             style: {
               shape: "rectangle",
-              // Width is pre-computed in elementsWithParents and stored
-              // as data(width) — keeps cytoscape from running a mapper
-              // function on every paint, which dominated render cost
-              // on a 93k-node graph.
-              width: "data(width)",
+              width: (ele: cytoscape.NodeSingular) => {
+                const label = String(ele.data("label") ?? "");
+                return Math.max(36, Math.min(label.length * 6.2 + 16, 280));
+              },
               height: 22,
               "background-color": "#fff",
               "border-width": 1,
@@ -138,20 +120,6 @@ export function GraphCanvas() {
               "target-arrow-color": "#000",
               "target-arrow-shape": "triangle",
               "curve-style": "straight",
-            },
-          },
-          {
-            // Mass-render edge variant for huge graphs — see
-            // HUGE_GRAPH_NODES. `haystack` skips control-point geometry
-            // and arrows; the dimmer line keeps the dense edge mat from
-            // becoming a solid black smear.
-            selector: "edge.mass",
-            style: {
-              width: 0.5,
-              "line-color": "rgba(0,0,0,0.35)",
-              "target-arrow-shape": "none",
-              "curve-style": "haystack",
-              "haystack-radius": 0,
             },
           },
           {
@@ -182,22 +150,11 @@ export function GraphCanvas() {
         ],
         minZoom: 0.05,
         maxZoom: 3,
-        // Cytoscape warns against customising wheelSensitivity because
-        // the step feel depends on OS/mouse/trackpad. Stick to the
-        // default so zoom speed matches the platform the user already
-        // tuned their pointer for.
         userPanningEnabled: true,
         userZoomingEnabled: true,
         autoungrabify: false,
-        // Performance tuning for large graphs (thousands of nodes):
-        // render a static texture while the user pans/zooms, skip
-        // drawing edges and labels during interaction, and turn off
-        // box-select dragging (we don't use it and the hit-testing it
-        // adds isn't free at 100k+ elements).
         textureOnViewport: true,
         hideEdgesOnViewport: true,
-        hideLabelsOnViewport: true,
-        boxSelectionEnabled: false,
         pixelRatio: 1,
       });
 
@@ -228,38 +185,31 @@ export function GraphCanvas() {
   useEffect(() => {
     if (!ready || !cyRef.current) return;
     const cy = cyRef.current;
-    const childNodeCount = filtered.nodes.length;
     cy.batch(() => {
       cy.elements().remove();
       if (elementsWithParents.length) {
-        // label + width are baked into elementsWithParents already, so
-        // we hand the array straight to cytoscape — no per-element map.
-        cy.add(elementsWithParents);
-        // Apply the mass-render edge variant in a single class op while
-        // we're still inside the batch — far cheaper than per-edge style
-        // updates after the fact.
-        if (childNodeCount > HUGE_GRAPH_NODES) {
-          cy.edges().addClass("mass");
-        }
+        cy.add(
+          elementsWithParents.map((el) => {
+            if (el.group === "nodes") {
+              const d = el.data as Record<string, unknown>;
+              const label =
+                (d.label as string | undefined) ||
+                (d.name as string | undefined) ||
+                (d.id as string);
+              return { ...el, data: { ...d, label } };
+            }
+            return el;
+          })
+        );
       }
     });
-    // Pick a cheap, deterministic layout when the graph is large so we don't
-    // lock the main thread on a force-directed simulation.
+    const childNodeCount = filtered.nodes.length;
     const effectiveLayout =
       childNodeCount > FORCE_LAYOUT_MAX_NODES ? "grid" : (layoutName || "cose");
     const layout = cy.layout({ name: effectiveLayout as any, padding: 30, animate: false, fit: true });
-    // Finalise the topbar load timer once the layout actually settles —
-    // that's when the user sees the graph, not when the fetch returned.
-    // No-op unless a fetchGraph is awaiting (loadStartedAt set).
     layout.one("layoutstop", () => finalizeLoad());
     layout.run();
   }, [elementsWithParents, filtered.nodes.length, layoutName, ready, isMobile, finalizeLoad]);
-
-  // Zoom/pan flow one-way: cytoscape → store via the `zoom`/`pan` events
-  // registered in init. We deliberately don't push store zoom back into
-  // cytoscape here — that would create a feedback loop with the event
-  // listener (each zoom event sets store, which re-applies zoom, which
-  // fires another zoom event, etc.), locking the main thread.
 
   /* selection highlight */
   useEffect(() => {
@@ -282,9 +232,6 @@ export function GraphCanvas() {
       }, 260);
     });
   }, [signals]);
-
-  // Node size is driven by the label (shape: rectangle, width/height: "label")
-  // so there's nothing to sync here.
 
   /* keyboard shortcuts */
   useEffect(() => {
