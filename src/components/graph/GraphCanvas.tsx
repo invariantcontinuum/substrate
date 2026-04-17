@@ -451,6 +451,14 @@ export function GraphCanvas() {
   useEffect(() => {
     if (!ready || !cyRef.current) return;
     const cy = cyRef.current;
+    // Don't lay out against a hidden/zero-size container — the ResizeObserver
+    // effect will rerun once real dimensions arrive. Without this guard the
+    // grid layout's `fit:true` fits to a ~0 viewport and nodes cluster in the
+    // top-right corner; page refresh hides the bug because the canvas
+    // remounts with real dimensions.
+    const vw0 = containerRef.current?.clientWidth ?? 0;
+    const vh0 = containerRef.current?.clientHeight ?? 0;
+    if (vw0 === 0 || vh0 === 0) return;
     let cancelled = false;
 
     let childIdx = 0;
@@ -538,6 +546,71 @@ export function GraphCanvas() {
 
     return () => { cancelled = true; };
   }, [elementsWithParents, filtered.nodes.length, ready, isMobile, finalizeLoad]);
+
+  /* Re-layout on container resize transitions.
+   *
+   * When a user loads a snapshot from the Sources page, the graph canvas
+   * is hidden (activeView === "sources"), so containerRef has zero
+   * dimensions and the elements-update effect's layout call was skipped
+   * by the guard above. When the user switches back to the Graph view,
+   * dimensions arrive via this observer — we re-run the same grid
+   * layout so the `fit:true` call sees the real viewport. Also guards
+   * against significant window resizes leaving the graph off-axis. */
+  useEffect(() => {
+    if (!ready || !cyRef.current || !containerRef.current) return;
+    const cy = cyRef.current;
+    const container = containerRef.current;
+    let lastW = container.clientWidth;
+    let lastH = container.clientHeight;
+
+    const relayout = () => {
+      const childNodeCount = cy.nodes(":childless").length;
+      if (childNodeCount === 0) return;
+      const vw = container.clientWidth || 1600;
+      const vh = container.clientHeight || 900;
+      const aspectPx = Math.max(0.25, vw / vh);
+      const cols = Math.max(
+        1,
+        Math.ceil(Math.sqrt(childNodeCount * aspectPx * (CELL_H / CELL_W))),
+      );
+      const rows = Math.max(1, Math.ceil(childNodeCount / cols));
+      cy.layout({
+        name: "grid",
+        fit: true,
+        padding: 30,
+        avoidOverlap: true,
+        avoidOverlapPadding: 10,
+        condense: false,
+        rows,
+        cols,
+        animate: false,
+      } as any).run();
+    };
+
+    const observer = new ResizeObserver(() => {
+      const w = container.clientWidth;
+      const h = container.clientHeight;
+      if (w === 0 || h === 0) return;
+      const zeroToNonzero = (lastW === 0 || lastH === 0) && w > 0 && h > 0;
+      const deltaW = lastW > 0 ? Math.abs(w - lastW) / lastW : 1;
+      const deltaH = lastH > 0 ? Math.abs(h - lastH) / lastH : 1;
+      if (zeroToNonzero || deltaW > 0.2 || deltaH > 0.2) {
+        lastW = w;
+        lastH = h;
+        relayout();
+      }
+    });
+    observer.observe(container);
+
+    // Also fire once on mount in case dimensions were already non-zero when
+    // ready flipped (e.g., revisiting the graph view with a cached active set).
+    if (container.clientWidth > 0 && container.clientHeight > 0) {
+      lastW = container.clientWidth;
+      lastH = container.clientHeight;
+    }
+
+    return () => observer.disconnect();
+  }, [ready]);
 
   /* selection highlight + spotlight zoom
    *
