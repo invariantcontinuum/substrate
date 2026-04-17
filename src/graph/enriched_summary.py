@@ -386,6 +386,13 @@ async def generate_enriched_summary(
                 ],
                 "temperature": 0.2,
                 "max_tokens": settings.summary_max_tokens,
+                # Qwen3.5 is a reasoning model — without this flag it
+                # consumes the entire max_tokens budget on internal
+                # <thinking> and returns empty `content`. Disabling the
+                # thinking phase is required for our summary use-case
+                # because we want a short paragraph, not a reasoning
+                # chain.
+                "chat_template_kwargs": {"enable_thinking": False},
             },
         )
     except (httpx.HTTPError, httpx.TimeoutException) as e:
@@ -399,9 +406,12 @@ async def generate_enriched_summary(
             "truncated_file": rec["truncated"],
         }
 
-    summary = (llm_resp.get("choices") or [{}])[0].get("message", {}).get(
-        "content", ""
-    ).strip()
+    message = (llm_resp.get("choices") or [{}])[0].get("message", {}) or {}
+    # Prefer the conventional `content` field; if the thinking flag is
+    # ignored by the server or a future model routes answer text into
+    # `reasoning_content`, use that as a fallback rather than losing
+    # the whole response.
+    summary = (message.get("content") or message.get("reasoning_content") or "").strip()
 
     if not summary:
         # Empty-response path: do NOT persist — a blank description with
