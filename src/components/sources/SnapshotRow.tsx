@@ -15,7 +15,7 @@ export function SnapshotRow(props: Props) {
   return (
     <div className={`snapshot-row${props.isExpanded ? " is-expanded" : ""}`}>
       <SnapshotRowSummary {...props} />
-      {props.isExpanded && <SnapshotIssuesInline syncId={props.run.id} />}
+      {props.isExpanded && <SnapshotIssuesInline run={props.run} />}
     </div>
   );
 }

@@ -46,17 +46,29 @@ describe("SnapshotRow", () => {
     expect(onToggleExpand).toHaveBeenCalled();
   });
 
-  it("renders issues inline when expanded", () => {
+  it("renders stats panel when expanded (issues absent)", () => {
     renderWithClient(
       <SnapshotRow
-        run={makeRun() as any}
+        run={makeRun({
+          status: "completed",
+          started_at: "2026-04-15T06:55:00Z",
+          completed_at: "2026-04-15T07:00:00Z",
+          stats: {
+            nodes: 12480, edges: 34209, files_embedded: 3240,
+            chunks: 41820, chunks_embedded: 41820, duration_ms: 300000,
+          },
+        }) as any}
         isSelected={false}
         isExpanded={true}
         onToggleSelect={() => {}}
         onToggleExpand={() => {}}
       />
     );
-    expect(screen.getByText(/Retry/i)).toBeInTheDocument();
+    expect(screen.getByText(/12,480/)).toBeInTheDocument();
+    expect(screen.getByText(/34,209/)).toBeInTheDocument();
+    expect(screen.getByText(/3,240/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /retry/i })).toBeNull();
+    expect(screen.queryByText(/No structured issues recorded/)).toBeNull();
   });
 
   it("shows file-count readout for a running sync", () => {
