@@ -1,4 +1,4 @@
-import { GitBranch, Plug, Sparkles, Search, User } from "lucide-react";
+import { GitBranch, Plug, Search, User } from "lucide-react";
 import { useUIStore, type ModalName } from "@/stores/ui";
 
 // Settings live inside the Account modal as a tab — no dedicated
@@ -11,7 +11,6 @@ type MobileNavAction =
 const items: { icon: typeof GitBranch; label: string; action: MobileNavAction }[] = [
   { icon: GitBranch, label: "Graph",      action: { kind: "view",  view: "graph" } },
   { icon: Plug,      label: "Sources",    action: { kind: "view",  view: "sources" } },
-  { icon: Sparkles,  label: "Enrichment", action: { kind: "modal", modal: "enrichment" } },
   { icon: Search,    label: "Search",     action: { kind: "modal", modal: "search" } },
   { icon: User,      label: "Account",    action: { kind: "modal", modal: "user" } },
 ];

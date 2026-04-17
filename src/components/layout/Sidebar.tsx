@@ -1,6 +1,6 @@
 import { useState } from "react";
 import {
-  GitBranch, Plug, Sparkles, Search, Shield,
+  GitBranch, Plug, Search, Shield,
   FileText, Activity, Terminal,
   ChevronLeft,
 } from "lucide-react";
@@ -26,7 +26,6 @@ interface NavItem {
 const items: NavItem[] = [
   { icon: GitBranch, label: "Graph",      action: { kind: "view", view: "graph" }, active: true },
   { icon: Plug,      label: "Sources",    action: { kind: "view",  view: "sources" } },
-  { icon: Sparkles,  label: "Enrichment", action: { kind: "modal", modal: "enrichment" } },
   { icon: Search,    label: "Search",     action: { kind: "modal", modal: "search" } },
   { icon: Shield,    label: "Policies",   action: { kind: "modal", modal: "policies" } },
   { icon: FileText,  label: "ADRs",       action: { kind: "modal", modal: "adrs" } },
