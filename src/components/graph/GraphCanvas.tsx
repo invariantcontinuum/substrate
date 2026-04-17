@@ -20,13 +20,18 @@ const CELL_H = NODE_H + GAP_Y;
 
 const cyStylesheet = [
   {
+    // Base node: Pale Sky panel, Midnight Violet text. The light fill
+    // lifts every box off the Midnight Violet canvas and keeps the
+    // file-name label sharply readable at all zoom levels. Type-
+    // specific rules below override the border color (and occasionally
+    // the shape) for visual category cues.
     selector: "node",
     style: {
-      "background-color": "#0d0d12",
+      "background-color": "#cae5ff",
       "border-width": 1.5,
-      "border-color": "rgba(255,255,255,0.12)",
+      "border-color": "#6f8ab7",
       label: "data(label)",
-      color: "#c0c0d8",
+      color: "#331e36",
       "font-size": 11,
       "font-family": "Inter, sans-serif",
       "font-weight": 500,
@@ -43,38 +48,33 @@ const cyStylesheet = [
   {
     selector: 'node[type="service"]',
     style: {
-      "background-color": "#0f0f1f",
-      "border-color": "#3b4199",
+      "border-color": "#6f8ab7",
       "border-width": 1.5,
-      color: "#c7d2fe",
     },
   },
   {
     selector: 'node[type="database"]',
     style: {
-      "background-color": "#0a1a14",
-      "border-color": "#065f46",
+      "background-color": "#d0eed3",
+      "border-color": "#6b9a70",
       "border-width": 1.5,
-      color: "#6ee7b7",
       shape: "barrel",
     },
   },
   {
     selector: 'node[type="cache"]',
     style: {
-      "background-color": "#0a1a14",
-      "border-color": "#047857",
-      color: "#6ee7b7",
+      "background-color": "#d0eed3",
+      "border-color": "#6b9a70",
       shape: "barrel",
     },
   },
   {
     selector: 'node[type="policy"]',
     style: {
-      "background-color": "#150a2a",
-      "border-color": "#7c3aed",
+      "background-color": "#e4d6ef",
+      "border-color": "#8a5ba8",
       "border-width": 2,
-      color: "#d8b4fe",
       shape: "diamond",
       width: 110,
       height: 48,
@@ -83,9 +83,8 @@ const cyStylesheet = [
   {
     selector: 'node[type="adr"]',
     style: {
-      "background-color": "#1a1400",
-      "border-color": "#92400e",
-      color: "#fcd34d",
+      "background-color": "#fde68a",
+      "border-color": "#a66a1f",
       shape: "roundrectangle",
       width: 80,
       height: 32,
@@ -95,9 +94,8 @@ const cyStylesheet = [
   {
     selector: 'node[type="incident"]',
     style: {
-      "background-color": "#1a0505",
-      "border-color": "#991b1b",
-      color: "#fca5a5",
+      "background-color": "#fbc9c9",
+      "border-color": "#a33333",
       shape: "roundrectangle",
       width: 80,
       height: 32,
@@ -107,9 +105,8 @@ const cyStylesheet = [
   {
     selector: 'node[type="external"]',
     style: {
-      "background-color": "#0d1117",
-      "border-color": "#374151",
-      color: "#9ca3af",
+      "background-color": "#e5e5ef",
+      "border-color": "#615d6c",
       shape: "roundrectangle",
       width: 90,
       height: 32,
@@ -119,59 +116,52 @@ const cyStylesheet = [
   {
     selector: 'node[type="source"]',
     style: {
-      "background-color": "#0f0f1f",
-      "border-color": "#3b4199",
+      "background-color": "#89bbfe",
+      "border-color": "#3b5b91",
       "border-width": 1.5,
-      color: "#c7d2fe",
     },
   },
   {
     selector: 'node[type="config"]',
     style: {
-      "background-color": "#0d1117",
-      "border-color": "#374151",
-      color: "#9ca3af",
+      "background-color": "#e5e5ef",
+      "border-color": "#615d6c",
     },
   },
   {
     selector: 'node[type="script"]',
     style: {
-      "background-color": "#1a1400",
-      "border-color": "#92400e",
-      color: "#fcd34d",
+      "background-color": "#fde68a",
+      "border-color": "#a66a1f",
     },
   },
   {
     selector: 'node[type="doc"]',
     style: {
-      "background-color": "#0d1117",
-      "border-color": "#374151",
-      color: "#9ca3af",
+      "background-color": "#e5e5ef",
+      "border-color": "#615d6c",
     },
   },
   {
     selector: 'node[type="data"]',
     style: {
-      "background-color": "#0a1a14",
-      "border-color": "#065f46",
-      color: "#6ee7b7",
+      "background-color": "#d0eed3",
+      "border-color": "#6b9a70",
     },
   },
   {
     selector: 'node[type="asset"]',
     style: {
-      "background-color": "#0d1117",
-      "border-color": "#374151",
-      color: "#9ca3af",
+      "background-color": "#e5e5ef",
+      "border-color": "#615d6c",
     },
   },
   {
     selector: 'node[status="violation"]',
     style: {
-      "background-color": "#1a0505",
-      "border-color": "#ef4444",
+      "background-color": "#fbc9c9",
+      "border-color": "#c53030",
       "border-width": 2,
-      color: "#fca5a5",
     },
   },
   {
@@ -245,8 +235,8 @@ const cyStylesheet = [
     selector: ":selected",
     style: {
       "border-width": 3,
-      "border-color": "#6366f1",
-      "background-color": "#13131f",
+      "border-color": "#331e36",
+      "background-color": "#89bbfe",
     },
   },
   {
