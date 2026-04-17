@@ -5,8 +5,8 @@
  *
  *   Palette:
  *     Shadow Grey       #231f20   warm near-black
- *     Stormy Teal       #006d77   cool primary accent
- *     Soft Periwinkle   #8d86c9   muted violet secondary
+ *     Slate Blue        #7c99b4   cool primary accent
+ *     Deep Indigo       #494368   muted violet secondary
  *     Vanilla Custard   #f3dfa2   warm highlight
  *     Linen             #efe6dd   warm off-white paper
  *
@@ -35,8 +35,8 @@
 :root {
   /* ---- Raw palette ---- */
   --palette-shadow-grey:     #231f20;
-  --palette-stormy-teal:     #006d77;
-  --palette-soft-periwinkle: #8d86c9;
+  --palette-stormy-teal:     #7c99b4;   /* slate blue (was #006d77) */
+  --palette-soft-periwinkle: #494368;   /* deep indigo (was #8d86c9) */
   --palette-vanilla-custard: #f3dfa2;
   --palette-linen:           #efe6dd;
 
@@ -45,10 +45,10 @@
   --palette-shadow-lift:      #2b2627;   /* lifted shadow for solid surfaces */
   --palette-linen-bright:     #f8f1e9;   /* brighter linen for lifted surfaces */
   --palette-linen-deep:       #e4d9cb;   /* deeper linen for gradient stops */
-  --palette-teal-deep:        #004b53;   /* deeper teal for light-mode hovers */
-  --palette-teal-bright:      #1b9aa6;   /* brighter teal for dark-mode accents */
-  --palette-periwinkle-deep:  #6b62b3;   /* deeper periwinkle for light-mode contrast */
-  --palette-periwinkle-bright:#a79fde;   /* lighter periwinkle for dark-mode accents */
+  --palette-teal-deep:        #4d6c8a;   /* deeper slate-blue for light-mode hovers */
+  --palette-teal-bright:      #a0bdd5;   /* lifted slate-blue for dark-mode accents */
+  --palette-periwinkle-deep:  #2f2a49;   /* deeper indigo for light-mode contrast */
+  --palette-periwinkle-bright:#9b93c6;   /* lifted indigo for dark-mode accents */
   --palette-vanilla-deep:     #c59e3a;   /* deeper vanilla for light-mode contrast */
   --palette-vanilla-bright:   #f5e4b3;   /* lighter vanilla for dark-mode soft-fills */
 
@@ -143,8 +143,8 @@
 
   --bg:           var(--palette-linen);
   --bg-gradient:
-    radial-gradient(ellipse 75% 55% at 20% 10%,  rgba(141, 134, 201, 0.22) 0%, transparent 58%),
-    radial-gradient(ellipse 65% 55% at 85% 15%,  rgba(0, 109, 119, 0.16)  0%, transparent 60%),
+    radial-gradient(ellipse 75% 55% at 20% 10%,  rgba(73, 67, 104, 0.18)   0%, transparent 58%),
+    radial-gradient(ellipse 65% 55% at 85% 15%,  rgba(124, 153, 180, 0.22) 0%, transparent 60%),
     radial-gradient(ellipse 90% 70% at 50% 95%,  rgba(243, 223, 162, 0.34) 0%, transparent 70%),
     linear-gradient(180deg, #efe6dd 0%, #e4d9cb 100%);
 
@@ -152,7 +152,7 @@
   --surface-solid:    #ffffff;
   --surface-elevated: rgba(248, 241, 233, 0.85);
   --surface-sunken:   rgba(35, 31, 32, 0.05);
-  --surface-hover:    rgba(141, 134, 201, 0.15);
+  --surface-hover:    rgba(73, 67, 104, 0.12);
 
   --border:         rgba(35, 31, 32, 0.18);
   --border-strong:  rgba(35, 31, 32, 0.32);
@@ -169,7 +169,7 @@
   --warn:    var(--palette-vanilla-deep);
   --danger:  var(--palette-danger-light);
 
-  --focus-ring: rgba(0, 109, 119, 0.55);
+  --focus-ring: rgba(124, 153, 180, 0.65);
 
   --scrim: rgba(35, 31, 32, 0.35);
 
@@ -201,8 +201,8 @@
 
   --bg:           var(--palette-shadow-grey);
   --bg-gradient:
-    radial-gradient(ellipse 70% 60% at 15% 10%,  rgba(0, 109, 119, 0.28)   0%, transparent 58%),
-    radial-gradient(ellipse 65% 55% at 90% 20%,  rgba(141, 134, 201, 0.22) 0%, transparent 58%),
+    radial-gradient(ellipse 70% 60% at 15% 10%,  rgba(124, 153, 180, 0.26) 0%, transparent 58%),
+    radial-gradient(ellipse 65% 55% at 90% 20%,  rgba(155, 147, 198, 0.24) 0%, transparent 58%),
     radial-gradient(ellipse 90% 70% at 50% 100%, rgba(27, 23, 24, 0.95)    0%, transparent 65%),
     linear-gradient(180deg, #231f20 0%, #1b1718 100%);
 
@@ -210,7 +210,7 @@
   --surface-solid:    #2b2627;
   --surface-elevated: rgba(239, 230, 221, 0.06);
   --surface-sunken:   rgba(0, 0, 0, 0.32);
-  --surface-hover:    rgba(0, 109, 119, 0.22);
+  --surface-hover:    rgba(124, 153, 180, 0.22);
 
   --border:         rgba(239, 230, 221, 0.15);
   --border-strong:  rgba(239, 230, 221, 0.32);
@@ -227,7 +227,7 @@
   --warn:    var(--palette-vanilla-custard);
   --danger:  var(--palette-danger-dark);
 
-  --focus-ring: rgba(0, 109, 119, 0.7);
+  --focus-ring: rgba(160, 189, 213, 0.7);
 
   --scrim: rgba(10, 8, 8, 0.65);
 
