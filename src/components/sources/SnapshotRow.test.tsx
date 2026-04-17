@@ -58,4 +58,40 @@ describe("SnapshotRow", () => {
     );
     expect(screen.getByText(/Retry/i)).toBeInTheDocument();
   });
+
+  it("shows file-count readout for a running sync", () => {
+    renderWithClient(
+      <SnapshotRow
+        run={makeRun({
+          status: "running",
+          progress_done: 42,
+          progress_total: 120,
+          progress_meta: { phase: "parsing" },
+        }) as any}
+        isSelected={false}
+        isExpanded={false}
+        onToggleSelect={() => {}}
+        onToggleExpand={() => {}}
+      />
+    );
+    expect(screen.getByText(/42 \/ 120/)).toBeInTheDocument();
+  });
+
+  it("shows file-count readout during embedding phases too", () => {
+    renderWithClient(
+      <SnapshotRow
+        run={makeRun({
+          status: "running",
+          progress_done: 120,
+          progress_total: 120,
+          progress_meta: { phase: "embedding_chunks" },
+        }) as any}
+        isSelected={false}
+        isExpanded={false}
+        onToggleSelect={() => {}}
+        onToggleExpand={() => {}}
+      />
+    );
+    expect(screen.getByText(/120 \/ 120/)).toBeInTheDocument();
+  });
 });

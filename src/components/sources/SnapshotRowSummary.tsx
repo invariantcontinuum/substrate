@@ -70,7 +70,14 @@ export function SnapshotRowSummary({ run, isSelected, isExpanded, onToggleSelect
         {isRunning && (
           <span className="snapshot-row-progress">
             <span className="snapshot-row-progress-text">
-              {phaseLabel || "Running"} {phaseHasBar && `${pct}%`}
+              {phaseLabel || "Running"}
+              {run.progress_total > 0 && (
+                <>
+                  {" · "}
+                  {run.progress_done} / {run.progress_total}
+                </>
+              )}
+              {phaseHasBar && ` · ${pct}%`}
             </span>
             <span className="snapshot-row-progress-bar">
               <span style={{ width: `${phaseHasBar ? pct : 100}%` }} className={phaseHasBar ? "" : "indeterminate"} />
