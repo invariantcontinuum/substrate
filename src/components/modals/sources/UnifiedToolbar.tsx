@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { RefreshCw, Clock, Settings, Square, Trash2, Download, Upload, Eraser } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { useSyncs } from "@/hooks/useSyncs";
@@ -40,6 +41,9 @@ export function UnifiedToolbar(props: Props) {
   const [interval, setInterval] = useState(60);
   const [alreadyActiveSyncId, setAlreadyActiveSyncId] = useState<string | null>(null);
   const [alreadyActiveSourceId, setAlreadyActiveSourceId] = useState<string | null>(null);
+  const [confirmClean, setConfirmClean] = useState(false);
+  const [confirmPurge, setConfirmPurge] = useState(false);
+  const [confirmPurgeSource, setConfirmPurgeSource] = useState(false);
 
   // Auto-dismiss the "already active" notice after 6 seconds (mirrors SwapToast pattern).
   useEffect(() => {
@@ -68,16 +72,16 @@ export function UnifiedToolbar(props: Props) {
     snapshotIds.forEach(unload);
     onSnapshotActionComplete();
   };
-  const doClean = () => {
-    // TODO: replace with themed ConfirmDialog once available
-    if (!confirm(`Clean ${snapshotIds.length} snapshot${snapshotIds.length === 1 ? "" : "s"}? Graph data removed; row stays as audit.`)) return;
+  const doClean = () => setConfirmClean(true);
+  const onConfirmClean = () => {
+    setConfirmClean(false);
     // Fire-and-forget: don't await, so the UI doesn't block on slow backends.
     snapshotIds.forEach((id) => { void cleanSync(id); });
     onSnapshotActionComplete();
   };
-  const doPurge = () => {
-    // TODO: replace with themed ConfirmDialog once available
-    if (!confirm(`Purge ${snapshotIds.length} snapshot${snapshotIds.length === 1 ? "" : "s"}? Row AND data removed.`)) return;
+  const doPurge = () => setConfirmPurge(true);
+  const onConfirmPurge = () => {
+    setConfirmPurge(false);
     snapshotIds.forEach((id) => { void purgeSync(id); });
     onSnapshotActionComplete();
   };
@@ -111,9 +115,9 @@ export function UnifiedToolbar(props: Props) {
     selectedRunningSyncs.forEach((r) => { void cancelSync(r.id); });
     onSourceActionComplete();
   };
-  const doPurgeSource = () => {
-    // TODO: replace with themed ConfirmDialog once available
-    if (!confirm(`Purge ${sourceIds.length} source${sourceIds.length === 1 ? "" : "s"} and all their snapshots?`)) return;
+  const doPurgeSource = () => setConfirmPurgeSource(true);
+  const onConfirmPurgeSource = () => {
+    setConfirmPurgeSource(false);
     sourceIds.forEach((id) => { void purgeSource(id); });
     onSourceActionComplete();
   };
@@ -135,21 +139,41 @@ export function UnifiedToolbar(props: Props) {
 
   if (snapshotMode) {
     return (
-      <div className="unified-toolbar">
-        <span className="unified-toolbar-label">Snapshot ({snapshotIds.length})</span>
-        {snapshotSomeUnloaded && (
-          <Button onClick={doLoad}>
-            <Download size={12} /> Load{snapshotSomeLoaded ? ` (${snapshotIds.length - snapshotLoadedCount})` : ""}
-          </Button>
-        )}
-        {snapshotSomeLoaded && (
-          <Button onClick={doUnload}>
-            <Upload size={12} /> Unload{snapshotSomeUnloaded ? ` (${snapshotLoadedCount})` : ""}
-          </Button>
-        )}
-        <Button onClick={doClean}><Eraser size={12} /> Clean</Button>
-        <Button onClick={doPurge} className="danger"><Trash2 size={12} /> Purge</Button>
-      </div>
+      <>
+        <div className="unified-toolbar">
+          <span className="unified-toolbar-label">Snapshot ({snapshotIds.length})</span>
+          {snapshotSomeUnloaded && (
+            <Button onClick={doLoad}>
+              <Download size={12} /> Load{snapshotSomeLoaded ? ` (${snapshotIds.length - snapshotLoadedCount})` : ""}
+            </Button>
+          )}
+          {snapshotSomeLoaded && (
+            <Button onClick={doUnload}>
+              <Upload size={12} /> Unload{snapshotSomeUnloaded ? ` (${snapshotLoadedCount})` : ""}
+            </Button>
+          )}
+          <Button onClick={doClean}><Eraser size={12} /> Clean</Button>
+          <Button onClick={doPurge} className="danger"><Trash2 size={12} /> Purge</Button>
+        </div>
+        <ConfirmDialog
+          open={confirmClean}
+          title="Clean snapshots"
+          body={`Clean ${snapshotIds.length} snapshot${snapshotIds.length === 1 ? "" : "s"}? Graph data will be removed; the row stays as audit.`}
+          variant="neutral"
+          confirmLabel="Clean"
+          onConfirm={onConfirmClean}
+          onCancel={() => setConfirmClean(false)}
+        />
+        <ConfirmDialog
+          open={confirmPurge}
+          title="Purge snapshots"
+          body={`Purge ${snapshotIds.length} snapshot${snapshotIds.length === 1 ? "" : "s"}? Both the row and the data will be removed.`}
+          variant="danger"
+          confirmLabel="Purge"
+          onConfirm={onConfirmPurge}
+          onCancel={() => setConfirmPurge(false)}
+        />
+      </>
     );
   }
 
@@ -198,6 +222,15 @@ export function UnifiedToolbar(props: Props) {
           <Button onClick={onToggleSchedule}>Cancel</Button>
         </div>
       )}
+      <ConfirmDialog
+        open={confirmPurgeSource}
+        title="Purge sources"
+        body={`Purge ${sourceIds.length} source${sourceIds.length === 1 ? "" : "s"} and all their snapshots?`}
+        variant="danger"
+        confirmLabel="Purge"
+        onConfirm={onConfirmPurgeSource}
+        onCancel={() => setConfirmPurgeSource(false)}
+      />
     </>
   );
 }
