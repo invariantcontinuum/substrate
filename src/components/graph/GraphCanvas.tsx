@@ -409,50 +409,57 @@ export function GraphCanvas() {
 
       cy.elements().remove();
 
-      const CHUNK = 5000;
+      // Smaller chunks + explicit rAF yields keep the main thread
+      // responsive during add for graphs with tens of thousands of
+      // nodes. Without this, the tab appears frozen for several seconds
+      // even though grid layout itself is cheap.
+      const CHUNK = 1500;
+      const yieldFrame = () =>
+        new Promise<void>((r) =>
+          typeof requestAnimationFrame === "function"
+            ? requestAnimationFrame(() => r())
+            : setTimeout(() => r(), 0),
+        );
       for (let i = 0; i < mapped.length; i += CHUNK) {
         if (cancelled) return;
         cy.batch(() => cy.add(mapped.slice(i, i + CHUNK)));
         if (i + CHUNK < mapped.length) {
-          await new Promise((r) => setTimeout(r, 0));
+          await yieldFrame();
         }
       }
       if (cancelled) return;
 
       const childNodeCount = filtered.nodes.length;
-      const usePreset = childNodeCount > FORCE_LAYOUT_MAX_NODES;
-      // Derive columns so the grid roughly matches viewport aspect ratio:
-      // cells are CELL_W × CELL_H, so cols/rows = (h_cells/w_cells) × viewport_aspect.
+      // Use cytoscape's built-in `grid` layout for every graph size —
+      // it handles compound parents, produces predictable multi-row
+      // spacing, and is O(N) so it never blocks the main thread. Rows
+      // and cols are derived from the viewport aspect ratio so large
+      // graphs fill the canvas roughly isotropically instead of
+      // producing a 50-wide stripe.
       const vw = containerRef.current?.clientWidth || 1600;
       const vh = containerRef.current?.clientHeight || 900;
-      const aspect = (vw / vh) * (CELL_H / CELL_W);
+      const aspectPx = Math.max(0.25, vw / vh);
       const cols = Math.max(
         1,
-        Math.min(NODES_PER_ROW, Math.round(Math.sqrt(childNodeCount * aspect))),
+        Math.ceil(Math.sqrt(childNodeCount * aspectPx * (CELL_H / CELL_W))),
       );
-      const layout = usePreset
-        ? cy.layout({
-            name: "preset",
-            positions: (node: cytoscape.NodeSingular) => {
-              const idx = node.data("gridIndex") as number | undefined;
-              if (idx == null) return undefined;
-              return { x: (idx % cols) * CELL_W, y: Math.floor(idx / cols) * CELL_H };
-            },
-            fit: true,
-            padding: 30,
-          } as any)
-        : cy.layout({
-            name: (layoutName || "cose") as any,
-            padding: 30,
-            animate: false,
-            fit: true,
-            randomize: true,
-            idealEdgeLength: 120,
-            nodeRepulsion: 8192,
-            nodeOverlap: 20,
-            componentSpacing: 80,
-            numIter: 1500,
-          } as any);
+      const rows = Math.max(1, Math.ceil(childNodeCount / cols));
+      const layout = cy.layout({
+        name: "grid",
+        fit: true,
+        padding: 30,
+        avoidOverlap: true,
+        avoidOverlapPadding: 10,
+        condense: false,
+        rows,
+        cols,
+        animate: false,
+        sort: (a: cytoscape.NodeSingular, b: cytoscape.NodeSingular) => {
+          const ai = (a.data("gridIndex") as number | undefined) ?? Number.MAX_SAFE_INTEGER;
+          const bi = (b.data("gridIndex") as number | undefined) ?? Number.MAX_SAFE_INTEGER;
+          return ai - bi;
+        },
+      } as any);
       layout.one("layoutstop", () => {
         finalizeLoad();
         setLoading(false);
@@ -461,7 +468,7 @@ export function GraphCanvas() {
     })();
 
     return () => { cancelled = true; };
-  }, [elementsWithParents, filtered.nodes.length, layoutName, ready, isMobile, finalizeLoad]);
+  }, [elementsWithParents, filtered.nodes.length, ready, isMobile, finalizeLoad]);
 
   /* selection highlight */
   useEffect(() => {
