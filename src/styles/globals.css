@@ -1776,8 +1776,19 @@ html, body, #root {
 /* SourcesSettings page — three-column layout */
 .sources-settings {
   display: grid;
-  grid-template-rows: auto 1fr;   /* toolbar | body */
+  grid-template-rows: auto auto 1fr;   /* header | toolbar | body */
   height: 100%;
+}
+.sources-settings-header {
+  display: flex;
+  align-items: center;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.sources-settings-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 .sources-settings-body {
   display: grid;

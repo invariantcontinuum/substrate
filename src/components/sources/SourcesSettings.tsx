@@ -1,6 +1,8 @@
 // frontend/src/components/sources/SourcesSettings.tsx
 import { useEffect, useReducer } from "react";
+import { ArrowLeft } from "lucide-react";
 import { useUIStore } from "@/stores/ui";
+import { Button } from "@/components/ui/button";
 import { SourcesSidebar } from "./SourcesSidebar";
 import { SourceDetailPane } from "./SourceDetailPane";
 import { UnifiedToolbar } from "./UnifiedToolbar";
@@ -94,6 +96,7 @@ export function SourcesSettings() {
   const sourcesPageTarget = useUIStore((s) => s.sourcesPageTarget);
   const setSourcesPageTarget = useUIStore((s) => s.setSourcesPageTarget);
   const activeView = useUIStore((s) => s.activeView);
+  const setActiveView = useUIStore((s) => s.setActiveView);
 
   // Consume the deep-link target whenever it arrives while on the sources view.
   // useReducer dispatch is safe inside useEffect — it batches all state changes
@@ -110,6 +113,15 @@ export function SourcesSettings() {
 
   return (
     <div className="sources-settings">
+      <div className="sources-settings-header">
+        <Button
+          onClick={() => setActiveView("graph")}
+          className="sources-settings-back"
+          title="Back to graph"
+        >
+          <ArrowLeft size={14} /> Back to graph
+        </Button>
+      </div>
       <UnifiedToolbar
         selectedSourceIds={state.selectedSourceIds}
         selectedSyncIds={state.selectedSyncIds}
