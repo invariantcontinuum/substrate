@@ -20,18 +20,19 @@ const CELL_H = NODE_H + GAP_Y;
 
 const cyStylesheet = [
   {
-    // Base node: Pale Sky panel, Midnight Violet text. The light fill
-    // lifts every box off the Midnight Violet canvas and keeps the
-    // file-name label sharply readable at all zoom levels. Type-
-    // specific rules below override the border color (and occasionally
-    // the shape) for visual category cues.
+    // Base node: the brainrot graph aesthetic — a dark "sunken panel"
+    // fill (#241327, just darker than the Midnight Violet canvas
+    // #331e36) with a subtle Pale-Sky-tinted border and bright Pale
+    // Sky text. The colored borders below give each type a semantic
+    // accent without relying on high-contrast fills, keeping the
+    // canvas feeling atmospheric rather than busy.
     selector: "node",
     style: {
-      "background-color": "#cae5ff",
+      "background-color": "#241327",
       "border-width": 1.5,
-      "border-color": "#6f8ab7",
+      "border-color": "rgba(202,229,255,0.18)",
       label: "data(label)",
-      color: "#331e36",
+      color: "#cae5ff",
       "font-size": 11,
       "font-family": "Inter, sans-serif",
       "font-weight": 500,
@@ -48,6 +49,7 @@ const cyStylesheet = [
   {
     selector: 'node[type="service"]',
     style: {
+      "background-color": "#1d1e3a",
       "border-color": "#6f8ab7",
       "border-width": 1.5,
     },
@@ -55,7 +57,7 @@ const cyStylesheet = [
   {
     selector: 'node[type="database"]',
     style: {
-      "background-color": "#d0eed3",
+      "background-color": "#14241b",
       "border-color": "#6b9a70",
       "border-width": 1.5,
       shape: "barrel",
@@ -64,16 +66,16 @@ const cyStylesheet = [
   {
     selector: 'node[type="cache"]',
     style: {
-      "background-color": "#d0eed3",
-      "border-color": "#6b9a70",
+      "background-color": "#14241b",
+      "border-color": "#5a9578",
       shape: "barrel",
     },
   },
   {
     selector: 'node[type="policy"]',
     style: {
-      "background-color": "#e4d6ef",
-      "border-color": "#8a5ba8",
+      "background-color": "#251838",
+      "border-color": "#9d7bcc",
       "border-width": 2,
       shape: "diamond",
       width: 110,
@@ -83,7 +85,7 @@ const cyStylesheet = [
   {
     selector: 'node[type="adr"]',
     style: {
-      "background-color": "#fde68a",
+      "background-color": "#2a1f14",
       "border-color": "#a66a1f",
       shape: "roundrectangle",
       width: 80,
@@ -94,8 +96,8 @@ const cyStylesheet = [
   {
     selector: 'node[type="incident"]',
     style: {
-      "background-color": "#fbc9c9",
-      "border-color": "#a33333",
+      "background-color": "#2a1414",
+      "border-color": "#c53030",
       shape: "roundrectangle",
       width: 80,
       height: 32,
@@ -105,7 +107,7 @@ const cyStylesheet = [
   {
     selector: 'node[type="external"]',
     style: {
-      "background-color": "#e5e5ef",
+      "background-color": "#1a1a22",
       "border-color": "#615d6c",
       shape: "roundrectangle",
       width: 90,
@@ -116,76 +118,87 @@ const cyStylesheet = [
   {
     selector: 'node[type="source"]',
     style: {
-      "background-color": "#89bbfe",
-      "border-color": "#3b5b91",
+      "background-color": "#1d2a44",
+      "border-color": "#6f8ab7",
       "border-width": 1.5,
     },
   },
   {
     selector: 'node[type="config"]',
     style: {
-      "background-color": "#e5e5ef",
+      "background-color": "#1a1a22",
       "border-color": "#615d6c",
     },
   },
   {
     selector: 'node[type="script"]',
     style: {
-      "background-color": "#fde68a",
+      "background-color": "#2a1f14",
       "border-color": "#a66a1f",
     },
   },
   {
     selector: 'node[type="doc"]',
     style: {
-      "background-color": "#e5e5ef",
+      "background-color": "#1a1a22",
       "border-color": "#615d6c",
     },
   },
   {
     selector: 'node[type="data"]',
     style: {
-      "background-color": "#d0eed3",
+      "background-color": "#14241b",
       "border-color": "#6b9a70",
     },
   },
   {
     selector: 'node[type="asset"]',
     style: {
-      "background-color": "#e5e5ef",
+      "background-color": "#1a1a22",
       "border-color": "#615d6c",
     },
   },
   {
     selector: 'node[status="violation"]',
     style: {
-      "background-color": "#fbc9c9",
-      "border-color": "#c53030",
+      "background-color": "#2a1414",
+      "border-color": "#ef4444",
       "border-width": 2,
     },
   },
   {
+    // Edges borrow brainrot's semantic palette: muted whites for the
+    // default, brighter/denser colours for edges the user should
+    // notice (violation, why). Arrows stay soft so the overall canvas
+    // reads as a web rather than a bar chart.
     selector: "edge",
     style: {
       width: 1,
-      "line-color": "rgba(255,255,255,0.1)",
-      "target-arrow-color": "rgba(255,255,255,0.15)",
+      "line-color": "rgba(202,229,255,0.10)",
+      "target-arrow-color": "rgba(202,229,255,0.18)",
       "target-arrow-shape": "triangle",
       "curve-style": "bezier",
       "arrow-scale": 0.8,
       label: "",
       "font-size": 9,
-      color: "#666680",
-      "text-background-color": "#060608",
-      "text-background-opacity": 1,
+      color: "#cae5ff",
+      "text-background-color": "#241327",
+      "text-background-opacity": 0.92,
       "text-background-padding": "2px" as any,
     },
   },
   {
     selector: 'edge[type="depends"]',
     style: {
-      "line-color": "rgba(99,102,241,0.3)",
-      "target-arrow-color": "rgba(99,102,241,0.4)",
+      "line-color": "rgba(137,187,254,0.32)",
+      "target-arrow-color": "rgba(137,187,254,0.45)",
+    },
+  },
+  {
+    selector: 'edge[type="depends_on"]',
+    style: {
+      "line-color": "rgba(137,187,254,0.32)",
+      "target-arrow-color": "rgba(137,187,254,0.45)",
     },
   },
   {
@@ -204,8 +217,8 @@ const cyStylesheet = [
   {
     selector: 'edge[type="enforces"]',
     style: {
-      "line-color": "rgba(168,85,247,0.5)",
-      "target-arrow-color": "rgba(168,85,247,0.6)",
+      "line-color": "rgba(157,123,204,0.55)",
+      "target-arrow-color": "rgba(157,123,204,0.65)",
       "line-style": "dotted",
       width: 1.5,
     },
@@ -213,8 +226,8 @@ const cyStylesheet = [
   {
     selector: 'edge[type="why"]',
     style: {
-      "line-color": "rgba(245,158,11,0.5)",
-      "target-arrow-color": "rgba(245,158,11,0.6)",
+      "line-color": "rgba(245,158,11,0.55)",
+      "target-arrow-color": "rgba(245,158,11,0.65)",
       "line-style": "dashed",
       "line-dash-pattern": [4, 4] as any,
       width: 1.5,
@@ -226,8 +239,8 @@ const cyStylesheet = [
   {
     selector: 'edge[type="drift"]',
     style: {
-      "line-color": "rgba(239,68,68,0.3)",
-      "target-arrow-color": "rgba(239,68,68,0.3)",
+      "line-color": "rgba(239,68,68,0.32)",
+      "target-arrow-color": "rgba(239,68,68,0.32)",
       "line-style": "dashed",
     },
   },
@@ -235,8 +248,8 @@ const cyStylesheet = [
     selector: ":selected",
     style: {
       "border-width": 3,
-      "border-color": "#331e36",
-      "background-color": "#89bbfe",
+      "border-color": "#ffffff",
+      "background-color": "#1d2a44",
     },
   },
   {
@@ -246,12 +259,12 @@ const cyStylesheet = [
       "background-opacity": 0,
       "border-style": "dashed" as any,
       "border-width": 1,
-      "border-color": "rgba(99,102,241,0.25)",
+      "border-color": "rgba(137,187,254,0.28)",
       label: "data(label)",
       "text-valign": "top",
       "text-halign": "left",
       "font-size": 10,
-      color: "rgba(192,192,216,0.5)",
+      color: "rgba(202,229,255,0.55)",
       "text-margin-y": -4 as any,
       padding: "24px" as any,
     },

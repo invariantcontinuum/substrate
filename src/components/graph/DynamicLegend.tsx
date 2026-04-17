@@ -1,21 +1,24 @@
 import { useMemo } from "react";
 import { useGraphStore } from "@/stores/graph";
 
+// Dot colors mirror the cytoscape border colors per node type, so
+// the legend and canvas read as a single system. Kept muted enough to
+// pair with the dark canvas without shouting.
 const typePalette: Record<string, string> = {
-  service: "#3b4199",
-  database: "#065f46",
-  cache: "#047857",
-  policy: "#7c3aed",
-  adr: "#92400e",
-  incident: "#991b1b",
-  external: "#374151",
-  source: "#3b4199",
-  config: "#374151",
-  script: "#92400e",
-  doc: "#374151",
-  data: "#065f46",
-  asset: "#374151",
-  default: "rgba(255,255,255,0.12)",
+  service: "#6f8ab7",
+  database: "#6b9a70",
+  cache: "#5a9578",
+  policy: "#9d7bcc",
+  adr: "#a66a1f",
+  incident: "#c53030",
+  external: "#615d6c",
+  source: "#6f8ab7",
+  config: "#615d6c",
+  script: "#a66a1f",
+  doc: "#615d6c",
+  data: "#6b9a70",
+  asset: "#615d6c",
+  default: "rgba(202,229,255,0.18)",
 };
 
 export function DynamicLegend() {
