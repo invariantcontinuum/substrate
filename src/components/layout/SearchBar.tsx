@@ -29,6 +29,7 @@ function score(n: NodeLike, q: string): number | null {
 
 export function SearchBar() {
   const nodes = useGraphStore((s) => s.nodes);
+  const visibleTypes = useGraphStore((s) => s.filters.types);
   const setSelectedNodeId = useGraphStore((s) => s.setSelectedNodeId);
   const openModal = useUIStore((s) => s.openModal);
 
@@ -43,13 +44,16 @@ export function SearchBar() {
     if (!needle) return [] as NodeLike[];
     const scored: Array<{ n: NodeLike; s: number }> = [];
     for (const n of nodes as NodeLike[]) {
+      // Honour the legend's type filter: hidden types never appear in
+      // search results, so the dropdown matches what's on the canvas.
+      if (!visibleTypes.has(String(n.type || "unknown"))) continue;
       const s = score(n, needle);
       if (s != null) scored.push({ n, s });
       if (scored.length > MAX_RESULTS * 4) break;
     }
     scored.sort((a, b) => a.s - b.s);
     return scored.slice(0, MAX_RESULTS).map((r) => r.n);
-  }, [q, nodes]);
+  }, [q, nodes, visibleTypes]);
 
   useEffect(() => {
     setCursor(0);

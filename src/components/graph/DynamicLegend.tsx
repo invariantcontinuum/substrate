@@ -21,7 +21,7 @@ const typePalette: Record<string, string> = {
 export function DynamicLegend() {
   const nodes = useGraphStore((s) => s.nodes);
   const visibleTypes = useGraphStore((s) => s.filters.types);
-  const toggleTypeFilter = useGraphStore((s) => s.toggleTypeFilter);
+  const isolateTypeFilter = useGraphStore((s) => s.isolateTypeFilter);
 
   const types = useMemo(() => {
     const counts = new Map<string, number>();
@@ -36,17 +36,34 @@ export function DynamicLegend() {
 
   if (types.length <= 1) return null;
 
+  // Every distinct type observed in the current graph — used to
+  // restore "all visible" when the user clicks the currently-isolated
+  // type a second time.
+  const allTypes = useMemo(() => {
+    const seen = new Set<string>();
+    for (const n of nodes) seen.add(String(n.type || "unknown"));
+    return Array.from(seen);
+  }, [nodes]);
+
+  const isolated =
+    visibleTypes.size === 1 ? Array.from(visibleTypes)[0] : null;
+
   return (
     <div className="dynamic-legend">
       {types.map(([t, count]) => {
         const active = visibleTypes.has(t);
+        const isSoleActive = isolated === t;
         return (
           <button
             key={t}
             type="button"
-            onClick={() => toggleTypeFilter(t)}
-            className={`dynamic-legend-item${active ? "" : " is-inactive"}`}
-            title={active ? `Hide ${t}` : `Show ${t}`}
+            onClick={() => isolateTypeFilter(t, allTypes)}
+            className={`dynamic-legend-item${active ? "" : " is-inactive"}${isSoleActive ? " is-isolated" : ""}`}
+            title={
+              isSoleActive
+                ? `Click to show all types`
+                : `Show only ${t}`
+            }
           >
             <span
               className="dynamic-legend-dot"

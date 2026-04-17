@@ -1001,6 +1001,11 @@ html, body, #root {
 
 .dynamic-legend-item:hover { color: #f0f0f5; }
 .dynamic-legend-item.is-inactive { opacity: 0.35; }
+.dynamic-legend-item.is-isolated {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+  background: var(--surface-hover);
+}
 
 .dynamic-legend-dot {
   width: 8px;

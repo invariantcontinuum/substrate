@@ -108,6 +108,7 @@ interface GraphState {
   /* Filters */
   filters: GraphFilters;
   toggleTypeFilter: (type: string) => void;
+  isolateTypeFilter: (type: string, allTypes: string[]) => void;
   setFilters: (filters: GraphFilters) => void;
   resetFilters: () => void;
 
@@ -193,6 +194,16 @@ export const useGraphStore = create<GraphState>((set) => ({
       if (types.has(type)) types.delete(type);
       else types.add(type);
       return { filters: { ...state.filters, types } };
+    }),
+  isolateTypeFilter: (type, allTypes) =>
+    set((state) => {
+      const soleActive =
+        state.filters.types.size === 1 && state.filters.types.has(type);
+      // Clicking the currently-isolated type toggles back to "all
+      // types visible". Otherwise the click isolates the chosen type
+      // as the only visible category.
+      const nextTypes = soleActive ? new Set(allTypes) : new Set([type]);
+      return { filters: { ...state.filters, types: nextTypes } };
     }),
   setFilters: (filters) => set({ filters }),
   resetFilters: () => set({ filters: initialFilters() }),
