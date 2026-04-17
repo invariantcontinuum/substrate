@@ -278,10 +278,14 @@ const cyStylesheet = [
    * enlarged label override, which would clash with the dashed-frame
    * parent style. */
   {
+    // Dim class intentionally keeps `text-opacity` at a level where
+    // labels remain legible — we want the user to orient themselves
+    // on unrelated nodes while the spotlight focuses attention, not
+    // to hide every label in the graph.
     selector: ".spotlight-dim",
     style: {
-      opacity: 0.12,
-      "text-opacity": 0.05,
+      opacity: 0.28,
+      "text-opacity": 0.55,
     },
   },
   {
