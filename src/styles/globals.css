@@ -1042,6 +1042,16 @@ html, body, #root {
 
 .ui-button:disabled { opacity: 0.5; cursor: not-allowed; }
 
+.ui-button.danger {
+  background: var(--danger);
+  color: white;
+  border-color: var(--danger);
+}
+
+.ui-button.danger:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
 .ui-label {
   display: block;
   margin-bottom: var(--space-2);
