@@ -421,18 +421,38 @@ export function GraphCanvas() {
 
       const childNodeCount = filtered.nodes.length;
       const usePreset = childNodeCount > FORCE_LAYOUT_MAX_NODES;
+      // Derive columns so the grid roughly matches viewport aspect ratio:
+      // cells are CELL_W × CELL_H, so cols/rows = (h_cells/w_cells) × viewport_aspect.
+      const vw = containerRef.current?.clientWidth || 1600;
+      const vh = containerRef.current?.clientHeight || 900;
+      const aspect = (vw / vh) * (CELL_H / CELL_W);
+      const cols = Math.max(
+        1,
+        Math.min(NODES_PER_ROW, Math.round(Math.sqrt(childNodeCount * aspect))),
+      );
       const layout = usePreset
         ? cy.layout({
             name: "preset",
             positions: (node: cytoscape.NodeSingular) => {
               const idx = node.data("gridIndex") as number | undefined;
               if (idx == null) return undefined;
-              return { x: (idx % NODES_PER_ROW) * CELL_W, y: Math.floor(idx / NODES_PER_ROW) * CELL_H };
+              return { x: (idx % cols) * CELL_W, y: Math.floor(idx / cols) * CELL_H };
             },
             fit: true,
             padding: 30,
           } as any)
-        : cy.layout({ name: (layoutName || "cose") as any, padding: 30, animate: false, fit: true });
+        : cy.layout({
+            name: (layoutName || "cose") as any,
+            padding: 30,
+            animate: false,
+            fit: true,
+            randomize: true,
+            idealEdgeLength: 120,
+            nodeRepulsion: 8192,
+            nodeOverlap: 20,
+            componentSpacing: 80,
+            numIter: 1500,
+          } as any);
       layout.one("layoutstop", () => {
         finalizeLoad();
         setLoading(false);
