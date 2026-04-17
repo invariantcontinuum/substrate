@@ -15,6 +15,10 @@ _VALID_PROJECTIONS = {"full", "minimal"}
 
 
 async def _embed_query(query: str) -> list[float]:
+    # nomic-embed-text-v2 requires `search_query: …` prefix on queries
+    # so they cluster with `search_document: …`-prefixed corpus
+    # embeddings produced by the ingestion service.
+    prefixed = f"search_query: {query}"
     headers: dict[str, str] = {}
     if settings.llm_api_key:
         headers["Authorization"] = f"Bearer {settings.llm_api_key}"
@@ -22,7 +26,7 @@ async def _embed_query(query: str) -> list[float]:
         resp = await client.post(
             settings.embedding_url,
             headers=headers,
-            json={"input": query, "model": settings.embedding_model},
+            json={"input": prefixed, "model": settings.embedding_model},
         )
         resp.raise_for_status()
         return resp.json()["data"][0]["embedding"]
