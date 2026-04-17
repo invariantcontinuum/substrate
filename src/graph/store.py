@@ -94,13 +94,42 @@ async def _init_age(conn: asyncpg.Connection) -> None:
     await conn.execute("LOAD 'age';")
 
 
+async def _init_connection(conn: asyncpg.Connection) -> None:
+    """Per-connection init for every pooled asyncpg connection.
+
+    Registers JSON / JSONB codecs so columns like sync_runs.stats,
+    sync_runs.progress_meta and sources.config come back as parsed
+    Python dicts instead of raw JSON strings. Without these codecs,
+    asyncpg leaves JSONB as text, FastAPI serialises them as string-
+    encoded JSON, and the frontend sees `run.stats.nodes === undefined`
+    — leaving every stat em-dashed and the progress label stuck on
+    'Running' instead of the phase name.
+
+    Runs _init_age last so the AGE-load pre-existing contract stays
+    intact for every connection.
+    """
+    await conn.set_type_codec(
+        "jsonb",
+        encoder=json.dumps,
+        decoder=json.loads,
+        schema="pg_catalog",
+    )
+    await conn.set_type_codec(
+        "json",
+        encoder=json.dumps,
+        decoder=json.loads,
+        schema="pg_catalog",
+    )
+    await _init_age(conn)
+
+
 async def connect() -> None:
     global _pool
     _pool = await asyncpg.create_pool(
         settings.database_url.replace("postgresql+asyncpg://", "postgresql://"),
         min_size=2,
         max_size=25,
-        init=_init_age,
+        init=_init_connection,
         server_settings={"search_path": "ag_catalog,public"},
     )
     logger.info("pg_pool_connected", dsn=settings.database_url)
