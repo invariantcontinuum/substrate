@@ -110,6 +110,33 @@ The database access layer.
 - **`search()`**: Vector similarity using `<=>` (cosine distance) on `file_embeddings.embedding`
 - **`ensure_node_summary()`**: The LLM summary pipeline — validates node, returns cached summary if present, fetches chunks, calls local dense LLM, persists result
 
+### Summary context limit — first 5 chunks only
+
+Node summaries are generated from at most the first five `content_chunks` rows
+of the target node, ordered by `chunk_index ASC`, then passed through the
+`summary_chunk_sample_chars = 4000` character budget defined in
+`services/graph/src/config.py`. The `LIMIT 5` lives in
+`services/graph/src/graph/store.py` and is a permanent guardrail, not a
+configurable value, to keep the dense LLM prompt bounded regardless of how
+many chunks a file produced during ingestion.
+
+If a file has more than five chunks, the tail (chunks 6…N) is ignored for
+summary purposes. Search and semantic-retrieval over the full chunk set is
+a separate future concern (see P2 search unification).
+
+### `content_chunks.embedding` — populated but unused
+
+The `content_chunks` table has an `embedding vector(1024)` column that the
+ingestion service populates on every sync (same Qwen3 model as
+`file_embeddings.embedding`). **No API endpoint currently reads this
+column.** It is compute and storage that produces no user-visible effect
+today.
+
+This is tracked as a follow-up candidate for P2 search unification, where
+the intent is to surface chunk-level matches alongside file-level matches
+in a unified search endpoint. Until that lands, readers should not assume
+the column is queried anywhere.
+
 ### `snapshot_query.py`
 
 Implements the **merged-graph read model**.
