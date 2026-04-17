@@ -10,8 +10,12 @@ class Settings(BaseSettings):
     # The llamacpp server ignores the `model` field in the request and
     # serves whatever model it was launched with; we keep the name here
     # only for logging/documentation. Dim must match the served model.
-    embedding_model: str = "Qwen3-Embedding-0.6B-Q8_0.gguf"
+    embedding_model: str = "google/gemma-4-e4b"
     embedding_dim: int = 1024
+    # Bearer token for the OpenAI-compatible embedding endpoint.
+    # Gemma/lazy-lamacpp expects "test" by default; empty string skips
+    # the Authorization header entirely.
+    llm_api_key: str = "test"
     chunk_size: int = 512
     chunk_overlap: int = 64
     retention_enabled: bool = True

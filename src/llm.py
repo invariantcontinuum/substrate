@@ -59,10 +59,17 @@ def _truncate(text: str) -> str:
     return text[:_MAX_INPUT_CHARS]
 
 
+def _auth_headers() -> dict[str, str]:
+    if settings.llm_api_key:
+        return {"Authorization": f"Bearer {settings.llm_api_key}"}
+    return {}
+
+
 async def embed(text: str) -> list[float]:
     client = await _get_client()
     resp = await client.post(
         settings.embedding_url,
+        headers=_auth_headers(),
         json={"input": _truncate(text), "model": settings.embedding_model},
     )
     resp.raise_for_status()
@@ -72,6 +79,7 @@ async def embed(text: str) -> list[float]:
 async def _embed_call(client: httpx.AsyncClient, texts: list[str]) -> list[list[float]]:
     resp = await client.post(
         settings.embedding_url,
+        headers=_auth_headers(),
         json={"input": texts, "model": settings.embedding_model},
     )
     resp.raise_for_status()
