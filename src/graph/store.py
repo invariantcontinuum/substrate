@@ -318,31 +318,32 @@ async def ensure_node_summary(
             logger.info("summary_node_not_found", node_id=node_id)
             return _not_found()
 
-        row = await conn.fetchrow(
-            """SELECT description, description_generated_at
-                 FROM file_embeddings
-                WHERE id = $1::uuid
-                  AND ($2::uuid IS NULL OR sync_id = $2::uuid)
-                ORDER BY created_at DESC LIMIT 1""",
-            fe_id, resolved_sync,
-        )
-        if row and row["description"] and row["description_generated_at"] is not None:
-            logger.info("summary_cache_hit", node_id=node_id)
-            return {
-                "summary": row["description"],
-                "cached": True,
-                "source": "cache",
-                "chunk_count": -1,
-                "neighbor_count": -1,
-                "truncated_file": False,
-            }
-
-        # Cache miss path. Only run the LLM pipeline when the caller
-        # explicitly asked for generation via `force=true`. Opening a
-        # NodeDetailPanel auto-fires this endpoint; without the gate,
-        # every panel open for an unsummarized node would invoke the
-        # dense LLM, saturating the pool and the model.
+        # Cache is only consulted when the caller didn't explicitly
+        # ask for regeneration. `force=true` bypasses cache entirely
+        # and always re-invokes the LLM (under the per-node lock).
         if not force:
+            row = await conn.fetchrow(
+                """SELECT description, description_generated_at
+                     FROM file_embeddings
+                    WHERE id = $1::uuid
+                      AND ($2::uuid IS NULL OR sync_id = $2::uuid)
+                    ORDER BY created_at DESC LIMIT 1""",
+                fe_id, resolved_sync,
+            )
+            if row and row["description"] and row["description_generated_at"] is not None:
+                logger.info("summary_cache_hit", node_id=node_id)
+                return {
+                    "summary": row["description"],
+                    "cached": True,
+                    "source": "cache",
+                    "chunk_count": -1,
+                    "neighbor_count": -1,
+                    "truncated_file": False,
+                }
+            # Cache miss without `force` — don't auto-invoke the LLM.
+            # Opening a NodeDetailPanel auto-fires this endpoint; the
+            # gate prevents every panel open for an unsummarized node
+            # from triggering a dense-LLM call and saturating the pool.
             return {
                 "summary": "",
                 "cached": False,
