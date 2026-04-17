@@ -187,14 +187,17 @@ def assemble_prompt(
 async def _post_llm(*, url: str, payload: dict) -> dict:
     """Isolated httpx POST so tests can patch a single symbol.
 
-    Timeout is generous because dense summaries on large files with
-    neighbor context routinely take 30-90s on the local Qwen3.5-4B.
+    Read timeout is sized to fit under upstream proxy budgets (~120 s
+    NPM default): if the local Qwen3.5-4B hasn't returned within 90 s
+    we fail-fast with TimeoutException and translate to
+    ``source="llm_failed"`` in the caller, so the user sees a clean
+    retry path instead of the edge proxy closing the socket with 504.
     """
     headers: dict[str, str] = {}
     if settings.llm_api_key:
         headers["Authorization"] = f"Bearer {settings.llm_api_key}"
     async with httpx.AsyncClient(
-        timeout=httpx.Timeout(connect=5.0, read=180.0, write=10.0, pool=10.0),
+        timeout=httpx.Timeout(connect=5.0, read=90.0, write=10.0, pool=10.0),
     ) as client:
         r = await client.post(url, json=payload, headers=headers)
         r.raise_for_status()

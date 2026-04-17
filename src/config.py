@@ -17,14 +17,17 @@ class Settings(BaseSettings):
     llm_api_key: str = "test"
     summary_max_tokens: int = 400
     summary_edge_neighbors: int = 10
-    # Full-file budget: tuned to Qwen3.5-4B's 65k-token context window.
-    # ~4 chars/token ⇒ ~260k chars; leave ~60k headroom for system
-    # prompt, neighbors, and completion. Previously 48k capped files at
-    # ~1k lines and silently dropped the rest of large files.
-    summary_total_budget_chars: int = 200_000
+    # Total budget is a WALL-CLOCK tradeoff, not a context-window cap.
+    # At ~3 chars/token and ~800 tok/s prefill on Qwen3.5-4B Q4_K_M on
+    # a 6 GB GPU, 100 k chars prefills in roughly 40 s; plus 400 gen
+    # tokens at ~20 tok/s ≈ 20 s ⇒ ~60 s per summary, comfortably
+    # under upstream proxy read-timeouts (~120 s NPM default). Files
+    # larger than this are truncated — still ~2× the earlier 48 k cap
+    # but small enough to not 504 at the edge proxy.
+    summary_total_budget_chars: int = 100_000
     summary_neighbor_chars: int = 1_200
-    summary_file_budget_ratio: float = 0.85
-    summary_neighbor_budget_ratio: float = 0.12
+    summary_file_budget_ratio: float = 0.88
+    summary_neighbor_budget_ratio: float = 0.10
     summary_instruction: str = (
         "You are summarizing a source-code node in a project graph. "
         "Write 2-3 precise sentences: what this file does and how it "
