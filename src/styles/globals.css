@@ -82,13 +82,20 @@ html, body, #root {
 .dashboard {
   display: flex;
   flex-direction: column;
+  /* 100dvh excludes the iOS Safari dynamic toolbar so the pill mobile
+   * nav doesn't get hidden behind it. 100vh is the pre-dvh fallback. */
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
+  /* Stop the pull-to-refresh / rubber-band that otherwise reveals the
+   * chrome bar on iOS when the user swipes up near the top. */
+  overscroll-behavior: none;
 }
 
 .dashboard-body {
   display: flex;
   flex: 1;
+  min-height: 0;
   overflow: hidden;
   padding: var(--space-3);
   gap: var(--space-3);
@@ -107,9 +114,35 @@ html, body, #root {
   box-shadow: var(--glass-shadow);
 }
 
+/* ---- Mobile (up to large tablet) ---- */
 @media (max-width: 1023px) {
-  .dashboard-main { padding-bottom: calc(60px + var(--space-5)); }
-  /* mobile-nav is already 60px tall + bottom spacing handled */
+  /* Respect notches / rounded corners / landscape safe areas so the
+   * glass panel always sits fully on-screen. Safe-area-inset-* is 0
+   * on hardware without cutouts, so this is a no-op on desktop. */
+  .dashboard-body {
+    padding: var(--space-3);
+    padding-left:  max(var(--space-3), env(safe-area-inset-left));
+    padding-right: max(var(--space-3), env(safe-area-inset-right));
+    gap: var(--space-3);
+  }
+  /* Reserve room for the floating mobile nav pill INCLUDING the
+   * home-indicator safe area on iPhones (env(safe-area-inset-bottom)
+   * is 0 on everything else so desktop/tablet padding is unchanged). */
+  .dashboard-main {
+    padding-bottom: calc(76px + var(--space-4) + env(safe-area-inset-bottom));
+  }
+}
+
+/* ---- Phone-sized (iPhone, small Android) ---- */
+@media (max-width: 640px) {
+  .dashboard-body {
+    padding: var(--space-2);
+    padding-left:  max(var(--space-2), env(safe-area-inset-left));
+    padding-right: max(var(--space-2), env(safe-area-inset-right));
+  }
+  .dashboard-main {
+    border-radius: var(--radius-md);
+  }
 }
 
 /* ---- View toggling (graph / sources dual-mount) ---- */
@@ -274,10 +307,18 @@ html, body, #root {
      * its own dedicated modal anyway, so the bar can give the brand
      * and stats more room. */
     grid-template-columns: 1fr auto;
-    margin: var(--space-2) var(--space-2) 0;
-    height: 50px;
+    /* Push the pill below the iOS status bar / notch. safe-area-inset-top
+     * is 0 on hardware without a cutout, so this collapses back to the
+     * plain space-2 top margin on Android / desktop. */
+    margin-top: max(var(--space-2), env(safe-area-inset-top));
+    margin-left:  max(var(--space-2), env(safe-area-inset-left));
+    margin-right: max(var(--space-2), env(safe-area-inset-right));
+    height: 54px;
+    padding: 0 var(--space-3);
   }
   .top-nav-center { display: none; }
+  .top-nav-brand { font-size: var(--text-md); }
+  .top-nav-stats { gap: var(--space-2); padding-right: 0; }
 }
 
 .top-nav-stats {
@@ -472,12 +513,17 @@ html, body, #root {
 .mobile-nav {
   display: none;
   position: fixed;
-  left: var(--space-3);
-  right: var(--space-3);
-  bottom: var(--space-3);
-  height: 60px;
+  /* On iOS, env(safe-area-inset-*) is the home-indicator / rounded-
+   * corner inset. On everything else it's 0. `max(a, b + c)` keeps
+   * the pill floating above the indicator without getting pushed
+   * awkwardly far up on hardware without one. */
+  left:   max(var(--space-3), env(safe-area-inset-left));
+  right:  max(var(--space-3), env(safe-area-inset-right));
+  bottom: max(var(--space-3), calc(env(safe-area-inset-bottom) + var(--space-2)));
+  height: 68px;
+  padding: 0 var(--space-2);
   border-radius: var(--radius-pill);
-  background: var(--glass-bg);
+  background: var(--glass-bg-strong);
   border: 1px solid var(--glass-border);
   backdrop-filter: blur(var(--blur-md)) saturate(150%);
   -webkit-backdrop-filter: blur(var(--blur-md)) saturate(150%);
@@ -488,8 +534,9 @@ html, body, #root {
 @media (max-width: 1023px) {
   .mobile-nav {
     display: flex;
-    align-items: center;
+    align-items: stretch;
     justify-content: space-around;
+    gap: var(--space-1);
   }
 }
 
@@ -498,15 +545,42 @@ html, body, #root {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
+  gap: 4px;
   flex: 1;
-  height: 100%;
+  min-height: 52px;         /* Apple HIG: 44×44 minimum; 52 gives breathing room. */
+  padding: var(--space-2) var(--space-1);
   border: 0;
+  border-radius: var(--radius-pill);
   background: transparent;
   cursor: pointer;
-  font-size: var(--text-2xs);
+  font-size: var(--text-xs);
   font-family: var(--font-sans);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--tracking-normal);
   color: var(--fg-muted);
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    color var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out);
+}
+.mobile-nav-item:active {
+  background: var(--surface-hover);
+  color: var(--fg);
+}
+.mobile-nav-item.is-active {
+  color: var(--accent);
+}
+.mobile-nav-item.is-active::before {
+  content: "";
+  position: absolute;
+  top: -3px;
+  width: 14px;
+  height: 2.5px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+}
+.mobile-nav-item {
+  position: relative;
 }
 
 /* ---- Graph Page + Canvas ---- */
