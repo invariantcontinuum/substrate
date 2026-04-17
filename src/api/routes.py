@@ -10,6 +10,8 @@ from src.graph.store import get_stats, search, ensure_node_summary
 logger = structlog.get_logger()
 router = APIRouter(prefix="/api/graph")
 
+_VALID_PROJECTIONS = {"full", "minimal"}
+
 
 async def _embed_query(query: str) -> list[float]:
     async with httpx.AsyncClient(timeout=30.0) as client:
@@ -22,12 +24,19 @@ async def _embed_query(query: str) -> list[float]:
 
 
 @router.get("")
-async def get_graph(sync_ids: str = Query(..., description="Comma-separated active sync_ids")):
+async def get_graph(
+    sync_ids: str = Query(..., description="Comma-separated active sync_ids"),
+    projection: str = Query("full", description="full | minimal"),
+):
+    if projection not in _VALID_PROJECTIONS:
+        raise HTTPException(400, {"error": "invalid_projection"})
+
     ids = [s for s in sync_ids.split(",") if s]
     if not ids:
         raise HTTPException(400, "sync_ids required")
+
     try:
-        return await get_merged_graph(ids)
+        result = await get_merged_graph(ids, projection=projection)
     except ValueError as e:
         raise HTTPException(400, str(e))
     except GraphQueryTimeout as e:
@@ -39,6 +48,8 @@ async def get_graph(sync_ids: str = Query(..., description="Comma-separated acti
                 "timeout_s": e.timeout_s,
             },
         )
+    result.setdefault("meta", {})["projection"] = projection
+    return result
 
 
 @router.get("/nodes/{node_id:path}/summary")
