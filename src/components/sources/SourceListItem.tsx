@@ -1,4 +1,4 @@
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Eye } from "lucide-react";
 import type { Source } from "@/hooks/useSources";
 
 interface Props {
@@ -32,7 +32,13 @@ export function SourceListItem(props: Props) {
       <span className="source-list-item-label">
         {source.owner}/{source.name}
       </span>
-      {isLoaded && <span className="source-list-item-chip loaded">loaded</span>}
+      {isLoaded && (
+        <Eye
+          size={14}
+          className="source-list-item-loaded-icon"
+          aria-label="Loaded on graph"
+        />
+      )}
       {isRunning && <span className="source-list-item-chip running">●</span>}
       <ChevronRight size={12} className="source-list-item-chevron" />
     </div>
