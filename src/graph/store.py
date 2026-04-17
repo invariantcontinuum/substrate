@@ -1,3 +1,4 @@
+import asyncio
 import json
 import time
 import structlog
@@ -9,6 +10,11 @@ from src.config import settings
 logger = structlog.get_logger()
 
 _pool: asyncpg.Pool | None = None
+
+# Per-node locks: two concurrent summary requests for the same file
+# should collapse to one LLM call. The second request waits on the
+# lock, then re-reads the cache (now populated).
+_summary_locks: dict[str, asyncio.Lock] = {}
 
 # AGE requires (a) the shared library loaded into the session via LOAD 'age'
 # and (b) ag_catalog on the search_path so cypher() and agtype resolve.
@@ -262,7 +268,8 @@ async def _resolve_node_uuid(
                      FROM file_embeddings fe
                      JOIN sync_runs sr ON sr.id = fe.sync_id
                     WHERE fe.source_id = $1::uuid AND fe.file_path = $2
-                    ORDER BY sr.completed_at DESC NULLS LAST, sr.id DESC
+                      AND sr.completed_at IS NOT NULL
+                    ORDER BY sr.completed_at DESC, sr.id DESC
                     LIMIT 1""",
                 source_uuid, file_path,
             )
@@ -311,7 +318,46 @@ async def ensure_node_summary(
             logger.info("summary_node_not_found", node_id=node_id)
             return _not_found()
 
+        row = await conn.fetchrow(
+            """SELECT description, description_generated_at
+                 FROM file_embeddings
+                WHERE id = $1::uuid
+                  AND ($2::uuid IS NULL OR sync_id = $2::uuid)
+                ORDER BY created_at DESC LIMIT 1""",
+            fe_id, resolved_sync,
+        )
+        if row and row["description"] and row["description_generated_at"] is not None:
+            logger.info("summary_cache_hit", node_id=node_id)
+            return {
+                "summary": row["description"],
+                "cached": True,
+                "source": "cache",
+                "chunk_count": -1,
+                "neighbor_count": -1,
+                "truncated_file": False,
+            }
+
+        # Cache miss path. Only run the LLM pipeline when the caller
+        # explicitly asked for generation via `force=true`. Opening a
+        # NodeDetailPanel auto-fires this endpoint; without the gate,
+        # every panel open for an unsummarized node would invoke the
+        # dense LLM, saturating the pool and the model.
         if not force:
+            return {
+                "summary": "",
+                "cached": False,
+                "source": "not_generated",
+                "chunk_count": 0,
+                "neighbor_count": 0,
+                "truncated_file": False,
+            }
+
+    # Serialize LLM calls per node: two concurrent force=true requests
+    # for the same node collapse into one, with the loser re-reading
+    # the fresh cache.
+    lock = _summary_locks.setdefault(fe_id, asyncio.Lock())
+    async with lock:
+        async with _pool.acquire() as conn:
             row = await conn.fetchrow(
                 """SELECT description, description_generated_at
                      FROM file_embeddings
@@ -320,20 +366,19 @@ async def ensure_node_summary(
                     ORDER BY created_at DESC LIMIT 1""",
                 fe_id, resolved_sync,
             )
-            if row and row["description"] and row["description_generated_at"] is not None:
-                logger.info("summary_cache_hit", node_id=node_id)
-                return {
-                    "summary": row["description"],
-                    "cached": True,
-                    "source": "cache",
-                    "chunk_count": -1,
-                    "neighbor_count": -1,
-                    "truncated_file": False,
-                }
-
-    # Release the outer pool connection before entering the enriched
-    # pipeline — it manages its own read/write acquisitions around the
-    # slow LLM call.
-    return await generate_enriched_summary(_pool, fe_id, resolved_sync)
+        if row and row["description"] and row["description_generated_at"] is not None:
+            logger.info("summary_cache_hit_after_lock", node_id=node_id)
+            return {
+                "summary": row["description"],
+                "cached": True,
+                "source": "cache",
+                "chunk_count": -1,
+                "neighbor_count": -1,
+                "truncated_file": False,
+            }
+        # Outer pool connection is released before entering the enriched
+        # pipeline — it manages its own read/write acquisitions around
+        # the slow LLM call.
+        return await generate_enriched_summary(_pool, fe_id, resolved_sync)
 
 

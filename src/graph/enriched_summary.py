@@ -185,11 +185,17 @@ def assemble_prompt(
 
 
 async def _post_llm(*, url: str, payload: dict) -> dict:
-    """Isolated httpx POST so tests can patch a single symbol."""
+    """Isolated httpx POST so tests can patch a single symbol.
+
+    Timeout is generous because dense summaries on large files with
+    neighbor context routinely take 30-90s on the local Qwen3.5-4B.
+    """
     headers: dict[str, str] = {}
     if settings.llm_api_key:
         headers["Authorization"] = f"Bearer {settings.llm_api_key}"
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with httpx.AsyncClient(
+        timeout=httpx.Timeout(connect=5.0, read=180.0, write=10.0, pool=10.0),
+    ) as client:
         r = await client.post(url, json=payload, headers=headers)
         r.raise_for_status()
         return r.json()
@@ -366,21 +372,46 @@ async def generate_enriched_summary(
         neighbor_ratio=settings.summary_neighbor_budget_ratio,
     )
 
-    llm_resp = await _post_llm(
-        url=settings.dense_llm_url,
-        payload={
-            "model": settings.dense_llm_model,
-            "messages": [
-                {"role": "system", "content": build_system_prompt()},
-                {"role": "user", "content": prompt},
-            ],
-            "temperature": 0.2,
-            "max_tokens": settings.summary_max_tokens,
-        },
-    )
+    try:
+        llm_resp = await _post_llm(
+            url=settings.dense_llm_url,
+            payload={
+                "model": settings.dense_llm_model,
+                "messages": [
+                    {"role": "system", "content": build_system_prompt()},
+                    {"role": "user", "content": prompt},
+                ],
+                "temperature": 0.2,
+                "max_tokens": settings.summary_max_tokens,
+            },
+        )
+    except (httpx.HTTPError, httpx.TimeoutException) as e:
+        logger.warning("enriched_summary_llm_failed", node_id=node_id, error=str(e))
+        return {
+            "summary": "",
+            "cached": False,
+            "source": "llm_failed",
+            "chunk_count": rec["chunk_count"],
+            "neighbor_count": len(ranked),
+            "truncated_file": rec["truncated"],
+        }
+
     summary = (llm_resp.get("choices") or [{}])[0].get("message", {}).get(
         "content", ""
     ).strip()
+
+    if not summary:
+        # Empty-response path: do NOT persist — a blank description with
+        # a fresh generated_at would masquerade as a valid cache entry.
+        logger.warning("enriched_summary_empty_response", node_id=node_id)
+        return {
+            "summary": "",
+            "cached": False,
+            "source": "llm_failed",
+            "chunk_count": rec["chunk_count"],
+            "neighbor_count": len(ranked),
+            "truncated_file": rec["truncated"],
+        }
 
     async with pool.acquire() as conn:
         await conn.execute(

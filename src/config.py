@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     # Bearer token shared by both the embedding and chat endpoints.
     # Empty string skips the Authorization header entirely.
     llm_api_key: str = "test"
-    summary_max_tokens: int = 160
+    summary_max_tokens: int = 400
     summary_edge_neighbors: int = 10
     # Full-file budget: tuned to Qwen3.5-4B's 65k-token context window.
     # ~4 chars/token ⇒ ~260k chars; leave ~60k headroom for system
