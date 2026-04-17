@@ -52,8 +52,8 @@ export function NodeDetailPanel() {
   const setSelectedNodeId = useGraphStore((s) => s.setSelectedNodeId);
   const activeModal = useUIStore((s) => s.activeModal);
   const closeModal = useUIStore((s) => s.closeModal);
-  const openModal = useUIStore((s) => s.openModal);
-  const setSourcesModalTarget = useUIStore((s) => s.setSourcesModalTarget);
+  const setSourcesPageTarget = useUIStore((s) => s.setSourcesPageTarget);
+  const setActiveView = useUIStore((s) => s.setActiveView);
   const auth = useAuth();
   const token = auth.user?.access_token;
   const queryClient = useQueryClient();
@@ -129,11 +129,11 @@ export function NodeDetailPanel() {
 
   const openInSources = () => {
     if (!cached?.source_id || !selectedSnapshotId) return;
-    setSourcesModalTarget({
+    setSourcesPageTarget({
       sourceId: cached.source_id as string,
       expandSyncId: selectedSnapshotId,
     });
-    openModal("sources");
+    setActiveView("sources");
   };
 
   const title = (node as { label?: string; name?: string; id?: string } | undefined)?.label

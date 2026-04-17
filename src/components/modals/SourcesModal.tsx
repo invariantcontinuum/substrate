@@ -1,4 +1,8 @@
 // frontend/src/components/modals/SourcesModal.tsx
+// NOTE: This file is deleted in Task 9. It is kept here to avoid
+// breaking the build during the intermediate Task 8 commit.
+// The modal is no longer mounted via ModalRoot (sources was removed from
+// ModalName). Navigation now uses useUIStore.activeView === "sources".
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { useUIStore } from "@/stores/ui";
@@ -7,9 +11,10 @@ import { SourceDetailPane } from "./sources/SourceDetailPane";
 import { UnifiedToolbar } from "./sources/UnifiedToolbar";
 
 export function SourcesModal() {
-  const { activeModal, closeModal } = useUIStore();
-  const sourcesModalTarget = useUIStore((s) => s.sourcesModalTarget);
-  const setSourcesModalTarget = useUIStore((s) => s.setSourcesModalTarget);
+  const { closeModal } = useUIStore();
+  const activeView = useUIStore((s) => s.activeView);
+  const sourcesPageTarget = useUIStore((s) => s.sourcesPageTarget);
+  const setSourcesPageTarget = useUIStore((s) => s.setSourcesPageTarget);
 
   const [activeSourceId, setActiveSourceId] = useState<string | null>(null);
   const [selectedSourceIds, setSelectedSourceIds] = useState<Set<string>>(new Set());
@@ -17,15 +22,15 @@ export function SourcesModal() {
   const [initialExpandSyncId, setInitialExpandSyncId] = useState<string | null>(null);
   const [scheduleExpanded, setScheduleExpanded] = useState(false);
 
-  // Consume sourcesModalTarget (from NodeDetailPanel "Open in Sources") once.
+  // Consume sourcesPageTarget (from NodeDetailPanel "Open in Sources") once.
   useEffect(() => {
-    if (!sourcesModalTarget || activeModal !== "sources") return;
-    setActiveSourceId(sourcesModalTarget.sourceId);
-    setInitialExpandSyncId(sourcesModalTarget.expandSyncId);
+    if (!sourcesPageTarget || activeView !== "sources") return;
+    setActiveSourceId(sourcesPageTarget.sourceId);
+    setInitialExpandSyncId(sourcesPageTarget.expandSyncId);
     setSelectedSourceIds(new Set());  // opening via deep-link clears any prior sidebar selection
     setSelectedSyncIds(new Set());
-    setSourcesModalTarget(null);
-  }, [sourcesModalTarget, activeModal, setSourcesModalTarget]);
+    setSourcesPageTarget(null);
+  }, [sourcesPageTarget, activeView, setSourcesPageTarget]);
 
   // When the user navigates to a different source, clear both selections —
   // sidebar (user's intent is now the detail view, not bulk source-ops)
@@ -57,7 +62,7 @@ export function SourcesModal() {
   });
 
   return (
-    <Modal open={activeModal === "sources"} onClose={closeModal} title="Sources" size="lg">
+    <Modal open={activeView === "sources"} onClose={closeModal} title="Sources" size="lg">
       <div className="sources-modal">
         <UnifiedToolbar
           selectedSourceIds={selectedSourceIds}

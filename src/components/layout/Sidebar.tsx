@@ -11,33 +11,42 @@ import { useSyncSetStore } from "@/stores/syncSet";
 // "settings" is no longer a top-level modal — it's a tab inside the
 // user account modal. The account button at the footer of the rail is
 // the single entry point to both.
+// "sources" is now a full-page view (activeView toggle), not a modal.
 const IMPLEMENTED = new Set(["graph", "sources", "enrichment", "search", "user"]);
+
+type NavAction = { kind: "modal"; modal: ModalName } | { kind: "view"; view: "graph" | "sources" } | { kind: "navigate" };
 
 interface NavItem {
   icon: typeof GitBranch;
   label: string;
-  modal: ModalName | "navigate";
+  action: NavAction;
   active?: boolean;
 }
 
 const items: NavItem[] = [
-  { icon: GitBranch, label: "Graph",      modal: "graph", active: true },
-  { icon: Plug,      label: "Sources",    modal: "sources" },
-  { icon: Sparkles,  label: "Enrichment", modal: "enrichment" },
-  { icon: Search,    label: "Search",     modal: "search" },
-  { icon: Shield,    label: "Policies",   modal: "policies" },
-  { icon: FileText,  label: "ADRs",       modal: "adrs" },
-  { icon: Activity,  label: "Drift",      modal: "drift" },
-  { icon: Terminal,  label: "Query",      modal: "query" },
+  { icon: GitBranch, label: "Graph",      action: { kind: "modal", modal: "graph" }, active: true },
+  { icon: Plug,      label: "Sources",    action: { kind: "view",  view: "sources" } },
+  { icon: Sparkles,  label: "Enrichment", action: { kind: "modal", modal: "enrichment" } },
+  { icon: Search,    label: "Search",     action: { kind: "modal", modal: "search" } },
+  { icon: Shield,    label: "Policies",   action: { kind: "modal", modal: "policies" } },
+  { icon: FileText,  label: "ADRs",       action: { kind: "modal", modal: "adrs" } },
+  { icon: Activity,  label: "Drift",      action: { kind: "modal", modal: "drift" } },
+  { icon: Terminal,  label: "Query",      action: { kind: "modal", modal: "query" } },
 ];
 
 export function Sidebar() {
   const openModal = useUIStore((s) => s.openModal);
+  const setActiveView = useUIStore((s) => s.setActiveView);
   const toggleSidebar = useUIStore((s) => s.toggleSidebar);
   const auth = useAuth();
   const initial = auth.user?.profile?.name?.[0]?.toUpperCase() ?? "U";
   const [hov, setHov] = useState<string | null>(null);
   const loadedCount = useSyncSetStore((s) => s.syncIds.length);
+
+  const handleNav = (action: NavAction) => {
+    if (action.kind === "modal") openModal(action.modal);
+    else if (action.kind === "view") setActiveView(action.view);
+  };
 
   return (
     <nav className="side-nav">
@@ -52,7 +61,8 @@ export function Sidebar() {
       </button>
 
       {items.map((it) => {
-        const coming = it.modal !== "navigate" && !IMPLEMENTED.has(it.modal as string);
+        const modalName = it.action.kind === "modal" ? (it.action.modal as string) : "";
+        const coming = it.action.kind === "modal" && !IMPLEMENTED.has(modalName);
 
         return (
           <div
@@ -62,7 +72,7 @@ export function Sidebar() {
             className="side-nav-item"
           >
             <button
-              onClick={() => it.modal !== "navigate" && openModal(it.modal)}
+              onClick={() => handleNav(it.action)}
               className="side-nav-btn"
             >
               <span className="nav-icon-wrap">

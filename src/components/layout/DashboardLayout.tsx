@@ -13,6 +13,13 @@ import { useSyncs } from "@/hooks/useSyncs";
 import { useSyncSetStore } from "@/stores/syncSet";
 import { apiFetch } from "@/lib/api";
 
+// Temporary stub — deleted in Task 9 when SourcesSettings page lands.
+const SourcesSettingsStub = () => (
+  <div className="muted" style={{ padding: 24 }}>
+    Sources settings — coming next task.
+  </div>
+);
+
 export function DashboardLayout() {
   // Keep the syncs polling alive for the whole session, not
   // just while a modal is open. Previously useJobs only mounted inside
@@ -42,6 +49,7 @@ export function DashboardLayout() {
 
   const sidebarOpen = useUIStore((s) => s.sidebarOpen);
   const setSidebarOpen = useUIStore((s) => s.setSidebarOpen);
+  const activeView = useUIStore((s) => s.activeView);
   const { isDesktop } = useResponsive();
   const showSidebar = isDesktop && sidebarOpen;
   const showReopenHandle = isDesktop && !sidebarOpen;
@@ -63,7 +71,12 @@ export function DashboardLayout() {
           </button>
         )}
         <main className="dashboard-main">
-          <Outlet />
+          <div className={`view-root${activeView === "graph" ? "" : " is-hidden"}`}>
+            <Outlet />
+          </div>
+          <div className={`view-root${activeView === "sources" ? "" : " is-hidden"}`}>
+            <SourcesSettingsStub />
+          </div>
         </main>
       </div>
       <MobileNav />

@@ -112,6 +112,12 @@ html, body, #root {
   /* mobile-nav is already 60px tall + bottom spacing handled */
 }
 
+/* ---- View toggling (graph / sources dual-mount) ---- */
+/* display: contents makes the wrapper transparent to the parent flex/grid
+   layout — children are laid out as if the wrapper wasn't there. */
+.view-root { display: contents; }
+.view-root.is-hidden { display: none; }
+
 /* ---- TopBar ---- */
 .top-nav {
   display: grid;

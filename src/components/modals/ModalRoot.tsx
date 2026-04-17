@@ -1,7 +1,6 @@
 import { useUIStore, type ModalName } from "@/stores/ui";
 import { ComingSoonModal } from "./ComingSoonModal";
 import { UserModal } from "./UserModal";
-import { SourcesModal } from "./SourcesModal";
 import { EnrichmentModal } from "./EnrichmentModal";
 import { SearchModal } from "./SearchModal";
 import { GraphModal } from "./GraphModal";
@@ -14,9 +13,10 @@ import { GraphModal } from "./GraphModal";
 //
 // `nodeDetail` is handled inline by GraphPage (its own panel component),
 // so it's not in this map.
+// `sources` is now a full-page view toggled via useUIStore.activeView —
+// removed from this modal map in Task 8; SourcesModal deleted in Task 9.
 const MODAL_COMPONENTS: Partial<Record<NonNullable<ModalName>, React.ComponentType>> = {
   graph: GraphModal,
-  sources: SourcesModal,
   enrichment: EnrichmentModal,
   search: SearchModal,
   user: UserModal,
