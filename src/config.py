@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     embedding_dim: int = 1024
     chunk_size: int = 512
     chunk_overlap: int = 64
+    retention_enabled: bool = True
+    retention_age_days: int = 30
+    retention_per_source_cap: int = 10
+    retention_tick_interval_s: int = 3600
 
 
 settings = Settings()

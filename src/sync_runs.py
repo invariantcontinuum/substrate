@@ -4,6 +4,33 @@ import asyncpg
 from src import graph_writer
 
 
+async def clean_sync_impl(conn: asyncpg.Connection, sync_id: str) -> None:
+    """Idempotent graph-data removal for a completed/failed/cancelled/cleaned sync_run.
+
+    Accepts a pre-acquired connection so callers (route handler, retention cron)
+    can share a transaction boundary. Does NOT delete the sync_runs row — the row
+    is preserved as an audit trail with status='cleaned'.
+
+    No-op if the row is already in 'cleaned' state or if it doesn't exist.
+    Raises HTTP 409 (via the route layer) when the caller is a request handler;
+    when called from the retention cron the status guard is embedded in the
+    candidate query and this function is only called on terminal rows.
+    """
+    status = await conn.fetchval("SELECT status FROM sync_runs WHERE id=$1::uuid", sync_id)
+    if status is None or status == "cleaned":
+        return
+    if status not in ("completed", "failed", "cancelled"):
+        # Non-terminal — skip silently when called from cron; route handler wraps
+        # this in an explicit status check and raises 409 before calling us.
+        return
+    await graph_writer.cleanup_partial(sync_id)
+    # Conditional update so a concurrent purge or another clean is a no-op.
+    await conn.execute(
+        "UPDATE sync_runs SET status='cleaned' WHERE id=$1::uuid AND status=$2",
+        sync_id, status,
+    )
+
+
 
 async def create_sync_run(source_id: str, config_snapshot: dict,
                           triggered_by: str, schedule_id: int | None = None) -> str:

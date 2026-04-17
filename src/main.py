@@ -7,11 +7,12 @@ from fastapi.responses import JSONResponse
 from src.config import settings
 from src.db import close_pool
 from src import graph_writer, sync_runs, sync_issues, sync_schedules
+from src.sync_runs import clean_sync_impl
 from src.connectors.github import close_client as close_github_client
 from src.llm import close_client as close_llm_client
 from src.schema import SyncRequest, ScheduleRequest, ScheduleUpdateRequest
 from src.jobs.runner import start_runner, stop_runner
-from src.scheduler import start_scheduler, stop_scheduler
+from src.scheduler import start_scheduler, stop_scheduler, start_retention_loop, stop_retention_loop
 
 import logging as _logging
 import os as _os
@@ -57,8 +58,10 @@ async def lifespan(app: FastAPI):
     await _reap_zombies()
     await start_runner()
     await start_scheduler()
+    await start_retention_loop()
     logger.info("ingestion_started")
     yield
+    await stop_retention_loop()
     await stop_scheduler()
     await stop_runner()
     await close_github_client()
@@ -191,13 +194,9 @@ async def clean_sync(sync_id: str):
         raise HTTPException(404, "sync_run not found")
     if status not in ("completed", "failed", "cancelled"):
         raise HTTPException(409, f"sync must be in terminal state to clean (got: {status})")
-    await graph_writer.cleanup_partial(sync_id)
+    pool = graph_writer.get_pool()
     async with pool.acquire() as conn:
-        # Conditional update so a concurrent purge or another clean is a no-op.
-        await conn.execute(
-            "UPDATE sync_runs SET status='cleaned' WHERE id=$1::uuid AND status=$2",
-            sync_id, status,
-        )
+        await clean_sync_impl(conn, sync_id)
     return {"status": "cleaned"}
 
 
