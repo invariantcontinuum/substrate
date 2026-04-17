@@ -4,6 +4,7 @@ import { FileText, RefreshCw, X } from "lucide-react";
 import { useAuth } from "react-oidc-context";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
+import { downloadJson } from "@/lib/download";
 import { useGraphStore } from "@/stores/graph";
 import { useUIStore } from "@/stores/ui";
 import { Button } from "@/components/ui/button";
@@ -143,6 +144,19 @@ export function NodeDetailPanel() {
     } finally {
       setRegenerating(false);
     }
+  };
+
+  const handleExportNode = () => {
+    if (!cached?.id) return;
+    const allEdges = useGraphStore.getState().edges;
+    const related = allEdges.filter(
+      (e) => e.source === cached.id || e.target === cached.id,
+    );
+    downloadJson(`node-${cached.id}-${Date.now()}.json`, {
+      node: cached,
+      edges: related,
+      exported_at: new Date().toISOString(),
+    });
   };
 
   if (!visible) return null;
@@ -324,6 +338,16 @@ export function NodeDetailPanel() {
             </section>
           </>
         )}
+
+        <section className="node-detail-section">
+          <Button
+            onClick={handleExportNode}
+            className="node-detail-export-btn"
+            disabled={!cached}
+          >
+            <FileText size={14} /> Export node + edges
+          </Button>
+        </section>
       </div>
 
       <Modal
