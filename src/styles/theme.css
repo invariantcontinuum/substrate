@@ -1,19 +1,29 @@
 /* =============================================================
  * theme.css
  * Design tokens, palette, typography and theme variants for
- * Substrate's glassmorphic UI.
+ * Substrate's editorial glass UI.
  *
  *   Palette:
- *     Pale Sky         #cae5ff
- *     Midnight Violet  #331e36
- *     Baby Blue Ice    #89bbfe
- *     Glaucous         #6f8ab7
- *     Charcoal         #615d6c
+ *     Shadow Grey       #231f20   warm near-black
+ *     Stormy Teal       #006d77   cool primary accent
+ *     Soft Periwinkle   #8d86c9   muted violet secondary
+ *     Vanilla Custard   #f3dfa2   warm highlight
+ *     Linen             #efe6dd   warm off-white paper
  *
- *   - Dark theme is built on Midnight Violet + Charcoal,
- *     with Baby Blue Ice as accent and Pale Sky as foreground.
- *   - Light theme is built on Pale Sky + Baby Blue Ice,
- *     with Glaucous as accent and Midnight Violet as foreground.
+ *   Aesthetic direction: editorial, grounded, slightly nostalgic.
+ *   Warmth from linen/vanilla is balanced by cool teal and
+ *   periwinkle accents. Surfaces read as glass panes laid on
+ *   paper (light) or over deep warm shadow (dark). Nothing here
+ *   is neon; nothing here is purely grey. Every surface carries
+ *   a little hue.
+ *
+ *   Dark theme lives on Shadow Grey with Linen foreground and
+ *   Stormy Teal as the primary accent; Vanilla Custard is the
+ *   rare pop that marks focus and highlight.
+ *
+ *   Light theme lives on Linen with Shadow Grey foreground and
+ *   Stormy Teal as the primary accent; Soft Periwinkle provides
+ *   the secondary voice.
  *
  * Themes are switched by setting `data-theme="dark" | "light"` on
  * <html>. All surfaces use tokens from this file; globals.css only
@@ -24,11 +34,27 @@
 
 :root {
   /* ---- Raw palette ---- */
-  --palette-pale-sky:        #cae5ff;
-  --palette-midnight-violet: #331e36;
-  --palette-baby-blue-ice:   #89bbfe;
-  --palette-glaucous:        #6f8ab7;
-  --palette-charcoal:        #615d6c;
+  --palette-shadow-grey:     #231f20;
+  --palette-stormy-teal:     #006d77;
+  --palette-soft-periwinkle: #8d86c9;
+  --palette-vanilla-custard: #f3dfa2;
+  --palette-linen:           #efe6dd;
+
+  /* ---- Derived tints for depth & contrast ---- */
+  --palette-shadow-deep:      #1b1718;   /* deeper shadow for gradient stops */
+  --palette-shadow-lift:      #2b2627;   /* lifted shadow for solid surfaces */
+  --palette-linen-bright:     #f8f1e9;   /* brighter linen for lifted surfaces */
+  --palette-linen-deep:       #e4d9cb;   /* deeper linen for gradient stops */
+  --palette-teal-deep:        #004b53;   /* deeper teal for light-mode hovers */
+  --palette-teal-bright:      #1b9aa6;   /* brighter teal for dark-mode accents */
+  --palette-periwinkle-deep:  #6b62b3;   /* deeper periwinkle for light-mode contrast */
+  --palette-periwinkle-bright:#a79fde;   /* lighter periwinkle for dark-mode accents */
+  --palette-vanilla-deep:     #c59e3a;   /* deeper vanilla for light-mode contrast */
+  --palette-vanilla-bright:   #f5e4b3;   /* lighter vanilla for dark-mode soft-fills */
+
+  /* Status hues derived so they sit inside the palette rather than clashing */
+  --palette-danger-light:     #a43b3b;   /* muted burgundy for light mode */
+  --palette-danger-dark:      #e6706b;   /* lighter red for dark mode readability */
 
   /* ---- Typography ---- */
   --font-display: "Fraunces", ui-serif, Georgia, "Iowan Old Style", serif;
@@ -79,7 +105,7 @@
   --radius-pill: 999px;
 
   /* ---- Motion ---- */
-  --ease-out:  cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out:   cubic-bezier(0.22, 1, 0.36, 1);
   --ease-inout: cubic-bezier(0.65, 0, 0.35, 1);
   --dur-fast: 140ms;
   --dur-base: 260ms;
@@ -103,108 +129,120 @@
 }
 
 /* =================================================================
- * LIGHT — built on Pale Sky + Baby Blue Ice; Midnight Violet text
+ * LIGHT — Linen paper, Shadow Grey ink, Stormy Teal primary accent,
+ *          Soft Periwinkle secondary, Vanilla Custard warm detail.
  * ============================================================== */
 :root,
 :root[data-theme="light"] {
   color-scheme: light;
 
-  --fg:          #331e36;
-  --fg-muted:    #615d6c;
-  --fg-subtle:   rgba(51, 30, 54, 0.62);
-  --fg-on-accent: #cae5ff;
+  --fg:           var(--palette-shadow-grey);
+  --fg-muted:     rgba(35, 31, 32, 0.65);
+  --fg-subtle:    rgba(35, 31, 32, 0.45);
+  --fg-on-accent: var(--palette-linen);
 
-  --bg:          #cae5ff;
+  --bg:           var(--palette-linen);
   --bg-gradient:
-    radial-gradient(ellipse 80% 60% at 20% 10%,  rgba(137, 187, 254, 0.55) 0%, transparent 55%),
-    radial-gradient(ellipse 70% 60% at 85% 15%,  rgba(111, 138, 183, 0.35) 0%, transparent 60%),
-    radial-gradient(ellipse 90% 70% at 50% 95%,  rgba(202, 229, 255, 0.95) 0%, transparent 70%),
-    linear-gradient(180deg, #cae5ff 0%, #b8d6f4 100%);
+    radial-gradient(ellipse 75% 55% at 20% 10%,  rgba(141, 134, 201, 0.22) 0%, transparent 58%),
+    radial-gradient(ellipse 65% 55% at 85% 15%,  rgba(0, 109, 119, 0.16)  0%, transparent 60%),
+    radial-gradient(ellipse 90% 70% at 50% 95%,  rgba(243, 223, 162, 0.34) 0%, transparent 70%),
+    linear-gradient(180deg, #efe6dd 0%, #e4d9cb 100%);
 
-  --surface:          rgba(255, 255, 255, 0.52);
+  --surface:          rgba(248, 241, 233, 0.58);
   --surface-solid:    #ffffff;
-  --surface-elevated: rgba(255, 255, 255, 0.76);
-  --surface-sunken:   rgba(51, 30, 54, 0.05);
-  --surface-hover:    rgba(137, 187, 254, 0.25);
+  --surface-elevated: rgba(248, 241, 233, 0.85);
+  --surface-sunken:   rgba(35, 31, 32, 0.05);
+  --surface-hover:    rgba(141, 134, 201, 0.15);
 
-  --border:         rgba(51, 30, 54, 0.18);
-  --border-strong:  rgba(51, 30, 54, 0.32);
-  --border-soft:    rgba(255, 255, 255, 0.55);
+  --border:         rgba(35, 31, 32, 0.18);
+  --border-strong:  rgba(35, 31, 32, 0.32);
+  --border-soft:    rgba(35, 31, 32, 0.08);
 
-  --accent:          #6f8ab7;
-  --accent-soft:     #89bbfe;
-  --accent-contrast: #ffffff;
-  --accent-hover:    #5a79a8;
+  --accent:           var(--palette-stormy-teal);
+  --accent-soft:      var(--palette-soft-periwinkle);
+  --accent-contrast:  var(--palette-linen);
+  --accent-hover:     var(--palette-teal-deep);
+  --accent-highlight: var(--palette-vanilla-custard);
 
-  --info:    #89bbfe;
-  --success: #6b9080;
-  --warn:    #d89a5b;
-  --danger:  #c06060;
+  --info:    var(--palette-soft-periwinkle);
+  --success: var(--palette-stormy-teal);
+  --warn:    var(--palette-vanilla-deep);
+  --danger:  var(--palette-danger-light);
 
-  --focus-ring: rgba(137, 187, 254, 0.85);
+  --focus-ring: rgba(0, 109, 119, 0.55);
 
-  --scrim: rgba(51, 30, 54, 0.28);
+  --scrim: rgba(35, 31, 32, 0.35);
 
-  --glass-bg:        rgba(255, 255, 255, 0.55);
-  --glass-bg-strong: rgba(255, 255, 255, 0.72);
-  --glass-border:    rgba(255, 255, 255, 0.55);
-  --glass-shadow:    0 20px 60px -18px rgba(51, 30, 54, 0.35),
-                     0 1px 0 0 rgba(255, 255, 255, 0.5) inset;
+  --glass-bg:        rgba(248, 241, 233, 0.55);
+  --glass-bg-strong: rgba(248, 241, 233, 0.78);
+  --glass-border:    rgba(255, 255, 255, 0.58);
+  --glass-shadow:    0 22px 60px -20px rgba(35, 31, 32, 0.32),
+                     0 1px 0 0 rgba(255, 255, 255, 0.65) inset;
 
-  --status-on:  #331e36;
-  --status-off: rgba(51, 30, 54, 0.2);
+  --status-on:  var(--palette-shadow-grey);
+  --status-off: rgba(35, 31, 32, 0.22);
+
+  /* Graph canvas surface — paper-like linen with subtle grid */
+  --graph-canvas-bg:   var(--palette-linen);
+  --graph-grid-line:   rgba(35, 31, 32, 0.08);
 }
 
 /* =================================================================
- * DARK — built on Midnight Violet + Charcoal; Pale Sky foreground
+ * DARK — Shadow Grey surface, Linen ink, Stormy Teal primary accent,
+ *         Soft Periwinkle secondary, Vanilla Custard highlight pop.
  * ============================================================== */
 :root[data-theme="dark"] {
   color-scheme: dark;
 
-  --fg:          #cae5ff;
-  --fg-muted:    #89bbfe;
-  --fg-subtle:   rgba(202, 229, 255, 0.55);
-  --fg-on-accent: #331e36;
+  --fg:           var(--palette-linen);
+  --fg-muted:     rgba(239, 230, 221, 0.7);
+  --fg-subtle:    rgba(239, 230, 221, 0.5);
+  --fg-on-accent: var(--palette-linen);
 
-  --bg:          #331e36;
+  --bg:           var(--palette-shadow-grey);
   --bg-gradient:
-    radial-gradient(ellipse 70% 60% at 15% 10%,  rgba(111, 138, 183, 0.38) 0%, transparent 55%),
-    radial-gradient(ellipse 70% 60% at 90% 20%,  rgba(137, 187, 254, 0.22) 0%, transparent 55%),
-    radial-gradient(ellipse 90% 70% at 50% 100%, rgba(51, 30, 54, 0.95) 0%, transparent 65%),
-    linear-gradient(180deg, #331e36 0%, #241327 100%);
+    radial-gradient(ellipse 70% 60% at 15% 10%,  rgba(0, 109, 119, 0.28)   0%, transparent 58%),
+    radial-gradient(ellipse 65% 55% at 90% 20%,  rgba(141, 134, 201, 0.22) 0%, transparent 58%),
+    radial-gradient(ellipse 90% 70% at 50% 100%, rgba(27, 23, 24, 0.95)    0%, transparent 65%),
+    linear-gradient(180deg, #231f20 0%, #1b1718 100%);
 
-  --surface:          rgba(97, 93, 108, 0.35);
-  --surface-solid:    #615d6c;
-  --surface-elevated: rgba(111, 138, 183, 0.25);
-  --surface-sunken:   rgba(0, 0, 0, 0.28);
-  --surface-hover:    rgba(137, 187, 254, 0.18);
+  --surface:          rgba(43, 38, 39, 0.55);
+  --surface-solid:    #2b2627;
+  --surface-elevated: rgba(239, 230, 221, 0.06);
+  --surface-sunken:   rgba(0, 0, 0, 0.32);
+  --surface-hover:    rgba(0, 109, 119, 0.22);
 
-  --border:         rgba(202, 229, 255, 0.14);
-  --border-strong:  rgba(202, 229, 255, 0.3);
-  --border-soft:    rgba(202, 229, 255, 0.08);
+  --border:         rgba(239, 230, 221, 0.15);
+  --border-strong:  rgba(239, 230, 221, 0.32);
+  --border-soft:    rgba(239, 230, 221, 0.08);
 
-  --accent:          #89bbfe;
-  --accent-soft:     #6f8ab7;
-  --accent-contrast: #331e36;
-  --accent-hover:    #a8cdff;
+  --accent:           var(--palette-stormy-teal);
+  --accent-soft:      var(--palette-soft-periwinkle);
+  --accent-contrast:  var(--palette-shadow-grey);
+  --accent-hover:     var(--palette-teal-bright);
+  --accent-highlight: var(--palette-vanilla-custard);
 
-  --info:    #89bbfe;
-  --success: #9ec9a8;
-  --warn:    #f0c089;
-  --danger:  #e8a0a0;
+  --info:    var(--palette-soft-periwinkle);
+  --success: var(--palette-stormy-teal);
+  --warn:    var(--palette-vanilla-custard);
+  --danger:  var(--palette-danger-dark);
 
-  --focus-ring: rgba(137, 187, 254, 0.7);
+  --focus-ring: rgba(0, 109, 119, 0.7);
 
-  --scrim: rgba(10, 6, 18, 0.6);
+  --scrim: rgba(10, 8, 8, 0.65);
 
-  --glass-bg:        rgba(51, 30, 54, 0.42);
-  --glass-bg-strong: rgba(51, 30, 54, 0.66);
-  --glass-border:    rgba(202, 229, 255, 0.18);
-  --glass-shadow:    0 30px 70px -24px rgba(0, 0, 0, 0.75),
-                     0 1px 0 0 rgba(202, 229, 255, 0.08) inset;
+  --glass-bg:        rgba(43, 38, 39, 0.48);
+  --glass-bg-strong: rgba(43, 38, 39, 0.78);
+  --glass-border:    rgba(239, 230, 221, 0.2);
+  --glass-shadow:    0 32px 70px -24px rgba(0, 0, 0, 0.7),
+                     0 1px 0 0 rgba(239, 230, 221, 0.1) inset;
 
-  --status-on:  #cae5ff;
-  --status-off: rgba(202, 229, 255, 0.25);
+  --status-on:  var(--palette-linen);
+  --status-off: rgba(239, 230, 221, 0.28);
+
+  /* Graph canvas surface — deep shadow with faint linen grid */
+  --graph-canvas-bg:   var(--palette-shadow-grey);
+  --graph-grid-line:   rgba(239, 230, 221, 0.08);
 }
 
 /* ---- Smooth cross-theme transitions for surface colours ---- */
@@ -219,6 +257,7 @@
 .side-nav,
 .dashboard-main,
 .graph-canvas-wrapper,
+.graph-canvas-container,
 .dialog-content,
 .dialog-overlay,
 .node-detail-panel,

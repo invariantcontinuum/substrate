@@ -21,172 +21,276 @@ const CELL_H = NODE_H + GAP_Y;
 
 type GraphTheme = "light" | "dark";
 
+/* Glass-morphism palette.
+ *
+ * Nodes are neutral translucent glass panes — same fill and text color
+ * per theme — and are distinguished by their border color, which encodes
+ * the node's semantic type. That keeps the canvas from drowning in
+ * fills yet still reading type at a glance. Edges follow the same
+ * pattern: muted neutral default line, per-type accent on meaningful
+ * relationships.
+ *
+ * Dark theme uses brighter hues so borders pop against shadow-grey;
+ * light theme uses deeper hues so borders have enough contrast to be
+ * read against linen. Canvas background and grid lines come from
+ * theme.css (--graph-canvas-bg, --graph-grid-line) and are not set
+ * inside Cytoscape — they belong to the .graph-canvas-container div.
+ */
 interface GraphPalette {
-  nodeFill: string;
-  nodeBorder: string;
+  // Neutral node glass
+  nodeFill: string;             // translucent default — same for every type
+  nodeFillGradient: string;     // subtle second stop for a shimmer
+  nodeBorder: string;           // fallback border when type is unknown
   nodeText: string;
-  nodeSelectedFill: string;
+  nodeTextOutline: string;      // faint halo for label readability against grid
   nodeSelectedBorder: string;
+  nodeSelectedFill: string;
+
+  // Edges
   edgeLine: string;
   edgeArrow: string;
   edgeLabelText: string;
   edgeLabelBg: string;
+
+  // Spotlight / compound parents
   spotlightFocusBorder: string;
   spotlightDimText: string;
   sourceParentBorder: string;
   sourceParentText: string;
-  typeFillCool: string;   // service/source (cool blue tint)
-  typeFillGreen: string;  // database/cache/data
-  typeFillWarm: string;   // adr/script
-  typeFillDanger: string; // incident/violation
-  typeFillPolicy: string; // policy (purple)
-  typeFillNeutral: string; // external/config/doc/asset
+
+  // Per-type borders (shiny, full-opacity)
+  typeService: string;
+  typeSource: string;
+  typeDatabase: string;
+  typeCache: string;
+  typeData: string;
+  typePolicy: string;
+  typeAdr: string;
+  typeIncident: string;
+  typeViolation: string;
+  typeExternal: string;
+  typeConfig: string;
+  typeScript: string;
+  typeDoc: string;
+  typeAsset: string;
+
+  // Per-type edge lines
+  edgeDepends: string;
+  edgeDependsArrow: string;
+  edgeViolation: string;
+  edgeEnforces: string;
+  edgeEnforcesArrow: string;
+  edgeWhy: string;
+  edgeWhyArrow: string;
+  edgeWhyLabel: string;
+  edgeDrift: string;
 }
 
 const DARK: GraphPalette = {
-  nodeFill: "#241327",
-  nodeBorder: "rgba(202,229,255,0.18)",
-  nodeText: "#cae5ff",
-  nodeSelectedFill: "#1d2a44",
-  nodeSelectedBorder: "#ffffff",
-  edgeLine: "rgba(202,229,255,0.10)",
-  edgeArrow: "rgba(202,229,255,0.18)",
-  edgeLabelText: "#cae5ff",
-  edgeLabelBg: "#241327",
-  spotlightFocusBorder: "#89bbfe",
-  spotlightDimText: "#000000",
-  sourceParentBorder: "rgba(137,187,254,0.28)",
-  sourceParentText: "rgba(202,229,255,0.55)",
-  typeFillCool: "#1d1e3a",
-  typeFillGreen: "#14241b",
-  typeFillWarm: "#2a1f14",
-  typeFillDanger: "#2a1414",
-  typeFillPolicy: "#251838",
-  typeFillNeutral: "#1a1a22",
+  // Glass on shadow-grey: translucent linen + subtle inner shimmer
+  nodeFill:          "rgba(239, 230, 221, 0.12)",
+  nodeFillGradient:  "rgba(239, 230, 221, 0.22)",
+  nodeBorder:        "rgba(239, 230, 221, 0.32)",
+  nodeText:          "#efe6dd",
+  nodeTextOutline:   "rgba(35, 31, 32, 0.85)",
+  nodeSelectedBorder:"#f3dfa2",
+  nodeSelectedFill:  "rgba(243, 223, 162, 0.22)",
+
+  edgeLine:          "rgba(239, 230, 221, 0.22)",
+  edgeArrow:         "rgba(239, 230, 221, 0.4)",
+  edgeLabelText:     "#efe6dd",
+  edgeLabelBg:       "rgba(35, 31, 32, 0.9)",
+
+  spotlightFocusBorder: "#f3dfa2",
+  spotlightDimText:     "rgba(239, 230, 221, 0.7)",
+  sourceParentBorder:   "rgba(141, 134, 201, 0.4)",
+  sourceParentText:     "rgba(239, 230, 221, 0.55)",
+
+  // Bright hues against shadow-grey
+  typeService:   "#1b9aa6",
+  typeSource:    "#1b9aa6",
+  typeDatabase:  "#a79fde",
+  typeCache:     "#c1badf",
+  typeData:      "#a79fde",
+  typePolicy:    "#f3dfa2",
+  typeAdr:       "#e6c866",
+  typeIncident:  "#e6706b",
+  typeViolation: "#e6706b",
+  typeExternal:  "#a19890",
+  typeConfig:    "#c5b8a8",
+  typeScript:    "#e6c866",
+  typeDoc:       "#a79fde",
+  typeAsset:     "#a19890",
+
+  edgeDepends:       "rgba(27, 154, 166, 0.55)",
+  edgeDependsArrow:  "rgba(27, 154, 166, 0.7)",
+  edgeViolation:     "#e6706b",
+  edgeEnforces:      "rgba(167, 159, 222, 0.55)",
+  edgeEnforcesArrow: "rgba(167, 159, 222, 0.7)",
+  edgeWhy:           "rgba(243, 223, 162, 0.62)",
+  edgeWhyArrow:      "rgba(243, 223, 162, 0.78)",
+  edgeWhyLabel:      "#f3dfa2",
+  edgeDrift:         "rgba(230, 112, 107, 0.4)",
 };
 
 const LIGHT: GraphPalette = {
-  nodeFill: "rgba(255,255,255,0.88)",
-  nodeBorder: "rgba(51,30,54,0.22)",
-  nodeText: "#331e36",
-  nodeSelectedFill: "rgba(137,187,254,0.28)",
-  nodeSelectedBorder: "#331e36",
-  edgeLine: "rgba(51,30,54,0.18)",
-  edgeArrow: "rgba(51,30,54,0.28)",
-  edgeLabelText: "#331e36",
-  edgeLabelBg: "rgba(255,255,255,0.92)",
-  spotlightFocusBorder: "#6f8ab7",
-  spotlightDimText: "rgba(51,30,54,0.6)",
-  sourceParentBorder: "rgba(111,138,183,0.4)",
-  sourceParentText: "rgba(51,30,54,0.6)",
-  typeFillCool: "rgba(137,187,254,0.18)",
-  typeFillGreen: "rgba(139,188,156,0.18)",
-  typeFillWarm: "rgba(216,154,91,0.16)",
-  typeFillDanger: "rgba(192,96,96,0.15)",
-  typeFillPolicy: "rgba(157,123,204,0.15)",
-  typeFillNeutral: "rgba(97,93,108,0.1)",
+  // Glass on linen: near-white translucent with a faint warm shimmer
+  nodeFill:          "rgba(255, 255, 255, 0.55)",
+  nodeFillGradient:  "rgba(255, 255, 255, 0.78)",
+  nodeBorder:        "rgba(35, 31, 32, 0.28)",
+  nodeText:          "#231f20",
+  nodeTextOutline:   "rgba(255, 253, 250, 0.9)",
+  nodeSelectedBorder:"#006d77",
+  nodeSelectedFill:  "rgba(0, 109, 119, 0.18)",
+
+  edgeLine:          "rgba(35, 31, 32, 0.3)",
+  edgeArrow:         "rgba(35, 31, 32, 0.45)",
+  edgeLabelText:     "#231f20",
+  edgeLabelBg:       "rgba(255, 253, 250, 0.95)",
+
+  spotlightFocusBorder: "#006d77",
+  spotlightDimText:     "rgba(35, 31, 32, 0.55)",
+  sourceParentBorder:   "rgba(0, 109, 119, 0.4)",
+  sourceParentText:     "rgba(35, 31, 32, 0.55)",
+
+  // Deeper hues against linen
+  typeService:   "#006d77",
+  typeSource:    "#006d77",
+  typeDatabase:  "#6b62b3",
+  typeCache:     "#8d86c9",
+  typeData:      "#6b62b3",
+  typePolicy:    "#c59e3a",
+  typeAdr:       "#b8882a",
+  typeIncident:  "#a43b3b",
+  typeViolation: "#a43b3b",
+  typeExternal:  "#6b6866",
+  typeConfig:    "#8a7f74",
+  typeScript:    "#b8882a",
+  typeDoc:       "#8d86c9",
+  typeAsset:     "#6b6866",
+
+  edgeDepends:       "rgba(0, 109, 119, 0.55)",
+  edgeDependsArrow:  "rgba(0, 109, 119, 0.7)",
+  edgeViolation:     "#a43b3b",
+  edgeEnforces:      "rgba(107, 98, 179, 0.55)",
+  edgeEnforcesArrow: "rgba(107, 98, 179, 0.7)",
+  edgeWhy:           "rgba(184, 136, 42, 0.6)",
+  edgeWhyArrow:      "rgba(184, 136, 42, 0.75)",
+  edgeWhyLabel:      "#b8882a",
+  edgeDrift:         "rgba(164, 59, 59, 0.32)",
 };
 
 function buildCyStylesheet(theme: GraphTheme) {
   const t = theme === "light" ? LIGHT : DARK;
   return [
     {
+      // Base node: glass pane. Background is a subtle diagonal gradient
+      // so every node has a touch of reflected light without shouting.
+      // Border is the neutral fallback — per-type rules below override
+      // it with the type-specific shiny accent.
       selector: "node",
       style: {
-        "background-color": t.nodeFill,
-        "border-width": 1.5,
-        "border-color": t.nodeBorder,
-        label: "data(label)",
-        color: t.nodeText,
-        "font-size": 11,
-        "font-family": "Inter, sans-serif",
-        "font-weight": 500,
-        "text-valign": "center",
-        "text-halign": "center",
-        "text-wrap": "none",
-        width: 110,
-        height: 38,
-        shape: "roundrectangle",
-        padding: "8px" as any,
-        "z-index": 10,
+        "background-fill":                 "linear-gradient",
+        "background-gradient-stop-colors": `${t.nodeFill} ${t.nodeFillGradient}`,
+        "background-gradient-stop-positions": "0 100",
+        "background-gradient-direction":   "to-bottom-right",
+        "background-color":                t.nodeFill,  // fallback for older render paths
+        "border-width":                    2,
+        "border-color":                    t.nodeBorder,
+        "border-opacity":                  1,
+        label:                             "data(label)",
+        color:                             t.nodeText,
+        "text-outline-color":              t.nodeTextOutline,
+        "text-outline-width":              1.5,
+        "text-outline-opacity":            1,
+        "font-size":                       11,
+        "font-family":                     '"Manrope", -apple-system, BlinkMacSystemFont, sans-serif',
+        "font-weight":                     600,
+        "text-valign":                     "center",
+        "text-halign":                     "center",
+        "text-wrap":                       "none",
+        width:                             110,
+        height:                            38,
+        shape:                             "roundrectangle",
+        padding:                           "8px" as any,
+        "z-index":                         10,
       },
     },
-    { selector: 'node[type="service"]',
-      style: { "background-color": t.typeFillCool, "border-color": "#6f8ab7", "border-width": 1.5 } },
-    { selector: 'node[type="database"]',
-      style: { "background-color": t.typeFillGreen, "border-color": "#6b9a70", "border-width": 1.5, shape: "barrel" } },
-    { selector: 'node[type="cache"]',
-      style: { "background-color": t.typeFillGreen, "border-color": "#5a9578", shape: "barrel" } },
-    { selector: 'node[type="policy"]',
-      style: { "background-color": t.typeFillPolicy, "border-color": "#9d7bcc", "border-width": 2, shape: "diamond", width: 110, height: 48 } },
-    { selector: 'node[type="adr"]',
-      style: { "background-color": t.typeFillWarm, "border-color": "#a66a1f", shape: "roundrectangle", width: 80, height: 32, "font-size": 10 } },
-    { selector: 'node[type="incident"]',
-      style: { "background-color": t.typeFillDanger, "border-color": "#c53030", shape: "roundrectangle", width: 80, height: 32, "font-size": 10 } },
-    { selector: 'node[type="external"]',
-      style: { "background-color": t.typeFillNeutral, "border-color": "#615d6c", shape: "roundrectangle", width: 90, height: 32, "font-size": 10 } },
-    { selector: 'node[type="source"]',
-      style: { "background-color": t.typeFillCool, "border-color": "#6f8ab7", "border-width": 1.5 } },
-    { selector: 'node[type="config"]',
-      style: { "background-color": t.typeFillNeutral, "border-color": "#615d6c" } },
-    { selector: 'node[type="script"]',
-      style: { "background-color": t.typeFillWarm, "border-color": "#a66a1f" } },
-    { selector: 'node[type="doc"]',
-      style: { "background-color": t.typeFillNeutral, "border-color": "#615d6c" } },
-    { selector: 'node[type="data"]',
-      style: { "background-color": t.typeFillGreen, "border-color": "#6b9a70" } },
-    { selector: 'node[type="asset"]',
-      style: { "background-color": t.typeFillNeutral, "border-color": "#615d6c" } },
+
+    // Per-type colored borders. Fill stays the neutral glass; only the
+    // border and (for structural types) shape changes.
+    { selector: 'node[type="service"]',   style: { "border-color": t.typeService } },
+    { selector: 'node[type="source"]',    style: { "border-color": t.typeSource } },
+    { selector: 'node[type="database"]',  style: { "border-color": t.typeDatabase,  shape: "barrel" } },
+    { selector: 'node[type="cache"]',     style: { "border-color": t.typeCache,     shape: "barrel" } },
+    { selector: 'node[type="data"]',      style: { "border-color": t.typeData } },
+    { selector: 'node[type="policy"]',    style: { "border-color": t.typePolicy,    "border-width": 2.5, shape: "diamond", width: 110, height: 48 } },
+    { selector: 'node[type="adr"]',       style: { "border-color": t.typeAdr,       shape: "roundrectangle", width: 90, height: 34, "font-size": 10 } },
+    { selector: 'node[type="incident"]',  style: { "border-color": t.typeIncident,  "border-width": 2.5, shape: "roundrectangle", width: 90, height: 34, "font-size": 10 } },
+    { selector: 'node[type="external"]',  style: { "border-color": t.typeExternal,  shape: "roundrectangle", width: 100, height: 34, "font-size": 10 } },
+    { selector: 'node[type="config"]',    style: { "border-color": t.typeConfig } },
+    { selector: 'node[type="script"]',    style: { "border-color": t.typeScript } },
+    { selector: 'node[type="doc"]',       style: { "border-color": t.typeDoc } },
+    { selector: 'node[type="asset"]',     style: { "border-color": t.typeAsset } },
     { selector: 'node[status="violation"]',
-      style: { "background-color": t.typeFillDanger, "border-color": "#ef4444", "border-width": 2 } },
+      style: { "border-color": t.typeViolation, "border-width": 2.5 } },
+
+    // Base edge: muted neutral line.
     {
       selector: "edge",
       style: {
-        width: 1,
-        "line-color": t.edgeLine,
-        "target-arrow-color": t.edgeArrow,
-        "target-arrow-shape": "triangle",
-        "curve-style": "bezier",
-        "arrow-scale": 0.8,
-        label: "",
-        "font-size": 9,
-        color: t.edgeLabelText,
-        "text-background-color": t.edgeLabelBg,
-        "text-background-opacity": 0.92,
-        "text-background-padding": "2px" as any,
+        width:                      1.2,
+        "line-color":               t.edgeLine,
+        "target-arrow-color":       t.edgeArrow,
+        "target-arrow-shape":       "triangle",
+        "curve-style":              "bezier",
+        "arrow-scale":              0.85,
+        label:                      "",
+        "font-size":                9,
+        color:                      t.edgeLabelText,
+        "text-background-color":    t.edgeLabelBg,
+        "text-background-opacity":  0.95,
+        "text-background-padding":  "2px" as any,
       },
     },
     { selector: 'edge[type="depends"]',
-      style: { "line-color": "rgba(137,187,254,0.32)", "target-arrow-color": "rgba(137,187,254,0.45)" } },
+      style: { "line-color": t.edgeDepends, "target-arrow-color": t.edgeDependsArrow } },
     { selector: 'edge[type="depends_on"]',
-      style: { "line-color": "rgba(137,187,254,0.32)", "target-arrow-color": "rgba(137,187,254,0.45)" } },
+      style: { "line-color": t.edgeDepends, "target-arrow-color": t.edgeDependsArrow } },
     { selector: 'edge[type="violation"]',
-      style: { "line-color": "#ef4444", "target-arrow-color": "#ef4444", width: 2, "line-style": "dashed", "line-dash-pattern": [6, 3] as any, label: "data(label)", color: "#ef4444", "font-size": 9 } },
+      style: { "line-color": t.edgeViolation, "target-arrow-color": t.edgeViolation, width: 2.2, "line-style": "dashed", "line-dash-pattern": [6, 3] as any, label: "data(label)", color: t.edgeViolation, "font-size": 9 } },
     { selector: 'edge[type="enforces"]',
-      style: { "line-color": "rgba(157,123,204,0.55)", "target-arrow-color": "rgba(157,123,204,0.65)", "line-style": "dotted", width: 1.5 } },
+      style: { "line-color": t.edgeEnforces, "target-arrow-color": t.edgeEnforcesArrow, "line-style": "dotted", width: 1.5 } },
     { selector: 'edge[type="why"]',
-      style: { "line-color": "rgba(245,158,11,0.55)", "target-arrow-color": "rgba(245,158,11,0.65)", "line-style": "dashed", "line-dash-pattern": [4, 4] as any, width: 1.5, label: "data(label)", color: "#f59e0b", "font-size": 8 } },
+      style: { "line-color": t.edgeWhy, "target-arrow-color": t.edgeWhyArrow, "line-style": "dashed", "line-dash-pattern": [4, 4] as any, width: 1.5, label: "data(label)", color: t.edgeWhyLabel, "font-size": 9 } },
     { selector: 'edge[type="drift"]',
-      style: { "line-color": "rgba(239,68,68,0.32)", "target-arrow-color": "rgba(239,68,68,0.32)", "line-style": "dashed" } },
+      style: { "line-color": t.edgeDrift, "target-arrow-color": t.edgeDrift, "line-style": "dashed" } },
+
     { selector: ":selected",
       style: { "border-width": 3, "border-color": t.nodeSelectedBorder, "background-color": t.nodeSelectedFill } },
+
+    // Source-parent compound: dashed frame, no fill.
     {
       selector: "node[?isSourceParent]",
       style: {
-        shape: "roundrectangle",
-        "background-opacity": 0,
-        "border-style": "dashed" as any,
-        "border-width": 1,
-        "border-color": t.sourceParentBorder,
-        label: "data(label)",
-        "text-valign": "top",
-        "text-halign": "left",
-        "font-size": 10,
-        color: t.sourceParentText,
-        "text-margin-y": -4 as any,
-        padding: "24px" as any,
+        shape:                  "roundrectangle",
+        "background-opacity":   0,
+        "background-fill":      "solid",
+        "border-style":         "dashed" as any,
+        "border-width":         1,
+        "border-color":         t.sourceParentBorder,
+        label:                  "data(label)",
+        "text-valign":          "top",
+        "text-halign":          "left",
+        "text-outline-width":   0,
+        "font-size":            10,
+        "font-weight":          500,
+        color:                  t.sourceParentText,
+        "text-margin-y":        -4 as any,
+        padding:                "24px" as any,
       },
     },
+
     { selector: ".spotlight-dim", style: { opacity: 0.28 } },
     { selector: "node.spotlight-dim",
       style: { "text-opacity": 1, color: t.spotlightDimText } },
@@ -194,19 +298,22 @@ function buildCyStylesheet(theme: GraphTheme) {
     { selector: "node.spotlight-focus",
       style: { opacity: 1, "text-opacity": 1 } },
     { selector: "node.spotlight-focus:childless",
-      style: { "font-size": 13, "border-width": 2, "border-color": t.spotlightFocusBorder, "z-index": 20 } },
+      style: { "font-size": 13, "border-width": 3, "border-color": t.spotlightFocusBorder, "z-index": 20 } },
     {
       selector: "edge.spotlight-focus",
       style: {
-        opacity: 1, "text-opacity": 1, width: 2.2,
-        "line-color": t.spotlightFocusBorder,
-        "target-arrow-color": t.spotlightFocusBorder,
-        label: "data(type)", "font-size": 10,
-        color: t.edgeLabelText,
-        "text-background-color": t.edgeLabelBg,
-        "text-background-opacity": 0.75,
+        opacity:                  1,
+        "text-opacity":           1,
+        width:                    2.4,
+        "line-color":             t.spotlightFocusBorder,
+        "target-arrow-color":     t.spotlightFocusBorder,
+        label:                    "data(type)",
+        "font-size":              10,
+        color:                    t.edgeLabelText,
+        "text-background-color":  t.edgeLabelBg,
+        "text-background-opacity":0.85,
         "text-background-padding": 2 as any,
-        "z-index": 15,
+        "z-index":                15,
       },
     },
   ];
@@ -335,6 +442,32 @@ export function GraphCanvas() {
     if (!cy || !ready) return;
     cy.style().fromJson(buildCyStylesheet(theme)).update();
   }, [theme, ready]);
+
+  /* Keep the container's CSS grid background in sync with the Cytoscape
+   * viewport. The grid lives on .graph-canvas-container via theme.css
+   * tokens and is fixed in CSS pixels; without this effect the grid
+   * stays put while nodes pan and zoom, which defeats its purpose as a
+   * size reference. On every zoom/pan we update background-size (so
+   * grid squares scale with nodes) and background-position (so the
+   * grid travels with the pan). */
+  useEffect(() => {
+    const cy = cyRef.current;
+    const container = containerRef.current;
+    if (!cy || !container || !ready) return;
+    const BASE_GRID_PX = 50;
+
+    const syncGrid = () => {
+      const z = cy.zoom();
+      const p = cy.pan();
+      const size = BASE_GRID_PX * z;
+      container.style.backgroundSize = `${size}px ${size}px`;
+      container.style.backgroundPosition = `${p.x}px ${p.y}px`;
+    };
+
+    syncGrid();
+    cy.on("zoom pan", syncGrid);
+    return () => { cy.off("zoom pan", syncGrid); };
+  }, [ready]);
 
   const [loading, setLoading] = useState(false);
 

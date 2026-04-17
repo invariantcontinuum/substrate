@@ -1,30 +1,52 @@
 import { useMemo } from "react";
 import { useGraphStore } from "@/stores/graph";
+import { useThemeStore } from "@/stores/theme";
 
-// Dot colors mirror the cytoscape border colors per node type, so
-// the legend and canvas read as a single system. Kept muted enough to
-// pair with the dark canvas without shouting.
-const typePalette: Record<string, string> = {
-  service: "#6f8ab7",
-  database: "#6b9a70",
-  cache: "#5a9578",
-  policy: "#9d7bcc",
-  adr: "#a66a1f",
-  incident: "#c53030",
-  external: "#615d6c",
-  source: "#6f8ab7",
-  config: "#615d6c",
-  script: "#a66a1f",
-  doc: "#615d6c",
-  data: "#6b9a70",
-  asset: "#615d6c",
-  default: "rgba(202,229,255,0.18)",
+// Dot colors mirror the cytoscape border colors per node type (see
+// buildCyStylesheet in GraphCanvas.tsx) so the legend and canvas read
+// as a single system. Two palettes because the canvas uses deeper
+// hues on linen (for contrast) and brighter hues on shadow-grey.
+const DARK_TYPE_PALETTE: Record<string, string> = {
+  service:   "#1b9aa6",
+  source:    "#1b9aa6",
+  database:  "#a79fde",
+  cache:     "#c1badf",
+  data:      "#a79fde",
+  policy:    "#f3dfa2",
+  adr:       "#e6c866",
+  incident:  "#e6706b",
+  external:  "#a19890",
+  config:    "#c5b8a8",
+  script:    "#e6c866",
+  doc:       "#a79fde",
+  asset:     "#a19890",
+  default:   "rgba(239,230,221,0.28)",
+};
+
+const LIGHT_TYPE_PALETTE: Record<string, string> = {
+  service:   "#006d77",
+  source:    "#006d77",
+  database:  "#6b62b3",
+  cache:     "#8d86c9",
+  data:      "#6b62b3",
+  policy:    "#c59e3a",
+  adr:       "#b8882a",
+  incident:  "#a43b3b",
+  external:  "#6b6866",
+  config:    "#8a7f74",
+  script:    "#b8882a",
+  doc:       "#8d86c9",
+  asset:     "#6b6866",
+  default:   "rgba(35,31,32,0.22)",
 };
 
 export function DynamicLegend() {
   const nodes = useGraphStore((s) => s.nodes);
   const visibleTypes = useGraphStore((s) => s.filters.types);
   const isolateTypeFilter = useGraphStore((s) => s.isolateTypeFilter);
+  const theme = useThemeStore((s) => s.theme);
+
+  const typePalette = theme === "light" ? LIGHT_TYPE_PALETTE : DARK_TYPE_PALETTE;
 
   const types = useMemo(() => {
     const counts = new Map<string, number>();
