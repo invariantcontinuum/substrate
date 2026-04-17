@@ -3,15 +3,17 @@
  * Design tokens, palette, typography and theme variants for
  * Substrate's glassmorphic UI.
  *
- *   Palette (Coolors):
- *     Space Indigo  #3d315b
- *     Dusk Blue     #444b6e
- *     Soft Apricot  #fcdebe
- *     Powder Blue   #99b2dd
- *     Lilac         #bba0ca
+ *   Palette:
+ *     Pale Sky         #cae5ff
+ *     Midnight Violet  #331e36
+ *     Baby Blue Ice    #89bbfe
+ *     Glaucous         #6f8ab7
+ *     Charcoal         #615d6c
  *
- *   - Dark theme is built on Space Indigo + Dusk Blue.
- *   - Light theme is built on Soft Apricot, Powder Blue and Lilac.
+ *   - Dark theme is built on Midnight Violet + Charcoal,
+ *     with Baby Blue Ice as accent and Pale Sky as foreground.
+ *   - Light theme is built on Pale Sky + Baby Blue Ice,
+ *     with Glaucous as accent and Midnight Violet as foreground.
  *
  * Themes are switched by setting `data-theme="dark" | "light"` on
  * <html>. All surfaces use tokens from this file; globals.css only
@@ -22,11 +24,11 @@
 
 :root {
   /* ---- Raw palette ---- */
-  --palette-space-indigo: #3d315b;
-  --palette-dusk-blue:    #444b6e;
-  --palette-soft-apricot: #fcdebe;
-  --palette-powder-blue:  #99b2dd;
-  --palette-lilac:        #bba0ca;
+  --palette-pale-sky:        #cae5ff;
+  --palette-midnight-violet: #331e36;
+  --palette-baby-blue-ice:   #89bbfe;
+  --palette-glaucous:        #6f8ab7;
+  --palette-charcoal:        #615d6c;
 
   /* ---- Typography ---- */
   --font-display: "Fraunces", ui-serif, Georgia, "Iowan Old Style", serif;
@@ -101,108 +103,108 @@
 }
 
 /* =================================================================
- * LIGHT — built on Soft Apricot, Powder Blue, Lilac
+ * LIGHT — built on Pale Sky + Baby Blue Ice; Midnight Violet text
  * ============================================================== */
 :root,
 :root[data-theme="light"] {
   color-scheme: light;
 
-  --fg:          #3d315b;
-  --fg-muted:    #5b4f7a;
-  --fg-subtle:   rgba(61, 49, 91, 0.62);
-  --fg-on-accent: #ffffff;
+  --fg:          #331e36;
+  --fg-muted:    #615d6c;
+  --fg-subtle:   rgba(51, 30, 54, 0.62);
+  --fg-on-accent: #cae5ff;
 
-  --bg:          #fcdebe;
+  --bg:          #cae5ff;
   --bg-gradient:
-    radial-gradient(ellipse 80% 60% at 20% 10%,  rgba(187, 160, 202, 0.55) 0%, transparent 55%),
-    radial-gradient(ellipse 70% 60% at 85% 15%,  rgba(153, 178, 221, 0.55) 0%, transparent 60%),
-    radial-gradient(ellipse 90% 70% at 50% 95%,  rgba(252, 222, 190, 0.95) 0%, transparent 70%),
-    linear-gradient(180deg, #fcdebe 0%, #e9d9e8 100%);
+    radial-gradient(ellipse 80% 60% at 20% 10%,  rgba(137, 187, 254, 0.55) 0%, transparent 55%),
+    radial-gradient(ellipse 70% 60% at 85% 15%,  rgba(111, 138, 183, 0.35) 0%, transparent 60%),
+    radial-gradient(ellipse 90% 70% at 50% 95%,  rgba(202, 229, 255, 0.95) 0%, transparent 70%),
+    linear-gradient(180deg, #cae5ff 0%, #b8d6f4 100%);
 
-  --surface:          rgba(255, 255, 255, 0.48);
+  --surface:          rgba(255, 255, 255, 0.52);
   --surface-solid:    #ffffff;
-  --surface-elevated: rgba(255, 255, 255, 0.72);
-  --surface-sunken:   rgba(61, 49, 91, 0.05);
-  --surface-hover:    rgba(255, 255, 255, 0.85);
+  --surface-elevated: rgba(255, 255, 255, 0.76);
+  --surface-sunken:   rgba(51, 30, 54, 0.05);
+  --surface-hover:    rgba(137, 187, 254, 0.25);
 
-  --border:         rgba(61, 49, 91, 0.18);
-  --border-strong:  rgba(61, 49, 91, 0.32);
+  --border:         rgba(51, 30, 54, 0.18);
+  --border-strong:  rgba(51, 30, 54, 0.32);
   --border-soft:    rgba(255, 255, 255, 0.55);
 
-  --accent:          #3d315b;
-  --accent-soft:     #bba0ca;
+  --accent:          #6f8ab7;
+  --accent-soft:     #89bbfe;
   --accent-contrast: #ffffff;
-  --accent-hover:    #4d3e72;
+  --accent-hover:    #5a79a8;
 
-  --info:    #99b2dd;
+  --info:    #89bbfe;
   --success: #6b9080;
   --warn:    #d89a5b;
   --danger:  #c06060;
 
-  --focus-ring: rgba(153, 178, 221, 0.85);
+  --focus-ring: rgba(137, 187, 254, 0.85);
 
-  --scrim: rgba(61, 49, 91, 0.28);
+  --scrim: rgba(51, 30, 54, 0.28);
 
   --glass-bg:        rgba(255, 255, 255, 0.55);
   --glass-bg-strong: rgba(255, 255, 255, 0.72);
   --glass-border:    rgba(255, 255, 255, 0.55);
-  --glass-shadow:    0 20px 60px -18px rgba(61, 49, 91, 0.35),
+  --glass-shadow:    0 20px 60px -18px rgba(51, 30, 54, 0.35),
                      0 1px 0 0 rgba(255, 255, 255, 0.5) inset;
 
-  --status-on:  #3d315b;
-  --status-off: rgba(61, 49, 91, 0.2);
+  --status-on:  #331e36;
+  --status-off: rgba(51, 30, 54, 0.2);
 }
 
 /* =================================================================
- * DARK — built on Space Indigo + Dusk Blue
+ * DARK — built on Midnight Violet + Charcoal; Pale Sky foreground
  * ============================================================== */
 :root[data-theme="dark"] {
   color-scheme: dark;
 
-  --fg:          #fcdebe;
-  --fg-muted:    #bba0ca;
-  --fg-subtle:   rgba(252, 222, 190, 0.55);
-  --fg-on-accent: #3d315b;
+  --fg:          #cae5ff;
+  --fg-muted:    #89bbfe;
+  --fg-subtle:   rgba(202, 229, 255, 0.55);
+  --fg-on-accent: #331e36;
 
-  --bg:          #2a2242;
+  --bg:          #331e36;
   --bg-gradient:
-    radial-gradient(ellipse 70% 60% at 15% 10%,  rgba(68, 75, 110, 0.75) 0%, transparent 55%),
-    radial-gradient(ellipse 70% 60% at 90% 20%,  rgba(187, 160, 202, 0.28) 0%, transparent 55%),
-    radial-gradient(ellipse 90% 70% at 50% 100%, rgba(61, 49, 91, 0.95) 0%, transparent 65%),
-    linear-gradient(180deg, #2a2242 0%, #1d1830 100%);
+    radial-gradient(ellipse 70% 60% at 15% 10%,  rgba(111, 138, 183, 0.38) 0%, transparent 55%),
+    radial-gradient(ellipse 70% 60% at 90% 20%,  rgba(137, 187, 254, 0.22) 0%, transparent 55%),
+    radial-gradient(ellipse 90% 70% at 50% 100%, rgba(51, 30, 54, 0.95) 0%, transparent 65%),
+    linear-gradient(180deg, #331e36 0%, #241327 100%);
 
-  --surface:          rgba(68, 75, 110, 0.35);
-  --surface-solid:    #3d315b;
-  --surface-elevated: rgba(68, 75, 110, 0.55);
-  --surface-sunken:   rgba(0, 0, 0, 0.25);
-  --surface-hover:    rgba(187, 160, 202, 0.18);
+  --surface:          rgba(97, 93, 108, 0.35);
+  --surface-solid:    #615d6c;
+  --surface-elevated: rgba(111, 138, 183, 0.25);
+  --surface-sunken:   rgba(0, 0, 0, 0.28);
+  --surface-hover:    rgba(137, 187, 254, 0.18);
 
-  --border:         rgba(252, 222, 190, 0.14);
-  --border-strong:  rgba(252, 222, 190, 0.3);
-  --border-soft:    rgba(252, 222, 190, 0.08);
+  --border:         rgba(202, 229, 255, 0.14);
+  --border-strong:  rgba(202, 229, 255, 0.3);
+  --border-soft:    rgba(202, 229, 255, 0.08);
 
-  --accent:          #99b2dd;
-  --accent-soft:     #444b6e;
-  --accent-contrast: #1d1830;
-  --accent-hover:    #b4c5e4;
+  --accent:          #89bbfe;
+  --accent-soft:     #6f8ab7;
+  --accent-contrast: #331e36;
+  --accent-hover:    #a8cdff;
 
-  --info:    #99b2dd;
+  --info:    #89bbfe;
   --success: #9ec9a8;
   --warn:    #f0c089;
   --danger:  #e8a0a0;
 
-  --focus-ring: rgba(187, 160, 202, 0.7);
+  --focus-ring: rgba(137, 187, 254, 0.7);
 
-  --scrim: rgba(10, 6, 24, 0.6);
+  --scrim: rgba(10, 6, 18, 0.6);
 
-  --glass-bg:        rgba(61, 49, 91, 0.4);
-  --glass-bg-strong: rgba(61, 49, 91, 0.62);
-  --glass-border:    rgba(252, 222, 190, 0.18);
+  --glass-bg:        rgba(51, 30, 54, 0.42);
+  --glass-bg-strong: rgba(51, 30, 54, 0.66);
+  --glass-border:    rgba(202, 229, 255, 0.18);
   --glass-shadow:    0 30px 70px -24px rgba(0, 0, 0, 0.75),
-                     0 1px 0 0 rgba(252, 222, 190, 0.08) inset;
+                     0 1px 0 0 rgba(202, 229, 255, 0.08) inset;
 
-  --status-on:  #fcdebe;
-  --status-off: rgba(252, 222, 190, 0.25);
+  --status-on:  #cae5ff;
+  --status-off: rgba(202, 229, 255, 0.25);
 }
 
 /* ---- Smooth cross-theme transitions for surface colours ---- */
