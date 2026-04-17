@@ -18,6 +18,7 @@ class SourceCreate(BaseModel):
 
 class SourcePatch(BaseModel):
     config: dict | None = None
+    enabled: bool | None = None
 
 
 def _encode_cursor(updated_at: str, sid: str) -> str:
@@ -46,7 +47,7 @@ async def list_sources(limit: int = Query(25, le=100), cursor: str | None = None
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             f"""SELECT id::text, source_type, owner, name, url, default_branch,
-                       config, last_sync_id::text, last_synced_at::text,
+                       config, enabled, last_sync_id::text, last_synced_at::text,
                        updated_at::text
                 FROM sources {where}
                 ORDER BY updated_at DESC, id DESC
@@ -82,7 +83,7 @@ async def get_source(source_id: str):
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """SELECT id::text, source_type, owner, name, url, default_branch,
-                      config, last_sync_id::text, last_synced_at::text
+                      config, enabled, last_sync_id::text, last_synced_at::text
                FROM sources WHERE id=$1::uuid""",
             source_id,
         )
@@ -93,14 +94,25 @@ async def get_source(source_id: str):
 
 @router.patch("/{source_id}")
 async def patch_source(source_id: str, req: SourcePatch):
-    if req.config is None:
+    if req.config is None and req.enabled is None:
         raise HTTPException(400, "no fields to update")
     pool = store.get_pool()
     async with pool.acquire() as conn:
-        result = await conn.execute(
-            "UPDATE sources SET config=$2::jsonb, updated_at=now() WHERE id=$1::uuid",
-            source_id, json.dumps(req.config),
-        )
+        if req.config is not None and req.enabled is not None:
+            result = await conn.execute(
+                "UPDATE sources SET config=$2::jsonb, enabled=$3, updated_at=now() WHERE id=$1::uuid",
+                source_id, json.dumps(req.config), req.enabled,
+            )
+        elif req.config is not None:
+            result = await conn.execute(
+                "UPDATE sources SET config=$2::jsonb, updated_at=now() WHERE id=$1::uuid",
+                source_id, json.dumps(req.config),
+            )
+        else:
+            result = await conn.execute(
+                "UPDATE sources SET enabled=$2, updated_at=now() WHERE id=$1::uuid",
+                source_id, req.enabled,
+            )
     if result != "UPDATE 1":
         raise HTTPException(404, "source not found")
     return {"status": "ok"}
