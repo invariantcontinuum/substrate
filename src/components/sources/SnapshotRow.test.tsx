@@ -7,9 +7,6 @@ import { SnapshotRow } from "./SnapshotRow";
 vi.mock("react-oidc-context", () => ({
   useAuth: () => ({ user: { access_token: "test-token" } }),
 }));
-vi.mock("@/hooks/useSyncs", () => ({
-  useSyncs: () => ({ retrySync: vi.fn() }),
-}));
 vi.mock("@/hooks/useSyncIssues", () => ({
   useSyncIssues: () => ({ issues: [], isLoading: false }),
 }));

@@ -11,7 +11,6 @@ vi.mock("@/hooks/useSyncs", () => ({
     cancelSync: vi.fn(),
     cleanSync: vi.fn(),
     purgeSync: vi.fn(),
-    retrySync: vi.fn(),
     activeSyncs: [],
   }),
 }));

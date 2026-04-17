@@ -7,7 +7,7 @@ import { logger } from "@/lib/logger";
 import { useGraphStore } from "@/stores/graph";
 import { useSyncSetStore, type SyncRunSummary } from "@/stores/syncSet";
 
-// Tagged outcome type for startSync / retrySync mutations.
+// Tagged outcome type for the startSync mutation.
 // 409 sync_already_active is NOT an error — it returns `kind: "already_active"`.
 export type CreateSyncOutcome =
   | { kind: "created"; sync_id: string }
@@ -156,15 +156,6 @@ export function useSyncs() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["syncs"] }),
   });
 
-  const retrySync = useMutation<CreateSyncOutcome, Error, string>({
-    mutationFn: (id) =>
-      postSyncMutation(`/api/syncs/${id}/retry`, {}, token),
-    onSuccess: (outcome, id) => {
-      if (outcome.kind === "created") setSyncStatus("syncing");
-      qc.invalidateQueries({ queryKey: ["syncs", id] });
-    },
-  });
-
   const cleanSync = useMutation({
     mutationFn: (id: string) =>
       apiFetch(`/api/syncs/${id}/clean`, token, { method: "POST" }),
@@ -189,7 +180,6 @@ export function useSyncs() {
     activeSyncs: active.data?.items ?? [],
     startSync: startSync.mutateAsync,
     cancelSync: cancelSync.mutateAsync,
-    retrySync: retrySync.mutateAsync,
     cleanSync: cleanSync.mutateAsync,
     purgeSync: purgeSync.mutateAsync,
   };
