@@ -99,7 +99,9 @@ def _route_to_ingestion(method: str, path: str) -> bool:
         return method in ("POST", "DELETE")
     if path == "/api/schedules" or path.startswith("/api/schedules/"):
         return method in ("POST", "PATCH", "DELETE")
-    return False  # /api/sources/* and everything else stays on graph
+    if path.startswith("/api/sources/") and method == "PATCH":
+        return True  # partial-update handled by ingestion
+    return False  # /api/sources/* (POST/DELETE/GET) and everything else stays on graph
 
 
 @app.api_route("/api/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
