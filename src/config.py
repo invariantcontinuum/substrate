@@ -5,24 +5,25 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://substrate_graph:changeme@localhost:5432/substrate_graph"
     embedding_url: str = "http://localhost:8101/v1/embeddings"
-    embedding_model: str = "google/gemma-4-e4b"
-    embedding_dim: int = 1024
-    # Dense chat LLM used for node summaries. Defaults to the same
-    # lazy-llamacpp gemma server on port 8101 which serves both
-    # embeddings and chat completions via the OpenAI-compatible API.
-    dense_llm_url: str = "http://localhost:8101/v1/chat/completions"
-    dense_llm_model: str = "google/gemma-4-e4b"
+    embedding_model: str = "nomic-ai/nomic-embed-text-v2-moe-GGUF"
+    embedding_dim: int = 768
+    # Dense chat LLM used for node summaries. Current lazy-lamacpp
+    # dense model: Qwen3.5-4B (65k ctx) on port 8102.
+    dense_llm_url: str = "http://localhost:8102/v1/chat/completions"
+    dense_llm_model: str = "unsloth/Qwen3.5-4B-GGUF"
     # Bearer token shared by both the embedding and chat endpoints.
-    # Gemma/lazy-lamacpp expects "test" by default; empty string skips
-    # the Authorization header entirely.
+    # Empty string skips the Authorization header entirely.
     llm_api_key: str = "test"
     summary_max_tokens: int = 160
-    summary_chunk_sample_chars: int = 4000
     summary_edge_neighbors: int = 10
-    summary_total_budget_chars: int = 48_000
+    # Full-file budget: tuned to Qwen3.5-4B's 65k-token context window.
+    # ~4 chars/token ⇒ ~260k chars; leave ~60k headroom for system
+    # prompt, neighbors, and completion. Previously 48k capped files at
+    # ~1k lines and silently dropped the rest of large files.
+    summary_total_budget_chars: int = 200_000
     summary_neighbor_chars: int = 1_200
-    summary_file_budget_ratio: float = 0.70
-    summary_neighbor_budget_ratio: float = 0.25
+    summary_file_budget_ratio: float = 0.85
+    summary_neighbor_budget_ratio: float = 0.12
     summary_instruction: str = (
         "You are summarizing a source-code node in a project graph. "
         "Write 2-3 precise sentences: what this file does and how it "

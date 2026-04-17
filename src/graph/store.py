@@ -93,7 +93,7 @@ async def connect() -> None:
     _pool = await asyncpg.create_pool(
         settings.database_url.replace("postgresql+asyncpg://", "postgresql://"),
         min_size=2,
-        max_size=10,
+        max_size=25,
         init=_init_age,
         server_settings={"search_path": "ag_catalog,public"},
     )
@@ -330,6 +330,10 @@ async def ensure_node_summary(
                     "neighbor_count": -1,
                     "truncated_file": False,
                 }
-        return await generate_enriched_summary(conn, fe_id, resolved_sync)
+
+    # Release the outer pool connection before entering the enriched
+    # pipeline — it manages its own read/write acquisitions around the
+    # slow LLM call.
+    return await generate_enriched_summary(_pool, fe_id, resolved_sync)
 
 

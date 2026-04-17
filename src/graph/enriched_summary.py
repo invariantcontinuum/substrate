@@ -252,109 +252,108 @@ async def _fetch_edge_neighbors(conn, file_id: str) -> list[dict]:
 
 
 async def generate_enriched_summary(
-    conn,
+    pool,
     node_id: str,
     sync_id: str | None,
 ) -> dict:
     """Generate a summary using full file + top-K edge neighbor context.
 
-    Writes back to ``file_embeddings.description`` and
-    ``description_generated_at``. Returns a dict with keys
-    ``summary``, ``cached``, ``source``, ``chunk_count``,
-    ``neighbor_count``, ``truncated_file``.
-
-    Accepts ``node_id`` as a raw ``file_embeddings.id`` UUID. Synthetic
-    ids (``src_<uuid>:<path>``) are translated in ``ensure_node_summary``
-    before we reach this coroutine.
+    Holds a pooled connection only for the read phase (file content,
+    chunks, neighbors) and the final UPDATE write — the slow LLM call
+    runs with **no connection held**, so a stuck dense-LLM never
+    saturates the small asyncpg pool and block unrelated endpoints
+    (``/file``, ``/stats``, …).
     """
-    row = await conn.fetchrow(
-        """SELECT id::text AS id, file_path, language, line_count, embedding
-             FROM file_embeddings
-            WHERE id = $1::uuid
-              AND ($2::uuid IS NULL OR sync_id = $2::uuid)
-            ORDER BY created_at DESC LIMIT 1""",
-        node_id, sync_id,
-    )
-    if not row:
-        return {
-            "summary": "",
-            "cached": False,
-            "source": "not_found",
-            "chunk_count": 0,
-            "neighbor_count": 0,
-            "truncated_file": False,
-        }
-
-    chunk_rows = await conn.fetch(
-        """SELECT chunk_index, content, start_line, end_line
-             FROM content_chunks
-            WHERE file_id = $1::uuid
-            ORDER BY chunk_index""",
-        row["id"],
-    )
-    if not chunk_rows:
-        return {
-            "summary": "",
-            "cached": False,
-            "source": "no_content",
-            "chunk_count": 0,
-            "neighbor_count": 0,
-            "truncated_file": False,
-        }
-    rec = reconstruct_chunks([dict(c) for c in chunk_rows])
-
-    edge_triples = await _fetch_edge_neighbors(conn, row["id"])
-    neighbor_ids = [t["neighbor_id"] for t in edge_triples]
-
-    neighbor_rows = []
-    if neighbor_ids:
-        neighbor_rows = await conn.fetch(
-            """SELECT id::text AS id, name, file_path, type, domain,
-                      language, description, embedding
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """SELECT id::text AS id, file_path, language, line_count, embedding
                  FROM file_embeddings
-                WHERE id = ANY($1::uuid[])""",
-            neighbor_ids,
+                WHERE id = $1::uuid
+                  AND ($2::uuid IS NULL OR sync_id = $2::uuid)
+                ORDER BY created_at DESC LIMIT 1""",
+            node_id, sync_id,
         )
-    by_id = {r["id"]: dict(r) for r in neighbor_rows}
+        if not row:
+            return {
+                "summary": "",
+                "cached": False,
+                "source": "not_found",
+                "chunk_count": 0,
+                "neighbor_count": 0,
+                "truncated_file": False,
+            }
 
-    neighbors: list[dict] = []
-    for t in edge_triples:
-        nrow = by_id.get(t["neighbor_id"])
-        if not nrow:
-            continue
-        neighbors.append({
-            "id": t["neighbor_id"],
-            "edge_type": t["edge_type"],
-            "direction": t["direction"],
-            "name": nrow["name"],
-            "file_path": nrow["file_path"],
-            "type": nrow["type"],
-            "domain": nrow.get("domain") or "",
-            "language": nrow.get("language") or "",
-            "description": nrow.get("description") or "",
-            "embedding": _parse_vector(nrow.get("embedding")),
-            "first_lines": "",
-        })
-
-    source_emb = _parse_vector(row["embedding"])
-
-    if source_emb and neighbors:
-        ranked = rank_neighbors_by_similarity(
-            source_emb, neighbors, k=settings.summary_edge_neighbors,
+        chunk_rows = await conn.fetch(
+            """SELECT chunk_index, content, start_line, end_line
+                 FROM content_chunks
+                WHERE file_id = $1::uuid
+                ORDER BY chunk_index""",
+            row["id"],
         )
-    else:
-        ranked = []
+        if not chunk_rows:
+            return {
+                "summary": "",
+                "cached": False,
+                "source": "no_content",
+                "chunk_count": 0,
+                "neighbor_count": 0,
+                "truncated_file": False,
+            }
+        rec = reconstruct_chunks([dict(c) for c in chunk_rows])
 
-    # Best-effort: pull first 8 lines of each ranked neighbor's first chunk.
-    for n in ranked:
-        first = await conn.fetchval(
-            """SELECT content FROM content_chunks
-                WHERE file_id = $1::uuid ORDER BY chunk_index LIMIT 1""",
-            n["id"],
-        )
-        if first:
-            n["first_lines"] = "\n".join(first.split("\n")[:8])
+        edge_triples = await _fetch_edge_neighbors(conn, row["id"])
+        neighbor_ids = [t["neighbor_id"] for t in edge_triples]
 
+        neighbor_rows = []
+        if neighbor_ids:
+            neighbor_rows = await conn.fetch(
+                """SELECT id::text AS id, name, file_path, type, domain,
+                          language, description, embedding
+                     FROM file_embeddings
+                    WHERE id = ANY($1::uuid[])""",
+                neighbor_ids,
+            )
+        by_id = {r["id"]: dict(r) for r in neighbor_rows}
+
+        neighbors: list[dict] = []
+        for t in edge_triples:
+            nrow = by_id.get(t["neighbor_id"])
+            if not nrow:
+                continue
+            neighbors.append({
+                "id": t["neighbor_id"],
+                "edge_type": t["edge_type"],
+                "direction": t["direction"],
+                "name": nrow["name"],
+                "file_path": nrow["file_path"],
+                "type": nrow["type"],
+                "domain": nrow.get("domain") or "",
+                "language": nrow.get("language") or "",
+                "description": nrow.get("description") or "",
+                "embedding": _parse_vector(nrow.get("embedding")),
+                "first_lines": "",
+            })
+
+        source_emb = _parse_vector(row["embedding"])
+
+        if source_emb and neighbors:
+            ranked = rank_neighbors_by_similarity(
+                source_emb, neighbors, k=settings.summary_edge_neighbors,
+            )
+        else:
+            ranked = []
+
+        # Best-effort: pull first 8 lines of each ranked neighbor's first chunk.
+        for n in ranked:
+            first = await conn.fetchval(
+                """SELECT content FROM content_chunks
+                    WHERE file_id = $1::uuid ORDER BY chunk_index LIMIT 1""",
+                n["id"],
+            )
+            if first:
+                n["first_lines"] = "\n".join(first.split("\n")[:8])
+
+    # Connection released before the slow LLM call — see docstring.
     prompt = assemble_prompt(
         file_path=row["file_path"],
         language=row["language"] or "",
@@ -383,13 +382,14 @@ async def generate_enriched_summary(
         "content", ""
     ).strip()
 
-    await conn.execute(
-        """UPDATE file_embeddings
-              SET description = $2,
-                  description_generated_at = now()
-            WHERE id = $1::uuid""",
-        row["id"], summary,
-    )
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """UPDATE file_embeddings
+                  SET description = $2,
+                      description_generated_at = now()
+                WHERE id = $1::uuid""",
+            row["id"], summary,
+        )
 
     logger.info(
         "enriched_summary_generated",
