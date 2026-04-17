@@ -38,6 +38,15 @@ async function postSyncMutation(
   throw new Error(`Unexpected sync response: ${res.status}`);
 }
 
+export interface SyncRunStats {
+  nodes?: number;
+  edges?: number;
+  files_embedded?: number;
+  chunks?: number;
+  chunks_embedded?: number;
+  duration_ms?: number;
+}
+
 export interface SyncRun {
   id: string;
   source_id: string;
@@ -46,7 +55,7 @@ export interface SyncRun {
   progress_done: number;
   progress_total: number;
   progress_meta: unknown;
-  stats: unknown;
+  stats: SyncRunStats | null;
   triggered_by: string | null;
   started_at: string | null;
   completed_at: string | null;
