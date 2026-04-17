@@ -44,6 +44,12 @@ async def lifespan(app: FastAPI):
     global jwks_client
     jwks_client = JWKSClient(settings.jwks_url)
     await init_client()
+    if settings.auth_disabled:
+        logger.warning(
+            "gateway_auth_disabled",
+            origins=settings.cors_origins,
+            note="All requests receive stub admin claims. Do not run this in production.",
+        )
     logger.info("gateway_started", keycloak=settings.keycloak_url)
     yield
     await close_client()
@@ -54,11 +60,7 @@ app = FastAPI(title="Substrate Gateway", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "https://app.invariantcontinuum.io",
-        "https://substrate.invariantcontinuum.io",
-    ],
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -72,6 +74,12 @@ async def health():
 
 async def _authenticate(request: Request) -> dict | None:
     """Extract and validate JWT from Authorization header."""
+    if settings.auth_disabled:
+        return {
+            "sub": "dev",
+            "preferred_username": "dev",
+            "realm_access": {"roles": ["admin", "engineer", "viewer"]},
+        }
     auth_header = request.headers.get("Authorization", "")
     if not auth_header.startswith("Bearer "):
         return None
@@ -136,6 +144,12 @@ async def proxy_auth(request: Request, path: str):
 
 @app.websocket("/ws/{path:path}")
 async def proxy_ws(websocket: WebSocket, path: str):
+    if settings.auth_disabled:
+        await proxy_websocket(
+            websocket, settings.graph_service_url, f"/ws/{path}", "dev"
+        )
+        return
+
     token = websocket.query_params.get("token")
     if not token:
         await handle_ws_auth_failure(websocket, reason="no_token")
