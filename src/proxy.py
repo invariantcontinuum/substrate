@@ -95,10 +95,13 @@ async def proxy_request(request: Request, upstream_base: str) -> Response:
     attempts = 1 if is_force_regen or not is_idempotent else 3
 
     # Summary endpoints run local dense LLM calls that routinely take
-    # 30-90s; override the default 60s read timeout for them.
+    # 30-90s; override the default 60s read timeout for them. Kept a
+    # touch above the graph-service LLM read-timeout (90s) so a
+    # failing LLM surfaces as ``llm_failed`` upstream rather than as a
+    # gateway-level timeout.
     is_summary = request.url.path.endswith("/summary")
     per_request_timeout = (
-        httpx.Timeout(connect=5.0, read=200.0, write=10.0, pool=10.0)
+        httpx.Timeout(connect=5.0, read=115.0, write=10.0, pool=10.0)
         if is_summary
         else None
     )
