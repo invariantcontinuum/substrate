@@ -105,11 +105,13 @@ export function NodeDetailPanel() {
     staleTime: 60_000,
   });
 
-  const summaryQuery = useQuery<{
+  type SummaryResponse = {
     summary: string; cached: boolean;
-    source: "cache" | "llm" | "no_content" | "llm_failed" | "not_found";
+    source: "cache" | "llm_enriched" | "no_content" | "llm_failed" | "not_found" | "not_generated";
     chunk_count?: number;
-  }>({
+  };
+
+  const summaryQuery = useQuery<SummaryResponse>({
     queryKey: ["node-summary", selectedNodeId, selectedSnapshotId],
     queryFn: () => {
       const sp = selectedSnapshotId ? `?sync_id=${selectedSnapshotId}` : "";
@@ -120,16 +122,27 @@ export function NodeDetailPanel() {
     staleTime: 5 * 60_000,
   });
 
+  const [regenerating, setRegenerating] = useState(false);
+
   const regenerateSummary = async () => {
     if (!selectedNodeId || !token) return;
     const sp = selectedSnapshotId
       ? `?sync_id=${selectedSnapshotId}&force=true`
       : "?force=true";
-    await apiFetch(
-      `/api/graph/nodes/${encodeURIComponent(selectedNodeId)}/summary${sp}`, token);
-    await queryClient.invalidateQueries({
-      queryKey: ["node-summary", selectedNodeId, selectedSnapshotId],
-    });
+    setRegenerating(true);
+    try {
+      const response = await apiFetch<SummaryResponse>(
+        `/api/graph/nodes/${encodeURIComponent(selectedNodeId)}/summary${sp}`, token);
+      // Seed the cache directly instead of invalidating — the response
+      // is authoritative, and invalidating would trigger a second GET
+      // that hits the just-written DB cache, wasting a round-trip.
+      queryClient.setQueryData(
+        ["node-summary", selectedNodeId, selectedSnapshotId],
+        response,
+      );
+    } finally {
+      setRegenerating(false);
+    }
   };
 
   if (!visible) return null;
@@ -237,18 +250,45 @@ export function NodeDetailPanel() {
                   type="button"
                   className="node-detail-regen-btn"
                   onClick={regenerateSummary}
-                  disabled={summaryQuery.isFetching || summaryQuery.data?.source === "no_content"}
-                  title="Regenerate summary">
-                  <RefreshCw size={11} />
+                  disabled={
+                    regenerating ||
+                    summaryQuery.isLoading ||
+                    summaryQuery.data?.source === "no_content" ||
+                    summaryQuery.data?.source === "not_found"
+                  }
+                  title={
+                    summaryQuery.data?.source === "cache"
+                      ? "Regenerate summary"
+                      : "Generate summary"
+                  }
+                >
+                  <RefreshCw size={11} className={regenerating ? "spin" : undefined} />
                 </button>
               </div>
-              {summaryQuery.isLoading && <div className="node-detail-muted">Generating summary…</div>}
-              {summaryQuery.data?.source === "no_content" && (
+              {summaryQuery.isLoading && (
+                <div className="node-detail-muted">Loading…</div>
+              )}
+              {regenerating && (
+                <div className="node-detail-muted">
+                  Generating summary — this usually takes 30–90s on the local LLM…
+                </div>
+              )}
+              {!regenerating && summaryQuery.data?.source === "not_generated" && (
+                <div className="node-detail-muted">
+                  Not generated yet. Click <RefreshCw size={10} /> to generate.
+                </div>
+              )}
+              {!regenerating && summaryQuery.data?.source === "no_content" && (
                 <div className="node-detail-muted">
                   No content has been indexed for this snapshot. Run a successful sync.
                 </div>
               )}
-              {summaryQuery.data?.summary && summaryQuery.data.source !== "no_content" && (
+              {!regenerating && summaryQuery.data?.source === "llm_failed" && (
+                <div className="node-detail-muted">
+                  Summary generation failed. Check LLM service and try again.
+                </div>
+              )}
+              {!regenerating && summaryQuery.data?.summary && (
                 <p className="node-detail-description">{summaryQuery.data.summary}</p>
               )}
             </section>

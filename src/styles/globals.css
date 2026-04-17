@@ -767,6 +767,14 @@ html, body, #root {
 .node-detail-regen-btn:hover:not(:disabled) { background: var(--surface-hover); color: var(--fg); }
 .node-detail-regen-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
+.node-detail-regen-btn .spin {
+  animation: regen-spin 1s linear infinite;
+}
+@keyframes regen-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
 .node-detail-description {
   font-size: var(--text-sm);
   line-height: var(--leading-loose);
