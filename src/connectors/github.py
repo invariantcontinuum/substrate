@@ -134,9 +134,39 @@ def parse_repo_tree(tree: list[dict], source: str = "github") -> list[NodeAffect
 
 # ---------- Import parsing ----------
 
-def _resolve_import(file_id: str, raw_import: str, known_files: set[str]) -> str | None:
+def _resolve_import(
+    file_id: str,
+    raw_import: str,
+    known_files: set[str],
+    go_module: str | None = None,
+) -> str | list[str] | None:
+    """Resolve a raw import string to one or more local file ids.
+
+    For Go, a single import (a package path) typically maps to a
+    *directory* of .go files in the same repo — so we return a list of
+    all .go files under that directory. For every other language an
+    import maps to at most one file and we return a single str.
+    """
     if raw_import in known_files:
         return raw_import
+
+    ext = "." + file_id.rsplit(".", 1)[-1] if "." in file_id else ""
+
+    # Go: treat imports as package (directory) paths when they start
+    # with the module prefix declared in go.mod. Return every .go file
+    # directly inside that directory (no recursion — a Go package is a
+    # single directory of .go files).
+    if ext == ".go" and go_module and raw_import.startswith(go_module + "/"):
+        pkg_dir = raw_import[len(go_module) + 1:]
+        hits = [
+            f for f in known_files
+            if f.startswith(pkg_dir + "/")
+            and "/" not in f[len(pkg_dir) + 1:]
+            and f.endswith(".go")
+        ]
+        if hits:
+            return hits
+
     dir_prefix = file_id.rsplit("/", 1)[0] + "/" if "/" in file_id else ""
     dotted = raw_import.replace(".", "/")
     candidates = [
@@ -184,17 +214,42 @@ def _extract_regex_imports(ext: str, content: str) -> list[str]:
     return raws
 
 
-def parse_imports(file_id: str, content: str, known_files: set[str]) -> list[EdgeAffected]:
+def parse_imports(
+    file_id: str,
+    content: str,
+    known_files: set[str],
+    go_module: str | None = None,
+) -> list[EdgeAffected]:
     ext = "." + file_id.rsplit(".", 1)[-1] if "." in file_id else ""
     raws = _extract_go_imports(content) if ext == ".go" else _extract_regex_imports(ext, content)
     edges: list[EdgeAffected] = []
     seen: set[str] = set()
     for raw in raws:
-        target = _resolve_import(file_id, raw, known_files)
-        if target and target != file_id and target not in seen:
-            seen.add(target)
-            edges.append(EdgeAffected(source_id=file_id, target_id=target, type="depends", action="add"))
+        target = _resolve_import(file_id, raw, known_files, go_module=go_module)
+        if target is None:
+            continue
+        targets = target if isinstance(target, list) else [target]
+        for t in targets:
+            if t and t != file_id and t not in seen:
+                seen.add(t)
+                edges.append(EdgeAffected(source_id=file_id, target_id=t, type="depends", action="add"))
     return edges
+
+
+_GO_MOD_MODULE = re.compile(r"^\s*module\s+(\S+)", re.MULTILINE)
+
+
+def _read_go_module(repo_dir: str) -> str | None:
+    """Read the `module` line from go.mod at the repo root, if present."""
+    path = os.path.join(repo_dir, "go.mod")
+    try:
+        with open(path, "r", errors="replace") as f:
+            m = _GO_MOD_MODULE.search(f.read())
+            return m.group(1) if m else None
+    except FileNotFoundError:
+        return None
+    except Exception:
+        return None
 
 
 # ---------- GitHub API tree fetch ----------
@@ -286,6 +341,7 @@ async def sync_repo(
             n.id for n in nodes
             if "." in n.id and "." + n.id.rsplit(".", 1)[-1] in PARSEABLE_EXTENSIONS
         ]
+        go_module = _read_go_module(tmpdir)
 
         meta.update({
             "files_total": len(nodes),
@@ -305,7 +361,7 @@ async def sync_repo(
             try:
                 with open(filepath, "r", errors="replace") as f:
                     content = f.read()
-                edges = parse_imports(file_id, content, known_files)
+                edges = parse_imports(file_id, content, known_files, go_module=go_module)
                 all_edges.extend(edges)
             except Exception:
                 pass

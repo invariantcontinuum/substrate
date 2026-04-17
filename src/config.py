@@ -10,11 +10,12 @@ class Settings(BaseSettings):
     # The llamacpp server ignores the `model` field in the request and
     # serves whatever model it was launched with; we keep the name here
     # only for logging/documentation. Dim must match the served model.
-    embedding_model: str = "google/gemma-4-e4b"
-    embedding_dim: int = 1024
+    # Current lazy-lamacpp embeddings model: nomic-embed-text-v2-moe
+    # (768-dim, 512 ctx) — see /home/dany/github/CLAUDE.md.
+    embedding_model: str = "nomic-ai/nomic-embed-text-v2-moe-GGUF"
+    embedding_dim: int = 768
     # Bearer token for the OpenAI-compatible embedding endpoint.
-    # Gemma/lazy-lamacpp expects "test" by default; empty string skips
-    # the Authorization header entirely.
+    # Empty string skips the Authorization header entirely.
     llm_api_key: str = "test"
     chunk_size: int = 512
     chunk_overlap: int = 64

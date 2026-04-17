@@ -29,12 +29,11 @@ def assert_embedding_dim(sync_id: str, embeddings: list[list[float]], expected: 
 
 _client: httpx.AsyncClient | None = None
 
-# Qwen3-Embedding-0.6B has n_ctx_train = 32768 tokens. Keep each input
-# well under that — roughly 6000 characters ≈ 1500 tokens — and the whole
-# batch well under the server's maximum accumulated input. Overlong
-# inputs are the usual cause of 400 Bad Request from llamacpp's
+# nomic-embed-text-v2-moe runs with n_ctx=512 tokens on the current
+# lazy-lamacpp deployment. ~4 chars/token → keep each input comfortably
+# under the ctx window to avoid 400 Bad Request from llamacpp's
 # /v1/embeddings endpoint.
-_MAX_INPUT_CHARS = 6000
+_MAX_INPUT_CHARS = 1600
 
 
 async def _get_client() -> httpx.AsyncClient:
