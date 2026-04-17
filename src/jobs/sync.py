@@ -221,6 +221,10 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
              "type": node.type, "domain": node.domain}
             for node in nodes if node.id in file_id_map
         ]
+        # Surface nodes_total / edges_total in progress_meta so the UI's
+        # stats panel can show live counts while the sync is still running
+        # instead of em-dashing every field until complete_sync_run fires.
+        meta["nodes_total"] = len(age_nodes)
         node_failures = await graph_writer.write_age_nodes(age_nodes, sync_id, source_id)
         if node_failures:
             await sync_issues.record_issue(
@@ -234,6 +238,7 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
             for edge in all_edges
             if edge.source_id in file_id_map and edge.target_id in file_id_map
         ]
+        meta["edges_total"] = len(age_edges)
         edge_failures = await graph_writer.write_age_edges(age_edges, sync_id, source_id)
         if edge_failures:
             await sync_issues.record_issue(
@@ -243,6 +248,9 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
         await _check_cancelled(sync_id)
 
         meta["phase"] = "embedding_summaries"
+        # Persist nodes_total / edges_total / new phase in one write so the
+        # stats panel sees them before the first embedding batch lands.
+        await sync_runs.update_sync_progress(sync_id, len(nodes), len(nodes), meta)
         summary_texts = [fi["summary"] for fi in file_info_list]
         try:
             for batch_start in range(0, len(summary_texts), EMBED_BATCH_SIZE):
