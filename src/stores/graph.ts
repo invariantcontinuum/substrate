@@ -154,6 +154,13 @@ interface GraphState {
   // Called by GraphCanvas after Cytoscape's `layoutstop` so the topbar
   // timer reflects fetch + render, not just the network round-trip.
   finalizeLoad: () => void;
+
+  /* Per-sync render time (ms). Populated by finalizeLoad; keyed by the
+   * sync ids that were active at the moment layoutstop fired. In-memory
+   * only — a page reload clears it. Consumed by the Sources page to
+   * show "Render time: 812 ms" in the expanded snapshot row. */
+  renderTimeBySyncId: Record<string, number>;
+  recordRenderTime: (syncIds: string[], ms: number) => void;
 }
 
 const DEFAULT_TYPES = [
@@ -263,6 +270,7 @@ export const useGraphStore = create<GraphState>((set) => ({
       searchQuery: "",
       syncProgress: null,
       canvasCleared: true,
+      renderTimeBySyncId: {},
     });
   },
 
@@ -314,13 +322,29 @@ export const useGraphStore = create<GraphState>((set) => ({
     set((state) => {
       const t0 = state.stats.loadStartedAt;
       if (t0 == null) return {};
+      const ms = Math.round(performance.now() - t0);
+      // Stamp each currently-loaded sync with this render time. We do
+      // this inside finalizeLoad rather than exposing two mutators
+      // because the elapsed window (t0..now) is only meaningful here.
+      const activeIds = useSyncSetStore.getState().syncIds;
+      const next = { ...state.renderTimeBySyncId };
+      for (const id of activeIds) next[id] = ms;
       return {
         stats: {
           ...state.stats,
-          lastLoadMs: Math.round(performance.now() - t0),
+          lastLoadMs: ms,
           loadStartedAt: null,
         },
+        renderTimeBySyncId: next,
       };
+    }),
+
+  renderTimeBySyncId: {},
+  recordRenderTime: (syncIds, ms) =>
+    set((state) => {
+      const next = { ...state.renderTimeBySyncId };
+      for (const id of syncIds) next[id] = ms;
+      return { renderTimeBySyncId: next };
     }),
 }));
 
