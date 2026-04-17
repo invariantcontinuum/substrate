@@ -268,7 +268,12 @@ const cyStylesheet = [
   },
   /* Spotlight — applied when a node is selected from the search
    * dropdown or by click. Focused nodes + their 1-hop neighbors stay
-   * fully opaque and gain larger labels; everything else fades. */
+   * fully opaque and gain larger labels; everything else fades.
+   *
+   * Compound source parents inherit focus (so their children don't get
+   * cascaded-dim), but only get `opacity: 1` back — no cyan border /
+   * enlarged label override, which would clash with the dashed-frame
+   * parent style. */
   {
     selector: ".spotlight-dim",
     style: {
@@ -281,6 +286,11 @@ const cyStylesheet = [
     style: {
       opacity: 1,
       "text-opacity": 1,
+    },
+  },
+  {
+    selector: "node.spotlight-focus:childless",
+    style: {
       "font-size": 13,
       "border-width": 2,
       "border-color": "#89bbfe",
@@ -530,9 +540,14 @@ export function GraphCanvas() {
     if (!node.length) return;
     node.select();
 
+    // Focus = the node, its edges, its 1-hop neighbors, and every
+    // ancestor compound (source) parent. Without the ancestors, the
+    // dimmed parent's low opacity cascades onto its children and the
+    // selected node itself renders faded.
     const neighborhood = node.closedNeighborhood();
-    neighborhood.addClass("spotlight-focus");
-    cy.elements().difference(neighborhood).addClass("spotlight-dim");
+    const focus = neighborhood.union(node.parents()).union(neighborhood.nodes().parents());
+    focus.addClass("spotlight-focus");
+    cy.elements().difference(focus).addClass("spotlight-dim");
 
     cy.stop(true, true);
     cy.animate(
