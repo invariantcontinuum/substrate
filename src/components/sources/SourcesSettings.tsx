@@ -4,6 +4,7 @@ import { useUIStore } from "@/stores/ui";
 import { SourcesSidebar } from "./SourcesSidebar";
 import { SourceDetailPane } from "./SourceDetailPane";
 import { UnifiedToolbar } from "./UnifiedToolbar";
+import { CurrentlyRenderedRail } from "./CurrentlyRenderedRail";
 
 interface State {
   activeSourceId: string | null;
@@ -143,8 +144,7 @@ export function SourcesSettings() {
             </div>
           )}
         </div>
-        {/* CurrentlyRenderedRail slot — filled by Task 10. */}
-        <div className="sources-settings-rendered-rail" />
+        <CurrentlyRenderedRail />
       </div>
     </div>
   );
