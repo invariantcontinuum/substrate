@@ -5,12 +5,17 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://substrate_graph:changeme@localhost:5432/substrate_graph"
     embedding_url: str = "http://localhost:8101/v1/embeddings"
-    embedding_model: str = "Qwen3-Embedding-0.6B-Q8_0.gguf"
+    embedding_model: str = "google/gemma-4-e4b"
     embedding_dim: int = 1024
-    # Dense chat LLM used for node summaries. Defaults to the lazy-llamacpp
-    # `dense` model on port 8102.
-    dense_llm_url: str = "http://localhost:8102/v1/chat/completions"
-    dense_llm_model: str = "qwen2.5-7b-instruct"
+    # Dense chat LLM used for node summaries. Defaults to the same
+    # lazy-llamacpp gemma server on port 8101 which serves both
+    # embeddings and chat completions via the OpenAI-compatible API.
+    dense_llm_url: str = "http://localhost:8101/v1/chat/completions"
+    dense_llm_model: str = "google/gemma-4-e4b"
+    # Bearer token shared by both the embedding and chat endpoints.
+    # Gemma/lazy-lamacpp expects "test" by default; empty string skips
+    # the Authorization header entirely.
+    llm_api_key: str = "test"
     summary_max_tokens: int = 160
     summary_chunk_sample_chars: int = 4000
     summary_edge_neighbors: int = 10

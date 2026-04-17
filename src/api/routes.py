@@ -15,9 +15,13 @@ _VALID_PROJECTIONS = {"full", "minimal"}
 
 
 async def _embed_query(query: str) -> list[float]:
+    headers: dict[str, str] = {}
+    if settings.llm_api_key:
+        headers["Authorization"] = f"Bearer {settings.llm_api_key}"
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.post(
             settings.embedding_url,
+            headers=headers,
             json={"input": query, "model": settings.embedding_model},
         )
         resp.raise_for_status()

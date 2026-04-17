@@ -186,8 +186,11 @@ def assemble_prompt(
 
 async def _post_llm(*, url: str, payload: dict) -> dict:
     """Isolated httpx POST so tests can patch a single symbol."""
+    headers: dict[str, str] = {}
+    if settings.llm_api_key:
+        headers["Authorization"] = f"Bearer {settings.llm_api_key}"
     async with httpx.AsyncClient(timeout=60.0) as client:
-        r = await client.post(url, json=payload)
+        r = await client.post(url, json=payload, headers=headers)
         r.raise_for_status()
         return r.json()
 
