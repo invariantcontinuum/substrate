@@ -5,11 +5,14 @@
 // and an unload (×) button. Clicking the row body deep-links to that source
 // in the detail pane.
 
-import { X } from "lucide-react";
+import { X, Download } from "lucide-react";
 import { useSyncSetStore } from "@/stores/syncSet";
 import { useUIStore } from "@/stores/ui";
 import { useSources } from "@/hooks/useSources";
 import { useLoadedSyncs } from "@/hooks/useLoadedSyncs";
+import { useGraphStore } from "@/stores/graph";
+import { downloadJson } from "@/lib/download";
+import { Button } from "@/components/ui/button";
 
 interface SyncStats {
   node_count?: number;
@@ -47,10 +50,42 @@ export function CurrentlyRenderedRail() {
 
   const sourceById = new Map(sources.map((s) => [s.id, s]));
 
+  const nodeCount = useGraphStore((s) => s.nodes.length);
+
+  const handleExportGraph = () => {
+    const { nodes, edges, filters } = useGraphStore.getState();
+    const visibleNodes = nodes.filter((n) =>
+      filters.types.has(String(n.type || "unknown")),
+    );
+    const visibleIds = new Set(visibleNodes.map((n) => n.id));
+    const visibleEdges = edges.filter(
+      (e) => visibleIds.has(e.source) && visibleIds.has(e.target),
+    );
+    downloadJson(`graph-${Date.now()}.json`, {
+      nodes: visibleNodes,
+      edges: visibleEdges,
+      meta: {
+        node_count: visibleNodes.length,
+        edge_count: visibleEdges.length,
+        exported_at: new Date().toISOString(),
+        sync_ids: useSyncSetStore.getState().syncIds,
+      },
+    });
+  };
+
   if (!syncIds || syncIds.length === 0) {
     return (
       <aside className="currently-rendered-rail">
-        <div className="currently-rendered-header">Currently rendered</div>
+        <div className="currently-rendered-header">
+          <span>Currently rendered</span>
+          <Button
+            onClick={handleExportGraph}
+            disabled={nodeCount === 0}
+            className="rail-export-btn"
+          >
+            <Download size={12} /> Export
+          </Button>
+        </div>
         <div className="currently-rendered-empty muted">
           Nothing loaded — select snapshots from a source to render.
         </div>
@@ -61,7 +96,14 @@ export function CurrentlyRenderedRail() {
   return (
     <aside className="currently-rendered-rail">
       <div className="currently-rendered-header">
-        Currently rendered ({syncIds.length})
+        <span>Currently rendered ({syncIds.length})</span>
+        <Button
+          onClick={handleExportGraph}
+          disabled={nodeCount === 0}
+          className="rail-export-btn"
+        >
+          <Download size={12} /> Export
+        </Button>
       </div>
       {syncIds.map((syncId, idx) => {
         const sync = loadedSyncs[idx];
