@@ -712,6 +712,39 @@ html, body, #root {
 
 .node-detail-muted { font-size: var(--text-sm); color: var(--fg-subtle); }
 
+.node-detail-view-file {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+}
+
+.node-file-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+  margin-bottom: var(--space-2);
+}
+
+.node-file-truncated { color: var(--warn); }
+
+.node-file-content {
+  max-height: 60vh;
+  overflow: auto;
+  padding: var(--space-3);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+  white-space: pre;
+  color: var(--fg);
+  margin: 0;
+}
+
 .node-detail-neighbors {
   list-style: none;
   padding: var(--space-1);

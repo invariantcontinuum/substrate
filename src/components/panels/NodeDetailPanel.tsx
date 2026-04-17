@@ -1,12 +1,13 @@
 // frontend/src/components/panels/NodeDetailPanel.tsx
 import { useEffect, useState } from "react";
-import { RefreshCw, X } from "lucide-react";
+import { FileText, RefreshCw, X } from "lucide-react";
 import { useAuth } from "react-oidc-context";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import { useGraphStore } from "@/stores/graph";
 import { useUIStore } from "@/stores/ui";
 import { Button } from "@/components/ui/button";
+import { Modal } from "@/components/ui/Modal";
 
 const REL_SYMBOL: Record<string, string> = {
   depends: "→", dependson: "→", imports: "↓", import: "↓",
@@ -69,6 +70,7 @@ export function NodeDetailPanel() {
     | undefined;
 
   const [selectedSnapshotId, setSelectedSnapshotId] = useState<string | null>(null);
+  const [fileOpen, setFileOpen] = useState(false);
 
   // Reset snapshot selection when node changes; default to latest_sync_id.
   useEffect(() => {
@@ -86,6 +88,21 @@ export function NodeDetailPanel() {
     },
     enabled: visible && !!token,
     staleTime: 30_000,
+  });
+
+  const fileQuery = useQuery<{
+    file_path: string; language: string; line_count?: number | null;
+    size_bytes?: number | null; sync_id: string; last_commit_sha: string;
+    chunk_count: number; content: string; truncated: boolean;
+  }>({
+    queryKey: ["node-file", selectedNodeId, selectedSnapshotId],
+    queryFn: () => {
+      const sp = selectedSnapshotId ? `?sync_id=${selectedSnapshotId}` : "";
+      return apiFetch(
+        `/api/graph/nodes/${encodeURIComponent(String(selectedNodeId))}/file${sp}`, token);
+    },
+    enabled: visible && fileOpen && !!token,
+    staleTime: 60_000,
   });
 
   const summaryQuery = useQuery<{
@@ -201,6 +218,15 @@ export function NodeDetailPanel() {
                 {node.line_count != null && (
                   <Row label="Lines" value={String(node.line_count)} />
                 )}
+                {node.file_path && (
+                  <Button
+                    onClick={() => setFileOpen(true)}
+                    disabled={!selectedSnapshotId}
+                    className="node-detail-view-file"
+                  >
+                    <FileText size={12} /> View file
+                  </Button>
+                )}
               </section>
             )}
 
@@ -259,6 +285,36 @@ export function NodeDetailPanel() {
           </>
         )}
       </div>
+
+      <Modal
+        open={fileOpen}
+        onClose={() => setFileOpen(false)}
+        title={fileQuery.data?.file_path || node?.file_path || "File"}
+        size="lg"
+      >
+        {fileQuery.isLoading && <div className="node-detail-muted">Loading file…</div>}
+        {fileQuery.isError && (
+          <div className="node-detail-muted">Failed to load file content.</div>
+        )}
+        {fileQuery.data && (
+          <>
+            <div className="node-file-meta">
+              {fileQuery.data.language && <span>{fileQuery.data.language}</span>}
+              {fileQuery.data.line_count != null && (
+                <span>{fileQuery.data.line_count} lines</span>
+              )}
+              {fileQuery.data.size_bytes != null && (
+                <span>{formatBytes(fileQuery.data.size_bytes)}</span>
+              )}
+              <span>{fileQuery.data.chunk_count} chunks</span>
+              {fileQuery.data.truncated && <span className="node-file-truncated">truncated at 5 MB</span>}
+            </div>
+            <pre className="node-file-content">
+              <code>{fileQuery.data.content || "(empty)"}</code>
+            </pre>
+          </>
+        )}
+      </Modal>
     </div>
   );
 }
