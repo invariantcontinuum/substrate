@@ -13,29 +13,53 @@ interface Props {
 // panel, followed by a list of structured issues when present. Replaces
 // the pre-bundle behaviour that showed only issues (plus a Retry
 // button). Retry moved to the unified toolbar's Resync flow.
+//
+// Stats come from two sources depending on status:
+//   - `run.stats`        is populated only when complete_sync_run fires,
+//                        so completed rows show final counts + duration_ms.
+//   - `run.progress_meta` is populated progressively by update_sync_progress,
+//                        so running rows can surface live counts as ingestion
+//                        walks through phases. We prefer stats when present
+//                        and fall back to progress_meta so every field
+//                        fills in the moment ingestion reports it instead
+//                        of em-dashing until the sync completes.
 export function SnapshotIssuesInline({ run }: Props) {
   const { issues, isLoading } = useSyncIssues(run.id, true);
   const renderMs = useGraphStore((s) => s.renderTimeBySyncId[run.id] ?? null);
 
   const stats = run.stats ?? {};
-  const syncMs = stats.duration_ms
-    ?? (run.started_at && run.completed_at
-        ? new Date(run.completed_at).getTime() - new Date(run.started_at).getTime()
-        : null);
+  const meta = run.progress_meta ?? null;
+
+  const nodes          = stats.nodes           ?? meta?.nodes_total     ?? null;
+  const edges          = stats.edges           ?? meta?.edges_total     ?? null;
+  const filesEmbedded  = stats.files_embedded  ?? meta?.files_embedded  ?? null;
+  const chunksTotal    = stats.chunks          ?? meta?.chunks_total    ?? null;
+  const chunksEmbedded = stats.chunks_embedded ?? meta?.chunks_embedded ?? null;
+
+  // Running syncs compute elapsed against now(). useSourceSyncs polls
+  // every 5s while a sync is running, so the displayed time ticks up
+  // in 5s jumps on each refetch-driven re-render.
+  const syncMs = (() => {
+    if (stats.duration_ms != null) return stats.duration_ms;
+    if (!run.started_at) return null;
+    const start = new Date(run.started_at).getTime();
+    const end = run.completed_at ? new Date(run.completed_at).getTime() : Date.now();
+    return end - start;
+  })();
 
   return (
     <div className="sync-expanded-body">
       <section className="snapshot-stats-panel">
         <div className="snapshot-stats-title">Stats</div>
         <dl className="snapshot-stats-grid">
-          <StatRow label="Nodes"          value={formatCount(stats.nodes)} />
-          <StatRow label="Edges"          value={formatCount(stats.edges)} />
-          <StatRow label="Files embedded" value={formatCount(stats.files_embedded)} />
+          <StatRow label="Nodes"          value={formatCount(nodes)} />
+          <StatRow label="Edges"          value={formatCount(edges)} />
+          <StatRow label="Files embedded" value={formatCount(filesEmbedded)} />
           <StatRow
             label="Chunks"
             value={
-              stats.chunks != null
-                ? `${formatCount(stats.chunks)} (embedded ${formatCount(stats.chunks_embedded ?? 0)})`
+              chunksTotal != null
+                ? `${formatCount(chunksTotal)} (embedded ${formatCount(chunksEmbedded ?? 0)})`
                 : "—"
             }
           />

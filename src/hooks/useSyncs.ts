@@ -60,6 +60,11 @@ export interface SyncProgressMeta {
   files_embedded?: number;
   chunks_total?: number;
   chunks_embedded?: number;
+  /** Populated once graph-writer has computed age_nodes / age_edges,
+   * before embedding begins. Lets the stats panel surface live counts
+   * instead of em-dashing until the final complete_sync_run fires. */
+  nodes_total?: number;
+  edges_total?: number;
 }
 
 export interface SyncRun {
