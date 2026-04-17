@@ -112,10 +112,18 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
         meta["phase"] = "discovering"
         await sync_runs.update_sync_progress(sync_id, 0, 0, meta)
 
-        from src.connectors.github import parse_repo_tree, _walk_local_tree
+        from src.connectors.github import (
+            parse_repo_tree, _walk_local_tree, _read_go_module,
+        )
         local_tree = _walk_local_tree(tree.root_dir)
         nodes = parse_repo_tree(local_tree)
         known_files = {n.id for n in nodes}
+        # Read the Go module path (if any) from go.mod at the repo root
+        # so Go package imports like `github.com/org/repo/pkg/foo` can
+        # resolve to sibling .go files under pkg/foo/ during edge
+        # extraction. Without this, every Go import fails to match and
+        # the graph lands edge-less.
+        go_module = _read_go_module(tree.root_dir)
         type_counts: dict[str, int] = {}
         for n in nodes:
             type_counts[n.type] = type_counts.get(n.type, 0) + 1
@@ -135,7 +143,7 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
             try:
                 content = _read_text_safe(filepath)
                 file_contents[file_id] = content
-                edges = parse_imports(file_id, content, known_files)
+                edges = parse_imports(file_id, content, known_files, go_module=go_module)
                 all_edges.extend(edges)
             except Exception as e:
                 await sync_issues.record_issue(
