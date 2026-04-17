@@ -29,11 +29,13 @@ def assert_embedding_dim(sync_id: str, embeddings: list[list[float]], expected: 
 
 _client: httpx.AsyncClient | None = None
 
-# nomic-embed-text-v2-moe runs with n_ctx=512 tokens on the current
-# lazy-lamacpp deployment. ~4 chars/token → keep each input comfortably
-# under the ctx window to avoid 400 Bad Request from llamacpp's
-# /v1/embeddings endpoint.
-_MAX_INPUT_CHARS = 1600
+# nomic-embed-text-v2-moe runs with n_ctx=512 tokens AND llamacpp is
+# launched with --batch 512 / --ubatch 512; any single input that
+# tokenises to >512 tokens triggers an HTTP 500 (not 400) from the
+# server. For code, ~2.8 chars/token is typical, so 1400 chars ≈ 500
+# tokens — comfortably under the limit after subtracting the 17-char
+# task prefix.
+_MAX_INPUT_CHARS = 1400
 
 
 async def _get_client() -> httpx.AsyncClient:
@@ -99,10 +101,12 @@ async def embed_batch(texts: list[str]) -> list[list[float] | None]:
     """Embed a batch of texts, returning one vector per input (or None if
     that specific input was rejected by the model after retries).
 
-    Truncates overlong inputs (common cause of 400 from llamacpp). On a
-    400 response we recursively bisect the batch so a single poison-pill
+    Truncates overlong inputs (common cause of 400 from llamacpp). Both
+    400 (request-too-large) and 500 (llamacpp "input > batch size") are
+    treated as recoverable: bisect the batch so a single poison-pill
     input doesn't lose embeddings for the whole batch. At size 1 with a
-    persistent 400 we record `None` for that input and keep going.
+    persistent bad status we record ``None`` for that input and keep
+    going.
     """
     client = await _get_client()
     start = time.monotonic()
@@ -121,17 +125,34 @@ async def embed_batch(texts: list[str]) -> list[list[float] | None]:
                       error=str(e), duration_ms=round(elapsed * 1000))
         raise
     except httpx.HTTPStatusError as e:
-        if e.response.status_code == 400:
+        if e.response.status_code in (400, 500):
             if batch_size == 1:
+                # Last-ditch: the prefix + first half of the body may
+                # still tokenise under 512. Retry once at 40 % length
+                # before giving up on this chunk.
+                body = truncated[0][len(_DOCUMENT_PREFIX):]
+                if len(body) > 320:
+                    short = _DOCUMENT_PREFIX + body[: int(len(body) * 0.4)]
+                    try:
+                        vectors = await _embed_call(client, [short])
+                        logger.info(
+                            "embed_item_shortened",
+                            original_chars=len(truncated[0]),
+                            shortened_chars=len(short),
+                        )
+                        return list(vectors)
+                    except httpx.HTTPStatusError:
+                        pass
                 logger.warning(
                     "embed_item_rejected",
                     chars=len(truncated[0]),
+                    status=e.response.status_code,
                     preview=truncated[0][:120],
                 )
                 return [None]
             mid = batch_size // 2
             logger.warning("embed_batch_bisect", batch_size=batch_size,
-                           reason="http_400")
+                           reason=f"http_{e.response.status_code}")
             left = await embed_batch(truncated[:mid])
             right = await embed_batch(truncated[mid:])
             return left + right
