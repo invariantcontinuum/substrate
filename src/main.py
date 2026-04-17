@@ -13,6 +13,7 @@ from src.llm import close_client as close_llm_client
 from src.schema import SyncRequest, ScheduleRequest, ScheduleUpdateRequest
 from src.jobs.runner import start_runner, stop_runner
 from src.scheduler import start_scheduler, stop_scheduler, start_retention_loop, stop_retention_loop
+from src.sources_patch import SourcePatch, update_source_impl
 
 import logging as _logging
 import os as _os
@@ -79,8 +80,15 @@ async def health():
     return {"status": "ok"}
 
 
-# Sources CRUD lives entirely in the graph service. Ingestion does NOT
-# expose POST /api/sources — the gateway routes /api/sources/* to graph.
+# Sources CRUD lives primarily in the graph service. Ingestion owns the
+# partial-update (PATCH) endpoint so it can apply retention config changes
+# that are tightly coupled to ingestion policy.
+
+
+@app.patch("/api/sources/{source_id}")
+async def update_source(source_id: str, patch: SourcePatch):
+    pool = graph_writer.get_pool()
+    return await update_source_impl(pool, source_id, patch)
 
 
 # --- Syncs (write side) ---
