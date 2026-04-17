@@ -85,14 +85,14 @@ async def proxy_request(request: Request, upstream_base: str) -> Response:
     body = await request.body()
 
     # App-level retry for the keepalive-race: when the upstream idle-
-    # closes a pooled connection right as we reuse it, the first read
-    # fails with RemoteProtocolError. Only retry idempotent methods so we
-    # don't double-submit a POST. `force=true` on GET /summary is a
-    # regenerate trigger — treat it like a POST (single attempt) so a
-    # transient retry doesn't double-invoke the LLM.
+    # closes a pooled connection right as we reuse it — or when a
+    # container is restarting — the first read fails with
+    # RemoteProtocolError. These are pre-request disconnects where
+    # the server never processed the payload, so retrying is safe
+    # even for `force=true` regenerate. TimeoutExceptions are handled
+    # separately below and remain non-retryable.
     is_idempotent = request.method.upper() in _IDEMPOTENT_METHODS
-    is_force_regen = "force=true" in (request.url.query or "")
-    attempts = 1 if is_force_regen or not is_idempotent else 3
+    attempts = 3 if is_idempotent else 1
 
     # Summary endpoints run local dense LLM calls that routinely take
     # 30-90s; override the default 60s read timeout for them. Kept a
