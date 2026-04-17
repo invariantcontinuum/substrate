@@ -468,14 +468,6 @@ export function GraphCanvas() {
   useEffect(() => {
     if (!ready || !cyRef.current) return;
     const cy = cyRef.current;
-    // Don't lay out against a hidden/zero-size container — the ResizeObserver
-    // effect will rerun once real dimensions arrive. Without this guard the
-    // grid layout's `fit:true` fits to a ~0 viewport and nodes cluster in the
-    // top-right corner; page refresh hides the bug because the canvas
-    // remounts with real dimensions.
-    const vw0 = containerRef.current?.clientWidth ?? 0;
-    const vh0 = containerRef.current?.clientHeight ?? 0;
-    if (vw0 === 0 || vh0 === 0) return;
     let cancelled = false;
 
     let childIdx = 0;
@@ -523,6 +515,21 @@ export function GraphCanvas() {
       }
       if (cancelled) return;
 
+      // If the container is currently hidden (e.g., user is on the
+      // Sources view when the snapshot is loaded), defer layout to the
+      // ResizeObserver — it re-runs layout the moment the canvas
+      // becomes visible. Without this deferral, `fit: true` pins nodes
+      // to a ~0 viewport and the user has to refresh to see anything.
+      // We still clear the load timer so the store's lastLoadMs doesn't
+      // get stuck in "pending" forever.
+      const vwReal = containerRef.current?.clientWidth ?? 0;
+      const vhReal = containerRef.current?.clientHeight ?? 0;
+      if (vwReal === 0 || vhReal === 0) {
+        finalizeLoad();
+        setLoading(false);
+        return;
+      }
+
       const childNodeCount = filtered.nodes.length;
       // Use cytoscape's built-in `grid` layout for every graph size —
       // it handles compound parents, produces predictable multi-row
@@ -530,8 +537,8 @@ export function GraphCanvas() {
       // and cols are derived from the viewport aspect ratio so large
       // graphs fill the canvas roughly isotropically instead of
       // producing a 50-wide stripe.
-      const vw = containerRef.current?.clientWidth || 1600;
-      const vh = containerRef.current?.clientHeight || 900;
+      const vw = vwReal;
+      const vh = vhReal;
       const aspectPx = Math.max(0.25, vw / vh);
       const cols = Math.max(
         1,
