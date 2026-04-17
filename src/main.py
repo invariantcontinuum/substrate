@@ -1,5 +1,6 @@
 import structlog
 from contextlib import asynccontextmanager
+from typing import Literal
 from fastapi import FastAPI, Request, WebSocket, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -15,6 +16,25 @@ structlog.configure(
     ]
 )
 logger = structlog.get_logger()
+
+AuthCloseReason = Literal["token_expired", "token_invalid", "no_token"]
+
+
+async def handle_ws_auth_failure(websocket: WebSocket, reason: AuthCloseReason) -> None:
+    """Emit a structured log line and close a WebSocket for an auth failure.
+
+    Intentionally omits token body and any user identity — reason is a
+    controlled enum derived from which auth check failed.
+    """
+    logger.info(
+        "ws_auth_closed",
+        path=websocket.url.path,
+        reason=reason,
+        close_code=4401,
+        client=websocket.client.host if websocket.client else None,
+    )
+    await websocket.close(code=4401)
+
 
 jwks_client: JWKSClient | None = None
 
@@ -116,7 +136,7 @@ async def proxy_auth(request: Request, path: str):
 async def proxy_ws(websocket: WebSocket, path: str):
     token = websocket.query_params.get("token")
     if not token:
-        await websocket.close(code=4001, reason="Missing token")
+        await handle_ws_auth_failure(websocket, reason="no_token")
         return
 
     try:
@@ -125,12 +145,16 @@ async def proxy_ws(websocket: WebSocket, path: str):
         unverified = pyjwt.get_unverified_header(token)
         kid = unverified.get("kid")
         if not kid or not jwks_client:
-            await websocket.close(code=4001, reason="Invalid token")
+            await handle_ws_auth_failure(websocket, reason="token_invalid")
             return
         public_key = await jwks_client.get_key(kid)
         validate_token(token, public_key, issuer=settings.issuer)
-    except Exception:
-        await websocket.close(code=4001, reason="Invalid token")
+    except Exception as exc:
+        import jwt as _pyjwt
+        if isinstance(exc, _pyjwt.ExpiredSignatureError):
+            await handle_ws_auth_failure(websocket, reason="token_expired")
+        else:
+            await handle_ws_auth_failure(websocket, reason="token_invalid")
         return
 
     await proxy_websocket(
