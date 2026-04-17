@@ -2,10 +2,35 @@
 import json
 import time
 import uuid as _uuid
+import asyncpg
 import structlog
+from src.config import settings
 from src.graph import store
 
 logger = structlog.get_logger()
+
+
+class GraphQueryTimeout(Exception):
+    """Raised when an AGE query hits statement_timeout. Carries timeout value
+    and arbitrary context dict (e.g., {"sync_ids": [...]})."""
+
+    def __init__(self, timeout_s: int, context: dict | None = None) -> None:
+        self.timeout_s = timeout_s
+        self.context = context or {}
+        super().__init__(f"Graph query timed out after {timeout_s}s (context={self.context})")
+
+
+async def run_with_timeout(conn, body, *, timeout_s: int, context: dict | None = None):
+    """Run `body(conn)` with SET LOCAL statement_timeout active on `conn`.
+    Translates asyncpg QueryCanceledError into GraphQueryTimeout.
+    Caller is responsible for the surrounding transaction.
+    """
+    timeout_ms = timeout_s * 1000
+    await conn.execute(f"SET LOCAL statement_timeout = '{timeout_ms}ms'")
+    try:
+        return await body(conn)
+    except asyncpg.exceptions.QueryCanceledError as e:
+        raise GraphQueryTimeout(timeout_s=timeout_s, context=context) from e
 
 
 def _validate_uuids(values: list[str]) -> list[str]:
@@ -31,8 +56,9 @@ async def get_merged_graph(sync_ids: list[str]) -> dict:
     pool = store.get_pool()
 
     start = time.monotonic()
-    async with pool.acquire() as conn:
-        node_rows = await conn.fetch(
+
+    async def _body(c):
+        node_rows = await c.fetch(
             """
             WITH ranked AS (
                 SELECT fe.source_id::text AS source_id,
@@ -77,7 +103,7 @@ async def get_merged_graph(sync_ids: list[str]) -> dict:
         edges_raw = []
         try:
             sync_id_list = ",".join(f"'{s}'" for s in sync_ids)
-            edge_rows = await conn.fetch(
+            edge_rows = await c.fetch(
                 f"""
                 SELECT * FROM cypher('substrate', $$
                     MATCH (a:File)-[r]->(b:File)
@@ -103,7 +129,7 @@ async def get_merged_graph(sync_ids: list[str]) -> dict:
                     file_id_set.add(a_file); file_id_set.add(b_file)
                     parsed.append((a_file, b_file, weight, e_sync))
 
-                id_rows = await conn.fetch(
+                id_rows = await c.fetch(
                     "SELECT id::text, source_id::text, file_path FROM file_embeddings WHERE id = ANY($1::uuid[])",
                     list(file_id_set),
                 )
@@ -128,6 +154,16 @@ async def get_merged_graph(sync_ids: list[str]) -> dict:
             except Exception as e:
                 logger.warning("age_edge_postprocess_failed", error=str(e))
                 edges = []
+
+        return nodes, edges
+
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            nodes, edges = await run_with_timeout(
+                conn, _body,
+                timeout_s=settings.graph_query_timeout_s,
+                context={"sync_ids": sync_ids},
+            )
 
     duration_ms = round((time.monotonic() - start) * 1000)
     logger.info("merged_graph", node_count=len(nodes), edge_count=len(edges), duration_ms=duration_ms)
@@ -155,9 +191,10 @@ async def get_node_detail(node_id: str, sync_id: str | None = None) -> dict:
             return {}
     pool = store.get_pool()
 
-    async with pool.acquire() as conn:
-        if sync_id is None:
-            sync_id = await conn.fetchval(
+    async def _body(c):
+        resolved_sync_id = sync_id
+        if resolved_sync_id is None:
+            resolved_sync_id = await c.fetchval(
                 """SELECT fe.sync_id::text
                    FROM file_embeddings fe
                    JOIN sync_runs sr ON sr.id = fe.sync_id
@@ -166,25 +203,25 @@ async def get_node_detail(node_id: str, sync_id: str | None = None) -> dict:
                    LIMIT 1""",
                 source_id, file_path,
             )
-            if not sync_id:
+            if not resolved_sync_id:
                 return {}
-        node = await conn.fetchrow(
+        node = await c.fetchrow(
             """SELECT id::text, file_path, name, type, domain, language,
                       status, description, size_bytes, line_count,
                       content_hash, created_at::text
                FROM file_embeddings
                WHERE source_id=$1::uuid AND file_path=$2 AND sync_id=$3::uuid""",
-            source_id, file_path, sync_id,
+            source_id, file_path, resolved_sync_id,
         )
         if not node:
             return {}
 
         neighbors = []
         try:
-            edge_rows = await conn.fetch(
+            edge_rows = await c.fetch(
                 f"""SELECT * FROM cypher('substrate', $$
-                    MATCH (a:File {{file_id: '{node["id"]}', sync_id: '{sync_id}'}})-[r]-(b:File)
-                    WHERE r.sync_id = '{sync_id}'
+                    MATCH (a:File {{file_id: '{node["id"]}', sync_id: '{resolved_sync_id}'}})-[r]-(b:File)
+                    WHERE r.sync_id = '{resolved_sync_id}'
                     RETURN b.file_id, label(r), r.weight
                 $$) AS (neighbor_file agtype, rel_type agtype, weight agtype)"""
             )
@@ -197,7 +234,7 @@ async def get_node_detail(node_id: str, sync_id: str | None = None) -> dict:
                 if nf:
                     file_ids.append(nf); tmp.append((nf, str(rt), w))
             if file_ids:
-                id_rows = await conn.fetch(
+                id_rows = await c.fetch(
                     "SELECT id::text, source_id::text, file_path FROM file_embeddings WHERE id = ANY($1::uuid[])",
                     file_ids,
                 )
@@ -211,15 +248,23 @@ async def get_node_detail(node_id: str, sync_id: str | None = None) -> dict:
         except Exception:
             pass
 
-    return {
-        "node": {
-            "id": _node_id(source_id, file_path),
-            "name": node["name"], "type": node["type"], "domain": node["domain"] or "",
-            "language": node["language"] or "", "status": node["status"] or "healthy",
-            "description": node["description"] or "", "file_path": node["file_path"],
-            "size_bytes": node["size_bytes"], "line_count": node["line_count"],
-            "content_hash": node["content_hash"], "created_at": node["created_at"],
-            "sync_id": sync_id,
-        },
-        "neighbors": neighbors,
-    }
+        return {
+            "node": {
+                "id": _node_id(source_id, file_path),
+                "name": node["name"], "type": node["type"], "domain": node["domain"] or "",
+                "language": node["language"] or "", "status": node["status"] or "healthy",
+                "description": node["description"] or "", "file_path": node["file_path"],
+                "size_bytes": node["size_bytes"], "line_count": node["line_count"],
+                "content_hash": node["content_hash"], "created_at": node["created_at"],
+                "sync_id": resolved_sync_id,
+            },
+            "neighbors": neighbors,
+        }
+
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            return await run_with_timeout(
+                conn, _body,
+                timeout_s=settings.graph_query_timeout_s,
+                context={"node_id": node_id, "sync_id": sync_id},
+            )

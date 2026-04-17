@@ -1,3 +1,4 @@
+from pydantic import Field
 from pydantic_settings import BaseSettings
 
 
@@ -13,6 +14,7 @@ class Settings(BaseSettings):
     summary_max_tokens: int = 160
     summary_chunk_sample_chars: int = 4000
     app_port: int = 8082
+    graph_query_timeout_s: int = Field(default=60, alias="GRAPH_QUERY_TIMEOUT_SECONDS")
 
 
 settings = Settings()
