@@ -1,4 +1,4 @@
-// frontend/src/components/modals/sources/AddSourceInput.tsx
+// frontend/src/components/sources/AddSourceInput.tsx
 import { useState } from "react";
 import { Plus } from "lucide-react";
 import { Input } from "@/components/ui/input";

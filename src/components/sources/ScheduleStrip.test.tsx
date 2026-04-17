@@ -1,4 +1,4 @@
-// frontend/src/components/modals/sources/ScheduleStrip.test.tsx
+// frontend/src/components/sources/ScheduleStrip.test.tsx
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { ScheduleStrip } from "./ScheduleStrip";

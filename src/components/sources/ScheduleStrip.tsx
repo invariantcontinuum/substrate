@@ -1,4 +1,4 @@
-// frontend/src/components/modals/sources/ScheduleStrip.tsx
+// frontend/src/components/sources/ScheduleStrip.tsx
 import { Clock } from "lucide-react";
 import { useSchedules } from "@/hooks/useSchedules";
 

@@ -1,4 +1,4 @@
-// frontend/src/components/modals/sources/SnapshotRow.test.tsx
+// frontend/src/components/sources/SnapshotRow.test.tsx
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";

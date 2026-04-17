@@ -1,4 +1,4 @@
-// frontend/src/components/modals/sources/SourcesSidebar.tsx
+// frontend/src/components/sources/SourcesSidebar.tsx
 import { useSources } from "@/hooks/useSources";
 import { useSyncSetStore } from "@/stores/syncSet";
 import { useSyncs } from "@/hooks/useSyncs";

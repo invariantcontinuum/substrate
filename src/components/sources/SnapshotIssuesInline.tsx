@@ -1,6 +1,6 @@
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useSyncIssues, type SyncIssue } from "@/hooks/useSyncIssues";
+import { useSyncIssues } from "@/hooks/useSyncIssues";
 import { useSyncs } from "@/hooks/useSyncs";
 
 const MAX_RENDERED = 100;

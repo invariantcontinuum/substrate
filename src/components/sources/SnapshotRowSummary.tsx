@@ -1,4 +1,4 @@
-// frontend/src/components/modals/sources/SnapshotRowSummary.tsx
+// frontend/src/components/sources/SnapshotRowSummary.tsx
 import { ChevronDown, ChevronRight } from "lucide-react";
 import type { SyncRun } from "@/hooks/useSyncs";
 

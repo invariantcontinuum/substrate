@@ -1,4 +1,4 @@
-// frontend/src/components/modals/sources/SourceDetailPane.tsx
+// frontend/src/components/sources/SourceDetailPane.tsx
 import { useState } from "react";
 import { useSources } from "@/hooks/useSources";
 import { DetailHeader } from "./DetailHeader";

@@ -1,4 +1,4 @@
-// frontend/src/components/modals/sources/SnapshotRow.tsx
+// frontend/src/components/sources/SnapshotRow.tsx
 import type { SyncRun } from "@/hooks/useSyncs";
 import { SnapshotRowSummary } from "./SnapshotRowSummary";
 import { SnapshotIssuesInline } from "./SnapshotIssuesInline";

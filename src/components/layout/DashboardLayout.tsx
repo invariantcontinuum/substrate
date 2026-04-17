@@ -7,18 +7,12 @@ import { Sidebar } from "./Sidebar";
 import { MobileNav } from "./MobileNav";
 import { ModalRoot } from "@/components/modals/ModalRoot";
 import { SwapToast } from "@/components/SwapToast";
+import { SourcesSettings } from "@/components/sources/SourcesSettings";
 import { useUIStore } from "@/stores/ui";
 import { useResponsive } from "@/hooks/useResponsive";
 import { useSyncs } from "@/hooks/useSyncs";
 import { useSyncSetStore } from "@/stores/syncSet";
 import { apiFetch } from "@/lib/api";
-
-// Temporary stub — deleted in Task 9 when SourcesSettings page lands.
-const SourcesSettingsStub = () => (
-  <div className="muted" style={{ padding: 24 }}>
-    Sources settings — coming next task.
-  </div>
-);
 
 export function DashboardLayout() {
   // Keep the syncs polling alive for the whole session, not
@@ -75,7 +69,7 @@ export function DashboardLayout() {
             <Outlet />
           </div>
           <div className={`view-root${activeView === "sources" ? "" : " is-hidden"}`}>
-            <SourcesSettingsStub />
+            <SourcesSettings />
           </div>
         </main>
       </div>

@@ -1792,3 +1792,33 @@ html, body, #root {
 /* ConfirmDialog */
 .confirm-dialog-body { padding: 8px 0 16px; line-height: 1.5; }
 .confirm-dialog-actions { display: flex; justify-content: flex-end; gap: 6px; }
+
+/* SourcesSettings page — three-column layout */
+.sources-settings {
+  display: grid;
+  grid-template-rows: auto 1fr;   /* toolbar | body */
+  height: 100%;
+}
+.sources-settings-body {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(200px, 240px) 1fr minmax(220px, 260px);
+  min-height: 0;
+}
+@media (max-width: 1023.98px) {
+  .sources-settings-body {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
+  }
+}
+.sources-settings-detail {
+  min-height: 0;
+  overflow: auto;
+}
+.sources-settings-empty {
+  padding: 16px;
+}
+.sources-settings-rendered-rail {
+  min-height: 0;
+  overflow: auto;
+}
