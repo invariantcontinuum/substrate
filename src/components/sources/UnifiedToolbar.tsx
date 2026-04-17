@@ -11,6 +11,7 @@ import { useSources } from "@/hooks/useSources";
 import { useSchedules } from "@/hooks/useSchedules";
 import { useSyncSetStore } from "@/stores/syncSet";
 import { SyncAlreadyActiveNotice } from "@/components/SyncAlreadyActiveNotice";
+import { ConfigDialog } from "./ConfigDialog";
 
 const INTERVAL_OPTIONS = [
   { label: "5 min", value: 5 }, { label: "15 min", value: 15 },
@@ -33,7 +34,7 @@ export function UnifiedToolbar(props: Props) {
   const { selectedSourceIds, selectedSyncIds, scheduleExpanded, onToggleSchedule,
           onSnapshotActionComplete, onSourceActionComplete, onAlreadyActive } = props;
   const { startSync, cancelSync, cleanSync, purgeSync, activeSyncs } = useSyncs();
-  const { purgeSource } = useSources();
+  const { purgeSource, sources } = useSources();
   const { createSchedule } = useSchedules();
   const load = useSyncSetStore((s) => s.load);
   const unload = useSyncSetStore((s) => s.unload);
@@ -45,6 +46,7 @@ export function UnifiedToolbar(props: Props) {
   const [confirmClean, setConfirmClean] = useState(false);
   const [confirmPurge, setConfirmPurge] = useState(false);
   const [confirmPurgeSource, setConfirmPurgeSource] = useState(false);
+  const [configOpen, setConfigOpen] = useState(false);
 
   // Auto-dismiss the "already active" notice after 6 seconds (mirrors SwapToast pattern).
   useEffect(() => {
@@ -231,8 +233,7 @@ export function UnifiedToolbar(props: Props) {
           <Clock size={12} /> Set Schedule
         </Button>
         {selectedSingleSource && (
-          <Button onClick={() => { /* config dialog re-integration point; left for later */ }}
-                  disabled>
+          <Button onClick={() => setConfigOpen(true)}>
             <Settings size={12} /> Config…
           </Button>
         )}
@@ -272,6 +273,18 @@ export function UnifiedToolbar(props: Props) {
         onConfirm={onConfirmPurgeSource}
         onCancel={() => setConfirmPurgeSource(false)}
       />
+      {(() => {
+        const src = selectedSingleSource
+          ? sources.find((s) => s.id === selectedSingleSource)
+          : null;
+        return src ? (
+          <ConfigDialog
+            open={configOpen}
+            source={src}
+            onClose={() => setConfigOpen(false)}
+          />
+        ) : null;
+      })()}
     </>
   );
 }

@@ -56,9 +56,32 @@ export function useSources() {
     },
   });
 
+  const updateSource = useMutation({
+    mutationFn: async (args: {
+      id: string;
+      label?: string;
+      enabled?: boolean;
+      config?: {
+        retention?: {
+          age_days?: number;
+          per_source_cap?: number;
+          never_prune?: boolean;
+        };
+      };
+    }) => {
+      const { id, ...body } = args;
+      return apiFetch(`/api/sources/${id}`, token, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      });
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["sources"] }),
+  });
+
   return {
     sources: list.data?.items ?? [],
     createSource: create.mutateAsync,
     purgeSource: purgeSource.mutateAsync,
+    updateSource: updateSource.mutateAsync,
   };
 }
