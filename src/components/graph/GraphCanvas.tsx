@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useGraphStore } from "@/stores/graph";
 import { useUIStore } from "@/stores/ui";
+import { useThemeStore } from "@/stores/theme";
 import { useResponsive } from "@/hooks/useResponsive";
 import { loadCytoscape } from "@/lib/cytoscapeLoader";
 import { useSources } from "@/hooks/useSources";
@@ -18,324 +19,198 @@ const GAP_Y = 10;
 const CELL_W = NODE_W + GAP_X;
 const CELL_H = NODE_H + GAP_Y;
 
-const cyStylesheet = [
-  {
-    // Base node: the brainrot graph aesthetic — a dark "sunken panel"
-    // fill (#241327, just darker than the Midnight Violet canvas
-    // #331e36) with a subtle Pale-Sky-tinted border and bright Pale
-    // Sky text. The colored borders below give each type a semantic
-    // accent without relying on high-contrast fills, keeping the
-    // canvas feeling atmospheric rather than busy.
-    selector: "node",
-    style: {
-      "background-color": "#241327",
-      "border-width": 1.5,
-      "border-color": "rgba(202,229,255,0.18)",
-      label: "data(label)",
-      color: "#cae5ff",
-      "font-size": 11,
-      "font-family": "Inter, sans-serif",
-      "font-weight": 500,
-      "text-valign": "center",
-      "text-halign": "center",
-      "text-wrap": "none",
-      width: 110,
-      height: 38,
-      shape: "roundrectangle",
-      padding: "8px" as any,
-      "z-index": 10,
+type GraphTheme = "light" | "dark";
+
+interface GraphPalette {
+  nodeFill: string;
+  nodeBorder: string;
+  nodeText: string;
+  nodeSelectedFill: string;
+  nodeSelectedBorder: string;
+  edgeLine: string;
+  edgeArrow: string;
+  edgeLabelText: string;
+  edgeLabelBg: string;
+  spotlightFocusBorder: string;
+  spotlightDimText: string;
+  sourceParentBorder: string;
+  sourceParentText: string;
+  typeFillCool: string;   // service/source (cool blue tint)
+  typeFillGreen: string;  // database/cache/data
+  typeFillWarm: string;   // adr/script
+  typeFillDanger: string; // incident/violation
+  typeFillPolicy: string; // policy (purple)
+  typeFillNeutral: string; // external/config/doc/asset
+}
+
+const DARK: GraphPalette = {
+  nodeFill: "#241327",
+  nodeBorder: "rgba(202,229,255,0.18)",
+  nodeText: "#cae5ff",
+  nodeSelectedFill: "#1d2a44",
+  nodeSelectedBorder: "#ffffff",
+  edgeLine: "rgba(202,229,255,0.10)",
+  edgeArrow: "rgba(202,229,255,0.18)",
+  edgeLabelText: "#cae5ff",
+  edgeLabelBg: "#241327",
+  spotlightFocusBorder: "#89bbfe",
+  spotlightDimText: "#000000",
+  sourceParentBorder: "rgba(137,187,254,0.28)",
+  sourceParentText: "rgba(202,229,255,0.55)",
+  typeFillCool: "#1d1e3a",
+  typeFillGreen: "#14241b",
+  typeFillWarm: "#2a1f14",
+  typeFillDanger: "#2a1414",
+  typeFillPolicy: "#251838",
+  typeFillNeutral: "#1a1a22",
+};
+
+const LIGHT: GraphPalette = {
+  nodeFill: "rgba(255,255,255,0.88)",
+  nodeBorder: "rgba(51,30,54,0.22)",
+  nodeText: "#331e36",
+  nodeSelectedFill: "rgba(137,187,254,0.28)",
+  nodeSelectedBorder: "#331e36",
+  edgeLine: "rgba(51,30,54,0.18)",
+  edgeArrow: "rgba(51,30,54,0.28)",
+  edgeLabelText: "#331e36",
+  edgeLabelBg: "rgba(255,255,255,0.92)",
+  spotlightFocusBorder: "#6f8ab7",
+  spotlightDimText: "rgba(51,30,54,0.6)",
+  sourceParentBorder: "rgba(111,138,183,0.4)",
+  sourceParentText: "rgba(51,30,54,0.6)",
+  typeFillCool: "rgba(137,187,254,0.18)",
+  typeFillGreen: "rgba(139,188,156,0.18)",
+  typeFillWarm: "rgba(216,154,91,0.16)",
+  typeFillDanger: "rgba(192,96,96,0.15)",
+  typeFillPolicy: "rgba(157,123,204,0.15)",
+  typeFillNeutral: "rgba(97,93,108,0.1)",
+};
+
+function buildCyStylesheet(theme: GraphTheme) {
+  const t = theme === "light" ? LIGHT : DARK;
+  return [
+    {
+      selector: "node",
+      style: {
+        "background-color": t.nodeFill,
+        "border-width": 1.5,
+        "border-color": t.nodeBorder,
+        label: "data(label)",
+        color: t.nodeText,
+        "font-size": 11,
+        "font-family": "Inter, sans-serif",
+        "font-weight": 500,
+        "text-valign": "center",
+        "text-halign": "center",
+        "text-wrap": "none",
+        width: 110,
+        height: 38,
+        shape: "roundrectangle",
+        padding: "8px" as any,
+        "z-index": 10,
+      },
     },
-  },
-  {
-    selector: 'node[type="service"]',
-    style: {
-      "background-color": "#1d1e3a",
-      "border-color": "#6f8ab7",
-      "border-width": 1.5,
+    { selector: 'node[type="service"]',
+      style: { "background-color": t.typeFillCool, "border-color": "#6f8ab7", "border-width": 1.5 } },
+    { selector: 'node[type="database"]',
+      style: { "background-color": t.typeFillGreen, "border-color": "#6b9a70", "border-width": 1.5, shape: "barrel" } },
+    { selector: 'node[type="cache"]',
+      style: { "background-color": t.typeFillGreen, "border-color": "#5a9578", shape: "barrel" } },
+    { selector: 'node[type="policy"]',
+      style: { "background-color": t.typeFillPolicy, "border-color": "#9d7bcc", "border-width": 2, shape: "diamond", width: 110, height: 48 } },
+    { selector: 'node[type="adr"]',
+      style: { "background-color": t.typeFillWarm, "border-color": "#a66a1f", shape: "roundrectangle", width: 80, height: 32, "font-size": 10 } },
+    { selector: 'node[type="incident"]',
+      style: { "background-color": t.typeFillDanger, "border-color": "#c53030", shape: "roundrectangle", width: 80, height: 32, "font-size": 10 } },
+    { selector: 'node[type="external"]',
+      style: { "background-color": t.typeFillNeutral, "border-color": "#615d6c", shape: "roundrectangle", width: 90, height: 32, "font-size": 10 } },
+    { selector: 'node[type="source"]',
+      style: { "background-color": t.typeFillCool, "border-color": "#6f8ab7", "border-width": 1.5 } },
+    { selector: 'node[type="config"]',
+      style: { "background-color": t.typeFillNeutral, "border-color": "#615d6c" } },
+    { selector: 'node[type="script"]',
+      style: { "background-color": t.typeFillWarm, "border-color": "#a66a1f" } },
+    { selector: 'node[type="doc"]',
+      style: { "background-color": t.typeFillNeutral, "border-color": "#615d6c" } },
+    { selector: 'node[type="data"]',
+      style: { "background-color": t.typeFillGreen, "border-color": "#6b9a70" } },
+    { selector: 'node[type="asset"]',
+      style: { "background-color": t.typeFillNeutral, "border-color": "#615d6c" } },
+    { selector: 'node[status="violation"]',
+      style: { "background-color": t.typeFillDanger, "border-color": "#ef4444", "border-width": 2 } },
+    {
+      selector: "edge",
+      style: {
+        width: 1,
+        "line-color": t.edgeLine,
+        "target-arrow-color": t.edgeArrow,
+        "target-arrow-shape": "triangle",
+        "curve-style": "bezier",
+        "arrow-scale": 0.8,
+        label: "",
+        "font-size": 9,
+        color: t.edgeLabelText,
+        "text-background-color": t.edgeLabelBg,
+        "text-background-opacity": 0.92,
+        "text-background-padding": "2px" as any,
+      },
     },
-  },
-  {
-    selector: 'node[type="database"]',
-    style: {
-      "background-color": "#14241b",
-      "border-color": "#6b9a70",
-      "border-width": 1.5,
-      shape: "barrel",
+    { selector: 'edge[type="depends"]',
+      style: { "line-color": "rgba(137,187,254,0.32)", "target-arrow-color": "rgba(137,187,254,0.45)" } },
+    { selector: 'edge[type="depends_on"]',
+      style: { "line-color": "rgba(137,187,254,0.32)", "target-arrow-color": "rgba(137,187,254,0.45)" } },
+    { selector: 'edge[type="violation"]',
+      style: { "line-color": "#ef4444", "target-arrow-color": "#ef4444", width: 2, "line-style": "dashed", "line-dash-pattern": [6, 3] as any, label: "data(label)", color: "#ef4444", "font-size": 9 } },
+    { selector: 'edge[type="enforces"]',
+      style: { "line-color": "rgba(157,123,204,0.55)", "target-arrow-color": "rgba(157,123,204,0.65)", "line-style": "dotted", width: 1.5 } },
+    { selector: 'edge[type="why"]',
+      style: { "line-color": "rgba(245,158,11,0.55)", "target-arrow-color": "rgba(245,158,11,0.65)", "line-style": "dashed", "line-dash-pattern": [4, 4] as any, width: 1.5, label: "data(label)", color: "#f59e0b", "font-size": 8 } },
+    { selector: 'edge[type="drift"]',
+      style: { "line-color": "rgba(239,68,68,0.32)", "target-arrow-color": "rgba(239,68,68,0.32)", "line-style": "dashed" } },
+    { selector: ":selected",
+      style: { "border-width": 3, "border-color": t.nodeSelectedBorder, "background-color": t.nodeSelectedFill } },
+    {
+      selector: "node[?isSourceParent]",
+      style: {
+        shape: "roundrectangle",
+        "background-opacity": 0,
+        "border-style": "dashed" as any,
+        "border-width": 1,
+        "border-color": t.sourceParentBorder,
+        label: "data(label)",
+        "text-valign": "top",
+        "text-halign": "left",
+        "font-size": 10,
+        color: t.sourceParentText,
+        "text-margin-y": -4 as any,
+        padding: "24px" as any,
+      },
     },
-  },
-  {
-    selector: 'node[type="cache"]',
-    style: {
-      "background-color": "#14241b",
-      "border-color": "#5a9578",
-      shape: "barrel",
+    { selector: ".spotlight-dim", style: { opacity: 0.28 } },
+    { selector: "node.spotlight-dim",
+      style: { "text-opacity": 1, color: t.spotlightDimText } },
+    { selector: "edge.spotlight-dim", style: { "text-opacity": 0.4 } },
+    { selector: "node.spotlight-focus",
+      style: { opacity: 1, "text-opacity": 1 } },
+    { selector: "node.spotlight-focus:childless",
+      style: { "font-size": 13, "border-width": 2, "border-color": t.spotlightFocusBorder, "z-index": 20 } },
+    {
+      selector: "edge.spotlight-focus",
+      style: {
+        opacity: 1, "text-opacity": 1, width: 2.2,
+        "line-color": t.spotlightFocusBorder,
+        "target-arrow-color": t.spotlightFocusBorder,
+        label: "data(type)", "font-size": 10,
+        color: t.edgeLabelText,
+        "text-background-color": t.edgeLabelBg,
+        "text-background-opacity": 0.75,
+        "text-background-padding": 2 as any,
+        "z-index": 15,
+      },
     },
-  },
-  {
-    selector: 'node[type="policy"]',
-    style: {
-      "background-color": "#251838",
-      "border-color": "#9d7bcc",
-      "border-width": 2,
-      shape: "diamond",
-      width: 110,
-      height: 48,
-    },
-  },
-  {
-    selector: 'node[type="adr"]',
-    style: {
-      "background-color": "#2a1f14",
-      "border-color": "#a66a1f",
-      shape: "roundrectangle",
-      width: 80,
-      height: 32,
-      "font-size": 10,
-    },
-  },
-  {
-    selector: 'node[type="incident"]',
-    style: {
-      "background-color": "#2a1414",
-      "border-color": "#c53030",
-      shape: "roundrectangle",
-      width: 80,
-      height: 32,
-      "font-size": 10,
-    },
-  },
-  {
-    selector: 'node[type="external"]',
-    style: {
-      "background-color": "#1a1a22",
-      "border-color": "#615d6c",
-      shape: "roundrectangle",
-      width: 90,
-      height: 32,
-      "font-size": 10,
-    },
-  },
-  {
-    selector: 'node[type="source"]',
-    style: {
-      "background-color": "#1d2a44",
-      "border-color": "#6f8ab7",
-      "border-width": 1.5,
-    },
-  },
-  {
-    selector: 'node[type="config"]',
-    style: {
-      "background-color": "#1a1a22",
-      "border-color": "#615d6c",
-    },
-  },
-  {
-    selector: 'node[type="script"]',
-    style: {
-      "background-color": "#2a1f14",
-      "border-color": "#a66a1f",
-    },
-  },
-  {
-    selector: 'node[type="doc"]',
-    style: {
-      "background-color": "#1a1a22",
-      "border-color": "#615d6c",
-    },
-  },
-  {
-    selector: 'node[type="data"]',
-    style: {
-      "background-color": "#14241b",
-      "border-color": "#6b9a70",
-    },
-  },
-  {
-    selector: 'node[type="asset"]',
-    style: {
-      "background-color": "#1a1a22",
-      "border-color": "#615d6c",
-    },
-  },
-  {
-    selector: 'node[status="violation"]',
-    style: {
-      "background-color": "#2a1414",
-      "border-color": "#ef4444",
-      "border-width": 2,
-    },
-  },
-  {
-    // Edges borrow brainrot's semantic palette: muted whites for the
-    // default, brighter/denser colours for edges the user should
-    // notice (violation, why). Arrows stay soft so the overall canvas
-    // reads as a web rather than a bar chart.
-    selector: "edge",
-    style: {
-      width: 1,
-      "line-color": "rgba(202,229,255,0.10)",
-      "target-arrow-color": "rgba(202,229,255,0.18)",
-      "target-arrow-shape": "triangle",
-      "curve-style": "bezier",
-      "arrow-scale": 0.8,
-      label: "",
-      "font-size": 9,
-      color: "#cae5ff",
-      "text-background-color": "#241327",
-      "text-background-opacity": 0.92,
-      "text-background-padding": "2px" as any,
-    },
-  },
-  {
-    selector: 'edge[type="depends"]',
-    style: {
-      "line-color": "rgba(137,187,254,0.32)",
-      "target-arrow-color": "rgba(137,187,254,0.45)",
-    },
-  },
-  {
-    selector: 'edge[type="depends_on"]',
-    style: {
-      "line-color": "rgba(137,187,254,0.32)",
-      "target-arrow-color": "rgba(137,187,254,0.45)",
-    },
-  },
-  {
-    selector: 'edge[type="violation"]',
-    style: {
-      "line-color": "#ef4444",
-      "target-arrow-color": "#ef4444",
-      width: 2,
-      "line-style": "dashed",
-      "line-dash-pattern": [6, 3] as any,
-      label: "data(label)",
-      color: "#ef4444",
-      "font-size": 9,
-    },
-  },
-  {
-    selector: 'edge[type="enforces"]',
-    style: {
-      "line-color": "rgba(157,123,204,0.55)",
-      "target-arrow-color": "rgba(157,123,204,0.65)",
-      "line-style": "dotted",
-      width: 1.5,
-    },
-  },
-  {
-    selector: 'edge[type="why"]',
-    style: {
-      "line-color": "rgba(245,158,11,0.55)",
-      "target-arrow-color": "rgba(245,158,11,0.65)",
-      "line-style": "dashed",
-      "line-dash-pattern": [4, 4] as any,
-      width: 1.5,
-      label: "data(label)",
-      color: "#f59e0b",
-      "font-size": 8,
-    },
-  },
-  {
-    selector: 'edge[type="drift"]',
-    style: {
-      "line-color": "rgba(239,68,68,0.32)",
-      "target-arrow-color": "rgba(239,68,68,0.32)",
-      "line-style": "dashed",
-    },
-  },
-  {
-    selector: ":selected",
-    style: {
-      "border-width": 3,
-      "border-color": "#ffffff",
-      "background-color": "#1d2a44",
-    },
-  },
-  {
-    selector: "node[?isSourceParent]",
-    style: {
-      shape: "roundrectangle",
-      "background-opacity": 0,
-      "border-style": "dashed" as any,
-      "border-width": 1,
-      "border-color": "rgba(137,187,254,0.28)",
-      label: "data(label)",
-      "text-valign": "top",
-      "text-halign": "left",
-      "font-size": 10,
-      color: "rgba(202,229,255,0.55)",
-      "text-margin-y": -4 as any,
-      padding: "24px" as any,
-    },
-  },
-  /* Spotlight — applied when a node is selected from the search
-   * dropdown or by click. Focused nodes + their 1-hop neighbors stay
-   * fully opaque and gain larger labels; everything else fades.
-   *
-   * Compound source parents inherit focus (so their children don't get
-   * cascaded-dim), but only get `opacity: 1` back — no cyan border /
-   * enlarged label override, which would clash with the dashed-frame
-   * parent style. */
-  {
-    // Dim class fades node bodies so the spotlight reads clearly, but
-    // leaves labels fully opaque — the user should still be able to
-    // orient themselves by the file names in the rest of the graph.
-    // Labels on dimmed nodes switch to black for maximum contrast
-    // against the greyed-out fills (the default Pale Sky label color
-    // is only tuned for the bright focus state).
-    selector: ".spotlight-dim",
-    style: {
-      opacity: 0.28,
-    },
-  },
-  {
-    selector: "node.spotlight-dim",
-    style: {
-      "text-opacity": 1,
-      color: "#000000",
-    },
-  },
-  {
-    selector: "edge.spotlight-dim",
-    style: {
-      "text-opacity": 0.4,
-    },
-  },
-  {
-    selector: "node.spotlight-focus",
-    style: {
-      opacity: 1,
-      "text-opacity": 1,
-    },
-  },
-  {
-    selector: "node.spotlight-focus:childless",
-    style: {
-      "font-size": 13,
-      "border-width": 2,
-      "border-color": "#89bbfe",
-      "z-index": 20,
-    },
-  },
-  {
-    selector: "edge.spotlight-focus",
-    style: {
-      opacity: 1,
-      "text-opacity": 1,
-      width: 2.2,
-      "line-color": "#89bbfe",
-      "target-arrow-color": "#89bbfe",
-      label: "data(type)",
-      "font-size": 10,
-      color: "#cae5ff",
-      "text-background-color": "#331e36",
-      "text-background-opacity": 0.75,
-      "text-background-padding": 2 as any,
-      "z-index": 15,
-    },
-  },
-];
+  ];
+}
 
 export function GraphCanvas() {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -356,6 +231,8 @@ export function GraphCanvas() {
   const finalizeLoad = useGraphStore((s) => s.finalizeLoad);
 
   const openModal = useUIStore((s) => s.openModal);
+
+  const theme = useThemeStore((s) => s.theme);
 
   const filtered = useMemo(() => {
     const visibleNodes = nodes.filter((n) =>
@@ -410,7 +287,7 @@ export function GraphCanvas() {
       const cy = cytoscape({
         container: containerRef.current,
         elements: [],
-        style: cyStylesheet as any,
+        style: buildCyStylesheet(theme) as any,
         minZoom: 0.05,
         maxZoom: 3,
         userPanningEnabled: true,
@@ -443,7 +320,21 @@ export function GraphCanvas() {
       cyRef.current?.destroy();
       cyRef.current = null;
     };
+    // `theme` is intentionally excluded — it's only read on initial mount.
+    // Subsequent theme changes are applied by the effect below, which avoids
+    // tearing down and rebuilding the Cytoscape instance (which would wipe
+    // the graph and be expensive).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setSelectedNodeId, setZoom, setPan, openModal]);
+
+  /* Re-apply the theme-keyed stylesheet whenever the global theme
+   * changes. Cytoscape doesn't observe CSS variables, so we rebuild the
+   * stylesheet from the current theme tokens and push it in. */
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy || !ready) return;
+    cy.style().fromJson(buildCyStylesheet(theme)).update();
+  }, [theme, ready]);
 
   const [loading, setLoading] = useState(false);
 
