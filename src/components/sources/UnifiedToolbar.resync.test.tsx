@@ -42,6 +42,12 @@ vi.mock("@/hooks/useSyncsByIds", () => ({
   },
 }));
 
+const openModal = vi.fn();
+vi.mock("@/stores/ui", () => ({
+  useUIStore: (sel: (s: { openModal: typeof openModal }) => unknown) =>
+    sel({ openModal }),
+}));
+
 const baseProps = {
   selectedSourceIds: new Set<string>(),
   selectedSyncIds: new Set<string>(),
@@ -70,5 +76,40 @@ describe("UnifiedToolbar Resync", () => {
     await new Promise((r) => setTimeout(r, 0));
     const calls = startSync.mock.calls.map((c: [{ source_id: string }]) => c[0].source_id).sort();
     expect(calls).toEqual(["s1", "s2"]);
+  });
+});
+
+describe("UnifiedToolbar Enrich", () => {
+  beforeEach(() => openModal.mockClear());
+
+  it("shows Enrich button when exactly one source is selected", () => {
+    render(
+      <UnifiedToolbar
+        {...baseProps}
+        selectedSourceIds={new Set(["src-1"])}
+      />
+    );
+    expect(screen.getByRole("button", { name: /enrich/i })).toBeInTheDocument();
+  });
+
+  it("hides Enrich button when multiple sources are selected", () => {
+    render(
+      <UnifiedToolbar
+        {...baseProps}
+        selectedSourceIds={new Set(["src-1", "src-2"])}
+      />
+    );
+    expect(screen.queryByRole("button", { name: /^enrich$/i })).toBeNull();
+  });
+
+  it("opens the enrichment modal on click", () => {
+    render(
+      <UnifiedToolbar
+        {...baseProps}
+        selectedSourceIds={new Set(["src-1"])}
+      />
+    );
+    fireEvent.click(screen.getByRole("button", { name: /enrich/i }));
+    expect(openModal).toHaveBeenCalledWith("enrichment");
   });
 });

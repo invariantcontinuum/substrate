@@ -1,6 +1,6 @@
 // frontend/src/components/sources/UnifiedToolbar.tsx
 import { useState, useEffect } from "react";
-import { RefreshCw, Clock, Settings, Square, Trash2, Download, Upload, Eraser } from "lucide-react";
+import { RefreshCw, Clock, Settings, Square, Trash2, Download, Upload, Eraser, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Label } from "@/components/ui/label";
@@ -10,6 +10,7 @@ import { useSyncsByIds } from "@/hooks/useSyncsByIds";
 import { useSources } from "@/hooks/useSources";
 import { useSchedules } from "@/hooks/useSchedules";
 import { useSyncSetStore } from "@/stores/syncSet";
+import { useUIStore } from "@/stores/ui";
 import { SyncAlreadyActiveNotice } from "@/components/SyncAlreadyActiveNotice";
 import { ConfigDialog } from "./ConfigDialog";
 
@@ -39,6 +40,7 @@ export function UnifiedToolbar(props: Props) {
   const load = useSyncSetStore((s) => s.load);
   const unload = useSyncSetStore((s) => s.unload);
   const loadedIds = useSyncSetStore((s) => s.syncIds);
+  const openModal = useUIStore((s) => s.openModal);
 
   const [interval, setInterval] = useState(60);
   const [alreadyActiveSyncId, setAlreadyActiveSyncId] = useState<string | null>(null);
@@ -232,6 +234,11 @@ export function UnifiedToolbar(props: Props) {
         <Button onClick={onToggleSchedule} className={scheduleExpanded ? "is-active" : ""}>
           <Clock size={12} /> Set Schedule
         </Button>
+        {selectedSingleSource && (
+          <Button onClick={() => openModal("enrichment")}>
+            <Sparkles size={12} /> Enrich
+          </Button>
+        )}
         {selectedSingleSource && (
           <Button onClick={() => setConfigOpen(true)}>
             <Settings size={12} /> Config…
