@@ -31,7 +31,6 @@ async def clean_sync_impl(conn: asyncpg.Connection, sync_id: str) -> None:
     )
 
 
-
 async def create_sync_run(source_id: str, config_snapshot: dict,
                           triggered_by: str, schedule_id: int | None = None) -> str:
     """Insert pending row. Raises asyncpg.UniqueViolationError if source has active sync."""

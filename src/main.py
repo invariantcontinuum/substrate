@@ -194,7 +194,6 @@ async def clean_sync(sync_id: str):
         raise HTTPException(404, "sync_run not found")
     if status not in ("completed", "failed", "cancelled"):
         raise HTTPException(409, f"sync must be in terminal state to clean (got: {status})")
-    pool = graph_writer.get_pool()
     async with pool.acquire() as conn:
         await clean_sync_impl(conn, sync_id)
     return {"status": "cleaned"}

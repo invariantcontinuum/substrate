@@ -113,7 +113,7 @@ ranked AS (
     pss.age_days, pss.per_source_cap, pss.never_prune
   FROM sync_runs sr
   JOIN per_source_settings pss ON pss.source_id = sr.source_id
-  WHERE sr.status = 'completed'
+  WHERE sr.status = 'completed'  -- failed/cancelled rows excluded: they consume no graph data, keep for debugging
 )
 SELECT id::text FROM ranked
 WHERE NOT never_prune

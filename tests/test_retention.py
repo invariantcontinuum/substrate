@@ -6,6 +6,7 @@ Concurrency: pg_try_advisory_lock(RETENTION_LOCK_ID).
 """
 import pytest
 import asyncio
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 from src.scheduler import prune_retention_once, RETENTION_LOCK_ID
@@ -15,7 +16,6 @@ from src.config import settings
 pytestmark = pytest.mark.asyncio(loop_scope="session")
 
 
-@pytest.mark.asyncio
 async def test_age_policy_cleans_old_rows(db_with_sync_runs):
     source_id = await db_with_sync_runs.add_source()
     old = await db_with_sync_runs.add_completed_sync(source_id, completed_at=_days_ago(40))
@@ -26,7 +26,6 @@ async def test_age_policy_cleans_old_rows(db_with_sync_runs):
     assert new not in cleaned
 
 
-@pytest.mark.asyncio
 async def test_count_policy_cleans_overflow(db_with_sync_runs):
     source_id = await db_with_sync_runs.add_source()
     ids = []
@@ -39,7 +38,6 @@ async def test_count_policy_cleans_overflow(db_with_sync_runs):
     assert set(cleaned) == set(ids[:5])
 
 
-@pytest.mark.asyncio
 async def test_or_semantics(db_with_sync_runs):
     source_id = await db_with_sync_runs.add_source()
     a = await db_with_sync_runs.add_completed_sync(source_id, completed_at=_days_ago(40))   # age only
@@ -52,7 +50,6 @@ async def test_or_semantics(db_with_sync_runs):
     assert _keep not in cleaned
 
 
-@pytest.mark.asyncio
 async def test_per_source_never_prune_excludes(db_with_sync_runs):
     source_id = await db_with_sync_runs.add_source(config={"retention": {"never_prune": True}})
     old = await db_with_sync_runs.add_completed_sync(source_id, completed_at=_days_ago(999))
@@ -61,7 +58,6 @@ async def test_per_source_never_prune_excludes(db_with_sync_runs):
     assert old not in cleaned
 
 
-@pytest.mark.asyncio
 async def test_per_source_age_days_override(db_with_sync_runs):
     source_id = await db_with_sync_runs.add_source(config={"retention": {"age_days": 60}})
     row = await db_with_sync_runs.add_completed_sync(source_id, completed_at=_days_ago(40))
@@ -70,7 +66,6 @@ async def test_per_source_age_days_override(db_with_sync_runs):
     assert row not in cleaned
 
 
-@pytest.mark.asyncio
 async def test_disabled_is_noop(db_with_sync_runs):
     source_id = await db_with_sync_runs.add_source()
     old = await db_with_sync_runs.add_completed_sync(source_id, completed_at=_days_ago(999))
@@ -79,7 +74,6 @@ async def test_disabled_is_noop(db_with_sync_runs):
     assert cleaned == []
 
 
-@pytest.mark.asyncio
 async def test_advisory_lock_single_runner(db_with_sync_runs):
     source_id = await db_with_sync_runs.add_source()
     await db_with_sync_runs.add_completed_sync(source_id, completed_at=_days_ago(999))
@@ -103,7 +97,6 @@ async def test_advisory_lock_single_runner(db_with_sync_runs):
     assert len(ran) == 1 and len(skipped) == 1
 
 
-@pytest.mark.asyncio
 async def test_idempotent(db_with_sync_runs):
     source_id = await db_with_sync_runs.add_source()
     await db_with_sync_runs.add_completed_sync(source_id, completed_at=_days_ago(999))
@@ -129,9 +122,6 @@ async def test_idempotent(db_with_sync_runs):
 
 def _days_ago(n: int) -> datetime:
     return datetime.now(tz=timezone.utc) - timedelta(days=n)
-
-
-from contextlib import contextmanager
 
 
 @contextmanager
