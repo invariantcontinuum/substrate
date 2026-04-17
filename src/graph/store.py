@@ -216,146 +216,120 @@ async def search(query_embedding: list[float], limit: int = 10,
     return results
 
 
-async def ensure_node_summary(node_id: str, sync_id: str | None = None, force: bool = False) -> dict:
-    """Return a short natural-language summary for a node.
+_NOT_FOUND_SUMMARY = {
+    "summary": "",
+    "cached": False,
+    "source": "not_found",
+    "chunk_count": 0,
+    "neighbor_count": 0,
+    "truncated_file": False,
+}
 
-    node_id format: 'src_<source_id>:<file_path>'. sync_id defaults to latest.
 
-    Only calls the LLM when there is actual indexed content (chunks) to
-    summarise. Without content, the LLM happily confabulates — describing
-    the supposed shape of code it has never seen — which is worse than
-    saying nothing.
+def _not_found() -> dict:
+    return dict(_NOT_FOUND_SUMMARY)
 
-    Caches real LLM output in `file_embeddings.description` so subsequent
-    reads are free. Does NOT cache the "no content" state so that a later
-    successful ingestion will produce a real summary on the next request.
 
-    Returns a dict with keys:
-      - summary:   str (empty when source is "no_content" or "not_found")
-      - cached:    bool (true when served from description column)
-      - source:    "cache" | "llm" | "no_content" | "llm_failed" | "not_found"
-      - chunk_count: int (how many chunks were used as input)
+async def _resolve_node_uuid(
+    conn, node_id: str, sync_id: str | None
+) -> tuple[str | None, str | None]:
+    """Translate either a synthetic ``src_<uuid>:<path>`` id or a raw
+    ``file_embeddings.id`` UUID into a ``(file_embeddings.id, sync_id)``
+    pair. Returns ``(None, None)`` when the node cannot be located.
+
+    ``sync_id`` is validated (and, for the synthetic shape, resolved to
+    the latest completed sync_run when not explicitly supplied).
     """
-    import httpx
     import uuid as _uuid
+
+    validated_sync: str | None = None
+    if sync_id is not None:
+        try:
+            validated_sync = str(_uuid.UUID(sync_id))
+        except (ValueError, AttributeError, TypeError):
+            return None, None
+
+    if node_id.startswith("src_") and ":" in node_id:
+        src_part, file_path = node_id[4:].split(":", 1)
+        try:
+            source_uuid = str(_uuid.UUID(src_part))
+        except (ValueError, AttributeError, TypeError):
+            return None, None
+        resolved_sync = validated_sync
+        if resolved_sync is None:
+            resolved_sync = await conn.fetchval(
+                """SELECT fe.sync_id::text
+                     FROM file_embeddings fe
+                     JOIN sync_runs sr ON sr.id = fe.sync_id
+                    WHERE fe.source_id = $1::uuid AND fe.file_path = $2
+                    ORDER BY sr.completed_at DESC NULLS LAST, sr.id DESC
+                    LIMIT 1""",
+                source_uuid, file_path,
+            )
+            if not resolved_sync:
+                return None, None
+        fe_id = await conn.fetchval(
+            """SELECT id::text FROM file_embeddings
+                WHERE source_id=$1::uuid AND file_path=$2 AND sync_id=$3::uuid""",
+            source_uuid, file_path, resolved_sync,
+        )
+        if not fe_id:
+            return None, None
+        return fe_id, resolved_sync
+
+    try:
+        fe_uuid = str(_uuid.UUID(node_id))
+    except (ValueError, AttributeError, TypeError):
+        return None, None
+    return fe_uuid, validated_sync
+
+
+async def ensure_node_summary(
+    node_id: str, sync_id: str | None = None, force: bool = False
+) -> dict:
+    """Return a structured enriched summary for a file node.
+
+    ``node_id`` may be the synthetic ``src_<source_uuid>:<file_path>``
+    shape emitted by minimal-projection graph reads, or a direct
+    ``file_embeddings.id`` UUID. Not-found / invalid ids return a
+    graceful ``source="not_found"`` dict rather than raising.
+
+    When ``force`` is false, a cached description (with a non-null
+    ``description_generated_at``) short-circuits the LLM call. Otherwise
+    the full enrichment pipeline in ``generate_enriched_summary`` runs.
+    """
+    from src.graph.enriched_summary import generate_enriched_summary
 
     if not _pool:
         raise RuntimeError("Database not connected")
 
-    if not node_id.startswith("src_") or ":" not in node_id:
-        return {"summary": "", "cached": False, "source": "not_found", "chunk_count": 0}
-    src_part, file_path = node_id[4:].split(":", 1)
-    source_id = src_part
-    try:
-        source_id = str(_uuid.UUID(source_id))
-    except (ValueError, AttributeError, TypeError):
-        return {"summary": "", "cached": False, "source": "not_found", "chunk_count": 0}
-    if sync_id is not None:
-        try:
-            sync_id = str(_uuid.UUID(sync_id))
-        except (ValueError, AttributeError, TypeError):
-            return {"summary": "", "cached": False, "source": "not_found", "chunk_count": 0}
-
     logger.info("summary_start", node_id=node_id, force=force)
 
     async with _pool.acquire() as conn:
-        if sync_id is None:
-            sync_id = await conn.fetchval(
-                """SELECT fe.sync_id::text FROM file_embeddings fe
-                   JOIN sync_runs sr ON sr.id = fe.sync_id
-                   WHERE fe.source_id=$1::uuid AND fe.file_path=$2
-                   ORDER BY sr.completed_at DESC NULLS LAST LIMIT 1""",
-                source_id, file_path,
-            )
-            if not sync_id:
-                logger.info("summary_node_not_found", node_id=node_id)
-                return {"summary": "", "cached": False, "source": "not_found", "chunk_count": 0}
-
-        row = await conn.fetchrow(
-            """SELECT id::text, file_path, name, type, domain, language, description
-               FROM file_embeddings WHERE source_id=$1::uuid AND file_path=$2 AND sync_id=$3::uuid""",
-            source_id, file_path, sync_id,
-        )
-        if not row:
+        fe_id, resolved_sync = await _resolve_node_uuid(conn, node_id, sync_id)
+        if fe_id is None:
             logger.info("summary_node_not_found", node_id=node_id)
-            return {"summary": "", "cached": False, "source": "not_found", "chunk_count": 0}
+            return _not_found()
 
-        if row["description"] and not force:
-            logger.info("summary_cache_hit", node_id=node_id)
-            return {"summary": row["description"], "cached": True, "source": "cache", "chunk_count": -1}
-
-        chunk_rows = await conn.fetch(
-            """SELECT content, start_line, end_line FROM content_chunks
-               WHERE file_id=$1::uuid ORDER BY chunk_index LIMIT 5""",
-            row["id"],
-        )
-
-    # No indexed content → refuse to summarise. Calling the LLM with only
-    # a path and type produces plausible-sounding but fabricated prose.
-    if not chunk_rows:
-        logger.info("summary_no_content", node_id=node_id, file_path=row["file_path"])
-        return {"summary": "", "cached": False, "source": "no_content", "chunk_count": 0}
-
-    excerpts = []
-    total_chars = 0
-    for ch in chunk_rows:
-        remaining = settings.summary_chunk_sample_chars - total_chars
-        if remaining <= 0:
-            break
-        text = ch["content"][:remaining]
-        excerpts.append(f"[lines {ch['start_line']}-{ch['end_line']}]\n{text}")
-        total_chars += len(text)
-    excerpts_block = "\n\n".join(excerpts)
-
-    system_prompt = (
-        "You are a senior engineer summarising a single source file in a "
-        "knowledge graph. Write 2-3 plain sentences covering what the file "
-        "does, the kind of code it contains, and anything notable. Only "
-        "describe what you can see in the excerpts — do not invent details "
-        "or speculate about what isn't shown. No markdown, no headings, "
-        "no preamble."
-    )
-    user_prompt = (
-        f"File path: {row['file_path']}\nName: {row['name']}\nType: {row['type']}\n"
-        f"Language: {row['language'] or 'unknown'}\nDomain: {row['domain'] or '-'}\n\n"
-        f"Excerpts:\n{excerpts_block}\n\nSummary:"
-    )
-
-    try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            resp = await client.post(
-                settings.dense_llm_url,
-                json={
-                    "model": settings.dense_llm_model,
-                    "messages": [
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt},
-                    ],
-                    "max_tokens": settings.summary_max_tokens,
-                    "temperature": 0.2,
-                    "stream": False,
-                },
+        if not force:
+            row = await conn.fetchrow(
+                """SELECT description, description_generated_at
+                     FROM file_embeddings
+                    WHERE id = $1::uuid
+                      AND ($2::uuid IS NULL OR sync_id = $2::uuid)
+                    ORDER BY created_at DESC LIMIT 1""",
+                fe_id, resolved_sync,
             )
-            resp.raise_for_status()
-            data = resp.json()
-            summary_text = (data.get("choices") or [{}])[0].get("message", {}).get(
-                "content", ""
-            ).strip()
-    except Exception as e:
-        logger.warning("summary_llm_failed", node_id=node_id, error=str(e))
-        return {"summary": "", "cached": False, "source": "llm_failed", "chunk_count": len(chunk_rows)}
-
-    if not summary_text:
-        logger.warning("summary_llm_empty", node_id=node_id)
-        return {"summary": "", "cached": False, "source": "llm_failed", "chunk_count": len(chunk_rows)}
-
-    async with _pool.acquire() as conn:
-        await conn.execute(
-            "UPDATE file_embeddings SET description=$1 WHERE id=$2::uuid",
-            summary_text, row["id"],
-        )
-
-    logger.info("summary_persisted", node_id=node_id, chunks=len(chunk_rows))
-    return {"summary": summary_text, "cached": False, "source": "llm", "chunk_count": len(chunk_rows)}
+            if row and row["description"] and row["description_generated_at"] is not None:
+                logger.info("summary_cache_hit", node_id=node_id)
+                return {
+                    "summary": row["description"],
+                    "cached": True,
+                    "source": "cache",
+                    "chunk_count": -1,
+                    "neighbor_count": -1,
+                    "truncated_file": False,
+                }
+        return await generate_enriched_summary(conn, fe_id, resolved_sync)
 
 

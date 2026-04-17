@@ -13,6 +13,16 @@ class Settings(BaseSettings):
     dense_llm_model: str = "qwen2.5-7b-instruct"
     summary_max_tokens: int = 160
     summary_chunk_sample_chars: int = 4000
+    summary_edge_neighbors: int = 10
+    summary_total_budget_chars: int = 48_000
+    summary_neighbor_chars: int = 1_200
+    summary_file_budget_ratio: float = 0.70
+    summary_neighbor_budget_ratio: float = 0.25
+    summary_instruction: str = (
+        "You are summarizing a source-code node in a project graph. "
+        "Write 2-3 precise sentences: what this file does and how it "
+        "connects to its neighbors. No speculation beyond the excerpts."
+    )
     app_port: int = 8082
     graph_query_timeout_s: int = Field(default=60, alias="GRAPH_QUERY_TIMEOUT_SECONDS")
 
