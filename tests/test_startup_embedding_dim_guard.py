@@ -4,7 +4,7 @@ Reads pgvector column typmod and asserts it matches settings.embedding_dim.
 """
 import pytest
 from unittest.mock import AsyncMock
-from src.main import check_embedding_dim  # added in Step 4
+from src.startup import check_embedding_dim
 
 
 @pytest.mark.asyncio
