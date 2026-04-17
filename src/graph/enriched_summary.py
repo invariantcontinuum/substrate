@@ -208,31 +208,42 @@ async def _fetch_edge_neighbors(conn, file_id: str) -> list[dict]:
     """Fetch (neighbor_id, edge_type, direction) triples for the node via AGE.
 
     Uses the inline-quoted ``MATCH (a:File {file_id: '...'})`` pattern
-    established in ``snapshot_query.py`` — the labeled-node + property
-    shape is required for AGE to use its label index; an unlabeled
-    ``MATCH (n)-[r]-(m) WHERE n.file_id=...`` would full-scan the graph
-    (~188k nodes in production) and wedge the connection.
+    established in ``snapshot_query.py``. A btree expression index on
+    ``properties -> '"file_id"'::agtype`` (migration V5) keeps this
+    lookup logarithmic against the ~190k File vertex table.
+
+    Wrapped in a short ``SET LOCAL statement_timeout`` so a runaway
+    plan (e.g. missing index after a fresh clone) fails fast — without
+    it, a single stuck query can pile up across the asyncpg pool and
+    starve every other endpoint, including ``/file`` and ``/stats``.
 
     Falls back to an empty list on any error — AGE may legitimately be
-    empty or the `substrate` graph may not yet hold edges for this
+    empty or the ``substrate`` graph may not yet hold edges for this
     node's sync.
     """
     try:
-        # NB: f-string inlining matches snapshot_query.py. file_id came
-        # from our own DB row (UUID string) and is therefore safe to
-        # inline — no external/user input path reaches this quoting.
-        rows = await conn.fetch(
-            f"""
-            SELECT * FROM cypher('substrate', $$
-                MATCH (a:File {{file_id: '{file_id}'}})-[r]-(b:File)
-                RETURN b.file_id AS neighbor_file_id,
-                       label(r)  AS edge_type,
-                       CASE WHEN startNode(r).file_id = '{file_id}' THEN 'out'
-                            WHEN endNode(r).file_id   = '{file_id}' THEN 'in'
-                            ELSE 'undirected' END AS direction
-            $$) AS (neighbor_file_id agtype, edge_type agtype, direction agtype)
-            """
-        )
+        # `SET LOCAL` only applies inside a transaction, so we must
+        # wrap the AGE call explicitly; without the wrapper the
+        # timeout is silently ignored and a bad plan can hang for
+        # hours.
+        async with conn.transaction():
+            await conn.execute("SET LOCAL statement_timeout = '10000ms'")
+            # NB: f-string inlining matches snapshot_query.py. file_id
+            # came from our own DB row (UUID string) and is therefore
+            # safe to inline — no external/user input path reaches
+            # this quoting.
+            rows = await conn.fetch(
+                f"""
+                SELECT * FROM cypher('substrate', $$
+                    MATCH (a:File {{file_id: '{file_id}'}})-[r]-(b:File)
+                    RETURN b.file_id AS neighbor_file_id,
+                           label(r)  AS edge_type,
+                           CASE WHEN startNode(r).file_id = '{file_id}' THEN 'out'
+                                WHEN endNode(r).file_id   = '{file_id}' THEN 'in'
+                                ELSE 'undirected' END AS direction
+                $$) AS (neighbor_file_id agtype, edge_type agtype, direction agtype)
+                """
+            )
     except Exception as exc:
         logger.warning("enriched_summary_edge_fetch_failed", error=str(exc))
         return []
