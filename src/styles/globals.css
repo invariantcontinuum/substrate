@@ -203,6 +203,71 @@ html, body, #root {
   color: var(--fg-subtle);
 }
 
+.top-nav-search-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+}
+
+.top-nav-search-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 320px;
+  overflow-y: auto;
+  z-index: var(--z-tooltip);
+  background: var(--surface-solid);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 12px 28px -12px rgba(0, 0, 0, 0.45);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.top-nav-search-empty {
+  padding: 10px 12px;
+  font-size: var(--text-xs);
+  color: var(--fg-subtle);
+}
+
+.top-nav-search-item {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--fg);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+
+.top-nav-search-item.is-active,
+.top-nav-search-item:hover {
+  background: var(--surface-hover);
+}
+
+.top-nav-search-item-name {
+  font-size: var(--text-sm);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.top-nav-search-item-sub {
+  font-size: var(--text-2xs);
+  color: var(--fg-subtle);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 @media (max-width: 640px) {
   .top-nav {
     /* Drop the centre column entirely on phones — the search lives in

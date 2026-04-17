@@ -266,6 +266,44 @@ const cyStylesheet = [
       padding: "24px" as any,
     },
   },
+  /* Spotlight — applied when a node is selected from the search
+   * dropdown or by click. Focused nodes + their 1-hop neighbors stay
+   * fully opaque and gain larger labels; everything else fades. */
+  {
+    selector: ".spotlight-dim",
+    style: {
+      opacity: 0.12,
+      "text-opacity": 0.05,
+    },
+  },
+  {
+    selector: "node.spotlight-focus",
+    style: {
+      opacity: 1,
+      "text-opacity": 1,
+      "font-size": 13,
+      "border-width": 2,
+      "border-color": "#89bbfe",
+      "z-index": 20,
+    },
+  },
+  {
+    selector: "edge.spotlight-focus",
+    style: {
+      opacity: 1,
+      "text-opacity": 1,
+      width: 2.2,
+      "line-color": "#89bbfe",
+      "target-arrow-color": "#89bbfe",
+      label: "data(type)",
+      "font-size": 10,
+      color: "#cae5ff",
+      "text-background-color": "#331e36",
+      "text-background-opacity": 0.75,
+      "text-background-padding": 2 as any,
+      "z-index": 15,
+    },
+  },
 ];
 
 export function GraphCanvas() {
@@ -470,11 +508,39 @@ export function GraphCanvas() {
     return () => { cancelled = true; };
   }, [elementsWithParents, filtered.nodes.length, ready, isMobile, finalizeLoad]);
 
-  /* selection highlight */
+  /* selection highlight + spotlight zoom
+   *
+   * When a node is selected (from a graph click, the top-nav search
+   * dropdown, or a deep-link), we:
+   *   1. `select()` the node so cytoscape paints its selected style
+   *   2. Mark the node + its 1-hop neighborhood with .spotlight-focus;
+   *      everything else gets .spotlight-dim — CSS tokens pick these up
+   *      and apply opacity/blur via cytoscape styles below.
+   *   3. Animate the viewport to center on the neighborhood's bounding
+   *      box with a comfortable zoom padding. */
   useEffect(() => {
     if (!cyRef.current) return;
-    cyRef.current.nodes().unselect();
-    if (selectedNodeId) cyRef.current.getElementById(selectedNodeId).select();
+    const cy = cyRef.current;
+    cy.elements().removeClass("spotlight-focus spotlight-dim");
+    cy.nodes().unselect();
+
+    if (!selectedNodeId) return;
+
+    const node = cy.getElementById(selectedNodeId);
+    if (!node.length) return;
+    node.select();
+
+    const neighborhood = node.closedNeighborhood();
+    neighborhood.addClass("spotlight-focus");
+    cy.elements().difference(neighborhood).addClass("spotlight-dim");
+
+    cy.stop(true, true);
+    cy.animate(
+      {
+        fit: { eles: neighborhood, padding: 80 },
+      },
+      { duration: 400, easing: "ease-out" },
+    );
   }, [selectedNodeId]);
 
   /* signals pulse */

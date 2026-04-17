@@ -1,11 +1,10 @@
-import { useCallback, useMemo, useState } from "react";
-import { Search, Brain } from "lucide-react";
+import { useMemo } from "react";
+import { Brain } from "lucide-react";
 import { useAuth } from "react-oidc-context";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import { useGraphStore } from "@/stores/graph";
-import { useSearch } from "@/hooks/useSearch";
-import { Input } from "@/components/ui/input";
+import { SearchBar } from "./SearchBar";
 
 function formatDuration(ms: number | null | undefined): string {
   if (ms == null) return "—";
@@ -20,11 +19,8 @@ export function TopBar() {
   const edges = useGraphStore((s) => s.edges);
   const visibleTypes = useGraphStore((s) => s.filters.types);
   const stats = useGraphStore((s) => s.stats);
-  const setSearchQuery = useGraphStore((s) => s.setSearchQuery);
-  const { search } = useSearch();
   const auth = useAuth();
   const token = auth.user?.access_token;
-  const [q, setQ] = useState("");
 
   // Counts reflect what's painted on the canvas after legend filtering,
   // not raw DB totals.
@@ -58,14 +54,6 @@ export function TopBar() {
 
   const healthy = !healthQuery.isError && !healthQuery.isLoading;
 
-  const loaded = nodes.length > 0;
-
-  const go = useCallback(() => {
-    if (!q.trim()) return;
-    setSearchQuery(q.trim());
-    search(q.trim());
-  }, [q, setSearchQuery, search]);
-
   const loadLabel = formatDuration(stats.lastLoadMs);
   const fetchLabel = formatDuration(stats.lastFetchMs);
   const serverLabel = formatDuration(stats.lastServerMs);
@@ -85,17 +73,7 @@ export function TopBar() {
       </div>
 
       <div className="top-nav-center">
-        <div className="top-nav-search">
-          <Search size={12} />
-          <Input
-            type="text"
-            placeholder="Search..."
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && go()}
-            disabled={!loaded}
-          />
-        </div>
+        <SearchBar />
       </div>
 
       <div className="top-nav-stats">
