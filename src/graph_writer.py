@@ -91,6 +91,7 @@ async def insert_file(
         raise RuntimeError("graph_writer not connected")
     async with _pool.acquire() as conn:
         if embedding is not None:
+            assert_embedding_dim(sync_id=sync_id, embeddings=[embedding], expected=settings.embedding_dim)
             row = await conn.fetchrow(
                 """
                 INSERT INTO file_embeddings
@@ -172,6 +173,7 @@ async def insert_chunks(file_id: str, sync_id: str, chunks: list[dict]) -> None:
                     ch.get("language", ""),
                 )
             else:
+                assert_embedding_dim(sync_id=sync_id, embeddings=[embedding], expected=settings.embedding_dim)
                 await conn.execute(
                     """
                     INSERT INTO content_chunks

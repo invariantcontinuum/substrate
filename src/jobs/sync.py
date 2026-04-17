@@ -12,7 +12,7 @@ from src.connectors.base import MaterializedTree
 from src.connectors.github import CONNECTORS
 from src import graph_writer, sync_runs, sync_issues
 from src.chunker import chunk_file, file_summary_text
-from src.llm import embed_batch
+from src.llm import embed_batch, EmbeddingDimError
 
 logger = structlog.get_logger()
 
@@ -256,6 +256,8 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
                 await _check_cancelled(sync_id)
         except CancelledSync:
             raise
+        except EmbeddingDimError:
+            raise
         except Exception as e:
             await sync_issues.record_issue(
                 sync_id, "warning", "embedding_summaries", "embedding_unavailable",
@@ -286,6 +288,8 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
                     await sync_runs.update_sync_progress(sync_id, meta["files_embedded"], len(nodes), meta)
                     await _check_cancelled(sync_id)
             except CancelledSync:
+                raise
+            except EmbeddingDimError:
                 raise
             except Exception as e:
                 await sync_issues.record_issue(

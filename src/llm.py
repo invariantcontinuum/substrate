@@ -26,6 +26,7 @@ def assert_embedding_dim(sync_id: str, embeddings: list[list[float]], expected: 
         if len(emb) != expected:
             raise EmbeddingDimError(sync_id=sync_id, expected=expected, actual=len(emb))
 
+
 _client: httpx.AsyncClient | None = None
 
 # Qwen3-Embedding-0.6B has n_ctx_train = 32768 tokens. Keep each input
