@@ -6,6 +6,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { useSyncs } from "@/hooks/useSyncs";
+import { useSyncsByIds } from "@/hooks/useSyncsByIds";
 import { useSources } from "@/hooks/useSources";
 import { useSchedules } from "@/hooks/useSchedules";
 import { useSyncSetStore } from "@/stores/syncSet";
@@ -64,6 +65,12 @@ export function UnifiedToolbar(props: Props) {
   const snapshotSomeLoaded = snapshotLoadedCount > 0;
   const snapshotSomeUnloaded = snapshotIds.length > snapshotLoadedCount;
 
+  // Per-snapshot status lookup for Resync visibility gating.
+  const { syncsById } = useSyncsByIds(snapshotIds);
+  const snapshotStatuses = snapshotIds.map((id) => syncsById.get(id)?.status);
+  const canResync = snapshotIds.length > 0
+    && snapshotStatuses.every((s) => s === "completed" || s === "failed");
+
   const doLoad = () => {
     snapshotIds.forEach(load);
     onSnapshotActionComplete();
@@ -83,6 +90,25 @@ export function UnifiedToolbar(props: Props) {
   const onConfirmPurge = () => {
     setConfirmPurge(false);
     snapshotIds.forEach((id) => { void purgeSync(id); });
+    onSnapshotActionComplete();
+  };
+  const doResync = () => {
+    // Dedupe source_ids so one sync is fired per distinct source.
+    const srcIds = Array.from(new Set(
+      snapshotIds
+        .map((id) => syncsById.get(id)?.source_id)
+        .filter((v): v is string => !!v),
+    ));
+    let firstAlreadyActiveFound = false;
+    srcIds.forEach((sourceId) => {
+      void startSync({ source_id: sourceId }).then((outcome) => {
+        if (outcome.kind === "already_active" && !firstAlreadyActiveFound) {
+          firstAlreadyActiveFound = true;
+          setAlreadyActiveSyncId(outcome.sync_id);
+          setAlreadyActiveSourceId(sourceId);
+        }
+      });
+    });
     onSnapshotActionComplete();
   };
 
@@ -152,9 +178,24 @@ export function UnifiedToolbar(props: Props) {
               <Upload size={12} /> Unload{snapshotSomeUnloaded ? ` (${snapshotLoadedCount})` : ""}
             </Button>
           )}
+          {canResync && (
+            <Button onClick={doResync}>
+              <RefreshCw size={12} /> Resync
+            </Button>
+          )}
           <Button onClick={doClean}><Eraser size={12} /> Clean</Button>
           <Button onClick={doPurge} className="danger"><Trash2 size={12} /> Purge</Button>
         </div>
+        {alreadyActiveSyncId && alreadyActiveSourceId && (
+          <SyncAlreadyActiveNotice
+            syncId={alreadyActiveSyncId}
+            onOpenSync={onAlreadyActive
+              ? (syncId) => onAlreadyActive(syncId, alreadyActiveSourceId)
+              : undefined
+            }
+            className="mx-2 mt-1 rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-900/30 dark:border-amber-700 px-3 py-2 text-sm flex items-center justify-between gap-3"
+          />
+        )}
         <ConfirmDialog
           open={confirmClean}
           title="Clean snapshots"
