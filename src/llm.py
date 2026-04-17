@@ -52,10 +52,19 @@ async def close_client() -> None:
         _client = None
 
 
+# nomic-embed-text-v2 requires a task prefix on every input:
+#   - `search_document: …` for corpus content (this service)
+#   - `search_query: …`    for user queries (graph-service search)
+# Without the prefix, embeddings are of lower quality and will not
+# cluster with query embeddings produced elsewhere.
+_DOCUMENT_PREFIX = "search_document: "
+
+
 def _truncate(text: str) -> str:
-    if len(text) <= _MAX_INPUT_CHARS:
-        return text
-    return text[:_MAX_INPUT_CHARS]
+    body_cap = _MAX_INPUT_CHARS - len(_DOCUMENT_PREFIX)
+    if len(text) <= body_cap:
+        return _DOCUMENT_PREFIX + text
+    return _DOCUMENT_PREFIX + text[:body_cap]
 
 
 def _auth_headers() -> dict[str, str]:
