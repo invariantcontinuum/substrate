@@ -1,6 +1,7 @@
 // frontend/src/components/sources/SnapshotRowSummary.tsx
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, Eye } from "lucide-react";
 import type { SyncRun } from "@/hooks/useSyncs";
+import { useSyncSetStore } from "@/stores/syncSet";
 
 // Phases where progress_done/progress_total meaningfully measure % complete.
 // After "graphing" finishes the per-file chunking loop, progress_done hits its
@@ -46,6 +47,7 @@ function statusChip(status: string) {
 
 export function SnapshotRowSummary({ run, isSelected, isExpanded, onToggleSelect, onToggleExpand }: Props) {
   const isRunning = run.status === "running";
+  const isLoaded = useSyncSetStore((s) => s.syncIds.includes(run.id));
   const meta = run.progress_meta;
   const phase = meta?.phase ?? "";
   const phaseHasBar = PROGRESS_BAR_PHASES.has(phase);
@@ -81,6 +83,13 @@ export function SnapshotRowSummary({ run, isSelected, isExpanded, onToggleSelect
       >
         <span className="snapshot-row-ts">{formatTs(run.completed_at ?? run.created_at)}</span>
         {statusChip(run.status)}
+        {isLoaded && (
+          <Eye
+            size={14}
+            className="snapshot-row-loaded-icon"
+            aria-label="Loaded on graph"
+          />
+        )}
         {isRunning && (
           <span className="snapshot-row-progress">
             <span className="snapshot-row-progress-text">

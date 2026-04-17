@@ -1725,7 +1725,8 @@ html, body, #root {
 .source-list-item-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .source-list-item-chip { font-size: 9px; padding: 1px 6px; border-radius: 3px; }
 .source-list-item-chip.running { background: rgba(141, 134, 201, 0.22); color: var(--accent-soft); }
-.source-list-item-loaded-icon {
+.source-list-item-loaded-icon,
+.snapshot-row-loaded-icon {
   flex-shrink: 0;
   color: var(--accent);
   opacity: 0.9;
