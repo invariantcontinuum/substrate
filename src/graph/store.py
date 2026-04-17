@@ -353,33 +353,15 @@ async def ensure_node_summary(
                 "truncated_file": False,
             }
 
-    # Serialize LLM calls per node: two concurrent force=true requests
-    # for the same node collapse into one, with the loser re-reading
-    # the fresh cache.
+    # Serialize LLM calls per node so two concurrent force=true
+    # requests for the same node don't both re-invoke the dense LLM.
+    # The second request will simply re-run after the first completes;
+    # results are identical so the overwrite is harmless. (We
+    # deliberately do *not* short-circuit on cache here: a force=true
+    # caller asked for a fresh summary, not the one that was just
+    # written a millisecond ago.)
     lock = _summary_locks.setdefault(fe_id, asyncio.Lock())
     async with lock:
-        async with _pool.acquire() as conn:
-            row = await conn.fetchrow(
-                """SELECT description, description_generated_at
-                     FROM file_embeddings
-                    WHERE id = $1::uuid
-                      AND ($2::uuid IS NULL OR sync_id = $2::uuid)
-                    ORDER BY created_at DESC LIMIT 1""",
-                fe_id, resolved_sync,
-            )
-        if row and row["description"] and row["description_generated_at"] is not None:
-            logger.info("summary_cache_hit_after_lock", node_id=node_id)
-            return {
-                "summary": row["description"],
-                "cached": True,
-                "source": "cache",
-                "chunk_count": -1,
-                "neighbor_count": -1,
-                "truncated_file": False,
-            }
-        # Outer pool connection is released before entering the enriched
-        # pipeline — it manages its own read/write acquisitions around
-        # the slow LLM call.
         return await generate_enriched_summary(_pool, fe_id, resolved_sync)
 
 
