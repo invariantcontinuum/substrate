@@ -278,14 +278,28 @@ const cyStylesheet = [
    * enlarged label override, which would clash with the dashed-frame
    * parent style. */
   {
-    // Dim class intentionally keeps `text-opacity` at a level where
-    // labels remain legible — we want the user to orient themselves
-    // on unrelated nodes while the spotlight focuses attention, not
-    // to hide every label in the graph.
+    // Dim class fades node bodies so the spotlight reads clearly, but
+    // leaves labels fully opaque — the user should still be able to
+    // orient themselves by the file names in the rest of the graph.
+    // Labels on dimmed nodes switch to black for maximum contrast
+    // against the greyed-out fills (the default Pale Sky label color
+    // is only tuned for the bright focus state).
     selector: ".spotlight-dim",
     style: {
       opacity: 0.28,
-      "text-opacity": 0.55,
+    },
+  },
+  {
+    selector: "node.spotlight-dim",
+    style: {
+      "text-opacity": 1,
+      color: "#000000",
+    },
+  },
+  {
+    selector: "edge.spotlight-dim",
+    style: {
+      "text-opacity": 0.4,
     },
   },
   {
