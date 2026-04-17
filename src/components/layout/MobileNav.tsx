@@ -9,7 +9,7 @@ type MobileNavAction =
   | { kind: "view"; view: "graph" | "sources" };
 
 const items: { icon: typeof GitBranch; label: string; action: MobileNavAction }[] = [
-  { icon: GitBranch, label: "Graph",      action: { kind: "modal", modal: "graph" } },
+  { icon: GitBranch, label: "Graph",      action: { kind: "view",  view: "graph" } },
   { icon: Plug,      label: "Sources",    action: { kind: "view",  view: "sources" } },
   { icon: Sparkles,  label: "Enrichment", action: { kind: "modal", modal: "enrichment" } },
   { icon: Search,    label: "Search",     action: { kind: "modal", modal: "search" } },

@@ -34,16 +34,17 @@ export function DynamicLegend() {
       .slice(0, 12);
   }, [nodes]);
 
-  if (types.length <= 1) return null;
-
   // Every distinct type observed in the current graph — used to
   // restore "all visible" when the user clicks the currently-isolated
-  // type a second time.
+  // type a second time. Must sit before any conditional return so the
+  // hook count stays stable between renders (React error #310).
   const allTypes = useMemo(() => {
     const seen = new Set<string>();
     for (const n of nodes) seen.add(String(n.type || "unknown"));
     return Array.from(seen);
   }, [nodes]);
+
+  if (types.length <= 1) return null;
 
   const isolated =
     visibleTypes.size === 1 ? Array.from(visibleTypes)[0] : null;

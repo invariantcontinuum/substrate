@@ -3,7 +3,6 @@ import { ComingSoonModal } from "./ComingSoonModal";
 import { UserModal } from "./UserModal";
 import { EnrichmentModal } from "./EnrichmentModal";
 import { SearchModal } from "./SearchModal";
-import { GraphModal } from "./GraphModal";
 
 // Only mount the modal that matches the active name. Previously every
 // modal component rendered as long as ANY modal was open, which meant
@@ -16,7 +15,6 @@ import { GraphModal } from "./GraphModal";
 // `sources` is now a full-page view toggled via useUIStore.activeView —
 // removed from this modal map in Task 8; SourcesModal deleted in Task 9.
 const MODAL_COMPONENTS: Partial<Record<NonNullable<ModalName>, React.ComponentType>> = {
-  graph: GraphModal,
   enrichment: EnrichmentModal,
   search: SearchModal,
   user: UserModal,

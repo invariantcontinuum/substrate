@@ -12,7 +12,7 @@ import { useSyncSetStore } from "@/stores/syncSet";
 // user account modal. The account button at the footer of the rail is
 // the single entry point to both.
 // "sources" is now a full-page view (activeView toggle), not a modal.
-const IMPLEMENTED = new Set(["graph", "sources", "enrichment", "search", "user"]);
+const IMPLEMENTED = new Set(["sources", "enrichment", "search", "user"]);
 
 type NavAction = { kind: "modal"; modal: ModalName } | { kind: "view"; view: "graph" | "sources" } | { kind: "navigate" };
 
@@ -24,7 +24,7 @@ interface NavItem {
 }
 
 const items: NavItem[] = [
-  { icon: GitBranch, label: "Graph",      action: { kind: "modal", modal: "graph" }, active: true },
+  { icon: GitBranch, label: "Graph",      action: { kind: "view", view: "graph" }, active: true },
   { icon: Plug,      label: "Sources",    action: { kind: "view",  view: "sources" } },
   { icon: Sparkles,  label: "Enrichment", action: { kind: "modal", modal: "enrichment" } },
   { icon: Search,    label: "Search",     action: { kind: "modal", modal: "search" } },
