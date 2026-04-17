@@ -35,10 +35,11 @@ async def init_client() -> None:
             max_keepalive_connections=20,
             keepalive_expiry=2.0,
         ),
-        # Read is generous (60s) so brief upstream bursts — e.g.
-        # ingestion chunking a large sync — don't trip the polling
-        # endpoints. Connect is tight so dead hosts fail fast and
-        # retry logic kicks in quickly.
+        # Read defaults to 60s for bulk polling endpoints. The per-route
+        # override block below bumps LLM-backed summary endpoints to
+        # 200s so slow Qwen3.5-4B generations don't 504 mid-response.
+        # Connect is tight so dead hosts fail fast and retry logic
+        # kicks in quickly.
         timeout=httpx.Timeout(connect=5.0, read=60.0, write=10.0, pool=10.0),
         follow_redirects=False,
     )
@@ -86,9 +87,22 @@ async def proxy_request(request: Request, upstream_base: str) -> Response:
     # App-level retry for the keepalive-race: when the upstream idle-
     # closes a pooled connection right as we reuse it, the first read
     # fails with RemoteProtocolError. Only retry idempotent methods so we
-    # don't double-submit a POST.
+    # don't double-submit a POST. `force=true` on GET /summary is a
+    # regenerate trigger — treat it like a POST (single attempt) so a
+    # transient retry doesn't double-invoke the LLM.
     is_idempotent = request.method.upper() in _IDEMPOTENT_METHODS
-    attempts = 3 if is_idempotent else 1
+    is_force_regen = "force=true" in (request.url.query or "")
+    attempts = 1 if is_force_regen or not is_idempotent else 3
+
+    # Summary endpoints run local dense LLM calls that routinely take
+    # 30-90s; override the default 60s read timeout for them.
+    is_summary = request.url.path.endswith("/summary")
+    per_request_timeout = (
+        httpx.Timeout(connect=5.0, read=200.0, write=10.0, pool=10.0)
+        if is_summary
+        else None
+    )
+
     last_exc: Exception | None = None
     resp = None
     for attempt in range(attempts):
@@ -98,6 +112,7 @@ async def proxy_request(request: Request, upstream_base: str) -> Response:
                 url=url,
                 headers=headers,
                 content=body,
+                **({"timeout": per_request_timeout} if per_request_timeout else {}),
             )
             break
         except _RETRYABLE as e:
