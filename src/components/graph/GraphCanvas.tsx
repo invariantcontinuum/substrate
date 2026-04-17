@@ -39,7 +39,6 @@ type GraphTheme = "light" | "dark";
 interface GraphPalette {
   // Neutral node glass
   nodeFill: string;             // translucent default — same for every type
-  nodeFillGradient: string;     // subtle second stop for a shimmer
   nodeBorder: string;           // fallback border when type is unknown
   nodeText: string;
   nodeTextOutline: string;      // faint halo for label readability against grid
@@ -87,9 +86,8 @@ interface GraphPalette {
 }
 
 const DARK: GraphPalette = {
-  // Glass on shadow-grey: translucent linen + subtle inner shimmer
-  nodeFill:          "rgba(239, 230, 221, 0.12)",
-  nodeFillGradient:  "rgba(239, 230, 221, 0.22)",
+  // Glass on shadow-grey: translucent linen shows the grid through
+  nodeFill:          "rgba(239, 230, 221, 0.14)",
   nodeBorder:        "rgba(239, 230, 221, 0.32)",
   nodeText:          "#efe6dd",
   nodeTextOutline:   "rgba(35, 31, 32, 0.85)",
@@ -134,9 +132,8 @@ const DARK: GraphPalette = {
 };
 
 const LIGHT: GraphPalette = {
-  // Glass on linen: near-white translucent with a faint warm shimmer
-  nodeFill:          "rgba(255, 255, 255, 0.55)",
-  nodeFillGradient:  "rgba(255, 255, 255, 0.78)",
+  // Glass on linen: near-white translucent shows the grid through
+  nodeFill:          "rgba(255, 255, 255, 0.62)",
   nodeBorder:        "rgba(35, 31, 32, 0.28)",
   nodeText:          "#231f20",
   nodeTextOutline:   "rgba(255, 253, 250, 0.9)",
@@ -184,36 +181,33 @@ function buildCyStylesheet(theme: GraphTheme) {
   const t = theme === "light" ? LIGHT : DARK;
   return [
     {
-      // Base node: glass pane. Background is a subtle diagonal gradient
-      // so every node has a touch of reflected light without shouting.
-      // Border is the neutral fallback — per-type rules below override
-      // it with the type-specific shiny accent.
+      // Base node: glass pane. Background is a translucent linen / white
+      // so the grid reads through every node. Border is the neutral
+      // fallback — per-type rules below override it with the type-
+      // specific shiny accent.
       selector: "node",
       style: {
-        "background-fill":                 "linear-gradient",
-        "background-gradient-stop-colors": `${t.nodeFill} ${t.nodeFillGradient}`,
-        "background-gradient-stop-positions": "0 100",
-        "background-gradient-direction":   "to-bottom-right",
-        "background-color":                t.nodeFill,  // fallback for older render paths
-        "border-width":                    2,
-        "border-color":                    t.nodeBorder,
-        "border-opacity":                  1,
-        label:                             "data(label)",
-        color:                             t.nodeText,
-        "text-outline-color":              t.nodeTextOutline,
-        "text-outline-width":              1.5,
-        "text-outline-opacity":            1,
-        "font-size":                       11,
-        "font-family":                     '"Manrope", -apple-system, BlinkMacSystemFont, sans-serif',
-        "font-weight":                     600,
-        "text-valign":                     "center",
-        "text-halign":                     "center",
-        "text-wrap":                       "none",
-        width:                             110,
-        height:                            38,
-        shape:                             "roundrectangle",
-        padding:                           "8px" as any,
-        "z-index":                         10,
+        "background-color":     t.nodeFill,
+        "background-opacity":   1,
+        "border-width":         2,
+        "border-color":         t.nodeBorder,
+        "border-opacity":       1,
+        label:                  "data(label)",
+        color:                  t.nodeText,
+        "text-outline-color":   t.nodeTextOutline,
+        "text-outline-width":   1.5,
+        "text-outline-opacity": 1,
+        "font-size":            11,
+        "font-family":          '"Manrope", -apple-system, BlinkMacSystemFont, sans-serif',
+        "font-weight":          600,
+        "text-valign":          "center",
+        "text-halign":          "center",
+        "text-wrap":            "none",
+        width:                  110,
+        height:                 38,
+        shape:                  "roundrectangle",
+        padding:                "8px" as any,
+        "z-index":              10,
       },
     },
 
@@ -275,7 +269,6 @@ function buildCyStylesheet(theme: GraphTheme) {
       style: {
         shape:                  "roundrectangle",
         "background-opacity":   0,
-        "background-fill":      "solid",
         "border-style":         "dashed" as any,
         "border-width":         1,
         "border-color":         t.sourceParentBorder,
