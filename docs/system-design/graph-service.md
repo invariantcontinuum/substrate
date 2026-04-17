@@ -231,7 +231,7 @@ Example response node:
 |---------|---------|---------|
 | `DATABASE_URL` | `postgresql+asyncpg://substrate_graph:changeme@localhost:5432/substrate_graph` | Postgres connection |
 | `EMBEDDING_URL` | `http://localhost:8101/v1/embeddings` | Embedding service endpoint |
-| `EMBEDDING_MODEL` | `embeddinggemma-300M-Q8_0.gguf` | Model name for embedding service |
+| `EMBEDDING_MODEL` | `Qwen3-Embedding-0.6B-Q8_0.gguf` | Model name for embedding service |
 | `DENSE_LLM_URL` | `http://localhost:8102/v1/chat/completions` | Dense LLM endpoint for summaries |
 | `DENSE_LLM_MODEL` | `qwen2.5-7b-instruct` | Model name for summaries |
 | `SUMMARY_MAX_TOKENS` | `160` | Max tokens for summary output |

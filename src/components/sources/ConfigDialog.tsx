@@ -30,9 +30,7 @@ export function ConfigDialog({ open, source, onClose }: Props) {
   const { updateSource } = useSources();
 
   const [label, setLabel] = useState(source.name);
-  const [enabled, setEnabled] = useState(
-    "enabled" in source ? (source as Source & { enabled: boolean }).enabled : true,
-  );
+  const [enabled, setEnabled] = useState(source.enabled);
   const [ageDays, setAgeDays] = useState(parseRetention(source).age_days);
   const [perCap, setPerCap] = useState(parseRetention(source).per_source_cap);
   const [neverPrune, setNeverPrune] = useState(parseRetention(source).never_prune);
@@ -63,9 +61,7 @@ export function ConfigDialog({ open, source, onClose }: Props) {
     if (label !== source.name) {
       patch.label = label;
     }
-    const originalEnabled =
-      "enabled" in source ? (source as Source & { enabled: boolean }).enabled : true;
-    if (enabled !== originalEnabled) {
+    if (enabled !== source.enabled) {
       patch.enabled = enabled;
     }
 
