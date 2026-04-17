@@ -46,10 +46,24 @@ function statusChip(status: string) {
 
 export function SnapshotRowSummary({ run, isSelected, isExpanded, onToggleSelect, onToggleExpand }: Props) {
   const isRunning = run.status === "running";
-  const pct = run.progress_total > 0 ? Math.round((run.progress_done / run.progress_total) * 100) : 0;
-  const phase = (run.progress_meta as { phase?: string } | null)?.phase ?? "";
+  const meta = run.progress_meta;
+  const phase = meta?.phase ?? "";
   const phaseHasBar = PROGRESS_BAR_PHASES.has(phase);
   const phaseLabel = PHASE_LABEL[phase] ?? phase;
+
+  // During "embedding_chunks" the file-level counters pin at 100% because
+  // the chunker already stamped `progress_done = len(nodes)` earlier. The
+  // live work happens in `meta.chunks_embedded / meta.chunks_total`, so
+  // we prefer those when present. Same logic would apply to
+  // "embedding_summaries", but there ingestion updates progress_done via
+  // `meta.files_embedded` so the file-level counters are accurate.
+  const useChunkCounters =
+    phase === "embedding_chunks" &&
+    meta?.chunks_total != null &&
+    meta.chunks_total > 0;
+  const displayDone = useChunkCounters ? (meta?.chunks_embedded ?? 0) : run.progress_done;
+  const displayTotal = useChunkCounters ? (meta?.chunks_total ?? 0) : run.progress_total;
+  const pct = displayTotal > 0 ? Math.round((displayDone / displayTotal) * 100) : 0;
 
   return (
     <div className={`snapshot-row-summary${isExpanded ? " is-expanded" : ""}`}>
@@ -71,10 +85,10 @@ export function SnapshotRowSummary({ run, isSelected, isExpanded, onToggleSelect
           <span className="snapshot-row-progress">
             <span className="snapshot-row-progress-text">
               {phaseLabel || "Running"}
-              {run.progress_total > 0 && (
+              {displayTotal > 0 && (
                 <>
                   {" · "}
-                  {run.progress_done} / {run.progress_total}
+                  {displayDone} / {displayTotal}
                 </>
               )}
               {phaseHasBar && ` · ${pct}%`}

@@ -47,6 +47,21 @@ export interface SyncRunStats {
   duration_ms?: number;
 }
 
+// Matches the `meta` dict populated by services/ingestion/src/jobs/sync.py
+// as it walks through phases. Every field is optional because the
+// ingestion writer assembles it incrementally and older rows may be
+// missing later-added keys.
+export interface SyncProgressMeta {
+  phase?: string;
+  source?: string;
+  files_total?: number;
+  files_parseable?: number;
+  files_parsed?: number;
+  files_embedded?: number;
+  chunks_total?: number;
+  chunks_embedded?: number;
+}
+
 export interface SyncRun {
   id: string;
   source_id: string;
@@ -54,7 +69,7 @@ export interface SyncRun {
   ref: string | null;
   progress_done: number;
   progress_total: number;
-  progress_meta: unknown;
+  progress_meta: SyncProgressMeta | null;
   stats: SyncRunStats | null;
   triggered_by: string | null;
   started_at: string | null;
