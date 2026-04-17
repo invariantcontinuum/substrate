@@ -250,7 +250,7 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
                     fi = file_info_list[batch_start + j]
                     file_db_id = file_id_map.get(fi["node"].id)
                     if file_db_id:
-                        await graph_writer.update_file_embedding(file_db_id, vec)
+                        await graph_writer.update_file_embedding(file_db_id, vec, sync_id=sync_id)
                 meta["files_embedded"] = min(batch_start + EMBED_BATCH_SIZE, len(summary_texts))
                 await sync_runs.update_sync_progress(sync_id, meta["files_embedded"], len(nodes), meta)
                 await _check_cancelled(sync_id)
@@ -281,7 +281,7 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
                         if vec is None:
                             continue
                         file_db_id, chunk_index = chunk_map[batch_start + j]
-                        await graph_writer.update_chunk_embedding(file_db_id, chunk_index, vec)
+                        await graph_writer.update_chunk_embedding(file_db_id, chunk_index, vec, sync_id=sync_id)
                     meta["chunks_embedded"] = min(batch_start + EMBED_BATCH_SIZE, len(all_chunk_texts))
                     await sync_runs.update_sync_progress(sync_id, meta["files_embedded"], len(nodes), meta)
                     await _check_cancelled(sync_id)

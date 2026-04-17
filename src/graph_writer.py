@@ -1,6 +1,8 @@
 import time
 import asyncpg
 import structlog
+from src.config import settings
+from src.llm import assert_embedding_dim
 
 logger = structlog.get_logger()
 
@@ -115,10 +117,15 @@ async def insert_file(
         return row["id"]
 
 
-async def update_file_embedding(file_id: str, embedding: list[float]) -> None:
+async def update_file_embedding(file_id: str, embedding: list[float], sync_id: str = "") -> None:
     """Fill in the summary embedding on an already-written file row."""
     if not _pool:
         raise RuntimeError("graph_writer not connected")
+    assert_embedding_dim(
+        sync_id=sync_id,
+        embeddings=[embedding],
+        expected=settings.embedding_dim,
+    )
     async with _pool.acquire() as conn:
         await conn.execute(
             "UPDATE file_embeddings SET embedding = $2::vector WHERE id = $1::uuid",
@@ -126,10 +133,15 @@ async def update_file_embedding(file_id: str, embedding: list[float]) -> None:
         )
 
 
-async def update_chunk_embedding(file_id: str, chunk_index: int, embedding: list[float]) -> None:
+async def update_chunk_embedding(file_id: str, chunk_index: int, embedding: list[float], sync_id: str = "") -> None:
     """Fill in the embedding on an already-written chunk row."""
     if not _pool:
         raise RuntimeError("graph_writer not connected")
+    assert_embedding_dim(
+        sync_id=sync_id,
+        embeddings=[embedding],
+        expected=settings.embedding_dim,
+    )
     async with _pool.acquire() as conn:
         await conn.execute(
             "UPDATE content_chunks SET embedding = $3::vector "

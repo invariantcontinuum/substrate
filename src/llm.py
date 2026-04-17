@@ -5,6 +5,27 @@ from src.config import settings
 
 logger = structlog.get_logger()
 
+
+class EmbeddingDimError(Exception):
+    """Raised when an embedding vector has a dimension that does not match
+    the configured embedding_dim. Carries sync_id + expected/actual so
+    the sync run can fail cleanly with the mismatch surfaced in logs."""
+
+    def __init__(self, sync_id: str, expected: int, actual: int) -> None:
+        self.sync_id = sync_id
+        self.expected = expected
+        self.actual = actual
+        super().__init__(
+            f"Embedding dim mismatch in sync {sync_id}: expected {expected}, got {actual}"
+        )
+
+
+def assert_embedding_dim(sync_id: str, embeddings: list[list[float]], expected: int) -> None:
+    """Raise EmbeddingDimError on the first vector whose length != expected."""
+    for emb in embeddings:
+        if len(emb) != expected:
+            raise EmbeddingDimError(sync_id=sync_id, expected=expected, actual=len(emb))
+
 _client: httpx.AsyncClient | None = None
 
 # Qwen3-Embedding-0.6B has n_ctx_train = 32768 tokens. Keep each input
