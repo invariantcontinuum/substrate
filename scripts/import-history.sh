@@ -70,5 +70,9 @@ import gateway    git@github.com:invariantcontinuum/substrate-platform.git servi
 import ingestion  git@github.com:invariantcontinuum/substrate-platform.git services/ingestion services/ingestion
 import graph      git@github.com:invariantcontinuum/substrate-platform.git services/graph     services/graph
 
+# Phase 3 — from home-stack (substrate slices only)
+import postgres-init   git@github.com:danycrafts/home-stack.git services/postgres ops/infra/postgres
+import keycloak        git@github.com:danycrafts/home-stack.git services/keycloak ops/infra/keycloak
+
 echo
-echo "substrate-platform imports complete."
+echo "substrate-platform + home-stack substrate slice imports complete."
