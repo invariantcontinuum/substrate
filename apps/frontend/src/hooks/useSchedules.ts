@@ -22,7 +22,9 @@ export function useSchedules() {
     queryKey: ["schedules"],
     queryFn: () => apiFetch<Schedule[]>("/api/schedules", token),
     enabled: !!token,
-    refetchInterval: 60_000,
+    // Mutations invalidate via onSuccess; navigation triggers a refetch.
+    // If a background scheduler changes state externally, the user can
+    // refresh — schedules are low-frequency by nature.
   });
 
   const create = useMutation({

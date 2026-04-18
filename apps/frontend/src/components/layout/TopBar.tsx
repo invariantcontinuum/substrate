@@ -47,7 +47,9 @@ export function TopBar() {
     queryKey: ["health", "api-graph"],
     queryFn: () => apiFetch("/api/graph/stats", token),
     enabled: !!token,
-    refetchInterval: 60_000,
+    // Health is derived from query success; staleness pushes a re-check
+    // on mount. Manual nav triggers a refresh; SSE carries live state.
+    staleTime: 60_000,
     retry: false,
     refetchOnWindowFocus: false,
   });

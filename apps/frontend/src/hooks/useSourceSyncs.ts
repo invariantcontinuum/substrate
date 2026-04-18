@@ -1,8 +1,10 @@
 // frontend/src/hooks/useSourceSyncs.ts
+import { useEffect } from "react";
 import { useAuth } from "react-oidc-context";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import type { SyncRun } from "./useSyncs";
+import { openSseClient } from "substrate-web-common";
 
 interface SyncsPage {
   items: SyncRun[];
@@ -13,9 +15,12 @@ interface SyncsPage {
 export function useSourceSyncs(sourceId: string | null, status?: string) {
   const auth = useAuth();
   const token = auth.user?.access_token;
+  const qc = useQueryClient();
+
+  const queryKey = ["syncs", "source", sourceId, status ?? "all"];
 
   const q = useInfiniteQuery<SyncsPage>({
-    queryKey: ["syncs", "source", sourceId, status ?? "all"],
+    queryKey,
     enabled: !!token && !!sourceId,
     initialPageParam: null as string | null,
     queryFn: ({ pageParam }) => {
@@ -27,22 +32,21 @@ export function useSourceSyncs(sourceId: string | null, status?: string) {
       return apiFetch<SyncsPage>(`/api/syncs?${params.toString()}`, token);
     },
     getNextPageParam: (last) => last.next_cursor,
-    // Poll every 5s while any snapshot in this source's list is
-    // running or pending. Without this, progress_meta and stats
-    // changes emitted by ingestion never reach the snapshot rows —
-    // users see a stuck "Running 785 / 785" until they refresh the
-    // page or defocus/refocus the window (react-query's default
-    // refetchOnWindowFocus). The separate running-only poller in
-    // useSyncs() updates its own cache entry (queryKey ["syncs",
-    // "active"]) and doesn't share data with this per-source query.
-    refetchInterval: (query) => {
-      const items = (query.state.data?.pages ?? []).flatMap((p) => p.items);
-      const hasActive = items.some(
-        (r) => r.status === "running" || r.status === "pending",
-      );
-      return hasActive ? 5_000 : false;
-    },
+    // No polling. SSE below invalidates on any sync_lifecycle or
+    // sync_progress event for this source.
   });
+
+  useEffect(() => {
+    if (!token || !sourceId) return;
+    const client = openSseClient("/api/events", { sourceId });
+    const invalidate = () => qc.invalidateQueries({ queryKey });
+    client.on("sync_lifecycle", invalidate);
+    client.on("sync_progress", invalidate);
+    client.on("source_changed", invalidate);
+    client.on("token_expired", () => client.close());
+    client.on("stream_dropped", () => client.close());
+    return () => client.close();
+  }, [qc, token, sourceId, queryKey]);
 
   const items = (q.data?.pages ?? []).flatMap((p) => p.items);
   return {

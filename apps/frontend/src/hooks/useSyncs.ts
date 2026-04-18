@@ -6,6 +6,7 @@ import { apiFetch } from "@/lib/api";
 import { logger } from "@/lib/logger";
 import { useGraphStore } from "@/stores/graph";
 import { useSyncSetStore, type SyncRunSummary } from "@/stores/syncSet";
+import { openSseClient } from "substrate-web-common";
 
 // Tagged outcome type for the startSync mutation.
 // 409 sync_already_active is NOT an error — it returns `kind: "already_active"`.
@@ -92,11 +93,24 @@ export function useSyncs() {
     queryKey: ["syncs", "active"],
     queryFn: () => apiFetch("/api/syncs?status=running&limit=50", token),
     enabled: !!token,
-    refetchInterval: (q) => {
-      const items = (q.state.data as { items?: SyncRun[] } | undefined)?.items ?? [];
-      return items.length > 0 ? 5_000 : 30_000;
-    },
+    // No polling — cache invalidations are driven by SSE below.
   });
+
+  // Invalidate ["syncs", "active"] whenever a sync_lifecycle or sync_progress
+  // event arrives. Reconnects are handled by EventSource natively; on
+  // token_expired the server closes and this effect's cleanup re-opens next
+  // render cycle (token refresh is driven by react-oidc-context).
+  useEffect(() => {
+    if (!token) return;
+    const client = openSseClient("/api/events");
+    const invalidate = () =>
+      qc.invalidateQueries({ queryKey: ["syncs", "active"] });
+    client.on("sync_lifecycle", invalidate);
+    client.on("sync_progress", invalidate);
+    client.on("token_expired", () => client.close());
+    client.on("stream_dropped", () => client.close());
+    return () => client.close();
+  }, [qc, token]);
 
   // Fix: also populate sourceMap for sync_ids in the active set that are
   // completed (not running), so onSyncCompleted can find same-source swaps.
