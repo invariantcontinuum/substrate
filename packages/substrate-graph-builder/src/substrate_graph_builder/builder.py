@@ -27,7 +27,7 @@ from substrate_graph_builder.model import (
     Symbol,
     classify_file_type,
 )
-from substrate_graph_builder.plugins import REGISTRY  # type: ignore[attr-defined]
+from substrate_graph_builder.plugins import REGISTRY
 
 logger = structlog.get_logger()
 
