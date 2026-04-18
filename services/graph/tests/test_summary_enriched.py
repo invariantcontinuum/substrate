@@ -58,24 +58,32 @@ async def seeded_file_node_id():
             src_id,
         )
         file_path = "src/summary_target.py"
+        # ~60 KB of file content: large enough that the scale=1.0 prompt fits
+        # without truncation (file_cap ≈ 88 KB at default settings) but
+        # scale=0.5 truncates to ≈ 44 KB. This is what lets
+        # `test_summary_retries_with_smaller_prompt_on_context_error`
+        # actually observe a shorter retry prompt. Keeping seed lines
+        # self-describing (one token `L<i>` plus 100 chars of padding)
+        # makes debug output readable without resorting to `"x" * N` blobs.
+        line_count = 500
+        chunk_content = "\n".join(f"L{i:04d} {'x' * 100}" for i in range(1, line_count + 1))
         fe_id = await conn.fetchval(
             f"""INSERT INTO file_embeddings
                    (sync_id, source_id, file_path, name, type, domain,
                     language, line_count, size_bytes, description, status,
                     content_hash, embedding)
                VALUES ($1::uuid, $2::uuid, $3, 'summary_target.py', 'file',
-                       'core', 'python', 20, 200, '', 'healthy',
+                       'core', 'python', {line_count}, {len(chunk_content)}, '', 'healthy',
                        'h_sum', '{emb_literal}'::vector)
                RETURNING id::text""",
             sid, src_id, file_path,
         )
-        chunk_content = "\n".join(f"L{i}" for i in range(1, 21))
         await conn.execute(
             """INSERT INTO content_chunks
                    (file_id, sync_id, chunk_index, content,
                     start_line, end_line, token_count)
-               VALUES ($1::uuid, $2::uuid, 0, $3, 1, 20, 40)""",
-            fe_id, sid, chunk_content,
+               VALUES ($1::uuid, $2::uuid, 0, $3, 1, $4, $5)""",
+            fe_id, sid, chunk_content, line_count, len(chunk_content) // 4,
         )
 
     yield fe_id
