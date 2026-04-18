@@ -58,6 +58,19 @@ fi
 
 [[ -f ops/llm/lazy-lamacpp/Makefile ]] \
   && pass "lazy-lamacpp imported" \
-  || pass "lazy-lamacpp not yet imported (expected before Phase 4)"
+  || fail "lazy-lamacpp imported"
+
+probe_llm_embed() {
+  curl -sf -o /dev/null -w "%{http_code}\n" http://localhost:8101/v1/models 2>/dev/null \
+    | grep -qx 200 && pass "llm :8101 embeddings" || fail "llm embeddings"
+}
+
+probe_llm_dense() {
+  curl -sf -o /dev/null -w "%{http_code}\n" http://localhost:8102/v1/models 2>/dev/null \
+    | grep -qx 200 && pass "llm :8102 dense" || fail "llm dense"
+}
+
+probe_llm_embed
+probe_llm_dense
 
 exit "$failed"
