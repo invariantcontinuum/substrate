@@ -120,7 +120,6 @@ services:
     environment:
       SERVICE_NAME: ingestion
       DATABASE_URL: postgresql+asyncpg://${GRAPH_DB_USER}:${GRAPH_DB_PASSWORD}@postgres:5432/${GRAPH_DB_NAME}
-      GRAPH_DATABASE_URL: postgresql+asyncpg://${GRAPH_DB_USER}:${GRAPH_DB_PASSWORD}@postgres:5432/${GRAPH_DB_NAME}
       EMBEDDING_URL: ${EMBEDDING_URL}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL}
       EMBEDDING_DIM: ${EMBEDDING_DIM}

@@ -3,7 +3,6 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://substrate_graph:change-me@postgres:5432/substrate_graph"
-    graph_database_url: str = "postgresql+asyncpg://substrate_graph:change-me@postgres:5432/substrate_graph"
     github_token: str = ""
     app_port: int = 8081
     embedding_url: str = "http://host.docker.internal:8101/v1/embeddings"

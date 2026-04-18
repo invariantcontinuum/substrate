@@ -9,8 +9,8 @@ from dataclasses import dataclass, field
 
 def _graph_dsn() -> str:
     url = os.environ.get(
-        "GRAPH_DATABASE_URL",
-        "postgresql://substrate_graph:changeme@localhost:5432/substrate_graph",
+        "DATABASE_URL",
+        "postgresql://substrate_graph:change-me@localhost:5432/substrate_graph",
     )
     return url.replace("postgresql+asyncpg://", "postgresql://")
 

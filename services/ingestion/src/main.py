@@ -5,7 +5,6 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 
 from src.config import settings
-from src.db import close_pool
 from src import graph_writer, sync_runs, sync_issues, sync_schedules
 from src.sync_runs import clean_sync_impl
 from src.connectors.github import close_client as close_github_client
@@ -55,7 +54,7 @@ async def _reap_zombies() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await graph_writer.connect(settings.graph_database_url)
+    await graph_writer.connect(settings.database_url)
     await _reap_zombies()
     await start_runner()
     await start_scheduler()
@@ -68,7 +67,6 @@ async def lifespan(app: FastAPI):
     await close_github_client()
     await close_llm_client()
     await graph_writer.disconnect()
-    await close_pool()
     logger.info("ingestion_stopped")
 
 
