@@ -1,0 +1,30 @@
+[package]
+name = "graph-worker-wasm"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+graph-core = { path = "../graph-core" }
+graph-layout = { path = "../graph-layout" }
+serde.workspace = true
+serde_json.workspace = true
+wasm-bindgen.workspace = true
+web-sys = { workspace = true, features = [
+    "DedicatedWorkerGlobalScope",
+    "WebSocket",
+    "MessageEvent",
+    "CloseEvent",
+    "ErrorEvent",
+    "console",
+] }
+js-sys.workspace = true
+log.workspace = true
+console_log.workspace = true
+serde-wasm-bindgen = "0.6"
+chrono = { version = "0.4", features = ["wasm-bindgen"] }
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3"
