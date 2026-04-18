@@ -96,17 +96,38 @@ export function useSyncs() {
     // No polling — cache invalidations are driven by SSE below.
   });
 
-  // Invalidate ["syncs", "active"] whenever a sync_lifecycle or sync_progress
-  // event arrives. Reconnects are handled by EventSource natively; on
-  // token_expired the server closes and this effect's cleanup re-opens next
-  // render cycle (token refresh is driven by react-oidc-context).
+  // Lifecycle → invalidate. Progress → patch cached rows in place.
+  // Progress events fire dozens of times per sync (phase transitions +
+  // per-batch inside parse/graph/embed loops); invalidating each one
+  // triggered a /api/syncs refetch per event, which was the visible
+  // slowness during sync. Lifecycle transitions stay rare enough that
+  // a full refetch is cheaper than reasoning about status diffs.
   useEffect(() => {
     if (!token) return;
     const client = openSseClient("/api/events", { token });
     const invalidate = () =>
       qc.invalidateQueries({ queryKey: ["syncs", "active"] });
     client.on("sync_lifecycle", invalidate);
-    client.on("sync_progress", invalidate);
+    client.on("sync_progress", (ev) => {
+      const sid = ev.sync_id;
+      if (!sid) return;
+      const p = ev.payload ?? {};
+      qc.setQueryData<{ items: SyncRun[] }>(["syncs", "active"], (prev) => {
+        if (!prev) return prev;
+        let changed = false;
+        const items = prev.items.map((r) => {
+          if (r.id !== sid) return r;
+          changed = true;
+          return {
+            ...r,
+            progress_done: (p.progress_done as number | undefined) ?? r.progress_done,
+            progress_total: (p.progress_total as number | undefined) ?? r.progress_total,
+            progress_meta: (p.progress_meta as SyncProgressMeta | undefined) ?? r.progress_meta,
+          };
+        });
+        return changed ? { ...prev, items } : prev;
+      });
+    });
     client.on("token_expired", () => client.close());
     client.on("stream_dropped", () => client.close());
     return () => client.close();

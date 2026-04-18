@@ -42,9 +42,39 @@ export function useSourceSyncs(sourceId: string | null, status?: string) {
     if (!token || !sourceId) return;
     const client = openSseClient("/api/events", { sourceId, token });
     const invalidate = () => qc.invalidateQueries({ queryKey });
+    // Lifecycle + source_changed → invalidate. Progress → patch cached
+    // pages in place so the per-source list doesn't refetch on every
+    // progress tick (was the main source of perceived sync slowness).
     client.on("sync_lifecycle", invalidate);
-    client.on("sync_progress", invalidate);
     client.on("source_changed", invalidate);
+    client.on("sync_progress", (ev) => {
+      const sid = ev.sync_id;
+      if (!sid) return;
+      const p = ev.payload ?? {};
+      qc.setQueryData<{ pages: SyncsPage[]; pageParams: unknown[] }>(
+        queryKey,
+        (prev) => {
+          if (!prev) return prev;
+          let anyChanged = false;
+          const pages = prev.pages.map((page) => {
+            let pageChanged = false;
+            const items = page.items.map((r) => {
+              if (r.id !== sid) return r;
+              pageChanged = true;
+              return {
+                ...r,
+                progress_done: (p.progress_done as number | undefined) ?? r.progress_done,
+                progress_total: (p.progress_total as number | undefined) ?? r.progress_total,
+                progress_meta: (p.progress_meta as SyncRun["progress_meta"]) ?? r.progress_meta,
+              };
+            });
+            if (pageChanged) anyChanged = true;
+            return pageChanged ? { ...page, items } : page;
+          });
+          return anyChanged ? { ...prev, pages } : prev;
+        },
+      );
+    });
     client.on("token_expired", () => client.close());
     client.on("stream_dropped", () => client.close());
     return () => client.close();
