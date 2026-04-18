@@ -1,6 +1,17 @@
 FROM node:22-alpine AS build
 
 ARG GITHUB_TOKEN=""
+# Vite reads these at build time. Promote them from build ARG → env so
+# import.meta.env.VITE_* resolves during `pnpm run build`.
+ARG VITE_KEYCLOAK_URL="http://localhost:8080"
+ARG VITE_KEYCLOAK_REALM="substrate"
+ARG VITE_KEYCLOAK_CLIENT_ID="substrate-frontend"
+ARG VITE_GATEWAY_URL=""
+ENV VITE_KEYCLOAK_URL=$VITE_KEYCLOAK_URL
+ENV VITE_KEYCLOAK_REALM=$VITE_KEYCLOAK_REALM
+ENV VITE_KEYCLOAK_CLIENT_ID=$VITE_KEYCLOAK_CLIENT_ID
+ENV VITE_GATEWAY_URL=$VITE_GATEWAY_URL
+
 WORKDIR /workspace
 
 # Enable pnpm via corepack (bundled with node:22)

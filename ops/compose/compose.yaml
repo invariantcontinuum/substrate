@@ -186,6 +186,12 @@ services:
       dockerfile: apps/frontend/Dockerfile
       args:
         GITHUB_TOKEN: ""
+        # Vite bakes these at build time. All browser-facing URLs must
+        # use host-published ports (browser cannot resolve the internal
+        # substrate_internal DNS). Runtime env has no effect here.
+        VITE_KEYCLOAK_URL: "http://localhost:8080"
+        VITE_KEYCLOAK_REALM: "${KEYCLOAK_REALM}"
+        VITE_KEYCLOAK_CLIENT_ID: "substrate-frontend"
     container_name: substrate-frontend
     ports: ["3535:3000"]
     depends_on:
