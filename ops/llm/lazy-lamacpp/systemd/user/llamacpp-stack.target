@@ -1,0 +1,11 @@
+[Unit]
+Description=llama.cpp model stack
+After=network-online.target
+Wants=llamacpp-model@embeddings.service
+Wants=llamacpp-model@dense.service
+Wants=llamacpp-model@sparse.service
+Wants=llamacpp-model@reranker.service
+Wants=llamacpp-model@coding.service
+
+[Install]
+WantedBy=default.target

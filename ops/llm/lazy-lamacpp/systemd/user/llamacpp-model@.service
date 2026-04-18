@@ -1,0 +1,22 @@
+[Unit]
+Description=llama.cpp model service (%i)
+After=network-online.target
+Wants=network-online.target
+PartOf=llamacpp-stack.target
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/llama-cpp-models/project.env
+ExecStart=/usr/bin/env bash -lc '${PROJECT_ROOT}/scripts/run-llama-server.sh "%i"'
+WorkingDirectory=%h
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=120
+TimeoutStopSec=30
+KillSignal=SIGINT
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target
+

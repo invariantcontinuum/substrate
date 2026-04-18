@@ -1,0 +1,13 @@
+{
+  "description": "Embed three short architecture snippets and inspect vector dimensions.",
+  "endpoint": "/v1/embeddings",
+  "body": {
+    "input": [
+      "The payments service emits domain events to Kafka after a successful charge.",
+      "Neo4j stores service dependencies as a directed graph with weighted relationships.",
+      "The policy engine evaluates pull requests against OPA rules before merge."
+    ],
+    "encoding_format": "float"
+  }
+}
+

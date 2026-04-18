@@ -1,0 +1,15 @@
+{
+  "description": "Rank candidate incident summaries against a user query.",
+  "endpoint": "/v1/rerank",
+  "body": {
+    "query": "Which document is most relevant to a Neo4j latency regression after an index change?",
+    "top_n": 3,
+    "documents": [
+      "The observability team upgraded Grafana dashboards and reduced alert noise.",
+      "A schema migration changed a Neo4j edge index and increased checkout-api latency until rollback.",
+      "A batch job backfilled warehouse metrics from S3 into BigQuery.",
+      "The auth service rotated JWT signing keys with no customer impact."
+    ]
+  }
+}
+
