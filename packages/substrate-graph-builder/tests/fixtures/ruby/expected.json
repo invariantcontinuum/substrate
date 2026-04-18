@@ -1,0 +1,13 @@
+{
+  "node_ids": [
+    "app/main.rb",
+    "app/helper.rb",
+    "app/main.rb#run@3",
+    "app/helper.rb#Helper@1"
+  ],
+  "edges": [
+    {"source_id": "app/main.rb", "target_id": "app/helper.rb", "type": "depends"},
+    {"source_id": "app/main.rb", "target_id": "app/main.rb#run@3", "type": "defines"},
+    {"source_id": "app/helper.rb", "target_id": "app/helper.rb#Helper@1", "type": "defines"}
+  ]
+}
