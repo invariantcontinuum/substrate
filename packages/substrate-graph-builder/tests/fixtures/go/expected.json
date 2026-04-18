@@ -1,0 +1,18 @@
+{
+  "node_ids": [
+    "go.mod",
+    "main.go",
+    "lib/hello.go",
+    "main.go#main@8",
+    "lib/hello.go#Hello@3",
+    "lib/hello.go#Greeter@7",
+    "lib/hello.go#Greet@9"
+  ],
+  "edges": [
+    {"source_id": "main.go", "target_id": "lib/hello.go", "type": "depends"},
+    {"source_id": "main.go", "target_id": "main.go#main@8", "type": "defines"},
+    {"source_id": "lib/hello.go", "target_id": "lib/hello.go#Hello@3", "type": "defines"},
+    {"source_id": "lib/hello.go", "target_id": "lib/hello.go#Greeter@7", "type": "defines"},
+    {"source_id": "lib/hello.go", "target_id": "lib/hello.go#Greet@9", "type": "defines"}
+  ]
+}
