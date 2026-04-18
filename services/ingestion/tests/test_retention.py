@@ -9,7 +9,7 @@ import asyncio
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
-from src.scheduler import prune_retention_once, RETENTION_LOCK_ID
+from src.scheduler import prune_retention_once
 from src.config import settings
 
 
@@ -68,7 +68,7 @@ async def test_per_source_age_days_override(db_with_sync_runs):
 
 async def test_disabled_is_noop(db_with_sync_runs):
     source_id = await db_with_sync_runs.add_source()
-    old = await db_with_sync_runs.add_completed_sync(source_id, completed_at=_days_ago(999))
+    await db_with_sync_runs.add_completed_sync(source_id, completed_at=_days_ago(999))
     with _override(retention_enabled=False):
         cleaned = await _run_tick_collect(db_with_sync_runs)
     assert cleaned == []

@@ -31,9 +31,11 @@ async def list_syncs(source_id: str | None = None, status: str | None = None,
     pool = store.get_pool()
     where_parts, args = [], [limit + 1]
     if source_id:
-        where_parts.append(f"source_id = ${len(args)+1}::uuid"); args.append(source_id)
+        where_parts.append(f"source_id = ${len(args)+1}::uuid")
+        args.append(source_id)
     if status:
-        where_parts.append(f"status = ${len(args)+1}"); args.append(status)
+        where_parts.append(f"status = ${len(args)+1}")
+        args.append(status)
     if cursor:
         ts, sid = _decode_cursor(cursor)
         where_parts.append(
@@ -83,9 +85,11 @@ async def list_issues(sync_id: str, level: str | None = None, phase: str | None 
     pool = store.get_pool()
     where_parts, args = ["sync_id=$1::uuid"], [sync_id]
     if level:
-        where_parts.append(f"level=${len(args)+1}"); args.append(level)
+        where_parts.append(f"level=${len(args)+1}")
+        args.append(level)
     if phase:
-        where_parts.append(f"phase=${len(args)+1}"); args.append(phase)
+        where_parts.append(f"phase=${len(args)+1}")
+        args.append(phase)
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             f"""SELECT id, level, phase, code, message, context, occurred_at::text

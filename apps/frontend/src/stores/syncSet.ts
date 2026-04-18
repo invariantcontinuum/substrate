@@ -29,7 +29,7 @@ interface SyncSetState {
   undoSwap: () => void;
   pruneInvalid: (validSyncIds: Set<string>) => void;
   registerSourceMap: (m: Map<string, string>) => void;
-  initializeIfNeeded: (token: string | undefined) => Promise<void>;
+  initializeIfNeeded: () => Promise<void>;
 }
 
 export const useSyncSetStore = create<SyncSetState>()(
@@ -81,7 +81,7 @@ export const useSyncSetStore = create<SyncSetState>()(
 
       registerSourceMap: (m) => set({ sourceMap: m }),
 
-      initializeIfNeeded: async (_token) => {
+      initializeIfNeeded: async () => {
         // Intentionally does NOT auto-load any snapshots. Canvas preserves
         // the last explicitly-loaded set from this browser/device via
         // localStorage. If localStorage is empty (new browser/device/private

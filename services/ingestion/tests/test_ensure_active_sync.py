@@ -1,5 +1,9 @@
-import pytest
+import asyncio
+import uuid
 from unittest.mock import AsyncMock
+
+import pytest
+import pytest_asyncio
 
 from src.sync_runs import ensure_active_sync
 
@@ -92,11 +96,6 @@ async def test_schedule_id_defaults_to_none():
     )
     args = conn.fetchrow.call_args.args
     assert args[4] is None
-
-
-import asyncio
-import uuid
-import pytest_asyncio
 
 
 @pytest_asyncio.fixture

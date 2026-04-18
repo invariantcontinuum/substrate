@@ -9,8 +9,6 @@ import { SignalsOverlay } from "./SignalsOverlay";
 import { ViolationBadge } from "./ViolationBadge";
 import { DynamicLegend } from "./DynamicLegend";
 
-const FORCE_LAYOUT_MAX_NODES = 5000;
-const NODES_PER_ROW = 50;
 const MAX_LABEL_CHARS = 32;
 const NODE_W = 214;
 const NODE_H = 22;

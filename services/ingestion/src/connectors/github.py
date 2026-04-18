@@ -1,12 +1,15 @@
-import re
-import os
-import time
 import asyncio
+import os
+import re
 import shutil
 import tempfile
+import time
+
 import httpx
 import structlog
-from src.schema import GraphEvent, NodeAffected, EdgeAffected
+
+from src.connectors.base import MaterializedTree, SourceConnector
+from src.schema import EdgeAffected, GraphEvent, NodeAffected
 
 logger = structlog.get_logger()
 
@@ -391,8 +394,6 @@ async def sync_repo(
 
 
 # ---------- SourceConnector wrapper ----------
-
-from src.connectors.base import SourceConnector, MaterializedTree
 
 
 class GitHubConnector:

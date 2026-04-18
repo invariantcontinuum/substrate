@@ -1,5 +1,4 @@
-// frontend/src/hooks/useSourceSyncs.ts
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useAuth } from "react-oidc-context";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
@@ -17,7 +16,10 @@ export function useSourceSyncs(sourceId: string | null, status?: string) {
   const token = auth.user?.access_token;
   const qc = useQueryClient();
 
-  const queryKey = ["syncs", "source", sourceId, status ?? "all"];
+  const queryKey = useMemo(
+    () => ["syncs", "source", sourceId, status ?? "all"],
+    [sourceId, status],
+  );
 
   const q = useInfiniteQuery<SyncsPage>({
     queryKey,

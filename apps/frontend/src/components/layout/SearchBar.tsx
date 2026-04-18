@@ -56,6 +56,7 @@ export function SearchBar() {
   }, [q, nodes, visibleTypes]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset cursor whenever query changes
     setCursor(0);
   }, [q]);
 

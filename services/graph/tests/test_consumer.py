@@ -1,5 +1,3 @@
-import pytest
-import json
 
 # DELETED: tests for legacy graph store funcs (get_full_snapshot, etc.) — replaced by snapshot_query (T16)
 # from src.events.consumer import parse_graph_event

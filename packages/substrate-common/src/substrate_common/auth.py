@@ -24,7 +24,13 @@ log = structlog.get_logger()
 
 
 class KeycloakJwtVerifier:
-    def __init__(self, jwks_url: str, expected_issuer: str, *, ttl_seconds: int = _JWKS_TTL_SECONDS):
+    def __init__(
+        self,
+        jwks_url: str,
+        expected_issuer: str,
+        *,
+        ttl_seconds: int = _JWKS_TTL_SECONDS,
+    ):
         self._jwks_url = jwks_url
         self._issuer = expected_issuer
         self._ttl = ttl_seconds
@@ -32,6 +38,7 @@ class KeycloakJwtVerifier:
         self._last_refresh: float = 0.0
         self._refreshing = False
         self._lock = asyncio.Lock()
+        self._refresh_task: asyncio.Task | None = None
 
     async def verify(self, token: str) -> dict[str, Any]:
         try:
@@ -58,7 +65,7 @@ class KeycloakJwtVerifier:
     async def _get_key(self, kid: str) -> Any:
         now = time.time()
         if now - self._last_refresh > self._ttl and not self._refreshing:
-            asyncio.create_task(self._background_refresh())
+            self._refresh_task = asyncio.create_task(self._background_refresh())
 
         if kid not in self._keys:
             await self._refresh()

@@ -35,7 +35,7 @@ export function DashboardLayout() {
       // sources.last_sync_id. initializeIfNeeded is a no-op when ids exist.
       .finally(() => {
         if (useSyncSetStore.getState().syncIds.length === 0) {
-          void initializeIfNeeded(token);
+          void initializeIfNeeded();
         }
       });
     void syncIds; // referenced to satisfy linter; logic above reads from store snapshot

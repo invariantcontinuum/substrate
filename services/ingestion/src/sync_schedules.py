@@ -37,11 +37,14 @@ async def update_schedule(schedule_id: int, interval_minutes: int | None,
     pool = graph_writer.get_pool()
     sets, args = [], []
     if interval_minutes is not None:
-        sets.append(f"interval_minutes=${len(args)+1}"); args.append(interval_minutes)
+        sets.append(f"interval_minutes=${len(args)+1}")
+        args.append(interval_minutes)
     if enabled is not None:
-        sets.append(f"enabled=${len(args)+1}"); args.append(enabled)
+        sets.append(f"enabled=${len(args)+1}")
+        args.append(enabled)
     if config_overrides is not None:
-        sets.append(f"config_overrides=${len(args)+1}::jsonb"); args.append(json.dumps(config_overrides))
+        sets.append(f"config_overrides=${len(args)+1}::jsonb")
+        args.append(json.dumps(config_overrides))
     if not sets:
         return None
     args.append(schedule_id)

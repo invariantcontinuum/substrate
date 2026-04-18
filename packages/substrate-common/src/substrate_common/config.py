@@ -7,14 +7,10 @@ every variable.
 """
 from __future__ import annotations
 
-from typing import Type, TypeVar
-
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-T = TypeVar("T", bound=BaseSettings)
 
-
-def load_settings(env_prefix: str, schema: Type[T]) -> T:
+def load_settings[T: BaseSettings](env_prefix: str, schema: type[T]) -> T:
     # Empty prefix → no prefix at all (pydantic-settings treats "" as "no prefix").
     # Non-empty prefix → add trailing underscore so GATEWAY_APP_PORT resolves.
     prefix = f"{env_prefix}_" if env_prefix else ""

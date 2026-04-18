@@ -1,7 +1,7 @@
 """Polls sync_runs for pending rows and dispatches handle_sync."""
 import asyncio
 import structlog
-from src import graph_writer, sync_runs
+from src import graph_writer
 from src.jobs.sync import handle_sync
 
 logger = structlog.get_logger()

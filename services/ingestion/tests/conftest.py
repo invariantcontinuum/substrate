@@ -2,7 +2,6 @@ import os
 import uuid
 import json
 import asyncpg
-import pytest
 import pytest_asyncio
 from dataclasses import dataclass, field
 

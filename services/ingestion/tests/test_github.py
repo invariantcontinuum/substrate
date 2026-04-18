@@ -1,6 +1,4 @@
-import pytest
 from src.connectors.github import parse_repo_tree, parse_imports
-from src.schema import NodeAffected, EdgeAffected
 
 
 class TestParseRepoTree:

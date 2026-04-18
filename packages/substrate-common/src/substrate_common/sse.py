@@ -15,11 +15,13 @@ Last-Event-ID.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import uuid as _uuid
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
-from typing import Any, AsyncIterator, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 import asyncpg
 import structlog
@@ -29,18 +31,18 @@ from ulid import ULID
 _log = structlog.get_logger()
 
 
-class StreamDropped(Exception):
+class StreamDropped(Exception):  # noqa: N818 — named for the event it signals, not an error suffix
     """Subscriber dropped because its bounded queue overflowed."""
 
 
 class Event(BaseModel):
     id: str = Field(default_factory=lambda: str(ULID()))
     type: str
-    sync_id: Optional[_uuid.UUID] = None
-    source_id: Optional[_uuid.UUID] = None
+    sync_id: _uuid.UUID | None = None
+    source_id: _uuid.UUID | None = None
     payload: dict[str, Any] = Field(default_factory=dict)
     emitted_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc)
+        default_factory=lambda: datetime.now(UTC)
     )
 
 
@@ -54,7 +56,7 @@ class SseBus:
 
     @classmethod
     @asynccontextmanager
-    async def connect(cls, dsn: str) -> AsyncIterator["SseBus"]:
+    async def connect(cls, dsn: str) -> AsyncIterator[SseBus]:
         pool = await asyncpg.create_pool(
             _plain_dsn(dsn), min_size=1, max_size=4
         )
@@ -64,24 +66,23 @@ class SseBus:
             await pool.close()
 
     async def publish(self, event: Event) -> Event:
-        async with self._pool.acquire() as conn:
-            async with conn.transaction():
-                await conn.execute(
-                    """
+        async with self._pool.acquire() as conn, conn.transaction():
+            await conn.execute(
+                """
                     INSERT INTO sse_events
                         (id, type, sync_id, source_id, payload, emitted_at)
                     VALUES ($1, $2, $3, $4, $5::jsonb, $6)
                     """,
-                    event.id,
-                    event.type,
-                    event.sync_id,
-                    event.source_id,
-                    json.dumps(event.payload),
-                    event.emitted_at,
-                )
-                await conn.execute(
-                    f"SELECT pg_notify('{self.CHANNEL}', $1)", event.id
-                )
+                event.id,
+                event.type,
+                event.sync_id,
+                event.source_id,
+                json.dumps(event.payload),
+                event.emitted_at,
+            )
+            await conn.execute(
+                f"SELECT pg_notify('{self.CHANNEL}', $1)", event.id
+            )
         _log.info(
             "sse_event_published",
             event_id=event.id,
@@ -94,8 +95,8 @@ class SseBus:
     async def subscribe(
         self,
         *,
-        filters: Optional[dict[str, Any]] = None,
-        since: Optional[str] = None,
+        filters: dict[str, Any] | None = None,
+        since: str | None = None,
         queue_max: int = 256,
     ) -> AsyncIterator[Event]:
         filters = filters or {}
@@ -105,7 +106,7 @@ class SseBus:
         # Replay any rows from sse_events since last seen
         replay = await self._replay(since, sync_id, source_id)
 
-        queue: asyncio.Queue[Optional[str]] = asyncio.Queue(maxsize=queue_max)
+        queue: asyncio.Queue[str | None] = asyncio.Queue(maxsize=queue_max)
 
         listen_conn = await self._pool.acquire()
 
@@ -114,10 +115,8 @@ class SseBus:
                 queue.put_nowait(event_id)
             except asyncio.QueueFull:
                 # Signal overflow with a sentinel and stop buffering.
-                try:
+                with contextlib.suppress(asyncio.QueueFull):
                     queue.put_nowait(None)
-                except asyncio.QueueFull:
-                    pass
 
         await listen_conn.add_listener(self.CHANNEL, on_notify)
         _log.info(
@@ -135,14 +134,14 @@ class SseBus:
                 if event_id is None:
                     _log.warning("sse_subscriber_dropped", reason="queue_overflow")
                     raise StreamDropped("subscriber queue overflow")
-                ev = await self._fetch(listen_conn, event_id)
-                if ev is None:
+                fetched = await self._fetch(listen_conn, event_id)
+                if fetched is None:
                     continue
-                if sync_id is not None and ev.sync_id != sync_id:
+                if sync_id is not None and fetched.sync_id != sync_id:
                     continue
-                if source_id is not None and ev.source_id != source_id:
+                if source_id is not None and fetched.source_id != source_id:
                     continue
-                yield ev
+                yield fetched
         finally:
             try:
                 await listen_conn.remove_listener(self.CHANNEL, on_notify)
@@ -152,9 +151,9 @@ class SseBus:
 
     async def _replay(
         self,
-        since: Optional[str],
-        sync_id: Optional[_uuid.UUID],
-        source_id: Optional[_uuid.UUID],
+        since: str | None,
+        sync_id: _uuid.UUID | None,
+        source_id: _uuid.UUID | None,
     ) -> list[Event]:
         clauses: list[str] = []
         args: list[Any] = []
@@ -177,9 +176,10 @@ class SseBus:
             rows = await conn.fetch(query, *args)
         return [_row_to_event(r) for r in rows]
 
-    async def _fetch(self, conn: asyncpg.Connection, event_id: str) -> Optional[Event]:
+    async def _fetch(self, conn: asyncpg.Connection, event_id: str) -> Event | None:
         row = await conn.fetchrow(
-            "SELECT id, type, sync_id, source_id, payload, emitted_at FROM sse_events WHERE id = $1",
+            "SELECT id, type, sync_id, source_id, payload, emitted_at "
+            "FROM sse_events WHERE id = $1",
             event_id,
         )
         if not row:

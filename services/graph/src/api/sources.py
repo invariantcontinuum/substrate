@@ -42,7 +42,7 @@ def _decode_cursor(cur: str) -> tuple[str, str]:
 @router.get("")
 async def list_sources(limit: int = Query(25, le=100), cursor: str | None = None):
     pool = store.get_pool()
-    args = [limit + 1]
+    args: list = [limit + 1]
     where = ""
     if cursor:
         ts, sid = _decode_cursor(cursor)

@@ -43,6 +43,7 @@ export function SnapshotIssuesInline({ run }: Props) {
     if (stats.duration_ms != null) return stats.duration_ms;
     if (!run.started_at) return null;
     const start = new Date(run.started_at).getTime();
+    // eslint-disable-next-line react-hooks/purity -- live duration ticks intentionally on re-render
     const end = run.completed_at ? new Date(run.completed_at).getTime() : Date.now();
     return end - start;
   })();

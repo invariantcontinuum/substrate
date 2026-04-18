@@ -126,7 +126,8 @@ async def get_merged_graph(sync_ids: list[str], projection: str = "full") -> dic
                     b_file = json.loads(str(e["b_file"]))
                     weight = float(json.loads(str(e["weight"]))) if e["weight"] else 1.0
                     e_sync = json.loads(str(e["sync_id"]))
-                    file_id_set.add(a_file); file_id_set.add(b_file)
+                    file_id_set.add(a_file)
+                    file_id_set.add(b_file)
                     parsed.append((a_file, b_file, weight, e_sync))
 
                 id_rows = await c.fetch(
@@ -137,9 +138,12 @@ async def get_merged_graph(sync_ids: list[str], projection: str = "full") -> dic
 
                 edge_agg: dict[tuple[str, str], dict] = {}
                 for a_file, b_file, weight, e_sync in parsed:
-                    a = id_map.get(a_file); b = id_map.get(b_file)
-                    if not a or not b: continue
-                    a_node = _node_id(*a); b_node = _node_id(*b)
+                    a = id_map.get(a_file)
+                    b = id_map.get(b_file)
+                    if not a or not b:
+                        continue
+                    a_node = _node_id(*a)
+                    b_node = _node_id(*b)
                     key = (a_node, b_node)
                     rec = edge_agg.setdefault(key, {"loaded_sync_ids": set(), "weight_max": 0.0})
                     rec["loaded_sync_ids"].add(e_sync)
@@ -321,7 +325,8 @@ async def get_node_detail(node_id: str, sync_id: str | None = None) -> dict:
                 rt = json.loads(str(r["rel_type"])) if r["rel_type"] else "depends_on"
                 w = float(json.loads(str(r["weight"]))) if r["weight"] else 1.0
                 if nf:
-                    file_ids.append(nf); tmp.append((nf, str(rt), w))
+                    file_ids.append(nf)
+                    tmp.append((nf, str(rt), w))
             if file_ids:
                 id_rows = await c.fetch(
                     "SELECT id::text, source_id::text, file_path FROM file_embeddings WHERE id = ANY($1::uuid[])",

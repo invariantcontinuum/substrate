@@ -75,6 +75,7 @@ export function NodeDetailPanel() {
 
   // Reset snapshot selection when node changes; default to latest_sync_id.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync dependent state on node change
     setSelectedSnapshotId(cached?.latest_sync_id ?? null);
   }, [selectedNodeId, cached?.latest_sync_id]);
 
@@ -152,6 +153,7 @@ export function NodeDetailPanel() {
     const related = allEdges.filter(
       (e) => e.source === cached.id || e.target === cached.id,
     );
+    // eslint-disable-next-line react-hooks/purity -- event handler; runs on click, not render
     downloadJson(`node-${cached.id}-${Date.now()}.json`, {
       node: cached,
       edges: related,
