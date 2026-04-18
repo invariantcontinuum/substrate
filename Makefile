@@ -3,7 +3,7 @@ SHELL := /bin/bash
 .ONESHELL:
 .DEFAULT_GOAL := help
 
-COMPOSE        ?= docker compose --project-directory ops/compose
+COMPOSE        ?= docker compose --project-directory ops/compose --env-file .env
 LLM_DIR        ?= ops/llm/lazy-lamacpp
 ENV_EXAMPLES   := env/platform.env.example env/infra.env.example env/llm.env.example
 
