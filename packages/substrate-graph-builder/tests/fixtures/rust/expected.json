@@ -1,0 +1,23 @@
+{
+  "node_ids": [
+    "src/main.rs",
+    "src/util.rs",
+    "src/lib/mod.rs",
+    "src/lib/helpers.rs",
+    "src/main.rs#main@4",
+    "src/util.rs#run@1",
+    "src/lib/helpers.rs#greet@1",
+    "src/lib/helpers.rs#Greeter@5",
+    "src/lib/helpers.rs#greet@8"
+  ],
+  "edges": [
+    {"source_id": "src/main.rs", "target_id": "src/util.rs", "type": "depends"},
+    {"source_id": "src/main.rs", "target_id": "src/lib/helpers.rs", "type": "depends"},
+    {"source_id": "src/lib/mod.rs", "target_id": "src/lib/helpers.rs", "type": "depends"},
+    {"source_id": "src/main.rs", "target_id": "src/main.rs#main@4", "type": "defines"},
+    {"source_id": "src/util.rs", "target_id": "src/util.rs#run@1", "type": "defines"},
+    {"source_id": "src/lib/helpers.rs", "target_id": "src/lib/helpers.rs#greet@1", "type": "defines"},
+    {"source_id": "src/lib/helpers.rs", "target_id": "src/lib/helpers.rs#Greeter@5", "type": "defines"},
+    {"source_id": "src/lib/helpers.rs", "target_id": "src/lib/helpers.rs#greet@8", "type": "defines"}
+  ]
+}
