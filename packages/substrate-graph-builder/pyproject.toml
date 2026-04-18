@@ -35,7 +35,16 @@ ignore = []
 python_version = "3.12"
 strict = true
 ignore_missing_imports = true
+exclude = [
+    "^tests/fixtures/",  # grammar-parseable source corpus, not type-checked code
+    "^scripts/",         # one-shot ops scripts; not part of library surface
+]
 
 [[tool.mypy.overrides]]
 module = ["tree_sitter.*", "tree_sitter_language_pack.*"]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+disallow_untyped_calls = false

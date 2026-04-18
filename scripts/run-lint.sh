@@ -5,14 +5,14 @@ FAILED=0
 for svc in services/gateway services/ingestion services/graph packages/substrate-common packages/substrate-graph-builder; do
   if [[ -f "$svc/pyproject.toml" ]]; then
     echo "==> ruff $svc"
-    (cd "$svc" && uv run ruff check .) || FAILED=1
+    (cd "$svc" && uv run --with ruff ruff check .) || FAILED=1
     echo "==> mypy $svc"
-    (cd "$svc" && uv run mypy .) || FAILED=1
+    (cd "$svc" && uv run --with mypy mypy .) || FAILED=1
     echo "==> vulture $svc"
     if [[ -f "$svc/.vulture_whitelist.py" ]]; then
-      (cd "$svc" && uv run vulture . .vulture_whitelist.py --min-confidence 70 --exclude 'tests,migrations,.venv') || FAILED=1
+      (cd "$svc" && uv run --with vulture vulture . .vulture_whitelist.py --min-confidence 70 --exclude 'tests,migrations,.venv') || FAILED=1
     else
-      (cd "$svc" && uv run vulture . --min-confidence 70 --exclude 'tests,migrations,.venv') || FAILED=1
+      (cd "$svc" && uv run --with vulture vulture . --min-confidence 70 --exclude 'tests,migrations,.venv') || FAILED=1
     fi
   fi
 done
