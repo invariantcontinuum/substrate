@@ -12,6 +12,7 @@ dependencies = [
     "httpx>=0.28",
     "python-ulid>=3.0",
     "fastapi>=0.115",
+    "starlette>=0.38",
 ]
 
 [project.optional-dependencies]
