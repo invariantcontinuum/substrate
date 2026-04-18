@@ -176,7 +176,8 @@ services:
 
   frontend:
     build:
-      context: ../../apps/frontend
+      context: ../..
+      dockerfile: apps/frontend/Dockerfile
       args:
         GITHUB_TOKEN: ""
     container_name: substrate-frontend

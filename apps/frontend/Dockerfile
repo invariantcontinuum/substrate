@@ -1,66 +1,63 @@
 FROM node:22-alpine AS build
 
-ARG GITHUB_TOKEN
-WORKDIR /app
+ARG GITHUB_TOKEN=""
+WORKDIR /workspace
 
-# Configure npm to authenticate with GitHub Packages
-RUN npm config set @invariantcontinuum:registry https://npm.pkg.github.com/ && \
-    npm config set //npm.pkg.github.com/:_authToken ${GITHUB_TOKEN}
+# Enable pnpm via corepack (bundled with node:22)
+RUN corepack enable && corepack prepare pnpm@10 --activate
 
-COPY package.json package-lock.json ./
-RUN npm ci
-COPY . .
-RUN npm run build
+# Configure npm auth for @invariantcontinuum scoped packages (if ever used).
+# Harmless when GITHUB_TOKEN is empty and no such package is in deps.
+RUN npm config set @invariantcontinuum:registry https://npm.pkg.github.com/ \
+    && npm config set //npm.pkg.github.com/:_authToken "$GITHUB_TOKEN"
 
-# Build documentation
+# Workspace root + shared package (needed for pnpm workspace resolution)
+COPY pnpm-workspace.yaml /workspace/pnpm-workspace.yaml
+COPY package.json /workspace/package.json
+COPY packages/substrate-web-common /workspace/packages/substrate-web-common
+
+# Frontend manifest
+COPY apps/frontend/package.json /workspace/apps/frontend/package.json
+
+# Install in the workspace (resolves substrate-web-common via workspace:*)
+RUN pnpm install --filter frontend...
+
+# Frontend source
+COPY apps/frontend /workspace/apps/frontend
+
+WORKDIR /workspace/apps/frontend
+RUN pnpm run build
+
+# Build documentation (mkdocs)
 FROM python:3.12-alpine AS docs-build
 
 WORKDIR /src
 
-# Install mkdocs and dependencies
 RUN pip install --no-cache-dir \
     mkdocs \
     mkdocs-material \
     mkdocs-minify-plugin
 
-# Stage mkdocs.yml at /src and content at /src/docs for the default mkdocs layout.
-# The second COPY also brings mkdocs.yml into /src/docs/ which mkdocs ignores.
-COPY docs/mkdocs.yml /src/mkdocs.yml
-COPY docs /src/docs
+COPY apps/frontend/docs/mkdocs.yml /src/mkdocs.yml
+COPY apps/frontend/docs /src/docs
 
-# Build documentation. If mkdocs fails (WIP docs site), fall back to an empty
-# placeholder so the final image still assembles.
 RUN mkdocs build --site-dir /src/site \
     || (mkdir -p /src/site && echo '<html><body><h1>Documentation build skipped</h1></body></html>' > /src/site/index.html)
 
-# Inject <base> tag so relative asset URLs resolve under /docs/ regardless
-# of whether the browser address bar shows /docs or /docs/.
 RUN find /src/site -name "*.html" -exec sed -i 's|<head>|<head><base href="/docs/">|' {} +
 
 # Production stage
 FROM nginx:alpine
 
-# Copy frontend build
-COPY --from=build /app/dist /usr/share/nginx/html
-
-# Copy built documentation
+COPY --from=build /workspace/apps/frontend/dist /usr/share/nginx/html
 COPY --from=docs-build /src/site /usr/share/nginx/html/docs
-
-# Copy nginx configuration, overwriting the stock default.
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-
-# Entrypoint scrubs unreachable IPv6 host.docker.internal from /etc/hosts
-# before launching nginx so upstreams resolve cleanly.
-COPY docker-entrypoint.sh /docker-entrypoint.sh
+COPY apps/frontend/nginx.conf /etc/nginx/conf.d/default.conf
+COPY apps/frontend/docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
-# Expose port
 EXPOSE 3000
 
-# Health check — force IPv4 because nginx only listens on 0.0.0.0:3000 and
-# busybox wget on Alpine prefers IPv6 when resolving localhost.
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:3000/health || exit 1
 
-# Start nginx via entrypoint
 CMD ["/docker-entrypoint.sh"]
