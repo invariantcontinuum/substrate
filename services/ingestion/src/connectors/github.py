@@ -55,7 +55,7 @@ async def fetch_repo_tree(owner: str, repo: str, token: str, branch: str = "mast
 
 async def _clone_repo(owner: str, repo: str, token: str) -> str:
     """Shallow-clone a repo to a temp directory; return the path."""
-    logger.info("clone_start", owner=owner, repo=repo, event="clone_start")
+    logger.info("clone_start", owner=owner, repo=repo)
     start = time.monotonic()
     tmpdir = tempfile.mkdtemp(prefix="substrate-sync-")
     url = f"https://x-access-token:{token}@github.com/{owner}/{repo}.git"
@@ -69,18 +69,17 @@ async def _clone_repo(owner: str, repo: str, token: str) -> str:
     if proc.returncode != 0:
         shutil.rmtree(tmpdir, ignore_errors=True)
         logger.error("clone_failed", owner=owner, repo=repo,
-                     error=stderr.decode().strip(), duration_ms=round(elapsed * 1000),
-                     event="clone_failed")
+                     error=stderr.decode().strip(), duration_ms=round(elapsed * 1000))
         raise RuntimeError(f"git clone failed: {stderr.decode().strip()}")
     logger.info("clone_complete", owner=owner, repo=repo,
-                duration_ms=round(elapsed * 1000), event="clone_complete")
+                duration_ms=round(elapsed * 1000))
     return tmpdir
 
 
 def _walk_local_tree(repo_dir: str) -> list[dict]:
     """Walk a cloned repo and return entries compatible with the tree format
     consumed by substrate_graph_builder.build_graph."""
-    logger.info("walk_tree_start", repo_dir=repo_dir, event="walk_tree_start")
+    logger.info("walk_tree_start", repo_dir=repo_dir)
     tree: list[dict] = []
     git_dir = os.path.join(repo_dir, ".git")
     for root, dirs, files in os.walk(repo_dir):
@@ -89,7 +88,7 @@ def _walk_local_tree(repo_dir: str) -> list[dict]:
         for f in files:
             rel = os.path.relpath(os.path.join(root, f), repo_dir)
             tree.append({"path": rel, "type": "blob"})
-    logger.info("walk_tree_complete", files_found=len(tree), event="walk_tree_complete")
+    logger.info("walk_tree_complete", files_found=len(tree))
     return tree
 
 
@@ -97,7 +96,7 @@ async def sync_repo(
     owner: str, repo: str, token: str,
     on_progress=None,
 ) -> GraphEvent:
-    logger.info("sync_started", owner=owner, repo=repo, event="sync_started")
+    logger.info("sync_started", owner=owner, repo=repo)
     repo_label = f"{owner}/{repo}"
 
     meta: dict[str, Any] = {
@@ -110,7 +109,7 @@ async def sync_repo(
         await on_progress(0, 0, meta)
 
     tmpdir = await _clone_repo(owner, repo, token)
-    logger.info("clone_complete", owner=owner, repo=repo, path=tmpdir, event="clone_complete")
+    logger.info("clone_complete", owner=owner, repo=repo, path=tmpdir)
 
     try:
         meta["phase"] = "discovering"
@@ -150,8 +149,7 @@ async def sync_repo(
             nodes_affected=doc.nodes, edges_affected=doc.edges,
         )
         logger.info("sync_complete", owner=owner, repo=repo,
-                    nodes=len(doc.nodes), edges=len(doc.edges),
-                    event="sync_complete")
+                    nodes=len(doc.nodes), edges=len(doc.edges))
         return event
 
     finally:
