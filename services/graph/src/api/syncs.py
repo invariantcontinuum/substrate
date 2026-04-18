@@ -1,7 +1,11 @@
 """Sync read endpoints. Write endpoints live in ingestion."""
 import base64
 import binascii
-from fastapi import APIRouter, HTTPException, Query
+
+from fastapi import APIRouter, Query
+
+from substrate_common import NotFoundError, ValidationError
+
 from src.graph import store
 
 router = APIRouter(prefix="/api/syncs")
@@ -18,7 +22,7 @@ def _decode_cursor(cur: str) -> tuple[str, str]:
             raise ValueError("malformed cursor")
         return parts[0], parts[1]
     except (binascii.Error, UnicodeDecodeError, ValueError) as e:
-        raise HTTPException(400, f"invalid cursor: {e}")
+        raise ValidationError(f"invalid cursor: {e}") from e
 
 
 @router.get("")
@@ -70,7 +74,7 @@ async def get_sync(sync_id: str):
                FROM sync_runs WHERE id=$1::uuid""", sync_id,
         )
     if not row:
-        raise HTTPException(404)
+        raise NotFoundError("sync not found")
     return dict(row)
 
 

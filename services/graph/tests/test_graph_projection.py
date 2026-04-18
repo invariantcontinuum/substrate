@@ -131,7 +131,7 @@ async def test_unknown_projection_returns_400():
         r = await c.get(f"/api/graph?sync_ids={fake_sync}&projection=superfluous")
     assert r.status_code == 400
     body = r.json()
-    # FastAPI's HTTPException wraps the dict in `detail`; accept both shapes.
-    assert body == {"error": "invalid_projection"} or body.get("detail") == {"error": "invalid_projection"}, (
-        f"unexpected 400 body: {body}"
-    )
+    # Canonical SubstrateError envelope (ValidationError → code=VALIDATION).
+    assert body["error"]["code"] == "VALIDATION"
+    assert body["error"]["message"] == "invalid_projection"
+    assert "request_id" in body

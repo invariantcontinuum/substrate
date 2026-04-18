@@ -163,8 +163,10 @@ async def test_file_endpoint_404_on_unknown_id():
         r = await c.get("/api/graph/nodes/00000000-0000-0000-0000-000000000000/file")
     assert r.status_code == 404
     body = r.json()
-    # FastAPI HTTPException wraps dicts in `detail`; accept either shape.
-    assert body == {"error": "node_not_found"} or body.get("detail") == {"error": "node_not_found"}
+    # Canonical SubstrateError envelope (NotFoundError → code=NOT_FOUND).
+    assert body["error"]["code"] == "NOT_FOUND"
+    assert body["error"]["message"] == "node_not_found"
+    assert "request_id" in body
 
 
 @pytest.mark.asyncio(loop_scope="session")

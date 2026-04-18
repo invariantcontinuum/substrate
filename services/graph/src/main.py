@@ -1,23 +1,24 @@
-import structlog
 from contextlib import asynccontextmanager
+
+import structlog
 from fastapi import FastAPI
 
-from src.graph import store
+from substrate_common import (
+    ExceptionLoggingMiddleware,
+    RequestIdMiddleware,
+    configure_logging,
+    register_handlers,
+)
+
 from src.api.routes import router
+from src.api.schedules import router as schedules_router
+from src.api.sources import router as sources_router
+from src.api.syncs import router as syncs_router
 from src.config import settings
+from src.graph import store
 from src.startup import check_embedding_dim
 
-import logging as _logging
-import os as _os
-_LOG_LEVEL = getattr(_logging, _os.environ.get("LOG_LEVEL", "INFO").upper(), _logging.INFO)
-structlog.configure(
-    processors=[
-        structlog.processors.add_log_level,
-        structlog.processors.TimeStamper(fmt="iso"),
-        structlog.processors.JSONRenderer(),
-    ],
-    wrapper_class=structlog.make_filtering_bound_logger(_LOG_LEVEL),
-)
+configure_logging(service=settings.service_name)
 logger = structlog.get_logger()
 
 
@@ -34,14 +35,12 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Substrate Graph Service", lifespan=lifespan)
+app.add_middleware(RequestIdMiddleware)
+app.add_middleware(ExceptionLoggingMiddleware)
+register_handlers(app)
 
 app.include_router(router)
-
-from src.api.sources import router as sources_router
 app.include_router(sources_router)
-
-from src.api.syncs import router as syncs_router
-from src.api.schedules import router as schedules_router
 app.include_router(syncs_router)
 app.include_router(schedules_router)
 

@@ -1,8 +1,11 @@
+"""Graph settings — schema only; loader lives in substrate_common.config."""
 from pydantic import Field
 from pydantic_settings import BaseSettings
 
+from substrate_common.config import load_settings
 
-class Settings(BaseSettings):
+
+class _GraphSettings(BaseSettings):
     database_url: str = "postgresql+asyncpg://substrate_graph:change-me@postgres:5432/substrate_graph"
     embedding_url: str = "http://host.docker.internal:8101/v1/embeddings"
     # lazy-lamacpp exposes models by systemd-unit name, not HF path.
@@ -35,6 +38,7 @@ class Settings(BaseSettings):
     )
     app_port: int = 8082
     graph_query_timeout_s: int = Field(default=60, alias="GRAPH_QUERY_TIMEOUT_SECONDS")
+    service_name: str = "graph"
 
 
-settings = Settings()
+settings = load_settings("", _GraphSettings)

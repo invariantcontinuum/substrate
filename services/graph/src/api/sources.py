@@ -1,8 +1,12 @@
 import base64
 import binascii
 import json
-from fastapi import APIRouter, HTTPException, Query
+
+from fastapi import APIRouter, Query
 from pydantic import BaseModel
+
+from substrate_common import NotFoundError, ValidationError
+
 from src.graph import store
 
 router = APIRouter(prefix="/api/sources")
@@ -32,7 +36,7 @@ def _decode_cursor(cur: str) -> tuple[str, str]:
             raise ValueError("malformed cursor")
         return parts[0], parts[1]
     except (binascii.Error, UnicodeDecodeError, ValueError) as e:
-        raise HTTPException(400, f"invalid cursor: {e}")
+        raise ValidationError(f"invalid cursor: {e}") from e
 
 
 @router.get("")
@@ -88,14 +92,14 @@ async def get_source(source_id: str):
             source_id,
         )
     if not row:
-        raise HTTPException(404)
+        raise NotFoundError("source not found")
     return dict(row)
 
 
 @router.patch("/{source_id}")
 async def patch_source(source_id: str, req: SourcePatch):
     if req.config is None and req.enabled is None:
-        raise HTTPException(400, "no fields to update")
+        raise ValidationError("no fields to update")
     pool = store.get_pool()
     async with pool.acquire() as conn:
         if req.config is not None and req.enabled is not None:
@@ -114,7 +118,7 @@ async def patch_source(source_id: str, req: SourcePatch):
                 source_id, req.enabled,
             )
     if result != "UPDATE 1":
-        raise HTTPException(404, "source not found")
+        raise NotFoundError("source not found")
     return {"status": "ok"}
 
 
@@ -124,5 +128,5 @@ async def delete_source(source_id: str):
     async with pool.acquire() as conn:
         result = await conn.execute("DELETE FROM sources WHERE id=$1::uuid", source_id)
     if result != "DELETE 1":
-        raise HTTPException(404, "source not found")
+        raise NotFoundError("source not found")
     return {"status": "deleted"}
