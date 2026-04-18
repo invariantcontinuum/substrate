@@ -28,6 +28,8 @@ from src.graph.file_reconstruct import reconstruct_chunks
 
 logger = structlog.get_logger()
 
+_SUMMARY_CONTEXT_RETRY_SCALES = (1.0, 0.5, 0.25)
+
 
 def _parse_vector(raw) -> list[float] | None:
     """Coerce an asyncpg pgvector column into a list[float].
@@ -88,6 +90,18 @@ def rank_neighbors_by_similarity(
 
 def build_system_prompt() -> str:
     return settings.summary_instruction
+
+
+def _is_context_window_error(exc: Exception) -> bool:
+    if not isinstance(exc, httpx.HTTPStatusError):
+        return False
+    if exc.response.status_code != 400:
+        return False
+    detail = exc.response.text.lower()
+    return (
+        "available context size" in detail
+        or ("context size" in detail and "exceeds" in detail)
+    )
 
 
 def _truncate(s: str, cap: int, marker: str) -> str:
@@ -374,40 +388,63 @@ async def generate_enriched_summary(
                 n["first_lines"] = "\n".join(first.split("\n")[:8])
 
     # Connection released before the slow LLM call — see docstring.
-    prompt = assemble_prompt(
-        file_path=row["file_path"],
-        language=row["language"] or "",
-        line_count=row["line_count"] or 0,
-        file_content=rec["content"],
-        neighbors=ranked,
-        total_budget_chars=settings.summary_total_budget_chars,
-        neighbor_budget_chars=settings.summary_neighbor_chars,
-        file_ratio=settings.summary_file_budget_ratio,
-        neighbor_ratio=settings.summary_neighbor_budget_ratio,
-    )
-
-    try:
-        llm_resp = await _post_llm(
-            url=settings.dense_llm_url,
-            payload={
-                "model": settings.dense_llm_model,
-                "messages": [
-                    {"role": "system", "content": build_system_prompt()},
-                    {"role": "user", "content": prompt},
-                ],
-                "temperature": 0.2,
-                "max_tokens": settings.summary_max_tokens,
-                # Qwen3.5 is a reasoning model — without this flag it
-                # consumes the entire max_tokens budget on internal
-                # <thinking> and returns empty `content`. Disabling the
-                # thinking phase is required for our summary use-case
-                # because we want a short paragraph, not a reasoning
-                # chain.
-                "chat_template_kwargs": {"enable_thinking": False},
-            },
+    llm_resp: dict | None = None
+    last_error: Exception | None = None
+    for idx, scale in enumerate(_SUMMARY_CONTEXT_RETRY_SCALES):
+        prompt = assemble_prompt(
+            file_path=row["file_path"],
+            language=row["language"] or "",
+            line_count=row["line_count"] or 0,
+            file_content=rec["content"],
+            neighbors=ranked,
+            total_budget_chars=max(2_048, int(settings.summary_total_budget_chars * scale)),
+            neighbor_budget_chars=max(160, int(settings.summary_neighbor_chars * scale)),
+            file_ratio=settings.summary_file_budget_ratio,
+            neighbor_ratio=settings.summary_neighbor_budget_ratio,
         )
-    except (httpx.HTTPError, httpx.TimeoutException) as e:
-        logger.warning("enriched_summary_llm_failed", node_id=node_id, error=str(e))
+
+        try:
+            llm_resp = await _post_llm(
+                url=settings.dense_llm_url,
+                payload={
+                    "model": settings.dense_llm_model,
+                    "messages": [
+                        {"role": "system", "content": build_system_prompt()},
+                        {"role": "user", "content": prompt},
+                    ],
+                    "temperature": 0.2,
+                    "max_tokens": settings.summary_max_tokens,
+                    # Qwen-family reasoning models can spend the full
+                    # decode budget on internal thinking and leave
+                    # `content` empty. Disable that path for terse
+                    # source-file summaries.
+                    "chat_template_kwargs": {"enable_thinking": False},
+                },
+            )
+            break
+        except (httpx.HTTPError, httpx.TimeoutException) as exc:
+            last_error = exc
+            if _is_context_window_error(exc) and idx < len(_SUMMARY_CONTEXT_RETRY_SCALES) - 1:
+                logger.warning(
+                    "enriched_summary_llm_context_retry",
+                    node_id=node_id,
+                    scale=scale,
+                    next_scale=_SUMMARY_CONTEXT_RETRY_SCALES[idx + 1],
+                    error=str(exc),
+                )
+                continue
+            logger.warning("enriched_summary_llm_failed", node_id=node_id, error=str(exc))
+            return {
+                "summary": "",
+                "cached": False,
+                "source": "llm_failed",
+                "chunk_count": rec["chunk_count"],
+                "neighbor_count": len(ranked),
+                "truncated_file": rec["truncated"],
+            }
+
+    if llm_resp is None:
+        logger.warning("enriched_summary_llm_failed", node_id=node_id, error=str(last_error))
         return {
             "summary": "",
             "cached": False,

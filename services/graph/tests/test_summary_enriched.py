@@ -13,7 +13,7 @@ to zero neighbors rather than 500.
 import pytest
 import pytest_asyncio
 from unittest.mock import patch, AsyncMock
-from httpx import AsyncClient, ASGITransport
+from httpx import AsyncClient, ASGITransport, HTTPStatusError, Request, Response
 from src.main import app
 from src.graph import store
 from src.graph.enriched_summary import (
@@ -168,3 +168,34 @@ async def test_summary_caches_in_description(seeded_file_node_id, graph_pool):
         )
     assert row["description"] == "Cached summary."
     assert row["description_generated_at"] is not None
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_summary_retries_with_smaller_prompt_on_context_error(seeded_file_node_id):
+    request = Request("POST", "http://dense/v1/chat/completions")
+    response = Response(
+        400,
+        request=request,
+        text="request (7212 tokens) exceeds the available context size (4096 tokens), try increasing it",
+    )
+    prompts: list[str] = []
+
+    async def fake_post_llm(*, url, payload):
+        prompts.append(payload["messages"][-1]["content"])
+        if len(prompts) == 1:
+            raise HTTPStatusError("context overflow", request=request, response=response)
+        return {"choices": [{"message": {"content": "Retried summary."}}]}
+
+    with patch(
+        "src.graph.enriched_summary._post_llm",
+        new=AsyncMock(side_effect=fake_post_llm),
+    ):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as c:
+            r = await c.get(f"/api/graph/nodes/{seeded_file_node_id}/summary?force=true")
+
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["summary"] == "Retried summary."
+    assert body["source"] == "llm_enriched"
+    assert len(prompts) == 2
+    assert len(prompts[1]) < len(prompts[0])
