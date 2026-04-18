@@ -73,4 +73,18 @@ probe_llm_dense() {
 probe_llm_embed
 probe_llm_dense
 
+probe_http() {
+  local name="$1" url="$2"
+  local code
+  code=$(curl -s -o /dev/null -w "%{http_code}" "$url" 2>/dev/null || echo 000)
+  [[ "$code" == "200" || "$code" == "302" ]] && pass "$name" || fail "$name (code=$code)"
+}
+
+if docker ps --filter name=substrate-gateway --filter status=running --format '{{.Names}}' | grep -qx substrate-gateway; then
+  probe_http "gateway /health"   http://localhost:8180/health
+  probe_http "ingestion /health" http://localhost:8181/health
+  probe_http "graph /health"     http://localhost:8182/health
+  probe_http "frontend /health"  http://localhost:3535/health
+fi
+
 exit "$failed"
