@@ -11,14 +11,23 @@ export const ErrorResponse = z.object({
 export type ErrorResponseT = z.infer<typeof ErrorResponse>;
 
 export class SubstrateApiError extends Error {
+  readonly code: string;
+  readonly status: number;
+  readonly details?: Record<string, unknown>;
+  readonly requestId?: string;
+
   constructor(
-    public code: string,
-    public status: number,
+    code: string,
+    status: number,
     message: string,
-    public details?: Record<string, unknown>,
-    public requestId?: string,
+    details?: Record<string, unknown>,
+    requestId?: string,
   ) {
     super(message);
     this.name = "SubstrateApiError";
+    this.code = code;
+    this.status = status;
+    this.details = details;
+    this.requestId = requestId;
   }
 }
