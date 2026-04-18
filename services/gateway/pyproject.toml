@@ -7,11 +7,15 @@ dependencies = [
     "uvicorn[standard]>=0.32.0",
     "httpx>=0.28.0",
     "pyjwt[crypto]>=2.9.0",
-    "redis>=5.2.0",
     "structlog>=24.4.0",
     "pydantic-settings>=2.6.0",
-    "websockets>=13.0",
+    "asyncpg>=0.30.0",
+    "sse-starlette>=2.1",
+    "substrate-common",
 ]
+
+[tool.uv.sources]
+substrate-common = { workspace = true }
 
 [project.optional-dependencies]
 dev = [

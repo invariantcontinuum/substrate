@@ -1,13 +1,13 @@
 import structlog
 from contextlib import asynccontextmanager
-from typing import Literal
-from fastapi import FastAPI, Request, WebSocket, Response
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from src.config import settings
 from src.auth import JWKSClient, validate_token
-from src.proxy import proxy_request, proxy_websocket, init_client, close_client
+from src.proxy import proxy_request, init_client, close_client
+from src.sse_endpoint import router as sse_router, init_pool as init_sse_pool, close_pool as close_sse_pool
 
 structlog.configure(
     processors=[
@@ -17,25 +17,6 @@ structlog.configure(
 )
 logger = structlog.get_logger()
 
-AuthCloseReason = Literal["token_expired", "token_invalid", "no_token"]
-
-
-async def handle_ws_auth_failure(websocket: WebSocket, reason: AuthCloseReason) -> None:
-    """Emit a structured log line and close a WebSocket for an auth failure.
-
-    Intentionally omits token body and any user identity — reason is a
-    controlled enum derived from which auth check failed.
-    """
-    logger.info(
-        "ws_auth_closed",
-        path=websocket.url.path,
-        reason=reason,
-        close_code=4401,
-        client=websocket.client.host if websocket.client else None,
-    )
-    await websocket.close(code=4401)
-
-
 jwks_client: JWKSClient | None = None
 
 
@@ -44,6 +25,7 @@ async def lifespan(app: FastAPI):
     global jwks_client
     jwks_client = JWKSClient(settings.jwks_url)
     await init_client()
+    await init_sse_pool()
     if settings.auth_disabled:
         logger.warning(
             "gateway_auth_disabled",
@@ -52,11 +34,13 @@ async def lifespan(app: FastAPI):
         )
     logger.info("gateway_started", keycloak=settings.keycloak_url)
     yield
+    await close_sse_pool()
     await close_client()
     logger.info("gateway_stopped")
 
 
 app = FastAPI(title="Substrate Gateway", lifespan=lifespan)
+app.include_router(sse_router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -142,37 +126,3 @@ async def proxy_auth(request: Request, path: str):
     return await proxy_request(request, settings.keycloak_url)
 
 
-@app.websocket("/ws/{path:path}")
-async def proxy_ws(websocket: WebSocket, path: str):
-    if settings.auth_disabled:
-        await proxy_websocket(
-            websocket, settings.graph_service_url, f"/ws/{path}", "dev"
-        )
-        return
-
-    token = websocket.query_params.get("token")
-    if not token:
-        await handle_ws_auth_failure(websocket, reason="no_token")
-        return
-
-    try:
-        import jwt as pyjwt
-
-        unverified = pyjwt.get_unverified_header(token)
-        kid = unverified.get("kid")
-        if not kid or not jwks_client:
-            await handle_ws_auth_failure(websocket, reason="token_invalid")
-            return
-        public_key = await jwks_client.get_key(kid)
-        validate_token(token, public_key, issuer=settings.issuer)
-    except Exception as exc:
-        import jwt as _pyjwt
-        if isinstance(exc, _pyjwt.ExpiredSignatureError):
-            await handle_ws_auth_failure(websocket, reason="token_expired")
-        else:
-            await handle_ws_auth_failure(websocket, reason="token_invalid")
-        return
-
-    await proxy_websocket(
-        websocket, settings.graph_service_url, f"/ws/{path}", token
-    )

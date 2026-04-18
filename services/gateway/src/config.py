@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     keycloak_issuer: str = "http://localhost:8080/realms/substrate"
     graph_service_url: str = "http://graph:8082"
     ingestion_service_url: str = "http://ingestion:8081"
-    redis_url: str = "redis://redis:6379"
+    database_url: str = "postgresql+asyncpg://substrate_graph:change-me@postgres:5432/substrate_graph"
 
     # Dev-mode auth bypass. When true, _authenticate() and proxy_ws skip
     # JWT validation and inject stub admin claims. Default false
