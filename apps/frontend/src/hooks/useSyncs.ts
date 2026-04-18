@@ -102,7 +102,7 @@ export function useSyncs() {
   // render cycle (token refresh is driven by react-oidc-context).
   useEffect(() => {
     if (!token) return;
-    const client = openSseClient("/api/events");
+    const client = openSseClient("/api/events", { token });
     const invalidate = () =>
       qc.invalidateQueries({ queryKey: ["syncs", "active"] });
     client.on("sync_lifecycle", invalidate);

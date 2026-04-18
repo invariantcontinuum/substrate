@@ -23,11 +23,18 @@ export function openSseClient(
     syncId?: string;
     sourceId?: string;
     baseUrl?: string;
+    /**
+     * JWT access token. Native EventSource can't set custom headers, so we
+     * pass it as the OAuth2 `?access_token=` query param (RFC 6750 §2.3);
+     * the gateway accepts it as an equivalent to `Authorization: Bearer`.
+     */
+    token?: string;
   } = {},
 ): SseClient {
   const qs = new URLSearchParams();
   if (opts.syncId) qs.set("sync_id", opts.syncId);
   if (opts.sourceId) qs.set("source_id", opts.sourceId);
+  if (opts.token) qs.set("access_token", opts.token);
   const url = `${opts.baseUrl ?? ""}${path}?${qs.toString()}`;
 
   let lastId = "";

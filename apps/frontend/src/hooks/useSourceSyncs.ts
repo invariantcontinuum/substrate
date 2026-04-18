@@ -40,7 +40,7 @@ export function useSourceSyncs(sourceId: string | null, status?: string) {
 
   useEffect(() => {
     if (!token || !sourceId) return;
-    const client = openSseClient("/api/events", { sourceId });
+    const client = openSseClient("/api/events", { sourceId, token });
     const invalidate = () => qc.invalidateQueries({ queryKey });
     client.on("sync_lifecycle", invalidate);
     client.on("sync_progress", invalidate);

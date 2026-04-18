@@ -65,20 +65,30 @@ def _bus() -> SseBus:
     return SseBus(_pool)
 
 
-async def _authenticate(request: Request) -> dict:
-    """Same JWT verify as other /api/* routes. Raises UnauthorizedError on failure."""
+async def _authenticate(request: Request, query_token: str | None) -> dict:
+    """Same JWT verify as other /api/* routes — but EventSource can't set
+    custom headers, so we also accept `?access_token=<jwt>` (OAuth2 standard
+    fallback; RFC 6750 §2.3). The query-string path is used only for SSE.
+    Raises UnauthorizedError on any failure.
+    """
     if settings.auth_disabled:
         return {"sub": "dev", "exp": int(time.time()) + 3600}
 
+    token: str | None = None
     auth = request.headers.get("Authorization", "")
-    if not auth.startswith("Bearer "):
+    if auth.startswith("Bearer "):
+        token = auth[7:]
+    elif query_token:
+        token = query_token
+
+    if not token:
         raise UnauthorizedError("missing bearer token")
 
     from src.main import jwt_verifier  # late import to avoid cycle
 
     if jwt_verifier is None:
         raise UnauthorizedError("verifier not initialised")
-    return await jwt_verifier.verify(auth[7:])
+    return await jwt_verifier.verify(token)
 
 
 def _token_seconds_remaining(claims: dict[str, Any]) -> int:
@@ -93,9 +103,10 @@ async def events(
     request: Request,
     sync_id: Optional[uuid.UUID] = Query(default=None),
     source_id: Optional[uuid.UUID] = Query(default=None),
+    access_token: Optional[str] = Query(default=None),
     last_event_id: Optional[str] = Header(default=None, alias="Last-Event-ID"),
 ) -> EventSourceResponse:
-    claims = await _authenticate(request)
+    claims = await _authenticate(request, access_token)
     ttl = max(5, _token_seconds_remaining(claims) - 30)
 
     filters: dict[str, Any] = {}
