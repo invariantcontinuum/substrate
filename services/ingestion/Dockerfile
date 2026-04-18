@@ -8,9 +8,10 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 WORKDIR /workspace
 
-# Workspace root + shared package (for uv workspace resolution)
+# Workspace root + shared packages (for uv workspace resolution)
 COPY pyproject.toml /workspace/pyproject.toml
 COPY packages/substrate-common /workspace/packages/substrate-common
+COPY packages/substrate-graph-builder /workspace/packages/substrate-graph-builder
 
 # Service manifest (copy first for better layer caching of deps)
 COPY services/ingestion/pyproject.toml /workspace/services/ingestion/pyproject.toml
