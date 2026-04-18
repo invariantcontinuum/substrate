@@ -12,10 +12,12 @@ dependencies = [
     "pydantic-settings>=2.6.0",
     "python-ulid>=3.0",
     "substrate-common",
+    "substrate-graph-builder",
 ]
 
 [tool.uv.sources]
 substrate-common = { workspace = true }
+substrate-graph-builder = { workspace = true }
 
 [project.optional-dependencies]
 dev = [

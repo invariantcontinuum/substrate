@@ -6,14 +6,12 @@ from typing import Any
 
 import structlog
 from src.config import settings
-from src.connectors.github import (
-    parse_imports, PARSEABLE_EXTENSIONS,
-)
 from src.connectors.base import MaterializedTree
-from src.connectors.github import CONNECTORS
+from src.connectors.github import CONNECTORS, _walk_local_tree
 from src import graph_writer, sync_runs, sync_issues
 from src.chunker import chunk_file, file_summary_text
 from src.llm import embed_batch, EmbeddingDimError
+from substrate_graph_builder import build_graph
 
 logger = structlog.get_logger()
 
@@ -113,49 +111,33 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
         meta["phase"] = "discovering"
         await sync_runs.update_sync_progress(sync_id, 0, 0, meta)
 
-        from src.connectors.github import (
-            parse_repo_tree, _walk_local_tree, _read_go_module,
-        )
+        # Delegate discovery + import parsing to substrate_graph_builder.
+        # build_graph emits file nodes (ids without '#') + symbol nodes
+        # (ids with '#') + `depends` file→file edges + `defines`
+        # file→symbol edges. Symbol nodes and defines edges are filtered
+        # here so the downstream AGE writer (which today only understands
+        # file nodes) keeps its contract; a future phase will wire them
+        # through.
         local_tree = _walk_local_tree(tree.root_dir)
-        nodes = parse_repo_tree(local_tree)
-        known_files = {n.id for n in nodes}
-        # Read the Go module path (if any) from go.mod at the repo root
-        # so Go package imports like `github.com/org/repo/pkg/foo` can
-        # resolve to sibling .go files under pkg/foo/ during edge
-        # extraction. Without this, every Go import fails to match and
-        # the graph lands edge-less.
-        go_module = _read_go_module(tree.root_dir)
+        doc = build_graph(local_tree, tree.root_dir, source_name="github")
+        nodes = [n for n in doc.nodes if "#" not in n.id]
+        all_edges = [e for e in doc.edges if e.type == "depends"]
         type_counts: dict[str, int] = {}
         for n in nodes:
             type_counts[n.type] = type_counts.get(n.type, 0) + 1
-        parseable = [
-            n.id for n in nodes
-            if "." in n.id and "." + n.id.rsplit(".", 1)[-1] in PARSEABLE_EXTENSIONS
-        ]
+        # `files_parseable` was historically derived from a static
+        # extension list; today it's the distinct set of file ids that
+        # the builder produced analysis for (i.e. every file whose plugin
+        # emitted at least one import-edge OR that matched a registered
+        # plugin). Use the full plugin-covered set as an upper bound by
+        # asking the registry; no coupling to legacy constants.
+        from substrate_graph_builder import REGISTRY
+        parseable = [n.id for n in nodes if REGISTRY.get_for_path(n.id) is not None]
         meta.update({"files_total": len(nodes), "files_parseable": len(parseable),
-                     "nodes_by_type": type_counts})
+                     "nodes_by_type": type_counts, "edges_found": len(all_edges),
+                     "files_parsed": len(parseable)})
         await sync_runs.update_sync_progress(sync_id, 0, len(nodes), meta)
-
-        meta["phase"] = "parsing"
-        all_edges = []
-        file_contents: dict[str, str] = {}
-        for i, file_id in enumerate(parseable):
-            filepath = os.path.join(tree.root_dir, file_id)
-            try:
-                content = _read_text_safe(filepath)
-                file_contents[file_id] = content
-                edges = parse_imports(file_id, content, known_files, go_module=go_module)
-                all_edges.extend(edges)
-            except Exception as e:  # noqa: BLE001 — per-file parse failure records issue and continues
-                await sync_issues.record_issue(
-                    sync_id, "warning", "parsing", "parse_failed",
-                    f"Could not parse {file_id}", {"file_path": file_id, "error": str(e)})
-            done = i + 1
-            meta["files_parsed"] = done
-            meta["edges_found"] = len(all_edges)
-            if done % CANCELLATION_POLL_EVERY_N == 0 or done == len(parseable):
-                await sync_runs.update_sync_progress(sync_id, done, len(nodes), meta)
-                await _check_cancelled(sync_id)
+        await _check_cancelled(sync_id)
 
         edge_count_by_source: dict[str, int] = {}
         for edge in all_edges:
@@ -164,12 +146,13 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
         meta["phase"] = "preparing"
         await sync_runs.update_sync_progress(sync_id, 0, len(nodes), meta)
 
+        # The builder already read file contents once for tree-sitter
+        # parsing; we re-read here so chunking / hashing / summary
+        # generation don't depend on the builder's internal byte buffer.
         file_info_list: list[dict] = []
         for node in nodes:
             filepath = os.path.join(tree.root_dir, node.id)
-            content = file_contents.get(node.id, "")
-            if not content:
-                content = _read_text_safe(filepath)
+            content = _read_text_safe(filepath)
             language = _detect_language(node.id)
             line_count = content.count("\n") + 1 if content else 0
             size_bytes = len(content.encode("utf-8", errors="replace")) if content else 0

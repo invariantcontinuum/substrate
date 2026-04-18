@@ -1024,6 +1024,7 @@ dependencies = [
     { name = "python-ulid" },
     { name = "structlog" },
     { name = "substrate-common" },
+    { name = "substrate-graph-builder" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -1045,6 +1046,7 @@ requires-dist = [
     { name = "python-ulid", specifier = ">=3.0" },
     { name = "structlog", specifier = ">=24.4.0" },
     { name = "substrate-common", editable = "packages/substrate-common" },
+    { name = "substrate-graph-builder", editable = "packages/substrate-graph-builder" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32.0" },
 ]
 provides-extras = ["dev"]
