@@ -1,7 +1,7 @@
 """Lifecycle helpers for sync_runs rows. Single source of truth for status transitions."""
 import json
 import asyncpg
-from src import graph_writer
+from src import graph_writer, events
 
 
 async def clean_sync_impl(conn: asyncpg.Connection, sync_id: str) -> None:
@@ -53,7 +53,10 @@ async def claim_sync_run(sync_id: str) -> bool:
                WHERE id = $1::uuid AND status = 'pending'""",
             sync_id,
         )
-    return result == "UPDATE 1"
+    claimed = result == "UPDATE 1"
+    if claimed:
+        await events.publish_sync_lifecycle(sync_id, "running")
+    return claimed
 
 
 async def update_sync_progress(sync_id: str, done: int, total: int,
@@ -70,6 +73,7 @@ async def update_sync_progress(sync_id: str, done: int, total: int,
                 "UPDATE sync_runs SET progress_done=$2, progress_total=$3 WHERE id=$1::uuid",
                 sync_id, done, total,
             )
+    await events.publish_sync_progress(sync_id, done, total, meta)
 
 
 async def set_ref(sync_id: str, ref: str) -> None:
@@ -86,6 +90,7 @@ async def complete_sync_run(sync_id: str, stats: dict) -> None:
                WHERE id=$1::uuid""",
             sync_id, json.dumps(stats),
         )
+    await events.publish_sync_lifecycle(sync_id, "completed")
 
 
 async def fail_sync_run(sync_id: str, message: str) -> None:
@@ -99,6 +104,7 @@ async def fail_sync_run(sync_id: str, message: str) -> None:
     from src import sync_issues
     await sync_issues.record_issue(
         sync_id, "error", "terminal", "sync_failed", message, {})
+    await events.publish_sync_lifecycle(sync_id, "failed")
 
 
 async def cancel_sync_run(sync_id: str, message: str) -> None:
@@ -111,6 +117,7 @@ async def cancel_sync_run(sync_id: str, message: str) -> None:
     from src import sync_issues
     await sync_issues.record_issue(
         sync_id, "info", "terminal", "sync_cancelled", message, {})
+    await events.publish_sync_lifecycle(sync_id, "cancelled")
 
 
 async def check_sync_status(sync_id: str) -> str | None:

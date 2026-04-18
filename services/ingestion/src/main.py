@@ -5,7 +5,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 
 from src.config import settings
-from src import graph_writer, sync_runs, sync_issues, sync_schedules
+from src import graph_writer, sync_runs, sync_issues, sync_schedules, events
 from src.sync_runs import clean_sync_impl
 from src.connectors.github import close_client as close_github_client
 from src.llm import close_client as close_llm_client
@@ -55,6 +55,7 @@ async def _reap_zombies() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await graph_writer.connect(settings.database_url)
+    events.init_bus()
     await _reap_zombies()
     await start_runner()
     await start_scheduler()
