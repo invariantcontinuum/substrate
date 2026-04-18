@@ -1,0 +1,11 @@
+{
+  "node_ids": [
+    "CMakeLists.txt",
+    "cmake/helpers.cmake",
+    "cmake/helpers.cmake#build_target@1"
+  ],
+  "edges": [
+    {"source_id": "CMakeLists.txt", "target_id": "cmake/helpers.cmake", "type": "depends"},
+    {"source_id": "cmake/helpers.cmake", "target_id": "cmake/helpers.cmake#build_target@1", "type": "defines"}
+  ]
+}

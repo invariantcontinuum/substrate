@@ -1,0 +1,11 @@
+{
+  "node_ids": [
+    "main.sh",
+    "lib/util.sh",
+    "lib/util.sh#greet@1"
+  ],
+  "edges": [
+    {"source_id": "main.sh", "target_id": "lib/util.sh", "type": "depends"},
+    {"source_id": "lib/util.sh", "target_id": "lib/util.sh#greet@1", "type": "defines"}
+  ]
+}

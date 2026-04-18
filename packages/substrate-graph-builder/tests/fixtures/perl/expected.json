@@ -1,0 +1,13 @@
+{
+  "node_ids": [
+    "bin/main.pl",
+    "lib/My/Greeter.pm",
+    "lib/My/Greeter.pm#greet@3",
+    "lib/My/Greeter.pm#My::Greeter@1"
+  ],
+  "edges": [
+    {"source_id": "bin/main.pl", "target_id": "lib/My/Greeter.pm", "type": "depends"},
+    {"source_id": "lib/My/Greeter.pm", "target_id": "lib/My/Greeter.pm#greet@3", "type": "defines"},
+    {"source_id": "lib/My/Greeter.pm", "target_id": "lib/My/Greeter.pm#My::Greeter@1", "type": "defines"}
+  ]
+}
