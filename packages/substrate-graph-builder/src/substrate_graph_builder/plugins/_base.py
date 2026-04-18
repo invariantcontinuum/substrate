@@ -71,10 +71,10 @@ class TreeSitterPlugin:
         self._language = get_language(self.grammar_name)  # type: ignore[arg-type]
         self._parser = get_parser(self.grammar_name)  # type: ignore[arg-type]
         self._imports_q = (
-            self._language.query(self.imports_query) if self.imports_query else None
+            Query(self._language, self.imports_query) if self.imports_query else None
         )
         self._symbols_q = (
-            self._language.query(self.symbols_query) if self.symbols_query else None
+            Query(self._language, self.symbols_query) if self.symbols_query else None
         )
 
     def parse(self, path: str, content: str, ctx: RepoContext) -> FileAnalysis:
