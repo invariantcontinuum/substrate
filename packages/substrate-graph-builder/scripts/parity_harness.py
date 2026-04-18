@@ -5,10 +5,10 @@ Usage:
   # One-time: capture baseline from the last pre-Phase-5 commit.
   git worktree add /tmp/substrate-pre-sp2 <pre-phase-5-sha>
   cd /tmp/substrate-pre-sp2
-  uv run python -c 'from src.connectors.github import parse_repo_tree, parse_imports, _read_go_module; ...' > baseline.json
-  # (or use the helper in this file which shells out to the legacy path)
+  # Run the legacy path (see plan Task 6.1 Step 2 for the full heredoc).
+  # Output JSON shape: {"file_nodes": [...], "depends_edges": [[src, tgt], ...]}
 
-  # Capture new output:
+  # Check drift at HEAD:
   uv run python packages/substrate-graph-builder/scripts/parity_harness.py \
       --corpus /home/dany/github/invariantcontinuum/substrate \
       --baseline packages/substrate-graph-builder/tests/fixtures/parity-baseline.json \
@@ -28,8 +28,9 @@ from substrate_graph_builder import build_graph
 
 def walk_tree(root: str) -> list[dict]:
     out = []
+    skip = {".git", "node_modules", ".venv", "__pycache__"}
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d not in (".git", "node_modules", ".venv", "__pycache__")]
+        dirnames[:] = [d for d in dirnames if d not in skip]
         for fn in filenames:
             abs_p = os.path.join(dirpath, fn)
             rel = os.path.relpath(abs_p, root)
