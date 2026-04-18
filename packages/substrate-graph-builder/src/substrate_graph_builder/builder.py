@@ -81,7 +81,6 @@ def build_graph(
                 path=node.id,
                 language=plugin.language,
                 error=str(exc),
-                event="plugin_parse_failed",
             )
             continue
         if on_progress and ((i + 1) % 50 == 0 or i + 1 == total):
@@ -102,7 +101,6 @@ def build_graph(
                 path=path,
                 language=plugin.language,
                 error=str(exc),
-                event="plugin_resolve_failed",
             )
 
     # ---- 4. symbol nodes + `defines` edges ----

@@ -87,7 +87,6 @@ class TreeSitterPlugin:
                 "parse_partial",
                 path=path,
                 language=self.language,
-                event="parse_partial",
             )
 
         imports = self._collect_imports(tree.root_node, content)
