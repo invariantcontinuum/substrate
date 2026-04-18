@@ -42,8 +42,8 @@ probe_kc() {
 
 probe_pgadmin() {
   local code
-  code=$(curl -sf -o /dev/null -w "%{http_code}\n" http://localhost:5050/ 2>/dev/null || echo 000)
-  [[ "$code" =~ ^(200|302)$ ]] && pass "pgadmin :5050" || fail "pgadmin (code=$code)"
+  code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5050/ 2>/dev/null || echo 000)
+  [[ "$code" == "200" || "$code" == "302" ]] && pass "pgadmin :5050" || fail "pgadmin (code=$code)"
 }
 
 # Run infra probes only if compose infra is up
