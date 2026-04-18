@@ -69,7 +69,7 @@ def _read_text_safe(filepath: str) -> str:
     try:
         with open(filepath, "r", errors="replace") as f:
             return f.read().replace("\x00", "")
-    except Exception:
+    except (OSError, UnicodeDecodeError):
         return ""
 
 
@@ -145,7 +145,7 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
                 file_contents[file_id] = content
                 edges = parse_imports(file_id, content, known_files, go_module=go_module)
                 all_edges.extend(edges)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — per-file parse failure records issue and continues
                 await sync_issues.record_issue(
                     sync_id, "warning", "parsing", "parse_failed",
                     f"Could not parse {file_id}", {"file_path": file_id, "error": str(e)})
@@ -274,7 +274,7 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
             raise
         except EmbeddingDimError:
             raise
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — embedding fallback records issue and continues
             await sync_issues.record_issue(
                 sync_id, "warning", "embedding_summaries", "embedding_unavailable",
                 f"Embedding server unreachable: {e}", {})
@@ -307,7 +307,7 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
                 raise
             except EmbeddingDimError:
                 raise
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — chunk embedding fallback records issue and continues
                 await sync_issues.record_issue(
                     sync_id, "warning", "embedding_chunks", "embedding_unavailable",
                     f"Chunk embedding failed: {e}", {})
@@ -328,7 +328,7 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
     except CancelledSync:
         logger.info("sync_cancelled", sync_id=sync_id)
         await graph_writer.cleanup_partial(sync_id)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — top-level sync failure path marks run failed + cleans partial graph
         logger.error("sync_failed", sync_id=sync_id, error=str(e))
         await graph_writer.cleanup_partial(sync_id)
         await sync_runs.fail_sync_run(sync_id, str(e))

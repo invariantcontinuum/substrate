@@ -64,7 +64,7 @@ async def start_scheduler() -> None:
         while _running:
             try:
                 await _tick()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — scheduler tick must not crash on per-iteration failures
                 logger.error("scheduler_error", error=str(e))
             await asyncio.sleep(POLL_INTERVAL_S)
 
@@ -160,7 +160,7 @@ async def start_retention_loop() -> None:
         while _retention_running:
             try:
                 await prune_retention_once()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — retention loop must survive per-pass failures
                 logger.error("retention_error", error=str(e))
             await asyncio.sleep(settings.retention_tick_interval_s)
 

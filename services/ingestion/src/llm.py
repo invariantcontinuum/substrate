@@ -161,7 +161,7 @@ async def embed_batch(texts: list[str]) -> list[list[float] | None]:
                       status=e.response.status_code,
                       error=str(e), duration_ms=round(elapsed * 1000))
         raise
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — log any embed failure then re-raise
         elapsed = time.monotonic() - start
         logger.error("embed_batch_failed", batch_size=batch_size,
                       error=str(e), duration_ms=round(elapsed * 1000))

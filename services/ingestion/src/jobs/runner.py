@@ -45,7 +45,7 @@ async def start_runner() -> None:
                     task = asyncio.create_task(handle_sync(r["sync_id"], source, config_snapshot))
                     _in_flight.add(task)
                     task.add_done_callback(_in_flight.discard)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — runner poll loop must survive per-iteration failures
                 logger.error("runner_loop_error", error=str(e))
             await asyncio.sleep(POLL_INTERVAL_S)
 

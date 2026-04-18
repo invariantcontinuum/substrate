@@ -244,7 +244,7 @@ async def _fetch_edge_neighbors(conn, file_id: str) -> list[dict]:
                 $$) AS (neighbor_file_id agtype, edge_type agtype, direction agtype)
                 """
             )
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — summary edge fetch failures fall back to empty
         logger.warning("enriched_summary_edge_fetch_failed", error=str(exc))
         return []
 

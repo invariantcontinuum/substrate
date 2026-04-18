@@ -246,9 +246,7 @@ def _read_go_module(repo_dir: str) -> str | None:
         with open(path, "r", errors="replace") as f:
             m = _GO_MOD_MODULE.search(f.read())
             return m.group(1) if m else None
-    except FileNotFoundError:
-        return None
-    except Exception:
+    except (FileNotFoundError, OSError, UnicodeDecodeError):
         return None
 
 
@@ -363,8 +361,8 @@ async def sync_repo(
                     content = f.read()
                 edges = parse_imports(file_id, content, known_files, go_module=go_module)
                 all_edges.extend(edges)
-            except Exception:
-                pass
+            except (OSError, UnicodeDecodeError, ValueError) as e:
+                logger.warning("import_parse_failed", file_id=file_id, error=str(e))
 
             done = i + 1
             meta["files_parsed"] = done
@@ -424,10 +422,10 @@ class GitHubConnector:
                         ref = f.read().strip()
                 else:
                     ref = head
-            except Exception as e:
+            except (OSError, UnicodeDecodeError) as e:
                 logger.warning("github_ref_extract_failed", owner=owner, repo=repo, error=str(e))
             return MaterializedTree(root_dir=tmpdir, file_paths=file_paths, ref=ref)
-        except Exception:
+        except Exception:  # noqa: BLE001 — clean up tmpdir on any post-clone failure then re-raise
             # Post-clone failure: clean up tmpdir so we don't leak. sync.py's
             # finally block can't help here because `tree` is still None at the
             # call site.

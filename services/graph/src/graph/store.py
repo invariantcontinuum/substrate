@@ -177,7 +177,7 @@ async def get_stats() -> dict:
             )
             if edge_row:
                 total_edges = json.loads(str(edge_row["cnt"]))
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — AGE stats failure returns partial counts
             logger.warning("age_stats_query_failed", error=str(e))
 
     logger.info("stats_fetched", total_nodes=total_nodes, total_edges=total_edges,

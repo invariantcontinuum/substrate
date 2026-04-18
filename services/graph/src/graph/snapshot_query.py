@@ -113,7 +113,7 @@ async def get_merged_graph(sync_ids: list[str], projection: str = "full") -> dic
                 """
             )
             edges_raw = edge_rows
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — empty edges on AGE failure; nodes still render
             logger.warning("age_edge_query_failed", error=str(e))
 
         edges = []
@@ -151,7 +151,7 @@ async def get_merged_graph(sync_ids: list[str], projection: str = "full") -> dic
                     }}
                     for (a, b), v in edge_agg.items()
                 ]
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — postprocess failure empties edges; nodes still render
                 logger.warning("age_edge_postprocess_failed", error=str(e))
                 edges = []
 
@@ -334,8 +334,8 @@ async def get_node_detail(node_id: str, sync_id: str | None = None) -> dict:
                         neighbors.append({
                             "id": _node_id(*pair), "type": rt, "weight": w,
                         })
-        except Exception:
-            pass
+        except (asyncpg.PostgresError, json.JSONDecodeError, ValueError) as e:
+            logger.warning("node_neighbors_fetch_failed", error=str(e))
 
         return {
             "node": {

@@ -206,7 +206,7 @@ async def write_age_nodes(nodes: list[dict], sync_id: str, source_id: str) -> in
             chunk = nodes[i : i + CHUNK_SIZE]
             try:
                 await _write_age_nodes_chunk(conn, chunk, sync_id_esc, source_id_esc)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — chunk-level fallback; per-row retry handles edge cases
                 # asyncpg auto-commit: each conn.execute() is its own implicit transaction,
                 # so a failed chunk does not leave the connection in an aborted state.
                 # Per-row fallback on the same conn is safe.
@@ -260,7 +260,7 @@ async def _write_age_nodes_per_row(conn, chunk, sync_id_esc, source_id_esc):
             await conn.execute(
                 f"SELECT * FROM cypher('substrate', $$ {cypher} $$) AS (v agtype)"
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — per-row write failure counted, sync continues
             failed += 1
             logger.warning("age_node_write_failed",
                            file_id=node["file_id"], error=str(e))
@@ -279,7 +279,7 @@ async def cleanup_partial(sync_id: str) -> None:
                 f"MATCH (n) WHERE n.sync_id = '{sync_id_esc}' DETACH DELETE n "
                 f"$$) AS (v agtype)"
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — per-row write failure counted, sync continues
             logger.warning("age_cleanup_failed", sync_id=sync_id, error=str(e))
         # content_chunks cascades on file_embeddings delete; deleting file_embeddings is enough.
         await conn.execute("DELETE FROM file_embeddings WHERE sync_id = $1::uuid", sync_id)
@@ -307,7 +307,7 @@ async def write_age_edges(edges: list[dict], sync_id: str, source_id: str) -> in
             chunk = edges[i : i + CHUNK_SIZE]
             try:
                 await _write_age_edges_chunk(conn, chunk, sync_id_esc, source_id_esc)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — chunk-level fallback; per-row retry handles edge cases
                 # asyncpg auto-commit: each conn.execute() is its own implicit transaction,
                 # so a failed chunk does not leave the connection in an aborted state.
                 # Per-row fallback on the same conn is safe.
@@ -362,7 +362,7 @@ async def _write_age_edges_per_row(conn, chunk, sync_id_esc, source_id_esc):
             await conn.execute(
                 f"SELECT * FROM cypher('substrate', $$ {cypher} $$) AS (v agtype)"
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — per-row write failure counted, sync continues
             failed += 1
             logger.warning("age_edge_write_failed",
                            source=edge["source_id"], target=edge["target_id"],
