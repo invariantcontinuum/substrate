@@ -36,7 +36,7 @@ class ExceptionLoggingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         try:
             return await call_next(request)
-        except Exception as e:  # noqa: BLE001 — log every unhandled error then re-raise
+        except Exception as e:
             log.error(
                 "unhandled_exception",
                 error=str(e),

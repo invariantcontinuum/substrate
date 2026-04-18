@@ -87,13 +87,21 @@ async def proxy_request(request: Request, upstream_base: str) -> Response:
     resp = None
     for attempt in range(attempts):
         try:
-            resp = await _client.request(
-                method=request.method,
-                url=url,
-                headers=headers,
-                content=body,
-                **({"timeout": per_request_timeout} if per_request_timeout else {}),
-            )
+            if per_request_timeout is not None:
+                resp = await _client.request(
+                    method=request.method,
+                    url=url,
+                    headers=headers,
+                    content=body,
+                    timeout=per_request_timeout,
+                )
+            else:
+                resp = await _client.request(
+                    method=request.method,
+                    url=url,
+                    headers=headers,
+                    content=body,
+                )
             break
         except _RETRYABLE as e:
             last_exc = e

@@ -121,11 +121,15 @@ async def get_merged_graph(sync_ids: list[str], projection: str = "full") -> dic
             try:
                 file_id_set = set()
                 parsed = []
-                for e in edges_raw:
-                    a_file = json.loads(str(e["a_file"]))
-                    b_file = json.loads(str(e["b_file"]))
-                    weight = float(json.loads(str(e["weight"]))) if e["weight"] else 1.0
-                    e_sync = json.loads(str(e["sync_id"]))
+                for edge_row in edges_raw:
+                    a_file = json.loads(str(edge_row["a_file"]))
+                    b_file = json.loads(str(edge_row["b_file"]))
+                    weight = (
+                        float(json.loads(str(edge_row["weight"])))
+                        if edge_row["weight"]
+                        else 1.0
+                    )
+                    e_sync = json.loads(str(edge_row["sync_id"]))
                     file_id_set.add(a_file)
                     file_id_set.add(b_file)
                     parsed.append((a_file, b_file, weight, e_sync))

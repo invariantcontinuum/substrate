@@ -9,7 +9,11 @@ for svc in services/gateway services/ingestion services/graph packages/substrate
     echo "==> mypy $svc"
     (cd "$svc" && uv run mypy .) || FAILED=1
     echo "==> vulture $svc"
-    (cd "$svc" && uv run vulture . --min-confidence 70 --exclude 'tests,migrations,.venv') || FAILED=1
+    if [[ -f "$svc/.vulture_whitelist.py" ]]; then
+      (cd "$svc" && uv run vulture . .vulture_whitelist.py --min-confidence 70 --exclude 'tests,migrations,.venv') || FAILED=1
+    else
+      (cd "$svc" && uv run vulture . --min-confidence 70 --exclude 'tests,migrations,.venv') || FAILED=1
+    fi
   fi
 done
 
@@ -19,7 +23,7 @@ if [[ -f apps/frontend/package.json ]]; then
   echo "==> eslint apps/frontend"
   (cd apps/frontend && pnpm exec eslint . --max-warnings 0) || FAILED=1
   echo "==> knip apps/frontend"
-  (cd apps/frontend && pnpm dlx knip --production) || FAILED=1
+  (cd apps/frontend && pnpm dlx knip) || FAILED=1
 fi
 
 # Phase 8 CI gate — banned tokens (activated once Phase 8 lands; no-op before)

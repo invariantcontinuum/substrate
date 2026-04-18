@@ -44,7 +44,7 @@ async def db(graph_pool):
 
 @dataclass
 class _DBFixture:
-    pool: object
+    pool: asyncpg.Pool
     _source_ids: list = field(default_factory=list)
     cleaned_ids: list = field(default_factory=list)
 

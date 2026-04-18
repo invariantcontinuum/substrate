@@ -35,7 +35,8 @@ async def update_schedule(schedule_id: int, interval_minutes: int | None,
                            enabled: bool | None,
                            config_overrides: dict | None) -> dict | None:
     pool = graph_writer.get_pool()
-    sets, args = [], []
+    sets: list[str] = []
+    args: list = []
     if interval_minutes is not None:
         sets.append(f"interval_minutes=${len(args)+1}")
         args.append(interval_minutes)

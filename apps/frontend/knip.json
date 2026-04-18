@@ -1,0 +1,19 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": [
+    "src/App.tsx",
+    "src/env.d.ts",
+    "src/test-setup.ts",
+    "vite.config.ts"
+  ],
+  "project": ["src/**/*.{ts,tsx}"],
+  "ignore": [
+    "src/components/ui/**"
+  ],
+  "ignoreDependencies": [
+    "cytoscape-cose-bilkent",
+    "@testing-library/user-event",
+    "@types/cytoscape"
+  ],
+  "ignoreExportsUsedInFile": true
+}

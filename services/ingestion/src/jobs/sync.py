@@ -2,6 +2,8 @@ import hashlib
 import os
 import shutil
 import time
+from typing import Any
+
 import structlog
 from src.config import settings
 from src.connectors.github import (
@@ -92,7 +94,7 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
         await sync_runs.fail_sync_run(sync_id, "no connector")
         return
 
-    meta = {
+    meta: dict[str, Any] = {
         "phase": "cloning", "source": label,
         "files_total": 0, "files_parseable": 0,
         "files_parsed": 0, "files_embedded": 0,
@@ -263,11 +265,15 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
                             {"file_path": file_info_list[batch_start + j]["node"].id})
                         continue
                     fi = file_info_list[batch_start + j]
-                    file_db_id = file_id_map.get(fi["node"].id)
-                    if file_db_id:
-                        await graph_writer.update_file_embedding(file_db_id, vec, sync_id=sync_id)
+                    maybe_file_db_id = file_id_map.get(fi["node"].id)
+                    if maybe_file_db_id:
+                        await graph_writer.update_file_embedding(
+                            maybe_file_db_id, vec, sync_id=sync_id
+                        )
                 meta["files_embedded"] = min(batch_start + EMBED_BATCH_SIZE, len(summary_texts))
-                await sync_runs.update_sync_progress(sync_id, meta["files_embedded"], len(nodes), meta)
+                await sync_runs.update_sync_progress(
+                    sync_id, int(meta["files_embedded"]), len(nodes), meta
+                )
                 await _check_cancelled(sync_id)
         except CancelledSync:
             raise
@@ -282,12 +288,12 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
         all_chunk_texts: list[str] = []
         chunk_map: list[tuple[str, int]] = []
         for fi in file_info_list:
-            file_db_id = file_id_map.get(fi["node"].id)
-            if not file_db_id:
+            fi_file_db_id = file_id_map.get(fi["node"].id)
+            if not fi_file_db_id:
                 continue
             for ch in fi["chunks"]:
                 all_chunk_texts.append(ch.content)
-                chunk_map.append((file_db_id, ch.chunk_index))
+                chunk_map.append((fi_file_db_id, ch.chunk_index))
 
         if all_chunk_texts:
             try:
@@ -297,10 +303,14 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
                     for j, vec in enumerate(vectors):
                         if vec is None:
                             continue
-                        file_db_id, chunk_index = chunk_map[batch_start + j]
-                        await graph_writer.update_chunk_embedding(file_db_id, chunk_index, vec, sync_id=sync_id)
+                        chunk_file_db_id, chunk_index = chunk_map[batch_start + j]
+                        await graph_writer.update_chunk_embedding(
+                            chunk_file_db_id, chunk_index, vec, sync_id=sync_id
+                        )
                     meta["chunks_embedded"] = min(batch_start + EMBED_BATCH_SIZE, len(all_chunk_texts))
-                    await sync_runs.update_sync_progress(sync_id, meta["files_embedded"], len(nodes), meta)
+                    await sync_runs.update_sync_progress(
+                        sync_id, int(meta["files_embedded"]), len(nodes), meta
+                    )
                     await _check_cancelled(sync_id)
             except CancelledSync:
                 raise
