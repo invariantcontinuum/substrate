@@ -7,10 +7,9 @@ friendliness.
 
 from __future__ import annotations
 
+from substrate_graph_builder.plugins.python import PythonPlugin
 from substrate_graph_builder.registry import PluginRegistry
 
-# Imports added per plugin in Phases 2-3.
-
 REGISTRY: PluginRegistry = PluginRegistry([
-    # PythonPlugin(), JavaScriptPlugin(), TypeScriptPlugin(), GoPlugin(), ...
+    PythonPlugin(),
 ])

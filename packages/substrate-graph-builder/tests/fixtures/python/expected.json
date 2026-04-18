@@ -1,0 +1,22 @@
+{
+  "node_ids": [
+    "main.py",
+    "pkg/__init__.py",
+    "pkg/a.py",
+    "pkg/b.py",
+    "main.py#main@4",
+    "pkg/a.py#a_fn@4",
+    "pkg/b.py#bar@1",
+    "pkg/b.py#BarClass@5",
+    "pkg/b.py#greet@6"
+  ],
+  "edges": [
+    {"source_id": "main.py", "target_id": "pkg/a.py", "type": "depends"},
+    {"source_id": "pkg/a.py", "target_id": "pkg/b.py", "type": "depends"},
+    {"source_id": "main.py", "target_id": "main.py#main@4", "type": "defines"},
+    {"source_id": "pkg/a.py", "target_id": "pkg/a.py#a_fn@4", "type": "defines"},
+    {"source_id": "pkg/b.py", "target_id": "pkg/b.py#bar@1", "type": "defines"},
+    {"source_id": "pkg/b.py", "target_id": "pkg/b.py#BarClass@5", "type": "defines"},
+    {"source_id": "pkg/b.py", "target_id": "pkg/b.py#greet@6", "type": "defines"}
+  ]
+}
