@@ -1,0 +1,28 @@
+# Env
+.env
+env/*.env
+!env/*.env.example
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.uv-cache/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+.pnpm-store/
+dist/
+build/
+coverage/
+
+# IDE / OS
+.DS_Store
+.idea/
+.vscode/
+
+# Imports artifact (one-shot)
+.import-work/
