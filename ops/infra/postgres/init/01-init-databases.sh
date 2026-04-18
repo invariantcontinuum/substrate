@@ -91,6 +91,19 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "${GRAPH_DB_NAME}" 
     END
     \$\$;
 
+    DO \$\$
+    BEGIN
+        IF NOT EXISTS (
+            SELECT 1
+              FROM ag_catalog.ag_label l
+              JOIN ag_catalog.ag_graph g ON g.graphid = l.graph
+             WHERE g.name = 'substrate' AND l.name = 'Symbol'
+        ) THEN
+            PERFORM create_vlabel('substrate', 'Symbol');
+        END IF;
+    END
+    \$\$;
+
     GRANT USAGE ON SCHEMA ag_catalog TO ${GRAPH_DB_USER};
     GRANT SELECT ON ALL TABLES IN SCHEMA ag_catalog TO ${GRAPH_DB_USER};
     GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA ag_catalog TO ${GRAPH_DB_USER};
