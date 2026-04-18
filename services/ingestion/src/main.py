@@ -1,30 +1,33 @@
-# services/ingestion/src/main.py
-import structlog
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import JSONResponse
 
-from src.config import settings
-from src import graph_writer, sync_runs, sync_issues, sync_schedules, events
-from src.sync_runs import clean_sync_impl
-from src.connectors.github import close_client as close_github_client
-from src.llm import close_client as close_llm_client
-from src.schema import SyncRequest, ScheduleRequest, ScheduleUpdateRequest
-from src.jobs.runner import start_runner, stop_runner
-from src.scheduler import start_scheduler, stop_scheduler, start_retention_loop, stop_retention_loop
-from src.sources_patch import SourcePatch, update_source_impl
+import structlog
+from fastapi import FastAPI
 
-import logging as _logging
-import os as _os
-_LOG_LEVEL = getattr(_logging, _os.environ.get("LOG_LEVEL", "INFO").upper(), _logging.INFO)
-structlog.configure(
-    processors=[
-        structlog.processors.add_log_level,
-        structlog.processors.TimeStamper(fmt="iso"),
-        structlog.processors.JSONRenderer(),
-    ],
-    wrapper_class=structlog.make_filtering_bound_logger(_LOG_LEVEL),
+from substrate_common import (
+    ConflictError,
+    ExceptionLoggingMiddleware,
+    NotFoundError,
+    RequestIdMiddleware,
+    configure_logging,
+    register_handlers,
 )
+
+from src import events, graph_writer, sync_issues, sync_runs, sync_schedules
+from src.config import settings
+from src.connectors.github import close_client as close_github_client
+from src.jobs.runner import start_runner, stop_runner
+from src.llm import close_client as close_llm_client
+from src.scheduler import (
+    start_retention_loop,
+    start_scheduler,
+    stop_retention_loop,
+    stop_scheduler,
+)
+from src.schema import ScheduleRequest, ScheduleUpdateRequest, SyncRequest
+from src.sources_patch import SourcePatch, update_source_impl
+from src.sync_runs import clean_sync_impl
+
+configure_logging(service=settings.service_name)
 logger = structlog.get_logger()
 
 
@@ -72,6 +75,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Substrate Ingestion", lifespan=lifespan)
+app.add_middleware(RequestIdMiddleware)
+app.add_middleware(ExceptionLoggingMiddleware)
+register_handlers(app)
 
 
 @app.get("/health")
@@ -100,10 +106,12 @@ async def create_sync(req: SyncRequest):
         src_row = await conn.fetchrow(
             "SELECT source_type, config FROM sources WHERE id=$1::uuid", req.source_id)
     if not src_row:
-        raise HTTPException(404, "source not found")
+        raise NotFoundError("source not found")
     if src_row["source_type"] not in CONNECTORS:
-        raise HTTPException(
-            400, f"no connector registered for source_type={src_row['source_type']}")
+        raise ConflictError(
+            f"no connector registered for source_type={src_row['source_type']}",
+            details={"source_type": src_row["source_type"]},
+        )
     base = src_row["config"] if isinstance(src_row["config"], dict) else {}
     snapshot = {**base, **req.config_overrides}
     pool = graph_writer.get_pool()
@@ -121,14 +129,9 @@ async def create_sync(req: SyncRequest):
         source_id=req.source_id,
         existing_sync_id=sync_id,
     )
-    return JSONResponse(
-        status_code=409,
-        content={
-            "error": "sync_already_active",
-            "message": "A sync is already running or pending for this source.",
-            "sync_id": sync_id,
-            "status": "already_active",
-        },
+    raise ConflictError(
+        "A sync is already running or pending for this source.",
+        details={"sync_id": sync_id, "status": "already_active"},
     )
 
 
@@ -146,8 +149,11 @@ async def cancel_sync(sync_id: str):
         async with pool.acquire() as conn:
             status = await conn.fetchval("SELECT status FROM sync_runs WHERE id=$1::uuid", sync_id)
         if status is None:
-            raise HTTPException(404, "sync_run not found")
-        raise HTTPException(409, f"sync is in terminal state: {status}")
+            raise NotFoundError("sync_run not found")
+        raise ConflictError(
+            f"sync is in terminal state: {status}",
+            details={"status": status},
+        )
     # Record the cancel reason as an issue (mirrors what cancel_sync_run did before)
     await sync_issues.record_issue(
         sync_id, "info", "terminal", "sync_cancelled", "user requested", {})
@@ -162,7 +168,7 @@ async def retry_sync(sync_id: str):
             "SELECT source_id::text, config_snapshot FROM sync_runs WHERE id=$1::uuid", sync_id
         )
     if not row:
-        raise HTTPException(404, "sync_run not found")
+        raise NotFoundError("sync_run not found")
     snapshot = row["config_snapshot"] if isinstance(row["config_snapshot"], dict) else {}
     pool = graph_writer.get_pool()
     async with pool.acquire() as conn:
@@ -179,14 +185,9 @@ async def retry_sync(sync_id: str):
         source_id=row["source_id"],
         existing_sync_id=new_id,
     )
-    return JSONResponse(
-        status_code=409,
-        content={
-            "error": "sync_already_active",
-            "message": "A sync is already running or pending for this source.",
-            "sync_id": new_id,
-            "status": "already_active",
-        },
+    raise ConflictError(
+        "A sync is already running or pending for this source.",
+        details={"sync_id": new_id, "status": "already_active"},
     )
 
 
@@ -198,9 +199,12 @@ async def clean_sync(sync_id: str):
     async with pool.acquire() as conn:
         status = await conn.fetchval("SELECT status FROM sync_runs WHERE id=$1::uuid", sync_id)
     if status is None:
-        raise HTTPException(404, "sync_run not found")
+        raise NotFoundError("sync_run not found")
     if status not in ("completed", "failed", "cancelled"):
-        raise HTTPException(409, f"sync must be in terminal state to clean (got: {status})")
+        raise ConflictError(
+            f"sync must be in terminal state to clean (got: {status})",
+            details={"status": status},
+        )
     async with pool.acquire() as conn:
         await clean_sync_impl(conn, sync_id)
     return {"status": "cleaned"}
@@ -228,7 +232,7 @@ async def patch_schedule(schedule_id: int, req: ScheduleUpdateRequest):
     out = await sync_schedules.update_schedule(
         schedule_id, req.interval_minutes, req.enabled, req.config_overrides)
     if not out:
-        raise HTTPException(404, "schedule not found")
+        raise NotFoundError("schedule not found")
     return out
 
 
