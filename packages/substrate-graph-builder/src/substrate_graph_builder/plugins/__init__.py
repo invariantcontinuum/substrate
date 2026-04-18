@@ -10,6 +10,7 @@ from __future__ import annotations
 from substrate_graph_builder.plugins.c import CPlugin
 from substrate_graph_builder.plugins.cmake import CMakePlugin
 from substrate_graph_builder.plugins.cpp import CppPlugin
+from substrate_graph_builder.plugins.csharp import CSharpPlugin
 from substrate_graph_builder.plugins.go import GoPlugin
 from substrate_graph_builder.plugins.java import JavaPlugin
 from substrate_graph_builder.plugins.javascript import JavaScriptPlugin
@@ -27,6 +28,7 @@ REGISTRY: PluginRegistry = PluginRegistry([
     CPlugin(),
     CMakePlugin(),
     CppPlugin(),
+    CSharpPlugin(),
     GoPlugin(),
     JavaPlugin(),
     JavaScriptPlugin(),

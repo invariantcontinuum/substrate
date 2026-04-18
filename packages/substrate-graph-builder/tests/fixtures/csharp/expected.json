@@ -1,0 +1,17 @@
+{
+  "node_ids": [
+    "src/Util/Helper.cs",
+    "src/App.cs",
+    "src/Util/Helper.cs#Helper@3",
+    "src/Util/Helper.cs#Add@5",
+    "src/App.cs#App@5",
+    "src/App.cs#Run@7"
+  ],
+  "edges": [
+    {"source_id": "src/App.cs", "target_id": "src/Util/Helper.cs", "type": "depends"},
+    {"source_id": "src/Util/Helper.cs", "target_id": "src/Util/Helper.cs#Helper@3", "type": "defines"},
+    {"source_id": "src/Util/Helper.cs", "target_id": "src/Util/Helper.cs#Add@5", "type": "defines"},
+    {"source_id": "src/App.cs", "target_id": "src/App.cs#App@5", "type": "defines"},
+    {"source_id": "src/App.cs", "target_id": "src/App.cs#Run@7", "type": "defines"}
+  ]
+}
