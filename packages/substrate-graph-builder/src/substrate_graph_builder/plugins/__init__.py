@@ -13,6 +13,7 @@ from substrate_graph_builder.plugins.cpp import CppPlugin
 from substrate_graph_builder.plugins.go import GoPlugin
 from substrate_graph_builder.plugins.java import JavaPlugin
 from substrate_graph_builder.plugins.javascript import JavaScriptPlugin
+from substrate_graph_builder.plugins.kotlin import KotlinPlugin
 from substrate_graph_builder.plugins.perl import PerlPlugin
 from substrate_graph_builder.plugins.php import PhpPlugin
 from substrate_graph_builder.plugins.python import PythonPlugin
@@ -29,6 +30,7 @@ REGISTRY: PluginRegistry = PluginRegistry([
     GoPlugin(),
     JavaPlugin(),
     JavaScriptPlugin(),
+    KotlinPlugin(),
     PerlPlugin(),
     PhpPlugin(),
     PythonPlugin(),

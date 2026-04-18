@@ -1,0 +1,15 @@
+{
+  "node_ids": [
+    "com/acme/Greeter.kt",
+    "com/acme/App.kt",
+    "com/acme/Greeter.kt#Greeter@3",
+    "com/acme/Greeter.kt#greet@4",
+    "com/acme/App.kt#main@5"
+  ],
+  "edges": [
+    {"source_id": "com/acme/App.kt", "target_id": "com/acme/Greeter.kt", "type": "depends"},
+    {"source_id": "com/acme/Greeter.kt", "target_id": "com/acme/Greeter.kt#Greeter@3", "type": "defines"},
+    {"source_id": "com/acme/Greeter.kt", "target_id": "com/acme/Greeter.kt#greet@4", "type": "defines"},
+    {"source_id": "com/acme/App.kt", "target_id": "com/acme/App.kt#main@5", "type": "defines"}
+  ]
+}
