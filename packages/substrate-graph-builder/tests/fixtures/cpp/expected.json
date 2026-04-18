@@ -1,0 +1,15 @@
+{
+  "node_ids": [
+    "util.hpp",
+    "util.cpp",
+    "main.cpp",
+    "util.hpp#Util@3",
+    "main.cpp#main@3"
+  ],
+  "edges": [
+    {"source_id": "util.cpp", "target_id": "util.hpp", "type": "depends"},
+    {"source_id": "main.cpp", "target_id": "util.hpp", "type": "depends"},
+    {"source_id": "util.hpp", "target_id": "util.hpp#Util@3", "type": "defines"},
+    {"source_id": "main.cpp", "target_id": "main.cpp#main@3", "type": "defines"}
+  ]
+}

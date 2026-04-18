@@ -8,6 +8,7 @@ friendliness.
 from __future__ import annotations
 
 from substrate_graph_builder.plugins.c import CPlugin
+from substrate_graph_builder.plugins.cpp import CppPlugin
 from substrate_graph_builder.plugins.go import GoPlugin
 from substrate_graph_builder.plugins.javascript import JavaScriptPlugin
 from substrate_graph_builder.plugins.python import PythonPlugin
@@ -17,6 +18,7 @@ from substrate_graph_builder.registry import PluginRegistry
 
 REGISTRY: PluginRegistry = PluginRegistry([
     CPlugin(),
+    CppPlugin(),
     GoPlugin(),
     JavaScriptPlugin(),
     PythonPlugin(),
