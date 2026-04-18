@@ -1,0 +1,22 @@
+{
+  "node_ids": [
+    "tsconfig.json",
+    "src/main.ts",
+    "src/components/Button.tsx",
+    "src/lib/helpers.ts",
+    "src/main.ts#main@4",
+    "src/components/Button.tsx#Button@1",
+    "src/lib/helpers.ts#helper@1",
+    "src/lib/helpers.ts#HelperClass@5",
+    "src/lib/helpers.ts#run@6"
+  ],
+  "edges": [
+    {"source_id": "src/main.ts", "target_id": "src/lib/helpers.ts", "type": "depends"},
+    {"source_id": "src/main.ts", "target_id": "src/components/Button.tsx", "type": "depends"},
+    {"source_id": "src/main.ts", "target_id": "src/main.ts#main@4", "type": "defines"},
+    {"source_id": "src/components/Button.tsx", "target_id": "src/components/Button.tsx#Button@1", "type": "defines"},
+    {"source_id": "src/lib/helpers.ts", "target_id": "src/lib/helpers.ts#helper@1", "type": "defines"},
+    {"source_id": "src/lib/helpers.ts", "target_id": "src/lib/helpers.ts#HelperClass@5", "type": "defines"},
+    {"source_id": "src/lib/helpers.ts", "target_id": "src/lib/helpers.ts#run@6", "type": "defines"}
+  ]
+}
