@@ -6,7 +6,8 @@ export const ErrorResponse = z.object({
     message: z.string(),
     details: z.record(z.string(), z.any()).optional(),
   }),
-  request_id: z.string().optional(),
+  // Python pydantic ErrorResponse requires request_id too.
+  request_id: z.string(),
 });
 export type ErrorResponseT = z.infer<typeof ErrorResponse>;
 

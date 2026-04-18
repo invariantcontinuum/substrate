@@ -13,9 +13,26 @@ import structlog
 import ulid
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 log = structlog.get_logger()
+
+
+class ErrorDetail(BaseModel):
+    code: str
+    message: str
+    details: dict[str, Any] = {}
+
+
+class ErrorResponse(BaseModel):
+    """Canonical HTTP error body — must stay in lockstep with the zod
+    `ErrorResponse` in `packages/substrate-web-common/src/errors.ts`. Checked
+    by `make check-contracts`.
+    """
+
+    error: ErrorDetail
+    request_id: str
 
 
 class SubstrateError(Exception):
