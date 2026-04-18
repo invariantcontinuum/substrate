@@ -268,7 +268,12 @@ async def _write_age_nodes_per_row(conn, chunk, sync_id_esc, source_id_esc):
 
 
 async def cleanup_partial(sync_id: str) -> None:
-    """Drop every row produced by a single sync_id across AGE + relational tables."""
+    """Drop every row produced by a single sync_id across AGE + relational tables.
+
+    Note: the MATCH is intentionally unlabeled, so every vertex carrying this
+    sync_id — whether File, Symbol, or any future vlabel — is detached and
+    deleted. Adding new vlabels (e.g. Symbol) therefore requires no change here.
+    """
     if not _pool:
         raise RuntimeError("graph_writer not connected")
     sync_id_esc = _escape_cypher(sync_id)
@@ -365,6 +370,182 @@ async def _write_age_edges_per_row(conn, chunk, sync_id_esc, source_id_esc):
         except Exception as e:  # noqa: BLE001 — per-row write failure counted, sync continues
             failed += 1
             logger.warning("age_edge_write_failed",
+                           source=edge["source_id"], target=edge["target_id"],
+                           error=str(e))
+    return failed
+
+
+async def write_age_symbol_nodes(nodes: list[dict], sync_id: str, source_id: str) -> int:
+    """Stamp sync_id+source_id on every Symbol; batch writes via UNWIND with per-row fallback.
+
+    Each node dict needs: symbol_id, file_path, name, kind, line, domain.
+    Returns number of symbols that failed to write."""
+    if not _pool:
+        raise RuntimeError("graph_writer not connected")
+    if not nodes:
+        return 0
+    batch_count = (len(nodes) + CHUNK_SIZE - 1) // CHUNK_SIZE
+    logger.info("age_symbol_nodes_write_start", count=len(nodes),
+                sync_id=sync_id, batch_count=batch_count)
+    start = time.monotonic()
+    failed = 0
+    sync_id_esc = _escape_cypher(sync_id)
+    source_id_esc = _escape_cypher(source_id)
+
+    async with _pool.acquire() as conn:
+        for i in range(0, len(nodes), CHUNK_SIZE):
+            chunk = nodes[i : i + CHUNK_SIZE]
+            try:
+                await _write_age_symbol_nodes_chunk(conn, chunk, sync_id_esc, source_id_esc)
+            except Exception as e:  # noqa: BLE001 — chunk-level fallback; per-row retry handles edge cases
+                # asyncpg auto-commit: each conn.execute() is its own implicit transaction,
+                # so a failed chunk does not leave the connection in an aborted state.
+                # Per-row fallback on the same conn is safe.
+                logger.warning("age_symbol_nodes_chunk_failed_fallback",
+                               chunk_index=i // CHUNK_SIZE, chunk_size=len(chunk),
+                               error=str(e))
+                failed += await _write_age_symbol_nodes_per_row(
+                    conn, chunk, sync_id_esc, source_id_esc
+                )
+
+    elapsed = time.monotonic() - start
+    logger.info("age_symbol_nodes_written", count=len(nodes), failed=failed,
+                duration_ms=round(elapsed * 1000))
+    return failed
+
+
+async def _write_age_symbol_nodes_chunk(conn, chunk, sync_id_esc, source_id_esc):
+    rows_lit = ", ".join(
+        "{{symbol_id: '{sid}', file_path: '{fp}', name: '{name}', "
+        "kind: '{kind}', line: {line}, domain: '{dom}'}}".format(
+            sid=_escape_cypher(n["symbol_id"]),
+            fp=_escape_cypher(n["file_path"]),
+            name=_escape_cypher(n["name"]),
+            kind=_escape_cypher(n["kind"]),
+            line=int(n["line"]),
+            dom=_escape_cypher(n.get("domain", "")),
+        )
+        for n in chunk
+    )
+    cypher = (
+        f"UNWIND [{rows_lit}] AS r "
+        f"CREATE (:Symbol {{symbol_id: r.symbol_id, file_path: r.file_path, "
+        f"name: r.name, kind: r.kind, line: r.line, "
+        f"sync_id: '{sync_id_esc}', source_id: '{source_id_esc}', "
+        f"domain: r.domain}})"
+    )
+    await conn.execute(
+        f"SELECT * FROM cypher('substrate', $$ {cypher} $$) AS (v agtype)"
+    )
+
+
+async def _write_age_symbol_nodes_per_row(conn, chunk, sync_id_esc, source_id_esc):
+    """Fallback: mirrors the original per-row path, scoped to a single failing chunk."""
+    failed = 0
+    for node in chunk:
+        symbol_id = _escape_cypher(node["symbol_id"])
+        file_path = _escape_cypher(node["file_path"])
+        name = _escape_cypher(node["name"])
+        kind = _escape_cypher(node["kind"])
+        line = int(node["line"])
+        domain = _escape_cypher(node.get("domain", ""))
+        cypher = (
+            f"CREATE (n:Symbol {{symbol_id: '{symbol_id}', file_path: '{file_path}', "
+            f"name: '{name}', kind: '{kind}', line: {line}, "
+            f"sync_id: '{sync_id_esc}', source_id: '{source_id_esc}', "
+            f"domain: '{domain}'}})"
+        )
+        try:
+            await conn.execute(
+                f"SELECT * FROM cypher('substrate', $$ {cypher} $$) AS (v agtype)"
+            )
+        except Exception as e:  # noqa: BLE001 — per-row write failure counted, sync continues
+            failed += 1
+            logger.warning("age_symbol_node_write_failed",
+                           symbol_id=node["symbol_id"], error=str(e))
+    return failed
+
+
+async def write_age_defines_edges(edges: list[dict], sync_id: str, source_id: str) -> int:
+    """Stamp sync_id+source_id on every DEFINES edge; batch writes via UNWIND with per-row fallback.
+
+    Each edge dict needs: source_id (file_path), target_id (symbol_id).
+    Returns number of edges that failed to write."""
+    if not _pool:
+        raise RuntimeError("graph_writer not connected")
+    if not edges:
+        return 0
+    batch_count = (len(edges) + CHUNK_SIZE - 1) // CHUNK_SIZE
+    logger.info("age_defines_edges_write_start", count=len(edges),
+                sync_id=sync_id, batch_count=batch_count)
+    start = time.monotonic()
+    failed = 0
+    sync_id_esc = _escape_cypher(sync_id)
+    source_id_esc = _escape_cypher(source_id)
+
+    async with _pool.acquire() as conn:
+        for i in range(0, len(edges), CHUNK_SIZE):
+            chunk = edges[i : i + CHUNK_SIZE]
+            try:
+                await _write_age_defines_edges_chunk(conn, chunk, sync_id_esc, source_id_esc)
+            except Exception as e:  # noqa: BLE001 — chunk-level fallback; per-row retry handles edge cases
+                # asyncpg auto-commit: each conn.execute() is its own implicit transaction,
+                # so a failed chunk does not leave the connection in an aborted state.
+                # Per-row fallback on the same conn is safe.
+                logger.warning("age_defines_edges_chunk_failed_fallback",
+                               chunk_index=i // CHUNK_SIZE, chunk_size=len(chunk),
+                               error=str(e))
+                failed += await _write_age_defines_edges_per_row(
+                    conn, chunk, sync_id_esc, source_id_esc
+                )
+
+    elapsed = time.monotonic() - start
+    logger.info("age_defines_edges_written", count=len(edges), failed=failed,
+                duration_ms=round(elapsed * 1000))
+    return failed
+
+
+async def _write_age_defines_edges_chunk(conn, chunk, sync_id_esc, source_id_esc):
+    rows_lit = ", ".join(
+        "{{src: '{src}', tgt: '{tgt}'}}".format(
+            src=_escape_cypher(e["source_id"]),
+            tgt=_escape_cypher(e["target_id"]),
+        )
+        for e in chunk
+    )
+    # Match both File and Symbol by their respective natural ids AND sync_id
+    # so a Symbol/File from a prior sync cannot be cross-linked into this one.
+    cypher = (
+        f"UNWIND [{rows_lit}] AS r "
+        f"MATCH (f:File {{file_id: r.src, sync_id: '{sync_id_esc}'}}), "
+        f"(s:Symbol {{symbol_id: r.tgt, sync_id: '{sync_id_esc}'}}) "
+        f"CREATE (f)-[:DEFINES {{sync_id: '{sync_id_esc}', "
+        f"source_id: '{source_id_esc}'}}]->(s)"
+    )
+    await conn.execute(
+        f"SELECT * FROM cypher('substrate', $$ {cypher} $$) AS (v agtype)"
+    )
+
+
+async def _write_age_defines_edges_per_row(conn, chunk, sync_id_esc, source_id_esc):
+    """Fallback: mirrors the original per-row path, scoped to a single failing chunk."""
+    failed = 0
+    for edge in chunk:
+        src = _escape_cypher(edge["source_id"])
+        tgt = _escape_cypher(edge["target_id"])
+        cypher = (
+            f"MATCH (f:File {{file_id: '{src}', sync_id: '{sync_id_esc}'}}), "
+            f"(s:Symbol {{symbol_id: '{tgt}', sync_id: '{sync_id_esc}'}}) "
+            f"CREATE (f)-[r:DEFINES {{sync_id: '{sync_id_esc}', "
+            f"source_id: '{source_id_esc}'}}]->(s)"
+        )
+        try:
+            await conn.execute(
+                f"SELECT * FROM cypher('substrate', $$ {cypher} $$) AS (v agtype)"
+            )
+        except Exception as e:  # noqa: BLE001 — per-row write failure counted, sync continues
+            failed += 1
+            logger.warning("age_defines_edge_write_failed",
                            source=edge["source_id"], target=edge["target_id"],
                            error=str(e))
     return failed
