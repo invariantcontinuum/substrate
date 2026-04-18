@@ -49,8 +49,8 @@ llm-stop: ## Stop an LLM model
 	@test -n "$(MODEL)" || (echo "usage: make llm-stop MODEL=<name>" && exit 1)
 	$(MAKE) -C $(LLM_DIR) stop MODEL=$(MODEL)
 
-llm-status: ## Show LLM model status
-	$(MAKE) -C $(LLM_DIR) status
+llm-status: ## Show all LLM models' status
+	$(MAKE) -C $(LLM_DIR) status-all
 
 test: ## Unit + integration tests across all services
 	bash scripts/run-tests.sh
