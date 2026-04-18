@@ -31,7 +31,9 @@
       }
     ]
   },
-  "defaultRoles": ["engineer"],
+  "defaultRoles": [
+    "engineer"
+  ],
   "users": [
     {
       "username": "admin",
@@ -40,7 +42,11 @@
       "emailVerified": true,
       "firstName": "Admin",
       "lastName": "User",
-      "realmRoles": ["admin", "engineer", "viewer"],
+      "realmRoles": [
+        "admin",
+        "engineer",
+        "viewer"
+      ],
       "credentials": [
         {
           "type": "password",
@@ -59,20 +65,19 @@
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": false,
       "redirectUris": [
-        "http://localhost:3000/*",
-        "https://substrate.invariantcontinuum.io/*",
-        "https://app.invariantcontinuum.io/*"
+        "http://localhost:3535/*"
       ],
       "webOrigins": [
-        "http://localhost:3000",
-        "https://substrate.invariantcontinuum.io",
-        "https://app.invariantcontinuum.io"
+        "http://localhost:3535",
+        "+"
       ],
       "attributes": {
         "pkce.code.challenge.method": "S256"
       },
       "protocol": "openid-connect",
-      "fullScopeAllowed": true
+      "fullScopeAllowed": true,
+      "rootUrl": "http://localhost:3535",
+      "baseUrl": "http://localhost:3535"
     },
     {
       "clientId": "substrate-gateway",
@@ -83,7 +88,10 @@
       "standardFlowEnabled": false,
       "directAccessGrantsEnabled": false,
       "secret": "substrate-gateway-secret",
-      "protocol": "openid-connect"
+      "protocol": "openid-connect",
+      "webOrigins": [
+        "http://localhost:3535"
+      ]
     }
   ],
   "scopeMappings": [],
@@ -91,18 +99,28 @@
     {
       "name": "openid",
       "protocol": "openid-connect",
-      "attributes": {"include.in.token.scope": "true"}
+      "attributes": {
+        "include.in.token.scope": "true"
+      }
     },
     {
       "name": "profile",
       "protocol": "openid-connect",
-      "attributes": {"include.in.token.scope": "true"}
+      "attributes": {
+        "include.in.token.scope": "true"
+      }
     },
     {
       "name": "email",
       "protocol": "openid-connect",
-      "attributes": {"include.in.token.scope": "true"}
+      "attributes": {
+        "include.in.token.scope": "true"
+      }
     }
   ],
-  "defaultDefaultClientScopes": ["openid", "profile", "email"]
+  "defaultDefaultClientScopes": [
+    "openid",
+    "profile",
+    "email"
+  ]
 }
