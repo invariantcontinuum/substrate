@@ -1,6 +1,0 @@
-{
-  "realm": "master",
-  "enabled": true,
-  "loginTheme": "invariant",
-  "adminTheme": "keycloak.v2"
-}
