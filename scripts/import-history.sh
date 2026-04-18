@@ -34,7 +34,8 @@ _do_subtree_add() {
     return
   fi
 
-  if [[ -e "$prefix" ]] && [[ -n "$(ls -A "$prefix" 2>/dev/null || true)" ]]; then
+  # git subtree fails if the target prefix exists (even as an empty dir)
+  if [[ -e "$prefix" ]]; then
     rm -rf "$prefix"
   fi
 
