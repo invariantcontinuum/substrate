@@ -22,6 +22,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$GRAPH_DB_NAME" <<
     LOAD 'age';
     SET search_path = ag_catalog, "\$user", public;
     SELECT create_graph('substrate');
+    SELECT create_vlabel('substrate', 'File');
     GRANT USAGE ON SCHEMA ag_catalog TO ${GRAPH_DB_USER};
     GRANT SELECT ON ALL TABLES IN SCHEMA ag_catalog TO ${GRAPH_DB_USER};
     GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA ag_catalog TO ${GRAPH_DB_USER};
