@@ -2,12 +2,20 @@ FROM python:3.12-slim
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-WORKDIR /app
+WORKDIR /workspace
 
-COPY pyproject.toml .
-RUN uv sync --no-dev --frozen 2>/dev/null || uv sync --no-dev
+# Workspace root + shared package (for uv workspace resolution)
+COPY pyproject.toml /workspace/pyproject.toml
+COPY packages/substrate-common /workspace/packages/substrate-common
 
-COPY src/ src/
+# Service manifest (copy first for better layer caching of deps)
+COPY services/gateway/pyproject.toml /workspace/services/gateway/pyproject.toml
+
+WORKDIR /workspace/services/gateway
+RUN uv sync --no-dev
+
+# Service source
+COPY services/gateway/src /workspace/services/gateway/src
 
 EXPOSE 8080
 
