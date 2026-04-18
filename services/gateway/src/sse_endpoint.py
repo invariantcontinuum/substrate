@@ -23,15 +23,17 @@ from __future__ import annotations
 import asyncio
 import time
 import uuid
-from typing import Any, AsyncIterator, Optional
+from collections.abc import AsyncIterator
+from typing import Any, Optional
 
 import asyncpg
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Header, Query, Request
+from fastapi import APIRouter, Header, Query, Request
 from sse_starlette.sse import EventSourceResponse
-from substrate_common.sse import Event, SseBus, StreamDropped
 
-from src.auth import validate_token
+from substrate_common import Event, SseBus, StreamDropped, UnauthorizedError
+from substrate_common.db import asyncpg_dsn
+
 from src.config import settings
 
 _log = structlog.get_logger()
@@ -41,15 +43,11 @@ router = APIRouter()
 _pool: asyncpg.Pool | None = None
 
 
-def _plain_dsn(dsn: str) -> str:
-    return dsn.replace("postgresql+asyncpg://", "postgresql://")
-
-
 async def init_pool() -> None:
     """Called from gateway lifespan at startup."""
     global _pool
     _pool = await asyncpg.create_pool(
-        _plain_dsn(settings.database_url), min_size=1, max_size=4
+        asyncpg_dsn(settings.database_url), min_size=1, max_size=4
     )
     _log.info("sse_gateway_pool_ready")
 
@@ -68,29 +66,19 @@ def _bus() -> SseBus:
 
 
 async def _authenticate(request: Request) -> dict:
-    """Same JWT verify as other /api/* routes. Raises 401 on failure."""
+    """Same JWT verify as other /api/* routes. Raises UnauthorizedError on failure."""
     if settings.auth_disabled:
         return {"sub": "dev", "exp": int(time.time()) + 3600}
+
     auth = request.headers.get("Authorization", "")
     if not auth.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="missing bearer token")
-    token = auth[7:]
-    try:
-        import jwt as pyjwt
+        raise UnauthorizedError("missing bearer token")
 
-        from src.main import jwks_client  # late import to avoid cycle
+    from src.main import jwt_verifier  # late import to avoid cycle
 
-        unverified = pyjwt.get_unverified_header(token)
-        kid = unverified.get("kid")
-        if not kid or not jwks_client:
-            raise HTTPException(status_code=401, detail="token unverifiable")
-        public_key = await jwks_client.get_key(kid)
-        return validate_token(token, public_key, issuer=settings.issuer)
-    except HTTPException:
-        raise
-    except Exception as e:  # noqa: BLE001
-        _log.warning("sse_auth_failed", error=str(e))
-        raise HTTPException(status_code=401, detail="invalid token") from e
+    if jwt_verifier is None:
+        raise UnauthorizedError("verifier not initialised")
+    return await jwt_verifier.verify(auth[7:])
 
 
 def _token_seconds_remaining(claims: dict[str, Any]) -> int:
@@ -149,7 +137,6 @@ async def events(
             if not expiry_task.done():
                 expiry_task.cancel()
 
-    # Keepalive every 15s; browsers disconnect idle SSE after ~30-60s.
     return EventSourceResponse(stream(), ping=15)
 
 

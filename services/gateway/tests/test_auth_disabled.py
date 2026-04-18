@@ -1,14 +1,16 @@
+from importlib import reload
+from unittest.mock import AsyncMock, patch
+
 import pytest
 from fastapi import Response
 from fastapi.testclient import TestClient
-from unittest.mock import patch, AsyncMock
 
 
 def _reload_app():
     """Reload src.config and src.main so current env vars take effect on
     the module-level `settings` singleton and the FastAPI app instance."""
-    from importlib import reload
-    import src.config, src.main
+    import src.config
+    import src.main
     reload(src.config)
     reload(src.main)
     return src.main.app
@@ -22,10 +24,6 @@ def client_auth_off(monkeypatch):
     try:
         yield TestClient(app)
     finally:
-        # Teardown — strip the env and reload so the module-level
-        # `settings` singleton reverts to its defaults. Without this,
-        # subsequent tests that imported `src.main` at collection time
-        # would keep seeing AUTH_DISABLED=true and mis-route auth.
         monkeypatch.delenv("AUTH_DISABLED", raising=False)
         monkeypatch.delenv("CORS_ORIGINS", raising=False)
         _reload_app()
@@ -55,7 +53,9 @@ def test_auth_disabled_bypasses_jwt(client_auth_off):
 def test_auth_enabled_rejects_missing_token(client_auth_on):
     r = client_auth_on.get("/api/sources")
     assert r.status_code == 401
-    assert r.json() == {"error": "unauthorized"}
+    body = r.json()
+    assert body["error"]["code"] == "UNAUTHORIZED"
+    assert "request_id" in body
 
 
 def test_cors_allows_brainrot_origin(client_auth_off):

@@ -1,29 +1,37 @@
-import structlog
 from contextlib import asynccontextmanager
+
+import structlog
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+
+from substrate_common import (
+    ExceptionLoggingMiddleware,
+    KeycloakJwtVerifier,
+    RequestIdMiddleware,
+    UnauthorizedError,
+    configure_logging,
+    register_handlers,
+)
 
 from src.config import settings
-from src.auth import JWKSClient, validate_token
-from src.proxy import proxy_request, init_client, close_client
-from src.sse_endpoint import router as sse_router, init_pool as init_sse_pool, close_pool as close_sse_pool
+from src.proxy import close_client, init_client, proxy_request
+from src.sse_endpoint import close_pool as close_sse_pool
+from src.sse_endpoint import init_pool as init_sse_pool
+from src.sse_endpoint import router as sse_router
 
-structlog.configure(
-    processors=[
-        structlog.processors.TimeStamper(fmt="iso"),
-        structlog.processors.JSONRenderer(),
-    ]
-)
+configure_logging(service=settings.service_name)
 logger = structlog.get_logger()
 
-jwks_client: JWKSClient | None = None
+jwt_verifier: KeycloakJwtVerifier | None = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global jwks_client
-    jwks_client = JWKSClient(settings.jwks_url)
+    global jwt_verifier
+    jwt_verifier = KeycloakJwtVerifier(
+        jwks_url=settings.jwks_url,
+        expected_issuer=settings.issuer,
+    )
     await init_client()
     await init_sse_pool()
     if settings.auth_disabled:
@@ -40,8 +48,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Substrate Gateway", lifespan=lifespan)
-app.include_router(sse_router)
-
+app.add_middleware(RequestIdMiddleware)
+app.add_middleware(ExceptionLoggingMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -49,6 +57,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+register_handlers(app)
+app.include_router(sse_router)
 
 
 @app.get("/health")
@@ -56,8 +66,12 @@ async def health():
     return {"status": "ok"}
 
 
-async def _authenticate(request: Request) -> dict | None:
-    """Extract and validate JWT from Authorization header."""
+async def _authenticate(request: Request) -> dict:
+    """Extract and validate JWT from Authorization header.
+
+    Raises UnauthorizedError on any failure; the error handler returns the
+    canonical 401 envelope.
+    """
     if settings.auth_disabled:
         return {
             "sub": "dev",
@@ -66,20 +80,10 @@ async def _authenticate(request: Request) -> dict | None:
         }
     auth_header = request.headers.get("Authorization", "")
     if not auth_header.startswith("Bearer "):
-        return None
-    token = auth_header[7:]
-    try:
-        import jwt as pyjwt
-
-        unverified = pyjwt.get_unverified_header(token)
-        kid = unverified.get("kid")
-        if not kid or not jwks_client:
-            return None
-        public_key = await jwks_client.get_key(kid)
-        return validate_token(token, public_key, issuer=settings.issuer)
-    except Exception as e:
-        logger.warning("auth_failed", error=str(e))
-        return None
+        raise UnauthorizedError("missing bearer token")
+    if jwt_verifier is None:
+        raise UnauthorizedError("verifier not initialised")
+    return await jwt_verifier.verify(auth_header[7:])
 
 
 def _route_to_ingestion(method: str, path: str) -> bool:
@@ -92,15 +96,13 @@ def _route_to_ingestion(method: str, path: str) -> bool:
     if path == "/api/schedules" or path.startswith("/api/schedules/"):
         return method in ("POST", "PATCH", "DELETE")
     if path.startswith("/api/sources/") and method == "PATCH":
-        return True  # partial-update handled by ingestion
-    return False  # /api/sources/* (POST/DELETE/GET) and everything else stays on graph
+        return True
+    return False
 
 
 @app.api_route("/api/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
 async def proxy_api(request: Request, path: str):
-    claims = await _authenticate(request)
-    if not claims:
-        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    await _authenticate(request)
     upstream = (
         settings.ingestion_service_url
         if _route_to_ingestion(request.method, request.url.path)
@@ -111,12 +113,8 @@ async def proxy_api(request: Request, path: str):
 
 @app.api_route("/ingest/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
 async def proxy_ingest(request: Request, path: str):
-    claims = await _authenticate(request)
-    if not claims:
-        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    await _authenticate(request)
     return await proxy_request(request, settings.ingestion_service_url)
-
-
 
 
 @app.api_route(
@@ -124,5 +122,3 @@ async def proxy_ingest(request: Request, path: str):
 )
 async def proxy_auth(request: Request, path: str):
     return await proxy_request(request, settings.keycloak_url)
-
-

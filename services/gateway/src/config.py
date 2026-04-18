@@ -1,7 +1,10 @@
+"""Gateway settings — schema only; loader lives in substrate_common.config."""
 from pydantic_settings import BaseSettings
 
+from substrate_common.config import load_settings
 
-class Settings(BaseSettings):
+
+class _GatewaySettings(BaseSettings):
     keycloak_url: str = "http://keycloak:8080"
     keycloak_realm: str = "substrate"
     keycloak_issuer: str = "http://localhost:8080/realms/substrate"
@@ -9,14 +12,9 @@ class Settings(BaseSettings):
     ingestion_service_url: str = "http://ingestion:8081"
     database_url: str = "postgresql+asyncpg://substrate_graph:change-me@postgres:5432/substrate_graph"
 
-    # Dev-mode auth bypass. When true, _authenticate() and proxy_ws skip
-    # JWT validation and inject stub admin claims. Default false
-    # (fail-closed). Flip via env AUTH_DISABLED=true for brainrot dev.
     auth_disabled: bool = False
-
-    # Origins allowed by CORS middleware. Trim to the actual dev/prod hosts
-    # you run. Default matches brainrot's dev port only.
     cors_origins: list[str] = ["http://localhost:3535"]
+    service_name: str = "gateway"
 
     @property
     def jwks_url(self) -> str:
@@ -27,4 +25,4 @@ class Settings(BaseSettings):
         return self.keycloak_issuer or f"{self.keycloak_url}/realms/{self.keycloak_realm}"
 
 
-settings = Settings()
+settings = load_settings("", _GatewaySettings)
