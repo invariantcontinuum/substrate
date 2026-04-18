@@ -1,0 +1,274 @@
+/* =============================================================
+ * theme.css
+ * Design tokens, palette, typography and theme variants for
+ * Substrate's editorial glass UI.
+ *
+ *   Palette:
+ *     Shadow Grey       #231f20   warm near-black
+ *     Slate Blue        #7c99b4   cool primary accent
+ *     Deep Indigo       #494368   muted violet secondary
+ *     Vanilla Custard   #f3dfa2   warm highlight
+ *     Linen             #efe6dd   warm off-white paper
+ *
+ *   Aesthetic direction: editorial, grounded, slightly nostalgic.
+ *   Warmth from linen/vanilla is balanced by cool teal and
+ *   periwinkle accents. Surfaces read as glass panes laid on
+ *   paper (light) or over deep warm shadow (dark). Nothing here
+ *   is neon; nothing here is purely grey. Every surface carries
+ *   a little hue.
+ *
+ *   Dark theme lives on Shadow Grey with Linen foreground and
+ *   Stormy Teal as the primary accent; Vanilla Custard is the
+ *   rare pop that marks focus and highlight.
+ *
+ *   Light theme lives on Linen with Shadow Grey foreground and
+ *   Stormy Teal as the primary accent; Soft Periwinkle provides
+ *   the secondary voice.
+ *
+ * Themes are switched by setting `data-theme="dark" | "light"` on
+ * <html>. All surfaces use tokens from this file; globals.css only
+ * references `var(--...)`.
+ * ============================================================ */
+
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
+
+:root {
+  /* ---- Raw palette ---- */
+  --palette-shadow-grey:     #231f20;
+  --palette-stormy-teal:     #7c99b4;   /* slate blue (was #006d77) */
+  --palette-soft-periwinkle: #494368;   /* deep indigo (was #8d86c9) */
+  --palette-vanilla-custard: #f3dfa2;
+  --palette-linen:           #efe6dd;
+
+  /* ---- Derived tints for depth & contrast ---- */
+  --palette-shadow-deep:      #1b1718;   /* deeper shadow for gradient stops */
+  --palette-shadow-lift:      #2b2627;   /* lifted shadow for solid surfaces */
+  --palette-linen-bright:     #f8f1e9;   /* brighter linen for lifted surfaces */
+  --palette-linen-deep:       #e4d9cb;   /* deeper linen for gradient stops */
+  --palette-teal-deep:        #4d6c8a;   /* deeper slate-blue for light-mode hovers */
+  --palette-teal-bright:      #a0bdd5;   /* lifted slate-blue for dark-mode accents */
+  --palette-periwinkle-deep:  #2f2a49;   /* deeper indigo for light-mode contrast */
+  --palette-periwinkle-bright:#9b93c6;   /* lifted indigo for dark-mode accents */
+  --palette-vanilla-deep:     #c59e3a;   /* deeper vanilla for light-mode contrast */
+  --palette-vanilla-bright:   #f5e4b3;   /* lighter vanilla for dark-mode soft-fills */
+
+  /* Status hues derived so they sit inside the palette rather than clashing */
+  --palette-danger-light:     #a43b3b;   /* muted burgundy for light mode */
+  --palette-danger-dark:      #e6706b;   /* lighter red for dark mode readability */
+
+  /* ---- Typography ---- */
+  --font-display: "Fraunces", ui-serif, Georgia, "Iowan Old Style", serif;
+  --font-sans:    "Manrope", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono:    "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --fw-regular:   400;
+  --fw-medium:    500;
+  --fw-semibold:  600;
+  --fw-bold:      700;
+
+  --text-2xs: 10px;
+  --text-xs:  11px;
+  --text-sm:  12px;
+  --text-base: 13px;
+  --text-md:  14px;
+  --text-lg:  16px;
+  --text-xl:  20px;
+  --text-2xl: 24px;
+  --text-3xl: 32px;
+
+  --leading-tight:  1.2;
+  --leading-snug:   1.35;
+  --leading-normal: 1.5;
+  --leading-loose:  1.7;
+
+  --tracking-tight:  -0.02em;
+  --tracking-normal: 0;
+  --tracking-wide:   0.06em;
+
+  /* ---- Spatial scale (4-based) ---- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+  --space-9: 56px;
+
+  /* ---- Radii ---- */
+  --radius-xs:   4px;
+  --radius-sm:   6px;
+  --radius-md:  10px;
+  --radius-lg:  16px;
+  --radius-xl:  22px;
+  --radius-pill: 999px;
+
+  /* ---- Motion ---- */
+  --ease-out:   cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-inout: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-fast: 140ms;
+  --dur-base: 260ms;
+  --dur-slow: 460ms;
+
+  /* ---- Glass / blur ---- */
+  --blur-sm: 10px;
+  --blur-md: 18px;
+  --blur-lg: 28px;
+
+  /* ---- Z-index ---- */
+  --z-nav: 10;
+  --z-overlay-panel: 20;
+  --z-side-tooltip: 30;
+  --z-modal-scrim: 50;
+  --z-modal: 51;
+  --z-tooltip: 60;
+
+  /* ---- Default to light theme ---- */
+  color-scheme: light;
+}
+
+/* =================================================================
+ * LIGHT — Linen paper, Shadow Grey ink, Stormy Teal primary accent,
+ *          Soft Periwinkle secondary, Vanilla Custard warm detail.
+ * ============================================================== */
+:root,
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --fg:           var(--palette-shadow-grey);
+  --fg-muted:     rgba(35, 31, 32, 0.65);
+  --fg-subtle:    rgba(35, 31, 32, 0.45);
+  --fg-on-accent: var(--palette-linen);
+
+  --bg:           var(--palette-linen);
+  --bg-gradient:
+    radial-gradient(ellipse 75% 55% at 20% 10%,  rgba(73, 67, 104, 0.18)   0%, transparent 58%),
+    radial-gradient(ellipse 65% 55% at 85% 15%,  rgba(124, 153, 180, 0.22) 0%, transparent 60%),
+    radial-gradient(ellipse 90% 70% at 50% 95%,  rgba(243, 223, 162, 0.34) 0%, transparent 70%),
+    linear-gradient(180deg, #efe6dd 0%, #e4d9cb 100%);
+
+  --surface:          rgba(248, 241, 233, 0.58);
+  --surface-solid:    #ffffff;
+  --surface-elevated: rgba(248, 241, 233, 0.85);
+  --surface-sunken:   rgba(35, 31, 32, 0.05);
+  --surface-hover:    rgba(73, 67, 104, 0.12);
+
+  --border:         rgba(35, 31, 32, 0.18);
+  --border-strong:  rgba(35, 31, 32, 0.32);
+  --border-soft:    rgba(35, 31, 32, 0.08);
+
+  --accent:           var(--palette-stormy-teal);
+  --accent-soft:      var(--palette-soft-periwinkle);
+  --accent-contrast:  var(--palette-linen);
+  --accent-hover:     var(--palette-teal-deep);
+  --accent-highlight: var(--palette-vanilla-custard);
+
+  --info:    var(--palette-soft-periwinkle);
+  --success: var(--palette-stormy-teal);
+  --warn:    var(--palette-vanilla-deep);
+  --danger:  var(--palette-danger-light);
+
+  --focus-ring: rgba(124, 153, 180, 0.65);
+
+  --scrim: rgba(35, 31, 32, 0.35);
+
+  --glass-bg:        rgba(248, 241, 233, 0.55);
+  --glass-bg-strong: rgba(248, 241, 233, 0.78);
+  --glass-border:    rgba(255, 255, 255, 0.58);
+  --glass-shadow:    0 22px 60px -20px rgba(35, 31, 32, 0.32),
+                     0 1px 0 0 rgba(255, 255, 255, 0.65) inset;
+
+  --status-on:  var(--palette-shadow-grey);
+  --status-off: rgba(35, 31, 32, 0.22);
+
+  /* Graph canvas surface — paper-like linen with subtle grid */
+  --graph-canvas-bg:   var(--palette-linen);
+  --graph-grid-line:   rgba(35, 31, 32, 0.08);
+}
+
+/* =================================================================
+ * DARK — Shadow Grey surface, Linen ink, Stormy Teal primary accent,
+ *         Soft Periwinkle secondary, Vanilla Custard highlight pop.
+ * ============================================================== */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --fg:           var(--palette-linen);
+  --fg-muted:     rgba(239, 230, 221, 0.7);
+  --fg-subtle:    rgba(239, 230, 221, 0.5);
+  --fg-on-accent: var(--palette-linen);
+
+  --bg:           var(--palette-shadow-grey);
+  --bg-gradient:
+    radial-gradient(ellipse 70% 60% at 15% 10%,  rgba(124, 153, 180, 0.26) 0%, transparent 58%),
+    radial-gradient(ellipse 65% 55% at 90% 20%,  rgba(155, 147, 198, 0.24) 0%, transparent 58%),
+    radial-gradient(ellipse 90% 70% at 50% 100%, rgba(27, 23, 24, 0.95)    0%, transparent 65%),
+    linear-gradient(180deg, #231f20 0%, #1b1718 100%);
+
+  --surface:          rgba(43, 38, 39, 0.55);
+  --surface-solid:    #2b2627;
+  --surface-elevated: rgba(239, 230, 221, 0.06);
+  --surface-sunken:   rgba(0, 0, 0, 0.32);
+  --surface-hover:    rgba(124, 153, 180, 0.22);
+
+  --border:         rgba(239, 230, 221, 0.15);
+  --border-strong:  rgba(239, 230, 221, 0.32);
+  --border-soft:    rgba(239, 230, 221, 0.08);
+
+  --accent:           var(--palette-stormy-teal);
+  --accent-soft:      var(--palette-soft-periwinkle);
+  --accent-contrast:  var(--palette-shadow-grey);
+  --accent-hover:     var(--palette-teal-bright);
+  --accent-highlight: var(--palette-vanilla-custard);
+
+  --info:    var(--palette-soft-periwinkle);
+  --success: var(--palette-stormy-teal);
+  --warn:    var(--palette-vanilla-custard);
+  --danger:  var(--palette-danger-dark);
+
+  --focus-ring: rgba(160, 189, 213, 0.7);
+
+  --scrim: rgba(10, 8, 8, 0.65);
+
+  --glass-bg:        rgba(43, 38, 39, 0.48);
+  --glass-bg-strong: rgba(43, 38, 39, 0.78);
+  --glass-border:    rgba(239, 230, 221, 0.2);
+  --glass-shadow:    0 32px 70px -24px rgba(0, 0, 0, 0.7),
+                     0 1px 0 0 rgba(239, 230, 221, 0.1) inset;
+
+  --status-on:  var(--palette-linen);
+  --status-off: rgba(239, 230, 221, 0.28);
+
+  /* Graph canvas surface — deep shadow with faint linen grid */
+  --graph-canvas-bg:   var(--palette-shadow-grey);
+  --graph-grid-line:   rgba(239, 230, 221, 0.08);
+}
+
+/* ---- Smooth cross-theme transitions for surface colours ---- */
+:root {
+  transition: background-color var(--dur-base) var(--ease-out),
+              color var(--dur-base) var(--ease-out);
+}
+
+/* Elements that cross themes should animate their glass/bg softly. */
+.themed-transition,
+.top-nav,
+.side-nav,
+.dashboard-main,
+.graph-canvas-wrapper,
+.graph-canvas-container,
+.dialog-content,
+.dialog-overlay,
+.node-detail-panel,
+.dynamic-legend,
+.ui-button,
+.ui-input,
+.ui-badge {
+  transition:
+    background-color var(--dur-base) var(--ease-out),
+    border-color var(--dur-base) var(--ease-out),
+    color var(--dur-base) var(--ease-out),
+    box-shadow var(--dur-base) var(--ease-out),
+    backdrop-filter var(--dur-base) var(--ease-out);
+}

@@ -1,0 +1,20 @@
+// frontend/src/components/sources/ScheduleStrip.test.tsx
+import { describe, it, expect, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { ScheduleStrip } from "./ScheduleStrip";
+
+vi.mock("@/hooks/useSchedules", () => ({
+  useSchedules: () => ({
+    schedules: [],
+    createSchedule: vi.fn(),
+    toggleSchedule: vi.fn(),
+    deleteSchedule: vi.fn(),
+  }),
+}));
+
+describe("ScheduleStrip", () => {
+  it("shows No schedule when empty", () => {
+    render(<ScheduleStrip sourceId="s1" />);
+    expect(screen.getByText(/No schedule/i)).toBeInTheDocument();
+  });
+});
