@@ -114,14 +114,20 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
         # Delegate discovery + import parsing to substrate_graph_builder.
         # build_graph emits file nodes (ids without '#') + symbol nodes
         # (ids with '#') + `depends` file→file edges + `defines`
-        # file→symbol edges. Symbol nodes and defines edges are filtered
-        # here so the downstream AGE writer (which today only understands
-        # file nodes) keeps its contract; a future phase will wire them
-        # through.
+        # file→symbol edges. All four flow through to AGE below: files as
+        # :File, symbols as :Symbol, depends as :DEPENDS_ON, defines as
+        # :DEFINES. `nodes` / `all_edges` below remain file-scoped for
+        # back-compat with downstream code that reads them for file_id
+        # mapping, embeddings, stats, etc.
         local_tree = _walk_local_tree(tree.root_dir)
         doc = build_graph(local_tree, tree.root_dir, source_name="github")
-        nodes = [n for n in doc.nodes if "#" not in n.id]
-        all_edges = [e for e in doc.edges if e.type == "depends"]
+        file_nodes = [n for n in doc.nodes if "#" not in n.id]
+        symbol_nodes = [n for n in doc.nodes if "#" in n.id]
+        depends_edges = [e for e in doc.edges if e.type == "depends"]
+        defines_edges = [e for e in doc.edges if e.type == "defines"]
+        # Variables kept for back-compat with later code that references them:
+        nodes = file_nodes
+        all_edges = depends_edges
         type_counts: dict[str, int] = {}
         for n in nodes:
             type_counts[n.type] = type_counts.get(n.type, 0) + 1
@@ -216,6 +222,31 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
                 f"{node_failures} of {len(age_nodes)} AGE nodes failed to write",
                 {"failed": node_failures, "total": len(age_nodes)})
 
+        # Symbol nodes are keyed on the synthetic `{file_path}#{name}@{line}`
+        # id produced by the graph-builder (stored as :Symbol.symbol_id).
+        # file_path is carried as a property for debugging and for any future
+        # read-API paths that want to surface it without following DEFINES.
+        symbol_node_dicts = [
+            {
+                "symbol_id": n.id,
+                "file_path": n.meta["file_path"],
+                "name": n.name,
+                "kind": n.type,
+                "line": n.meta["line"],
+                "domain": n.domain,
+            }
+            for n in symbol_nodes
+        ]
+        meta["symbol_count"] = len(symbol_nodes)
+        symbol_failures = await graph_writer.write_age_symbol_nodes(
+            symbol_node_dicts, sync_id, source_id
+        )
+        if symbol_failures:
+            await sync_issues.record_issue(
+                sync_id, "warning", "graphing", "age_symbol_node_partial_failure",
+                f"{symbol_failures} of {len(symbol_node_dicts)} AGE Symbol nodes failed to write",
+                {"failed": symbol_failures, "total": len(symbol_node_dicts)})
+
         age_edges = [
             {"source_id": file_id_map[edge.source_id],
              "target_id": file_id_map[edge.target_id], "weight": 1.0}
@@ -229,6 +260,27 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
                 sync_id, "warning", "graphing", "age_edge_partial_failure",
                 f"{edge_failures} of {len(age_edges)} AGE edges failed to write",
                 {"failed": edge_failures, "total": len(age_edges)})
+
+        # DEFINES edges connect :File (by UUID file_id) to :Symbol (by
+        # synthetic `{path}#{name}@{line}` symbol_id). The defines edge
+        # source_id coming out of the builder is the repo-relative path,
+        # so we map it through `file_id_map` to the file_embeddings UUID
+        # that :File.file_id carries. The target_id passes through
+        # untouched — :Symbol.symbol_id equals the builder's node id.
+        defines_edge_dicts = [
+            {"source_id": file_id_map[e.source_id], "target_id": e.target_id}
+            for e in defines_edges
+            if e.source_id in file_id_map
+        ]
+        meta["defines_edges"] = len(defines_edges)
+        defines_failures = await graph_writer.write_age_defines_edges(
+            defines_edge_dicts, sync_id, source_id
+        )
+        if defines_failures:
+            await sync_issues.record_issue(
+                sync_id, "warning", "graphing", "age_defines_edge_partial_failure",
+                f"{defines_failures} of {len(defines_edge_dicts)} AGE DEFINES edges failed to write",
+                {"failed": defines_failures, "total": len(defines_edge_dicts)})
         await _check_cancelled(sync_id)
 
         meta["phase"] = "embedding_summaries"
@@ -309,6 +361,7 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
         sync_elapsed = time.monotonic() - sync_start
         stats = {
             "nodes": len(age_nodes), "edges": len(age_edges),
+            "symbols": len(symbol_nodes), "defines_edges": len(defines_edges),
             "files_embedded": meta["files_embedded"],
             "chunks": total_chunks, "chunks_embedded": meta.get("chunks_embedded", 0),
             "duration_ms": round(sync_elapsed * 1000),
