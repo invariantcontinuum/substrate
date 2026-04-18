@@ -22,7 +22,7 @@ export async function apiFetch<T>(
 ): Promise<T> {
   const method = options?.method ?? "GET";
   const url = `${API_BASE}${path}`;
-  logger.info("api_request_start", { method, url });
+  logger.debug("api_request_start", { method, url });
   const start = performance.now();
 
   const headers: Record<string, string> = {
@@ -46,6 +46,6 @@ export async function apiFetch<T>(
     throw new Error(`API error: ${resp.status} ${resp.statusText}`);
   }
 
-  logger.info("api_response_ok", { method, url, status: resp.status, durationMs });
+  logger.debug("api_response_ok", { method, url, status: resp.status, durationMs });
   return resp.json();
 }

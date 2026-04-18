@@ -59,9 +59,9 @@ export const useSyncSetStore = create<SyncSetState>()(
               sourceLabel, expiresAt: Date.now() + 5000,
             },
           });
-          logger.info("active_set_swap", { from: active, to: run.id });
+          logger.debug("active_set_swap", { from: active, to: run.id });
         } else {
-          logger.info("active_set_new_source_not_loaded", { syncId: run.id });
+          logger.debug("active_set_new_source_not_loaded", { syncId: run.id });
         }
       },
 

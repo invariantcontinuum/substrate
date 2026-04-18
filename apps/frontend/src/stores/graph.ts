@@ -186,9 +186,9 @@ export const useGraphStore = create<GraphState>((set) => ({
   selectedNodeData: null,
   selectNode: (id, data) => {
     if (id) {
-      logger.info("node_selected", { nodeId: id });
+      logger.debug("node_selected", { nodeId: id });
     } else {
-      logger.info("node_deselected");
+      logger.debug("node_deselected");
     }
     set({ selectedNodeId: id, selectedNodeData: data ?? null });
   },
@@ -229,7 +229,7 @@ export const useGraphStore = create<GraphState>((set) => ({
 
   stats: { nodeCount: 0, edgeCount: 0, violationCount: 0, lastUpdated: "", lastLoadMs: null, lastFetchMs: null, lastServerMs: null, loadStartedAt: null },
   setStats: (stats) => {
-    logger.info("stats_updated", { nodes: stats.nodeCount, edges: stats.edgeCount, violations: stats.violationCount });
+    logger.debug("stats_updated", { nodes: stats.nodeCount, edges: stats.edgeCount, violations: stats.violationCount });
     set({ stats });
   },
 
@@ -258,7 +258,7 @@ export const useGraphStore = create<GraphState>((set) => ({
   resetGraphConfig: () => set({ graphConfig: DEFAULT_GRAPH_CONFIG }),
 
   clearCanvas: () => {
-    logger.info("canvas_cleared");
+    logger.debug("canvas_cleared");
     set({
       nodes: [],
       edges: [],
