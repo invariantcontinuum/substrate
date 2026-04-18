@@ -1,6 +1,7 @@
 [tool.uv.workspace]
 members = [
     "packages/substrate-common",
+    "packages/substrate-graph-builder",
     "services/gateway",
     "services/ingestion",
     "services/graph",
