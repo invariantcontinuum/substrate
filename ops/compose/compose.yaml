@@ -87,7 +87,9 @@ services:
     restart: unless-stopped
 
   gateway:
-    build: ../../services/gateway
+    build:
+      context: ../..
+      dockerfile: services/gateway/Dockerfile
     container_name: substrate-gateway
     env_file: [../../env/platform.env, ../../env/infra.env, ../../env/llm.env]
     environment:
@@ -114,7 +116,9 @@ services:
     restart: unless-stopped
 
   ingestion:
-    build: ../../services/ingestion
+    build:
+      context: ../..
+      dockerfile: services/ingestion/Dockerfile
     container_name: substrate-ingestion
     env_file: [../../env/platform.env, ../../env/infra.env, ../../env/llm.env]
     environment:
@@ -139,7 +143,9 @@ services:
     restart: unless-stopped
 
   graph:
-    build: ../../services/graph
+    build:
+      context: ../..
+      dockerfile: services/graph/Dockerfile
     container_name: substrate-graph
     env_file: [../../env/platform.env, ../../env/infra.env, ../../env/llm.env]
     environment:

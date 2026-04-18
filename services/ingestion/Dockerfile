@@ -4,16 +4,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl git \
     && rm -rf /var/lib/apt/lists/*
 
-# Install uv
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-WORKDIR /app
+WORKDIR /workspace
 
-COPY pyproject.toml .
-RUN uv sync --no-dev --frozen 2>/dev/null || uv sync --no-dev
+# Workspace root + shared package (for uv workspace resolution)
+COPY pyproject.toml /workspace/pyproject.toml
+COPY packages/substrate-common /workspace/packages/substrate-common
 
-COPY src/ src/
-COPY entrypoint.sh .
+# Service manifest (copy first for better layer caching of deps)
+COPY services/ingestion/pyproject.toml /workspace/services/ingestion/pyproject.toml
+
+WORKDIR /workspace/services/ingestion
+RUN uv sync --no-dev
+
+# Service source + entrypoint
+COPY services/ingestion/src /workspace/services/ingestion/src
+COPY services/ingestion/entrypoint.sh /workspace/services/ingestion/entrypoint.sh
 RUN chmod +x entrypoint.sh
 
 EXPOSE 8081

@@ -10,17 +10,22 @@ RUN curl -fsSL https://repo1.maven.org/maven2/org/flywaydb/flyway-commandline/${
     | tar -xz -C /opt \
     && ln -s /opt/flyway-${FLYWAY_VERSION}/flyway /usr/local/bin/flyway
 
-# Install uv
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-WORKDIR /app
+WORKDIR /workspace
 
-COPY pyproject.toml .
-RUN uv sync --no-dev --frozen 2>/dev/null || uv sync --no-dev
+# Workspace root + shared package (for uv workspace resolution)
+COPY pyproject.toml /workspace/pyproject.toml
+COPY packages/substrate-common /workspace/packages/substrate-common
 
-COPY migrations/ migrations/
-COPY src/ src/
-COPY entrypoint.sh .
+COPY services/graph/pyproject.toml /workspace/services/graph/pyproject.toml
+
+WORKDIR /workspace/services/graph
+RUN uv sync --no-dev
+
+COPY services/graph/migrations /workspace/services/graph/migrations
+COPY services/graph/src /workspace/services/graph/src
+COPY services/graph/entrypoint.sh /workspace/services/graph/entrypoint.sh
 RUN chmod +x entrypoint.sh
 
 EXPOSE 8082
