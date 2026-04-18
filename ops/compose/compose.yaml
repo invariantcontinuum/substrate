@@ -85,3 +85,95 @@ services:
         condition: service_healthy
     networks: [substrate_internal]
     restart: unless-stopped
+
+  gateway:
+    build: ../../services/gateway
+    container_name: substrate-gateway
+    env_file: [../../env/platform.env, ../../env/infra.env, ../../env/llm.env]
+    environment:
+      SERVICE_NAME: gateway
+      GRAPH_SERVICE_URL: http://graph:8082
+      INGESTION_SERVICE_URL: http://ingestion:8081
+      KEYCLOAK_URL: http://keycloak:8080
+      KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER}
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM}
+      AUTH_DISABLED: ${AUTH_DISABLED}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      DATABASE_URL: postgresql+asyncpg://${GRAPH_DB_USER}:${GRAPH_DB_PASSWORD}@postgres:5432/${GRAPH_DB_NAME}
+      APP_PORT: "8080"
+    ports: ["8180:8080"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      keycloak: { condition: service_started }
+    networks: [substrate_internal]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  ingestion:
+    build: ../../services/ingestion
+    container_name: substrate-ingestion
+    env_file: [../../env/platform.env, ../../env/infra.env, ../../env/llm.env]
+    environment:
+      SERVICE_NAME: ingestion
+      DATABASE_URL: postgresql+asyncpg://${GRAPH_DB_USER}:${GRAPH_DB_PASSWORD}@postgres:5432/${GRAPH_DB_NAME}
+      GRAPH_DATABASE_URL: postgresql+asyncpg://${GRAPH_DB_USER}:${GRAPH_DB_PASSWORD}@postgres:5432/${GRAPH_DB_NAME}
+      EMBEDDING_URL: ${EMBEDDING_URL}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL}
+      EMBEDDING_DIM: ${EMBEDDING_DIM}
+      LLM_API_KEY: ${LLM_API_KEY}
+      APP_PORT: "8081"
+    ports: ["8181:8081"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [substrate_internal]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8081/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  graph:
+    build: ../../services/graph
+    container_name: substrate-graph
+    env_file: [../../env/platform.env, ../../env/infra.env, ../../env/llm.env]
+    environment:
+      SERVICE_NAME: graph
+      DATABASE_URL: postgresql+asyncpg://${GRAPH_DB_USER}:${GRAPH_DB_PASSWORD}@postgres:5432/${GRAPH_DB_NAME}
+      EMBEDDING_URL: ${EMBEDDING_URL}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL}
+      EMBEDDING_DIM: ${EMBEDDING_DIM}
+      DENSE_LLM_URL: ${DENSE_LLM_URL}
+      DENSE_LLM_MODEL: ${DENSE_LLM_MODEL}
+      LLM_API_KEY: ${LLM_API_KEY}
+      APP_PORT: "8082"
+    ports: ["8182:8082"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [substrate_internal]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8082/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ../../apps/frontend
+      args:
+        GITHUB_TOKEN: ""
+    container_name: substrate-frontend
+    ports: ["3535:3000"]
+    depends_on:
+      gateway: { condition: service_started }
+    networks: [substrate_internal]
+    restart: unless-stopped
