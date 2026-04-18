@@ -49,6 +49,8 @@ services:
       KC_HOSTNAME: ${KC_HOSTNAME}
       KC_HOSTNAME_STRICT: ${KC_HOSTNAME_STRICT}
       KC_HTTP_ENABLED: ${KC_HTTP_ENABLED}
+      KC_HEALTH_ENABLED: "true"
+      KC_METRICS_ENABLED: "true"
     ports: ["8080:8080"]
     volumes:
       - kc_data:/opt/keycloak/data
@@ -58,7 +60,11 @@ services:
         condition: service_healthy
     networks: [substrate_internal]
     healthcheck:
-      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8080 && echo -e 'GET /realms/substrate/.well-known/openid-configuration HTTP/1.0\\r\\n\\r\\n' >&3 && head -c 32 <&3 | grep -q '200'"]
+      # /health/ready ships with every Keycloak 26+. Avoids the realm handler's
+      # HostnameV2Provider path entirely so we don't need a Host header.
+      # /health/ready returns 200 once the realm import is complete and the
+      # HTTP listener is accepting traffic.
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/9000 && printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && head -c 15 <&3 | grep -q '200'"]
       interval: 10s
       timeout: 5s
       retries: 30
