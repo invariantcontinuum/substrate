@@ -2,12 +2,12 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    keycloak_url: str = "http://local-keycloak:8080"
+    keycloak_url: str = "http://keycloak:8080"
     keycloak_realm: str = "substrate"
-    keycloak_issuer: str = ""
-    graph_service_url: str = "http://substrate-graph:8082"
-    ingestion_service_url: str = "http://substrate-ingestion:8081"
-    redis_url: str = "redis://local-redis:6379"
+    keycloak_issuer: str = "http://localhost:8080/realms/substrate"
+    graph_service_url: str = "http://graph:8082"
+    ingestion_service_url: str = "http://ingestion:8081"
+    redis_url: str = "redis://redis:6379"
 
     # Dev-mode auth bypass. When true, _authenticate() and proxy_ws skip
     # JWT validation and inject stub admin claims. Default false

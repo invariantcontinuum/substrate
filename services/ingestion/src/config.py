@@ -2,11 +2,11 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    database_url: str = "postgresql+asyncpg://substrate_ingestion:changeme@local-postgres:5432/substrate_ingestion"
-    graph_database_url: str = "postgresql+asyncpg://substrate_graph:changeme@local-postgres:5432/substrate_graph"
+    database_url: str = "postgresql+asyncpg://substrate_graph:change-me@postgres:5432/substrate_graph"
+    graph_database_url: str = "postgresql+asyncpg://substrate_graph:change-me@postgres:5432/substrate_graph"
     github_token: str = ""
     app_port: int = 8081
-    embedding_url: str = "http://localhost:8101/v1/embeddings"
+    embedding_url: str = "http://host.docker.internal:8101/v1/embeddings"
     # lazy-lamacpp exposes the model by the systemd-unit name (`embeddings`),
     # not the underlying HF path. Dim must match the served model
     # (nomic-embed-text-v2-moe → 768, 512 ctx).

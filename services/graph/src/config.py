@@ -3,14 +3,14 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    database_url: str = "postgresql+asyncpg://substrate_graph:changeme@localhost:5432/substrate_graph"
-    embedding_url: str = "http://localhost:8101/v1/embeddings"
+    database_url: str = "postgresql+asyncpg://substrate_graph:change-me@postgres:5432/substrate_graph"
+    embedding_url: str = "http://host.docker.internal:8101/v1/embeddings"
     # lazy-lamacpp exposes models by systemd-unit name, not HF path.
     embedding_model: str = "embeddings"
     embedding_dim: int = 768
     # Dense chat LLM used for node summaries. lazy-lamacpp dense slot:
     # Qwen3.5-4B Q4_K_M (65k ctx) on port 8102.
-    dense_llm_url: str = "http://localhost:8102/v1/chat/completions"
+    dense_llm_url: str = "http://host.docker.internal:8102/v1/chat/completions"
     dense_llm_model: str = "dense"
     # Bearer token shared by both the embedding and chat endpoints.
     # Empty string skips the Authorization header entirely.
