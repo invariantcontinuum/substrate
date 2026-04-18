@@ -11,6 +11,7 @@ from substrate_graph_builder.plugins.c import CPlugin
 from substrate_graph_builder.plugins.cmake import CMakePlugin
 from substrate_graph_builder.plugins.cpp import CppPlugin
 from substrate_graph_builder.plugins.go import GoPlugin
+from substrate_graph_builder.plugins.java import JavaPlugin
 from substrate_graph_builder.plugins.javascript import JavaScriptPlugin
 from substrate_graph_builder.plugins.perl import PerlPlugin
 from substrate_graph_builder.plugins.python import PythonPlugin
@@ -24,6 +25,7 @@ REGISTRY: PluginRegistry = PluginRegistry([
     CMakePlugin(),
     CppPlugin(),
     GoPlugin(),
+    JavaPlugin(),
     JavaScriptPlugin(),
     PerlPlugin(),
     PythonPlugin(),

@@ -1,0 +1,17 @@
+{
+  "node_ids": [
+    "com/acme/util/Helper.java",
+    "com/acme/App.java",
+    "com/acme/util/Helper.java#Helper@3",
+    "com/acme/util/Helper.java#add@4",
+    "com/acme/App.java#App@5",
+    "com/acme/App.java#run@6"
+  ],
+  "edges": [
+    {"source_id": "com/acme/App.java", "target_id": "com/acme/util/Helper.java", "type": "depends"},
+    {"source_id": "com/acme/util/Helper.java", "target_id": "com/acme/util/Helper.java#Helper@3", "type": "defines"},
+    {"source_id": "com/acme/util/Helper.java", "target_id": "com/acme/util/Helper.java#add@4", "type": "defines"},
+    {"source_id": "com/acme/App.java", "target_id": "com/acme/App.java#App@5", "type": "defines"},
+    {"source_id": "com/acme/App.java", "target_id": "com/acme/App.java#run@6", "type": "defines"}
+  ]
+}
