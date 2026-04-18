@@ -2,7 +2,7 @@
 set -euo pipefail
 
 FAILED=0
-for svc in services/gateway services/ingestion services/graph packages/substrate-common; do
+for svc in services/gateway services/ingestion services/graph packages/substrate-common packages/substrate-graph-builder; do
   if [[ -f "$svc/pyproject.toml" ]]; then
     echo "==> ruff $svc"
     (cd "$svc" && uv run ruff check .) || FAILED=1
