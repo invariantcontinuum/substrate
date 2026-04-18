@@ -1,0 +1,87 @@
+name: substrate
+
+networks:
+  substrate_internal:
+    driver: bridge
+
+volumes:
+  pg_data:
+  kc_data:
+  pgadmin_data:
+
+services:
+
+  postgres:
+    build: ../infra/postgres
+    container_name: substrate-postgres
+    env_file: [../../env/infra.env]
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: ${POSTGRES_SUPERUSER}
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD}
+      GRAPH_DB_USER: ${GRAPH_DB_USER}
+      GRAPH_DB_PASSWORD: ${GRAPH_DB_PASSWORD}
+      GRAPH_DB_NAME: ${GRAPH_DB_NAME}
+    ports: ["5432:5432"]
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ../infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    networks: [substrate_internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_SUPERUSER} -d postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    container_name: substrate-keycloak
+    command: ["start-dev", "--import-realm"]
+    env_file: [../../env/infra.env]
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: ${POSTGRES_SUPERUSER}
+      KC_DB_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD}
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD}
+      KC_HOSTNAME: ${KC_HOSTNAME}
+      KC_HOSTNAME_STRICT: ${KC_HOSTNAME_STRICT}
+      KC_HTTP_ENABLED: ${KC_HTTP_ENABLED}
+    ports: ["8080:8080"]
+    volumes:
+      - kc_data:/opt/keycloak/data
+      - ../infra/keycloak:/opt/keycloak/data/import:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [substrate_internal]
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8080 && echo -e 'GET /realms/substrate/.well-known/openid-configuration HTTP/1.0\\r\\n\\r\\n' >&3 && head -c 32 <&3 | grep -q '200'"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+
+  pgadmin:
+    image: dpage/pgadmin4:8
+    container_name: substrate-pgadmin
+    env_file: [../../env/infra.env]
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+      GRAPH_DB_PASSWORD: ${GRAPH_DB_PASSWORD}
+    ports: ["5050:80"]
+    entrypoint: /custom-entrypoint.sh
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+      - ../infra/pgadmin/servers.json:/pgadmin4/servers.json:ro
+      - ../infra/pgadmin/entrypoint.sh:/custom-entrypoint.sh:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [substrate_internal]
+    restart: unless-stopped
