@@ -28,9 +28,12 @@ from substrate_graph_builder import build_graph
 
 def walk_tree(root: str) -> list[dict]:
     out = []
-    skip = {".git", "node_modules", ".venv", "__pycache__"}
+    skip = {".git", "node_modules", ".venv", "__pycache__", "dist", "build"}
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d not in skip]
+        dirnames[:] = [
+            d for d in dirnames
+            if d not in skip and not d.endswith("_cache")
+        ]
         for fn in filenames:
             abs_p = os.path.join(dirpath, fn)
             rel = os.path.relpath(abs_p, root)
