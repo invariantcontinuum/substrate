@@ -1,0 +1,18 @@
+-- V7: migrate embedding columns from vector(768) back to vector(1024).
+--
+-- Reason: the active embeddings runtime is Qwen3-Embedding-0.6B again,
+-- which emits 1024-dimensional vectors. pgvector does not allow growing
+-- a fixed-dimension column in place, so we DROP and re-ADD.
+-- All existing embeddings are lost — 768-dim vectors are not comparable
+-- to the 1024-dim outputs from the active model. The startup dim guard
+-- (src.startup.check_embedding_dim) will fail-fast if this migration has
+-- not run.
+--
+-- To repopulate: trigger a resync for each source from the Sources
+-- settings UI.
+
+ALTER TABLE file_embeddings DROP COLUMN IF EXISTS embedding;
+ALTER TABLE file_embeddings ADD COLUMN embedding vector(1024);
+
+ALTER TABLE content_chunks DROP COLUMN IF EXISTS embedding;
+ALTER TABLE content_chunks ADD COLUMN embedding vector(1024);

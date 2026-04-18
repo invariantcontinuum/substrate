@@ -29,12 +29,10 @@ def assert_embedding_dim(sync_id: str, embeddings: list[list[float]], expected: 
 
 _client: httpx.AsyncClient | None = None
 
-# nomic-embed-text-v2-moe runs with n_ctx=512 tokens AND llamacpp is
-# launched with --batch 512 / --ubatch 512; any single input that
-# tokenises to >512 tokens triggers an HTTP 500 (not 400) from the
-# server. For code, ~2.8 chars/token is typical, so 1400 chars ≈ 500
-# tokens — comfortably under the limit after subtracting the 17-char
-# task prefix.
+# Keep individual embedding inputs small enough that a single oversize
+# chunk cannot fail an entire batch request. The active embeddings model
+# has a much larger context window than this cap, but the conservative
+# limit keeps ingestion latency and retry behavior predictable.
 _MAX_INPUT_CHARS = 1400
 
 
@@ -54,11 +52,10 @@ async def close_client() -> None:
         _client = None
 
 
-# nomic-embed-text-v2 requires a task prefix on every input:
+# Prefix corpus content so it clusters with query embeddings produced by
+# the graph service:
 #   - `search_document: …` for corpus content (this service)
 #   - `search_query: …`    for user queries (graph-service search)
-# Without the prefix, embeddings are of lower quality and will not
-# cluster with query embeddings produced elsewhere.
 _DOCUMENT_PREFIX = "search_document: "
 
 

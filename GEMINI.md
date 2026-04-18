@@ -37,7 +37,7 @@ systemd-user-managed LLM runtime. Start models on demand — memory is constrain
 - `make llm-status`
 
 Endpoints:
-- Embeddings: `http://localhost:8101/v1/embeddings` (model name: `embeddings`, dim 768)
+- Embeddings: `http://localhost:8101/v1/embeddings` (model name: `embeddings`, dim 1024)
 - Dense: `http://localhost:8102/v1/chat/completions` (model name: `dense`)
 
 LLMs stay on the host (not in compose). This is the single justified use of `host.docker.internal` from app services.
