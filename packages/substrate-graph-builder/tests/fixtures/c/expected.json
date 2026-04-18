@@ -1,0 +1,15 @@
+{
+  "node_ids": [
+    "util.h",
+    "util.c",
+    "main.c",
+    "util.c#util_add@3",
+    "main.c#main@4"
+  ],
+  "edges": [
+    {"source_id": "util.c", "target_id": "util.h", "type": "depends"},
+    {"source_id": "main.c", "target_id": "util.h", "type": "depends"},
+    {"source_id": "util.c", "target_id": "util.c#util_add@3", "type": "defines"},
+    {"source_id": "main.c", "target_id": "main.c#main@4", "type": "defines"}
+  ]
+}
