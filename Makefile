@@ -7,7 +7,7 @@ COMPOSE        ?= docker compose --project-directory ops/compose --env-file .env
 LLM_DIR        ?= ops/llm/lazy-lamacpp
 ENV_EXAMPLES   := env/platform.env.example env/infra.env.example env/llm.env.example
 
-.PHONY: help bootstrap up down nuke restart ps logs \
+.PHONY: help bootstrap up down nuke nuke-keycloak restart ps logs \
         llm-start llm-stop llm-status \
         test test-e2e lint doctor check-contracts
 
@@ -32,6 +32,13 @@ down: ## Stop and remove containers (volumes persist)
 nuke: ## Stop + remove volumes (destroys Postgres data); confirms first
 	@read -p "Really destroy all volumes? (y/N) " ans && [ "$$ans" = "y" ]
 	$(COMPOSE) down -v
+
+nuke-keycloak: ## Drop the keycloak DB + kc_data volume so --import-realm reruns (substrate_graph untouched)
+	$(COMPOSE) stop keycloak
+	$(COMPOSE) rm -f keycloak
+	docker volume rm substrate_kc_data 2>/dev/null || true
+	$(COMPOSE) exec -T postgres psql -U $${POSTGRES_SUPERUSER:-postgres} -c "DROP DATABASE IF EXISTS keycloak WITH (FORCE);"
+	$(COMPOSE) up -d keycloak
 
 restart: down up ## Full stack restart
 

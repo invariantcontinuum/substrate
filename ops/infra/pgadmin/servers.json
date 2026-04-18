@@ -1,12 +1,32 @@
 {
   "Servers": {
     "1": {
-      "Name": "substrate_graph (local)",
+      "Name": "substrate_graph",
       "Group": "substrate",
       "Host": "postgres",
       "Port": 5432,
       "MaintenanceDB": "substrate_graph",
       "Username": "substrate_graph",
+      "SSLMode": "disable",
+      "PassFile": "/var/lib/pgadmin/pgpass"
+    },
+    "2": {
+      "Name": "keycloak",
+      "Group": "substrate",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "keycloak",
+      "Username": "keycloak",
+      "SSLMode": "disable",
+      "PassFile": "/var/lib/pgadmin/pgpass"
+    },
+    "3": {
+      "Name": "postgres (superuser)",
+      "Group": "substrate",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "postgres",
+      "Username": "postgres",
       "SSLMode": "disable",
       "PassFile": "/var/lib/pgadmin/pgpass"
     }
