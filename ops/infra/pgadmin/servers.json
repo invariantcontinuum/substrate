@@ -1,0 +1,14 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "substrate_graph (local)",
+      "Group": "substrate",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "substrate_graph",
+      "Username": "substrate_graph",
+      "SSLMode": "disable",
+      "PassFile": "/pgpass"
+    }
+  }
+}
