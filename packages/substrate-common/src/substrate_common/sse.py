@@ -83,7 +83,7 @@ class SseBus:
             await conn.execute(
                 f"SELECT pg_notify('{self.CHANNEL}', $1)", event.id
             )
-        _log.info(
+        _log.debug(
             "sse_event_published",
             event_id=event.id,
             type=event.type,

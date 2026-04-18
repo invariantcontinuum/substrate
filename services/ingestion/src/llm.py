@@ -113,7 +113,7 @@ async def embed_batch(texts: list[str]) -> list[list[float] | None]:
     try:
         vectors = await _embed_call(client, truncated)
         elapsed = time.monotonic() - start
-        logger.info("embed_batch_complete", batch_size=batch_size,
+        logger.debug("embed_batch_complete", batch_size=batch_size,
                      duration_ms=round(elapsed * 1000))
         return list(vectors)
     except httpx.ConnectError as e:
