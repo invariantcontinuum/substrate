@@ -23,7 +23,7 @@ from src.scheduler import (
     stop_retention_loop,
     stop_scheduler,
 )
-from src.schema import ScheduleRequest, ScheduleUpdateRequest, SyncRequest
+from substrate_common.schema import ScheduleRequest, ScheduleUpdateRequest, SyncRequest
 from src.sources_patch import SourcePatch, update_source_impl
 from src.sync_runs import clean_sync_impl
 

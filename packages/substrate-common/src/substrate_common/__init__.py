@@ -15,17 +15,21 @@ from substrate_common.errors import (
 )
 from substrate_common.logging import configure_logging
 from substrate_common.middleware import ExceptionLoggingMiddleware, RequestIdMiddleware
+from substrate_common.schema import EdgeAffected, GraphEvent, NodeAffected
 from substrate_common.sse import Event, SseBus, StreamDropped
 
 __version__ = "0.1.0"
 
 __all__ = [
     "ConflictError",
+    "EdgeAffected",
     "Event",
     "ExceptionLoggingMiddleware",
     "ForbiddenError",
+    "GraphEvent",
     "InternalError",
     "KeycloakJwtVerifier",
+    "NodeAffected",
     "NotFoundError",
     "RequestIdMiddleware",
     "SseBus",

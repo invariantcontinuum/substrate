@@ -1,4 +1,4 @@
-from src.schema import GraphEvent, NodeAffected, EdgeAffected
+from substrate_common.schema import GraphEvent, NodeAffected, EdgeAffected
 
 
 class TestGraphEvent:

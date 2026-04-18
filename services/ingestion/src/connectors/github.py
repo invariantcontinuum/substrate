@@ -9,7 +9,7 @@ import httpx
 import structlog
 
 from src.connectors.base import MaterializedTree, SourceConnector
-from src.schema import EdgeAffected, GraphEvent, NodeAffected
+from substrate_common.schema import EdgeAffected, GraphEvent, NodeAffected
 
 logger = structlog.get_logger()
 

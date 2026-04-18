@@ -1,7 +1,14 @@
+"""Graph event schema — shared between ingestion (producer) and
+substrate-graph-builder (pure emission of the same types).
+
+Relocated from services/ingestion/src/schema.py in SP-2 (DSG-016) so both
+sides of the library boundary import from one place.
+"""
 import re as _re
-from pydantic import BaseModel, Field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
+
+from pydantic import BaseModel, Field
 
 
 class NodeAffected(BaseModel):
@@ -27,7 +34,7 @@ class GraphEvent(BaseModel):
     event_type: str
     nodes_affected: list[NodeAffected] = Field(default_factory=list)
     edges_affected: list[EdgeAffected] = Field(default_factory=list)
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class FileMetadata(BaseModel):
