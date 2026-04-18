@@ -4,6 +4,17 @@ All API requests go through the **Gateway** at `http://localhost:8080`. Authenti
 
 ---
 
+## Interactive Documentation
+
+For a live, interactive reference of all endpoints, including request/response schemas and the ability to test calls directly, visit the built-in documentation provided by the services:
+
+*   **REST API (Swagger):** [http://localhost:8080/docs](http://localhost:8080/docs)
+*   **REST API (Redoc):** [http://localhost:8080/redoc](http://localhost:8080/redoc)
+
+> **Note:** These links assume you are running the platform locally with the Gateway mapped to port 8080.
+
+---
+
 ## Gateway
 
 ### Health Check

@@ -55,12 +55,11 @@ The gateway uses a shared `httpx.AsyncClient` for connection pooling and impleme
 |------------|--------|
 | GitHub connector (clone-based) | Implemented |
 | File classification (source, config, doc, etc.) | Implemented |
-| Import parsing (C, Python, JS/TS, Go, Rust, etc.) | Implemented |
+| Import parsing (multi-language) | Implemented |
 | Chunking + embedding pipeline | Implemented |
 | Sync scheduling | Implemented |
-| Kubernetes connector | Planned |
-| Terraform connector | Planned |
-| Jira connector | Planned |
+
+*Future connectors (GitLab, Kubernetes, Terraform) are documented in the [Roadmap](../roadmap.md).*
 
 The ingestion service directly writes to the shared PostgreSQL/AGE database. There is no message bus in the current implementation.
 

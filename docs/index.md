@@ -58,13 +58,21 @@ Substrate ingests source code from connected repositories, parses static depende
 
     [:octicons-arrow-right-24: Developer Guide](developer-guide/index.md)
 
--   :material-presentation:{ .lg .middle } __Product Pitch__
+-   :material-presentation:{ .lg .middle } __Business & Product__
 
     ---
 
-    Investor questions, revenue streams, and competitive landscape
+    Pitch decks, target personas, and the problems Substrate solves
 
-    [:octicons-arrow-right-24: Product Pitch](product-pitch/index.md)
+    [:octicons-arrow-right-24: Business Overview](product-pitch/index.md)
+
+-   :material-map-marker-path:{ .lg .middle } __Roadmap__
+
+    ---
+
+    Planned features and the transition to the Intended Graph (G_I)
+
+    [:octicons-arrow-right-24: Future Roadmap](roadmap.md)
 
 </div>
 
