@@ -1,0 +1,16 @@
+{
+  "node_ids": [
+    "composer.json",
+    "src/User.php",
+    "bootstrap.php",
+    "src/User.php#User@4",
+    "src/User.php#getName@5",
+    "bootstrap.php#bootstrap@4"
+  ],
+  "edges": [
+    {"source_id": "bootstrap.php", "target_id": "src/User.php", "type": "depends"},
+    {"source_id": "src/User.php", "target_id": "src/User.php#User@4", "type": "defines"},
+    {"source_id": "src/User.php", "target_id": "src/User.php#getName@5", "type": "defines"},
+    {"source_id": "bootstrap.php", "target_id": "bootstrap.php#bootstrap@4", "type": "defines"}
+  ]
+}
