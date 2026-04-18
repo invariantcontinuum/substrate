@@ -145,6 +145,9 @@ services:
     env_file: [../../env/platform.env, ../../env/infra.env, ../../env/llm.env]
     environment:
       SERVICE_NAME: graph
+      FLYWAY_URL: jdbc:postgresql://postgres:5432/${GRAPH_DB_NAME}
+      FLYWAY_USER: ${GRAPH_DB_USER}
+      FLYWAY_PASSWORD: ${GRAPH_DB_PASSWORD}
       DATABASE_URL: postgresql+asyncpg://${GRAPH_DB_USER}:${GRAPH_DB_PASSWORD}@postgres:5432/${GRAPH_DB_NAME}
       EMBEDDING_URL: ${EMBEDDING_URL}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL}
