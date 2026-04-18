@@ -1,4 +1,11 @@
 #!/usr/bin/env bash
+# DO NOT RUN. This script performed the one-time history imports in Phases 2-5.
+# Kept in-repo for auditability only. Re-running will fail because target prefixes
+# already contain imported code.
+exit 0
+# ----------------------------------------------------------------------------
+# Original script preserved below for audit:
+#
 # One-shot history importer. After running once, the imported commits are
 # first-class monorepo history; do not re-run.
 #
