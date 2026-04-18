@@ -11,7 +11,7 @@ export const queryClient = new QueryClient({
 });
 
 // All API calls are relative — frontend nginx proxies /api, /jobs, /ingest,
-// /auth and /ws to the gateway. There is no public gateway domain, so the
+// /auth routes to the gateway. There is no public gateway domain, so the
 // browser only ever talks to the frontend host.
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
