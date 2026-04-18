@@ -129,7 +129,14 @@ restart:
 	  systemctl --user --no-pager --full status "llamacpp-model@$(MODEL).service"'
 
 status:
-	@$(LOG_RUN) status bash -lc '$(MODEL_CHECK) systemctl --user --no-pager --full status "llamacpp-model@$(MODEL).service"'
+	@$(LOG_RUN) status bash -lc '$(MODEL_CHECK) unit="llamacpp-model@$(MODEL).service"; \
+	  systemctl --user --no-pager --full status "$$unit" || true; \
+	  active=$$(systemctl --user show "$$unit" -p ActiveState --value); \
+	  sub=$$(systemctl --user show "$$unit" -p SubState --value); \
+	  case "$$active:$$sub" in \
+	    active:*|inactive:dead) exit 0 ;; \
+	    *) exit 1 ;; \
+	  esac'
 
 logs:
 	@$(LOG_RUN) logs bash -lc '$(MODEL_CHECK) journalctl --user -u "llamacpp-model@$(MODEL).service" -n "$(or $(LINES),200)" --no-pager'
@@ -144,7 +151,19 @@ restart-all:
 	@$(LOG_RUN) restart-all systemctl --user restart $(foreach model,$(MODELS),llamacpp-model@$(model).service)
 
 status-all:
-	@$(LOG_RUN) status-all systemctl --user --no-pager --full status llamacpp-stack.target $(foreach model,$(MODELS),llamacpp-model@$(model).service)
+	@$(LOG_RUN) status-all bash -lc 'units=(llamacpp-stack.target $(foreach model,$(MODELS),llamacpp-model@$(model).service)); \
+	  rc=0; \
+	  for unit in "$${units[@]}"; do \
+	    systemctl --user --no-pager --full status "$$unit" || true; \
+	    active=$$(systemctl --user show "$$unit" -p ActiveState --value); \
+	    sub=$$(systemctl --user show "$$unit" -p SubState --value); \
+	    case "$$active:$$sub" in \
+	      active:*|inactive:dead) ;; \
+	      *) rc=1 ;; \
+	    esac; \
+	    printf "\n"; \
+	  done; \
+	  exit "$$rc"'
 
 logs-all:
 	@$(LOG_RUN) logs-all journalctl --user \
