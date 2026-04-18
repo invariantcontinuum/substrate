@@ -3,12 +3,9 @@ import os
 import shutil
 import tempfile
 import time
-from typing import Any
 
 import httpx
 import structlog
-
-from substrate_common.schema import GraphEvent, NodeAffected
 
 from src.connectors.base import MaterializedTree, SourceConnector
 
@@ -90,77 +87,6 @@ def _walk_local_tree(repo_dir: str) -> list[dict]:
             tree.append({"path": rel, "type": "blob"})
     logger.info("walk_tree_complete", files_found=len(tree))
     return tree
-
-
-async def sync_repo(
-    owner: str, repo: str, token: str,
-    on_progress=None,
-) -> GraphEvent:
-    logger.info("sync_started", owner=owner, repo=repo)
-    repo_label = f"{owner}/{repo}"
-
-    meta: dict[str, Any] = {
-        "phase": "cloning", "repo": repo_label,
-        "files_total": 0, "files_parseable": 0,
-        "files_parsed": 0, "edges_found": 0,
-        "nodes_by_type": {},
-    }
-    if on_progress:
-        await on_progress(0, 0, meta)
-
-    tmpdir = await _clone_repo(owner, repo, token)
-    logger.info("clone_complete", owner=owner, repo=repo, path=tmpdir)
-
-    try:
-        meta["phase"] = "discovering"
-        if on_progress:
-            await on_progress(0, 0, meta)
-        tree = _walk_local_tree(tmpdir)
-
-        # Progress bridge: substrate_graph_builder calls on_progress sync;
-        # our ingestion on_progress is async. Wrap it so the builder's sync
-        # callback schedules the async one on the running loop.
-        loop = asyncio.get_running_loop()
-
-        def _sync_progress(done: int, total: int, bmeta: dict[str, Any]) -> None:
-            # Merge builder's meta into ours without losing repo_label etc.
-            merged = {**meta, **bmeta}
-            if on_progress:
-                asyncio.run_coroutine_threadsafe(on_progress(done, total, merged), loop)
-
-        from substrate_graph_builder import build_graph
-        doc = build_graph(
-            tree, tmpdir,
-            source_name="github",
-            on_progress=_sync_progress,
-        )
-
-        meta.update({
-            "files_total": sum(1 for n in doc.nodes if not n.id.count("#")),
-            "nodes_by_type": _count_by_type(doc.nodes),
-            "edges_found": len(doc.edges),
-            "phase": "publishing",
-        })
-        if on_progress:
-            await on_progress(len(doc.nodes), len(doc.nodes), meta)
-
-        event = GraphEvent(
-            source="github", event_type="sync",
-            nodes_affected=doc.nodes, edges_affected=doc.edges,
-        )
-        logger.info("sync_complete", owner=owner, repo=repo,
-                    nodes=len(doc.nodes), edges=len(doc.edges))
-        return event
-
-    finally:
-        shutil.rmtree(tmpdir, ignore_errors=True)
-
-
-def _count_by_type(nodes: list[NodeAffected]) -> dict[str, int]:
-    counts: dict[str, int] = {}
-    for n in nodes:
-        counts[n.type] = counts.get(n.type, 0) + 1
-    return counts
 
 
 # ---------- SourceConnector wrapper ----------

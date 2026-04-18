@@ -6,9 +6,8 @@ Single-pass pipeline:
   3. For each analysis: plugin.resolve() → file→file `depends` edges.
   4. For each analysis: emit symbol NodeAffecteds + file→symbol `defines` edges.
 
-Progress callback signature (`done`, `total`, `meta`) is compatible with the
-one ingestion/src/connectors/github.py.sync_repo already feeds through the
-SSE progress pipeline.
+Progress callback signature (`done`, `total`, `meta`) is compatible with
+the sync-progress pipeline in services/ingestion/src/jobs/sync.py.
 """
 
 from __future__ import annotations
