@@ -1,0 +1,6 @@
+import { a } from "./lib/a";
+import b from "./lib/b";
+
+export function start() {
+  return a() + b();
+}

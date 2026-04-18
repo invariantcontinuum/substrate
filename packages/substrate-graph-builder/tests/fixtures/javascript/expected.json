@@ -1,0 +1,21 @@
+{
+  "node_ids": [
+    "index.js",
+    "lib/a.js",
+    "lib/b.js",
+    "index.js#start@4",
+    "lib/a.js#a@1",
+    "lib/a.js#Helper@3",
+    "lib/a.js#run@4",
+    "lib/b.js#b@1"
+  ],
+  "edges": [
+    {"source_id": "index.js", "target_id": "lib/a.js", "type": "depends"},
+    {"source_id": "index.js", "target_id": "lib/b.js", "type": "depends"},
+    {"source_id": "index.js", "target_id": "index.js#start@4", "type": "defines"},
+    {"source_id": "lib/a.js", "target_id": "lib/a.js#a@1", "type": "defines"},
+    {"source_id": "lib/a.js", "target_id": "lib/a.js#Helper@3", "type": "defines"},
+    {"source_id": "lib/a.js", "target_id": "lib/a.js#run@4", "type": "defines"},
+    {"source_id": "lib/b.js", "target_id": "lib/b.js#b@1", "type": "defines"}
+  ]
+}
