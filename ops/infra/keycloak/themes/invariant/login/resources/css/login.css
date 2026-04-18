@@ -1,0 +1,29 @@
+/* Invariant Continuum - Custom Keycloak Login Theme */
+
+:root {
+  --pf-v5-global--primary-color--100: #1a1a2e;
+  --pf-v5-global--primary-color--200: #16213e;
+  --pf-v5-global--active-color--100: #0f3460;
+  --pf-v5-global--link--Color: #0f3460;
+}
+
+.login-pf body {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+}
+
+#kc-header-wrapper {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #ffffff;
+  text-transform: none;
+  letter-spacing: 0.05em;
+}
+
+#kc-logo {
+  margin-bottom: 1rem;
+}
+
+.card-pf {
+  border-radius: 8px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+}
