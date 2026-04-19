@@ -544,6 +544,12 @@ export function GraphCanvas() {
         Math.ceil(Math.sqrt(childNodeCount * aspectPx * (CELL_H / CELL_W))),
       );
       const rows = Math.max(1, Math.ceil(childNodeCount / cols));
+      // Cytoscape caches the container's viewport size internally; when
+      // the container was 0x0 at init (e.g. Graph view hidden while the
+      // user loaded a snapshot on Sources), cy still thinks it's 0x0
+      // until we poke it. Without this call, `fit:true` computes zoom
+      // against a 0x0 viewport and pins nodes to the top-left corner.
+      cy.resize();
       const layout = cy.layout({
         name: "grid",
         fit: true,
@@ -584,6 +590,10 @@ export function GraphCanvas() {
       Math.ceil(Math.sqrt(childNodeCount * aspectPx * (CELL_H / CELL_W))),
     );
     const rows = Math.max(1, Math.ceil(childNodeCount / cols));
+    // Sync cytoscape's internal viewport with the live container size
+    // before layout runs — otherwise `fit:true` uses stale dimensions
+    // from the last resize (zero if the graph was hidden at init).
+    cy.resize();
     cy.layout({
       name: "grid",
       fit: true,
