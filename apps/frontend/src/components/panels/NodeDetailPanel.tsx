@@ -1,6 +1,6 @@
 // frontend/src/components/panels/NodeDetailPanel.tsx
 import { useEffect, useState } from "react";
-import { FileText, RefreshCw, X } from "lucide-react";
+import { Check, Copy, Download, FileText, RefreshCw, X } from "lucide-react";
 import { useAuth } from "react-oidc-context";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
@@ -125,6 +125,53 @@ export function NodeDetailPanel() {
   });
 
   const [regenerating, setRegenerating] = useState(false);
+  const [summaryCopied, setSummaryCopied] = useState(false);
+  const [fileCopied, setFileCopied] = useState(false);
+
+  const flashCopy = (setter: (v: boolean) => void) => {
+    setter(true);
+    setTimeout(() => setter(false), 1400);
+  };
+
+  const copySummary = async () => {
+    const text = summaryQuery.data?.summary;
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      flashCopy(setSummaryCopied);
+    } catch {
+      // Clipboard can fail under insecure contexts or denied permissions;
+      // swallow silently — the user can still use the Export button.
+    }
+  };
+
+  const exportSummary = () => {
+    if (!cached?.id) return;
+    const allEdges = useGraphStore.getState().edges;
+    const related = allEdges.filter(
+      (e) => e.source === cached.id || e.target === cached.id,
+    );
+    // eslint-disable-next-line react-hooks/purity -- event handler; runs on click, not render
+    downloadJson(`node-${cached.id}-summary-${Date.now()}.json`, {
+      node: cached,
+      summary: summaryQuery.data?.summary ?? null,
+      summary_source: summaryQuery.data?.source ?? null,
+      edges: related,
+      snapshot_sync_id: selectedSnapshotId,
+      exported_at: new Date().toISOString(),
+    });
+  };
+
+  const copyFileContent = async () => {
+    const text = fileQuery.data?.content;
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      flashCopy(setFileCopied);
+    } catch {
+      // Same as summary copy — swallow clipboard failures.
+    }
+  };
 
   const regenerateSummary = async () => {
     if (!selectedNodeId || !token) return;
@@ -262,24 +309,47 @@ export function NodeDetailPanel() {
             <section className="node-detail-section">
               <div className="node-detail-section-header">
                 <h4 className="node-detail-section-title">Summary</h4>
-                <button
-                  type="button"
-                  className="node-detail-regen-btn"
-                  onClick={regenerateSummary}
-                  disabled={
-                    regenerating ||
-                    summaryQuery.isLoading ||
-                    summaryQuery.data?.source === "no_content" ||
-                    summaryQuery.data?.source === "not_found"
-                  }
-                  title={
-                    summaryQuery.data?.source === "cache"
-                      ? "Regenerate summary"
-                      : "Generate summary"
-                  }
-                >
-                  <RefreshCw size={11} className={regenerating ? "spin" : undefined} />
-                </button>
+                <div className="node-detail-section-actions">
+                  <button
+                    type="button"
+                    className="node-detail-regen-btn"
+                    onClick={copySummary}
+                    disabled={!summaryQuery.data?.summary}
+                    title={summaryCopied ? "Copied" : "Copy summary"}
+                    aria-label="Copy summary"
+                  >
+                    {summaryCopied ? <Check size={11} /> : <Copy size={11} />}
+                  </button>
+                  <button
+                    type="button"
+                    className="node-detail-regen-btn"
+                    onClick={exportSummary}
+                    disabled={!cached}
+                    title="Export summary + metadata + edges (JSON)"
+                    aria-label="Export summary"
+                  >
+                    <Download size={11} />
+                  </button>
+                  <button
+                    type="button"
+                    className="node-detail-regen-btn"
+                    onClick={regenerateSummary}
+                    disabled={
+                      regenerating ||
+                      summaryQuery.isLoading ||
+                      summaryQuery.data?.source === "no_content" ||
+                      summaryQuery.data?.source === "not_found"
+                    }
+                    title={
+                      summaryQuery.data?.source === "cache"
+                        ? "Regenerate summary"
+                        : "Generate summary"
+                    }
+                    aria-label="Regenerate summary"
+                  >
+                    <RefreshCw size={11} className={regenerating ? "spin" : undefined} />
+                  </button>
+                </div>
               </div>
               {summaryQuery.isLoading && (
                 <div className="node-detail-muted">Loading…</div>
@@ -357,6 +427,7 @@ export function NodeDetailPanel() {
         onClose={() => setFileOpen(false)}
         title={fileQuery.data?.file_path || node?.file_path || "File"}
         size="lg"
+        contentClassName="node-file-modal"
       >
         {fileQuery.isLoading && <div className="node-detail-muted">Loading file…</div>}
         {fileQuery.isError && (
@@ -374,6 +445,17 @@ export function NodeDetailPanel() {
               )}
               <span>{fileQuery.data.chunk_count} chunks</span>
               {fileQuery.data.truncated && <span className="node-file-truncated">truncated at 5 MB</span>}
+              <button
+                type="button"
+                className="node-file-copy-btn"
+                onClick={copyFileContent}
+                disabled={!fileQuery.data.content}
+                title={fileCopied ? "Copied" : "Copy file content"}
+                aria-label="Copy file content"
+              >
+                {fileCopied ? <Check size={12} /> : <Copy size={12} />}
+                <span>{fileCopied ? "Copied" : "Copy"}</span>
+              </button>
             </div>
             <pre className="node-file-content">
               <code>{fileQuery.data.content || "(empty)"}</code>

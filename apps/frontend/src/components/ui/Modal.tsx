@@ -16,6 +16,10 @@ interface ModalProps {
   size?: ModalSize;
   /** Override the per-size width. Prefer `size`. */
   maxWidth?: number;
+  /** Extra class applied to the glass panel. Use for per-modal opacity
+   *  or background overrides (e.g. the file viewer wants more opacity
+   *  than a search dialog). */
+  contentClassName?: string;
 }
 
 export function Modal({
@@ -25,6 +29,7 @@ export function Modal({
   children,
   size = "md",
   maxWidth,
+  contentClassName,
 }: ModalProps) {
   const width = maxWidth ?? SIZE_PX[size];
 
@@ -44,7 +49,7 @@ export function Modal({
         onClose();
       }}
     >
-      <DialogContent style={{ maxWidth: width }}>
+      <DialogContent style={{ maxWidth: width }} className={contentClassName}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>

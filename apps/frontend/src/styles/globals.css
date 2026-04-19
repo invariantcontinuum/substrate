@@ -847,6 +847,12 @@ html, body, #root {
 
 .node-detail-section-header .node-detail-section-title { margin-bottom: 0; }
 
+.node-detail-section-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .node-detail-regen-btn {
   display: inline-flex;
   align-items: center;
@@ -892,6 +898,7 @@ html, body, #root {
 .node-file-meta {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: var(--space-3);
   font-size: var(--text-xs);
   color: var(--fg-muted);
@@ -899,6 +906,32 @@ html, body, #root {
 }
 
 .node-file-truncated { color: var(--warn); }
+
+.node-file-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-elevated);
+  color: var(--fg-muted);
+  cursor: pointer;
+  font-size: var(--text-xs);
+  line-height: 1.4;
+}
+.node-file-copy-btn:hover:not(:disabled) { background: var(--surface-hover); color: var(--fg); }
+.node-file-copy-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* File viewer modal wants more opacity than the default glass —
+ * reading source code through a translucent backdrop is tiring. Mix
+ * 35% of the theme's opaque surface into the glass token so the modal
+ * still feels like a glass pane but the background no longer bleeds
+ * through. Keeps per-theme switching (surface-solid is theme-aware). */
+.node-file-modal.dialog-content {
+  background: color-mix(in srgb, var(--glass-bg-strong) 65%, var(--surface-solid));
+}
 
 .node-file-content {
   max-height: 60vh;
