@@ -4,25 +4,26 @@
  * Substrate's editorial glass UI.
  *
  *   Palette:
- *     Shadow Grey       #231f20   warm near-black
- *     Slate Blue        #7c99b4   cool primary accent
- *     Deep Indigo       #494368   muted violet secondary
- *     Vanilla Custard   #f3dfa2   warm highlight
- *     Linen             #efe6dd   warm off-white paper
+ *     Shadow Grey        #231f20   warm near-black
+ *     Verdigris Teal     #2f7a6f   patinaed-copper primary accent
+ *     Burnished Clay     #a64a35   earthen terracotta secondary
+ *     Vanilla Custard    #f3dfa2   warm highlight
+ *     Linen              #efe6dd   warm off-white paper
  *
  *   Aesthetic direction: editorial, grounded, slightly nostalgic.
- *   Warmth from linen/vanilla is balanced by cool teal and
- *   periwinkle accents. Surfaces read as glass panes laid on
- *   paper (light) or over deep warm shadow (dark). Nothing here
- *   is neon; nothing here is purely grey. Every surface carries
- *   a little hue.
+ *   Warmth from linen/vanilla is balanced by a deep patina teal and
+ *   a burnished-clay secondary — a mid-century editorial pairing
+ *   (teal × terracotta, think Eames or William Morris). Surfaces
+ *   read as glass panes laid on paper (light) or over warm shadow
+ *   (dark). Nothing here is neon; nothing here is purely grey. Every
+ *   surface carries a little hue.
  *
  *   Dark theme lives on Shadow Grey with Linen foreground and
- *   Stormy Teal as the primary accent; Vanilla Custard is the
+ *   Verdigris Teal as the primary accent; Vanilla Custard is the
  *   rare pop that marks focus and highlight.
  *
  *   Light theme lives on Linen with Shadow Grey foreground and
- *   Stormy Teal as the primary accent; Soft Periwinkle provides
+ *   Verdigris Teal as the primary accent; Burnished Clay provides
  *   the secondary voice.
  *
  * Themes are switched by setting `data-theme="dark" | "light"` on
@@ -35,8 +36,8 @@
 :root {
   /* ---- Raw palette ---- */
   --palette-shadow-grey:     #231f20;
-  --palette-stormy-teal:     #7c99b4;   /* slate blue (was #006d77) */
-  --palette-soft-periwinkle: #494368;   /* deep indigo (was #8d86c9) */
+  --palette-stormy-teal:     #2f7a6f;   /* Verdigris Teal — patinaed copper */
+  --palette-soft-periwinkle: #a64a35;   /* Burnished Clay — earthen terracotta */
   --palette-vanilla-custard: #f3dfa2;
   --palette-linen:           #efe6dd;
 
@@ -45,10 +46,10 @@
   --palette-shadow-lift:      #2b2627;   /* lifted shadow for solid surfaces */
   --palette-linen-bright:     #f8f1e9;   /* brighter linen for lifted surfaces */
   --palette-linen-deep:       #e4d9cb;   /* deeper linen for gradient stops */
-  --palette-teal-deep:        #4d6c8a;   /* deeper slate-blue for light-mode hovers */
-  --palette-teal-bright:      #a0bdd5;   /* lifted slate-blue for dark-mode accents */
-  --palette-periwinkle-deep:  #2f2a49;   /* deeper indigo for light-mode contrast */
-  --palette-periwinkle-bright:#9b93c6;   /* lifted indigo for dark-mode accents */
+  --palette-teal-deep:        #1c554e;   /* deeper verdigris for light-mode hovers */
+  --palette-teal-bright:      #6fb5a7;   /* lifted verdigris for dark-mode accents */
+  --palette-periwinkle-deep:  #74301f;   /* deeper clay for light-mode contrast */
+  --palette-periwinkle-bright:#d88a73;   /* lifted clay for dark-mode accents */
   --palette-vanilla-deep:     #c59e3a;   /* deeper vanilla for light-mode contrast */
   --palette-vanilla-bright:   #f5e4b3;   /* lighter vanilla for dark-mode soft-fills */
 
@@ -66,15 +67,15 @@
   --fw-semibold:  600;
   --fw-bold:      700;
 
-  --text-2xs: 10px;
-  --text-xs:  11px;
-  --text-sm:  12px;
-  --text-base: 13px;
-  --text-md:  14px;
-  --text-lg:  16px;
-  --text-xl:  20px;
-  --text-2xl: 24px;
-  --text-3xl: 32px;
+  --text-2xs: 11px;
+  --text-xs:  12px;
+  --text-sm:  13px;
+  --text-base: 14px;
+  --text-md:  15px;
+  --text-lg:  17px;
+  --text-xl:  22px;
+  --text-2xl: 28px;
+  --text-3xl: 36px;
 
   --leading-tight:  1.2;
   --leading-snug:   1.35;
@@ -143,8 +144,8 @@
 
   --bg:           var(--palette-linen);
   --bg-gradient:
-    radial-gradient(ellipse 75% 55% at 20% 10%,  rgba(73, 67, 104, 0.18)   0%, transparent 58%),
-    radial-gradient(ellipse 65% 55% at 85% 15%,  rgba(124, 153, 180, 0.22) 0%, transparent 60%),
+    radial-gradient(ellipse 75% 55% at 20% 10%,  rgba(166,  74,  53, 0.15) 0%, transparent 58%),
+    radial-gradient(ellipse 65% 55% at 85% 15%,  rgba( 47, 122, 111, 0.20) 0%, transparent 60%),
     radial-gradient(ellipse 90% 70% at 50% 95%,  rgba(243, 223, 162, 0.34) 0%, transparent 70%),
     linear-gradient(180deg, #efe6dd 0%, #e4d9cb 100%);
 
@@ -152,7 +153,7 @@
   --surface-solid:    #ffffff;
   --surface-elevated: rgba(248, 241, 233, 0.85);
   --surface-sunken:   rgba(35, 31, 32, 0.05);
-  --surface-hover:    rgba(73, 67, 104, 0.12);
+  --surface-hover:    rgba(47, 122, 111, 0.13);
 
   --border:         rgba(35, 31, 32, 0.18);
   --border-strong:  rgba(35, 31, 32, 0.32);
@@ -169,7 +170,7 @@
   --warn:    var(--palette-vanilla-deep);
   --danger:  var(--palette-danger-light);
 
-  --focus-ring: rgba(124, 153, 180, 0.65);
+  --focus-ring: rgba(47, 122, 111, 0.55);
 
   --scrim: rgba(35, 31, 32, 0.35);
 
@@ -201,16 +202,16 @@
 
   --bg:           var(--palette-shadow-grey);
   --bg-gradient:
-    radial-gradient(ellipse 70% 60% at 15% 10%,  rgba(124, 153, 180, 0.26) 0%, transparent 58%),
-    radial-gradient(ellipse 65% 55% at 90% 20%,  rgba(155, 147, 198, 0.24) 0%, transparent 58%),
-    radial-gradient(ellipse 90% 70% at 50% 100%, rgba(27, 23, 24, 0.95)    0%, transparent 65%),
+    radial-gradient(ellipse 70% 60% at 15% 10%,  rgba(111, 181, 167, 0.26) 0%, transparent 58%),
+    radial-gradient(ellipse 65% 55% at 90% 20%,  rgba(216, 138, 115, 0.22) 0%, transparent 58%),
+    radial-gradient(ellipse 90% 70% at 50% 100%, rgba( 27,  23,  24, 0.95) 0%, transparent 65%),
     linear-gradient(180deg, #231f20 0%, #1b1718 100%);
 
   --surface:          rgba(43, 38, 39, 0.55);
   --surface-solid:    #2b2627;
   --surface-elevated: rgba(239, 230, 221, 0.06);
   --surface-sunken:   rgba(0, 0, 0, 0.32);
-  --surface-hover:    rgba(124, 153, 180, 0.22);
+  --surface-hover:    rgba(111, 181, 167, 0.22);
 
   --border:         rgba(239, 230, 221, 0.15);
   --border-strong:  rgba(239, 230, 221, 0.32);
@@ -227,7 +228,7 @@
   --warn:    var(--palette-vanilla-custard);
   --danger:  var(--palette-danger-dark);
 
-  --focus-ring: rgba(160, 189, 213, 0.7);
+  --focus-ring: rgba(111, 181, 167, 0.65);
 
   --scrim: rgba(10, 8, 8, 0.65);
 

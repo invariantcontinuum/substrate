@@ -455,7 +455,7 @@ html, body, #root {
 }
 
 .side-nav-badge {
-  font-size: 9px;
+  font-size: 11px;
   padding: 1px var(--space-1);
   border: 1px solid var(--border);
   border-radius: var(--radius-pill);
@@ -1072,7 +1072,7 @@ html, body, #root {
   align-items: center;
   gap: 6px;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 12px;
   color: #8888a0;
   white-space: nowrap;
 }
@@ -1110,7 +1110,7 @@ html, body, #root {
   flex-direction: column;
   gap: 3px;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 12px;
   color: #4a4a60;
   pointer-events: auto;
 }
@@ -1839,7 +1839,7 @@ html, body, #root {
 .source-list-item:hover { background: var(--surface-hover); }
 .source-list-item.is-active { background: var(--accent-soft); }
 .source-list-item-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.source-list-item-chip { font-size: 9px; padding: 1px 6px; border-radius: 3px; }
+.source-list-item-chip { font-size: 11px; padding: 1px 6px; border-radius: 3px; }
 .source-list-item-chip.running { background: rgba(141, 134, 201, 0.22); color: var(--accent-soft); }
 .source-list-item-loaded-icon,
 .snapshot-row-loaded-icon {
@@ -1907,7 +1907,7 @@ html, body, #root {
 .snapshot-row-body { flex: 1; display: flex; align-items: center; gap: 8px; background: transparent; border: none; color: inherit; text-align: left; cursor: pointer; padding: 0; font: inherit; }
 .snapshot-row-body:disabled { cursor: default; }
 .snapshot-row-ts { font-size: var(--text-sm); min-width: 80px; }
-.snapshot-row-chip { font-size: 9px; padding: 2px 6px; border-radius: 3px; }
+.snapshot-row-chip { font-size: 11px; padding: 2px 6px; border-radius: 3px; }
 .snapshot-row-chip.status-completed { background: rgba(100,200,140,0.2); color: #7cd6a0; }
 .snapshot-row-chip.status-failed { background: rgba(220,100,100,0.2); color: #e07070; }
 .snapshot-row-chip.status-cancelled { background: rgba(200,150,90,0.2); color: #e0a870; }
@@ -1984,7 +1984,7 @@ html, body, #root {
 .sync-issues-inline-list { list-style: none; padding: 0; margin: 0; }
 .sync-issue {
   font-family: ui-monospace, monospace;
-  font-size: 10px;
+  font-size: 12px;
   padding: 6px 8px;
   border-left: 2px solid rgba(255,255,255,0.15);
   margin-bottom: 2px;
@@ -1996,7 +1996,7 @@ html, body, #root {
 .sync-issue.level-error .lvl { color: #e07070; }
 .sync-issue.level-warning .lvl { color: #e8b870; }
 .sync-issue.level-info .lvl { color: #a8bee0; }
-.sync-issue .meta { opacity: 0.45; font-size: 9px; }
+.sync-issue .meta { opacity: 0.45; font-size: 11px; }
 .sync-issue .msg { margin-top: 4px; white-space: pre-wrap; word-break: break-word; }
 .sync-issues-inline-truncation { margin-top: 6px; font-size: var(--text-xs); text-align: center; }
 
@@ -2009,7 +2009,7 @@ html, body, #root {
 }
 .unified-toolbar.unified-toolbar-empty { background: transparent; }
 .unified-toolbar-label {
-  font-size: 9px; opacity: 0.55;
+  font-size: 11px; opacity: 0.55;
   text-transform: uppercase; letter-spacing: 0.5px;
   padding-right: 6px;
 }
@@ -2034,7 +2034,7 @@ html, body, #root {
   border-radius: 7px;
   background: var(--accent-soft, #fcdebe);
   color: var(--bg, #1a1035);
-  font-size: 9px; font-weight: 700;
+  font-size: 11px; font-weight: 700;
   display: inline-flex; align-items: center; justify-content: center;
 }
 
@@ -2154,14 +2154,14 @@ html, body, #root {
   gap: var(--space-2);
   color: var(--accent);
   font-weight: 600;
-  font-size: 10px;
+  font-size: 12px;
   letter-spacing: 0.05em;
   text-transform: uppercase;
   margin-bottom: 4px;
 }
 .rail-export-btn {
   padding: 2px 6px;
-  font-size: 10px;
+  font-size: 12px;
   letter-spacing: normal;
   text-transform: none;
   font-weight: 500;
@@ -2182,7 +2182,7 @@ html, body, #root {
 }
 .currently-rendered-row:hover { background: rgba(34, 197, 94, 0.18); }
 .currently-rendered-label { grid-column: 1; grid-row: 1; font-weight: 500; }
-.currently-rendered-meta { grid-column: 1; grid-row: 2; font-size: 10px; }
+.currently-rendered-meta { grid-column: 1; grid-row: 2; font-size: 12px; }
 .currently-rendered-unload {
   grid-column: 2;
   grid-row: 1 / 3;
@@ -2199,7 +2199,7 @@ html, body, #root {
 /* ConfigDialog */
 .config-dialog { display: flex; flex-direction: column; gap: 14px; }
 .config-dialog section { display: flex; flex-direction: column; gap: 8px; }
-.config-section-label { color: var(--muted, #9ca3af); font-size: 10px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; }
+.config-section-label { color: var(--muted, #9ca3af); font-size: 12px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; }
 .config-field { display: flex; flex-direction: column; gap: 3px; }
 .config-field > span { font-size: 11px; color: var(--muted, #9ca3af); }
 .config-field input {
