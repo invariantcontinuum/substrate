@@ -38,41 +38,70 @@ html, body, #root {
   }
 }
 
-/* ---- Scrollbars ---- */
+/* ---- Scrollbars ----
+ * Universal editorial scrollbar: thin, warm-taupe thumb on a transparent
+ * track, slightly darker on hover. Applied to every scrollable surface
+ * so the treatment is consistent across the app. Tokens drive the
+ * colour so the thumb adapts per theme (muted taupe in light,
+ * soft cream in dark).
+ */
+html {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+*,
+*::before,
+*::after {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track,
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: var(--radius-pill);
+  /* Transparent inset border acts as padding around the thumb so the
+   * capsule sits a hair inside the track — feels more editorial. */
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--fg-muted);
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+
+/* Opt-in smooth-scroll + iOS momentum + bounded overscroll on content
+ * surfaces that actually scroll. Kept as an allowlist so page-level
+ * containers don't inherit momentum / overscroll-contain unnecessarily. */
 .dynamic-legend,
 .node-detail-body,
 .node-detail-neighbors,
 .dialog-content,
 .search-modal-results,
 .sources-schedules,
-.modal-body {
-  scrollbar-width: thin;
-  scrollbar-color: var(--border-strong) transparent;
+.modal-body,
+.sources-sidebar-list,
+.snapshot-list,
+.currently-rendered-rail,
+.sync-issues-inline,
+.top-nav-search-dropdown,
+.sources-settings-detail {
   -webkit-overflow-scrolling: touch;
   scroll-behavior: smooth;
   overscroll-behavior: contain;
-}
-
-.dynamic-legend::-webkit-scrollbar,
-.node-detail-body::-webkit-scrollbar,
-.node-detail-neighbors::-webkit-scrollbar,
-.dialog-content::-webkit-scrollbar,
-.search-modal-results::-webkit-scrollbar,
-.sources-schedules::-webkit-scrollbar,
-.modal-body::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-.dynamic-legend::-webkit-scrollbar-thumb,
-.node-detail-body::-webkit-scrollbar-thumb,
-.node-detail-neighbors::-webkit-scrollbar-thumb,
-.dialog-content::-webkit-scrollbar-thumb,
-.search-modal-results::-webkit-scrollbar-thumb,
-.sources-schedules::-webkit-scrollbar-thumb,
-.modal-body::-webkit-scrollbar-thumb {
-  background: var(--border-strong);
-  border-radius: var(--radius-pill);
 }
 
 /* Side nav: keep scroll behavior but suppress the visible bar — the
