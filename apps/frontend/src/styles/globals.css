@@ -2093,39 +2093,43 @@ html, body, #root {
   padding: 0 var(--space-2) var(--space-2);
 }
 
-/* Small / portrait screens: stack the three columns vertically and give
- * each one a bounded height so the page stays within the viewport and
- * every section scrolls inside its own card instead of one long page. */
+/* Small / portrait screens: stack the three columns vertically. Each
+ * section gets a pixel-floor min-height so its contents never get
+ * squeezed out of view on short viewports; when the stacked rows
+ * exceed the available height the whole body scrolls (rather than
+ * clipping the bottom of the detail pane). */
 @media (max-width: 1023.98px) {
   .sources-settings-body {
     grid-template-columns: 1fr;
-    /* Sources list | source detail (flex) | currently-rendered rail */
-    grid-template-rows: minmax(140px, 28vh) minmax(200px, 1fr) minmax(120px, 22vh);
+    /* Sources list | source detail (flex) | currently-rendered rail.
+     * Each row has a fixed px floor and grows with content — vh-based
+     * caps used to collapse rows below usability on landscape phones. */
+    grid-template-rows: minmax(220px, auto) minmax(320px, auto) minmax(160px, auto);
     gap: var(--space-3);
     padding: var(--space-2) var(--space-3) var(--space-3);
-    overflow: hidden;
+    overflow-y: auto;
   }
   .sources-settings-body > .sources-sidebar {
-    min-height: 0;
-    max-height: 100%;
+    min-height: 220px;
+    max-height: none;
     border-right: none;
     border-radius: var(--radius-md);
     border: 1px solid var(--border);
   }
   .sources-settings-body > .sources-settings-detail {
-    min-height: 0;
-    max-height: 100%;
+    min-height: 320px;
+    max-height: none;
     border-radius: var(--radius-md);
     border: 1px solid var(--border);
     background: var(--surface);
   }
   .sources-settings-body > .currently-rendered-rail {
-    min-height: 0;
-    max-height: 100%;
+    min-height: 160px;
+    max-height: none;
   }
   /* Relax row padding so entries are comfortable to tap */
   .source-list-item { padding: 12px 14px; gap: 10px; }
-  .snapshot-list { max-height: none; padding: var(--space-3); }
+  .snapshot-list { max-height: none; min-height: 240px; padding: var(--space-3); }
   .snapshot-row-summary { padding: 10px 2px; }
 }
 .sources-settings-detail {
