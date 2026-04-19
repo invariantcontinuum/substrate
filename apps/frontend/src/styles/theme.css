@@ -1,90 +1,124 @@
 /* =============================================================
  * theme.css
  * Design tokens, palette, typography and theme variants for
- * Substrate's editorial glass UI.
+ * Substrate's editorial portal UI.
  *
- *   Palette:
- *     Shadow Grey        #231f20   warm near-black
- *     Verdigris Teal     #2f7a6f   patinaed-copper primary accent
- *     Burnished Clay     #a64a35   earthen terracotta secondary
- *     Vanilla Custard    #f3dfa2   warm highlight
- *     Linen              #efe6dd   warm off-white paper
+ *   Direction: a calm, premium, editorial access portal for a
+ *   security platform. Print-inspired in the light, art-directed
+ *   midnight in the dark. Restrained, deliberate, slightly bespoke.
+ *   No glassmorphism, no neon, no purple, no marketing flourish.
  *
- *   Aesthetic direction: editorial, grounded, slightly nostalgic.
- *   Warmth from linen/vanilla is balanced by a deep patina teal and
- *   a burnished-clay secondary — a mid-century editorial pairing
- *   (teal × terracotta, think Eames or William Morris). Surfaces
- *   read as glass panes laid on paper (light) or over warm shadow
- *   (dark). Nothing here is neon; nothing here is purely grey. Every
- *   surface carries a little hue.
+ *   Light theme:
+ *     Background:  warm parchment with soft atmospheric gradients
+ *     Card:        ivory / soft paper white
+ *     Inputs:      slightly darker warm neutral fill
+ *     Borders:     muted taupe / sand
+ *     Accent:      deep navy blue
+ *     Text:        dark espresso-charcoal on warm muted gray
  *
- *   Dark theme lives on Shadow Grey with Linen foreground and
- *   Verdigris Teal as the primary accent; Vanilla Custard is the
- *   rare pop that marks focus and highlight.
+ *   Dark theme (auth + system):
+ *     Background:  deep midnight navy-charcoal w/ subtle teal glow
+ *     Surface:     dark blue-black panels
+ *     Accent:      antique gold / brass
+ *     Text:        warm off-white on muted gray
  *
- *   Light theme lives on Linen with Shadow Grey foreground and
- *   Verdigris Teal as the primary accent; Burnished Clay provides
- *   the secondary voice.
+ *   Typography:
+ *     Display: Fraunces — italic, light to regular, for brand
+ *              moments and section titles only.
+ *     Sans:    Instrument Sans — for all UI, labels, body, buttons,
+ *              alerts, navigation. Restrained sizing throughout.
  *
  * Themes are switched by setting `data-theme="dark" | "light"` on
- * <html>. All surfaces use tokens from this file; globals.css only
- * references `var(--...)`.
+ * <html>. With no attribute set, prefers-color-scheme decides.
  * ============================================================ */
 
-@import url("https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:wght@400;500&display=swap");
 
 :root {
-  /* ---- Raw palette ---- */
-  --palette-shadow-grey:     #231f20;
-  --palette-stormy-teal:     #2f7a6f;   /* Verdigris Teal — patinaed copper */
-  --palette-soft-periwinkle: #a64a35;   /* Burnished Clay — earthen terracotta */
-  --palette-vanilla-custard: #f3dfa2;
-  --palette-linen:           #efe6dd;
+  /* ---- Raw palette: warm parchment side ---- */
+  --palette-parchment:        #efe6d6;   /* page bg, warm beige */
+  --palette-parchment-deep:   #e6dbc7;   /* gradient stop, deeper sand */
+  --palette-ivory:            #faf5ec;   /* card surface, soft paper white */
+  --palette-bone:             #f3ecdf;   /* input fill, slightly darker neutral */
+  --palette-bone-deep:        #e8dec9;   /* sunken / pressed surface */
+  --palette-taupe:            #c8b89c;   /* muted taupe / sand border */
+  --palette-taupe-strong:     #a89678;   /* stronger border / divider */
+  --palette-espresso:         #2a221c;   /* primary text, dark espresso-charcoal */
+  --palette-espresso-soft:    #4a3f36;   /* secondary text accent */
+  --palette-warm-gray:        #7a6e62;   /* muted warm gray for body */
+  --palette-warm-gray-soft:   #9a8d7e;   /* subtle warm gray */
 
-  /* ---- Derived tints for depth & contrast ---- */
-  --palette-shadow-deep:      #1b1718;   /* deeper shadow for gradient stops */
-  --palette-shadow-lift:      #2b2627;   /* lifted shadow for solid surfaces */
-  --palette-linen-bright:     #f8f1e9;   /* brighter linen for lifted surfaces */
-  --palette-linen-deep:       #e4d9cb;   /* deeper linen for gradient stops */
-  --palette-teal-deep:        #1c554e;   /* deeper verdigris for light-mode hovers */
-  --palette-teal-bright:      #6fb5a7;   /* lifted verdigris for dark-mode accents */
-  --palette-periwinkle-deep:  #74301f;   /* deeper clay for light-mode contrast */
-  --palette-periwinkle-bright:#d88a73;   /* lifted clay for dark-mode accents */
-  --palette-vanilla-deep:     #c59e3a;   /* deeper vanilla for light-mode contrast */
-  --palette-vanilla-bright:   #f5e4b3;   /* lighter vanilla for dark-mode soft-fills */
+  /* ---- Raw palette: deep navy accent (light mode primary) ---- */
+  --palette-navy:             #1c2c4e;   /* deep navy blue accent */
+  --palette-navy-deep:        #122039;   /* hover / pressed accent */
+  --palette-navy-soft:        #3a4d72;   /* lifted navy */
+  --palette-navy-tint:        rgba(28, 44, 78, 0.10);  /* tinted backgrounds */
 
-  /* Status hues derived so they sit inside the palette rather than clashing */
-  --palette-danger-light:     #a43b3b;   /* muted burgundy for light mode */
-  --palette-danger-dark:      #e6706b;   /* lighter red for dark mode readability */
+  /* ---- Raw palette: midnight side (dark mode) ---- */
+  --palette-midnight:         #0e1622;   /* page bg, midnight navy-charcoal */
+  --palette-midnight-deep:    #080d17;   /* gradient stop, deeper midnight */
+  --palette-midnight-lift:    #131c2c;   /* surface, dark blue-black */
+  --palette-midnight-soft:    #1a2438;   /* elevated surface */
+  --palette-midnight-input:   #182338;   /* input fill on dark */
+
+  /* ---- Raw palette: antique gold (dark mode primary) ---- */
+  --palette-brass:            #c39b54;   /* antique gold / brass accent */
+  --palette-brass-deep:       #a37e3a;   /* hover */
+  --palette-brass-soft:       #d6b577;   /* lifted brass */
+  --palette-brass-tint:       rgba(195, 155, 84, 0.14);
+
+  /* ---- Off-white text on dark ---- */
+  --palette-cream:            #ece4d2;   /* warm off-white */
+  --palette-cream-soft:       #d6cdb9;   /* secondary cream */
+  --palette-stone:            #8c8474;   /* muted gray secondary text on dark */
+  --palette-stone-soft:       #6a6357;   /* subtler stone */
+
+  /* ---- Subtle teal atmospheric tint (dark bg glow only) ---- */
+  --palette-teal-glow:        rgba(80, 134, 142, 0.18);
+
+  /* ---- Status semantics ---- */
+  --palette-status-success-l: #4a7a5a;   /* mossy green for light */
+  --palette-status-success-d: #8aae93;   /* lifted moss for dark */
+  --palette-status-warn-l:    #b8843a;   /* burnt amber for light */
+  --palette-status-warn-d:    #d6a868;   /* warm amber for dark */
+  --palette-status-danger-l:  #a13b3b;   /* muted burgundy for light */
+  --palette-status-danger-d:  #d97a76;   /* lifted red for dark */
+  --palette-status-info-l:    #3a5a82;   /* steel blue for light */
+  --palette-status-info-d:    #8ab0d4;   /* sky steel for dark */
 
   /* ---- Typography ---- */
   --font-display: "Fraunces", ui-serif, Georgia, "Iowan Old Style", serif;
-  --font-sans:    "Manrope", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-sans:    "Instrument Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono:    "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
+  --fw-light:     300;
   --fw-regular:   400;
   --fw-medium:    500;
   --fw-semibold:  600;
   --fw-bold:      700;
 
+  /* Editorial scale — restrained; no oversized hero jumps */
   --text-2xs: 11px;
   --text-xs:  12px;
   --text-sm:  13px;
   --text-base: 14px;
   --text-md:  15px;
   --text-lg:  17px;
-  --text-xl:  22px;
-  --text-2xl: 28px;
-  --text-3xl: 36px;
+  --text-xl:  20px;
+  --text-2xl: 24px;
+  --text-3xl: 30px;
 
-  --leading-tight:  1.2;
+  --leading-tight:  1.18;
   --leading-snug:   1.35;
-  --leading-normal: 1.5;
-  --leading-loose:  1.7;
+  --leading-normal: 1.55;
+  --leading-loose:  1.75;
 
-  --tracking-tight:  -0.02em;
+  --tracking-tightest: -0.025em;
+  --tracking-tight:  -0.012em;
   --tracking-normal: 0;
   --tracking-wide:   0.06em;
+  --tracking-wider:  0.10em;     /* uppercase micro-labels */
+  --tracking-widest: 0.18em;     /* brand wordmark */
 
   /* ---- Spatial scale (4-based) ---- */
   --space-1: 4px;
@@ -97,25 +131,26 @@
   --space-8: 40px;
   --space-9: 56px;
 
-  /* ---- Radii ---- */
-  --radius-xs:   4px;
-  --radius-sm:   6px;
-  --radius-md:  10px;
-  --radius-lg:  16px;
-  --radius-xl:  22px;
+  /* ---- Radii — soft, never overly rounded ---- */
+  --radius-xs:   2px;
+  --radius-sm:   4px;
+  --radius-md:   6px;
+  --radius-lg:   8px;
+  --radius-xl:  12px;
   --radius-pill: 999px;
 
-  /* ---- Motion ---- */
+  /* ---- Motion: minimal, disciplined ---- */
   --ease-out:   cubic-bezier(0.22, 1, 0.36, 1);
   --ease-inout: cubic-bezier(0.65, 0, 0.35, 1);
   --dur-fast: 140ms;
-  --dur-base: 260ms;
-  --dur-slow: 460ms;
+  --dur-base: 220ms;
+  --dur-slow: 360ms;
 
-  /* ---- Glass / blur ---- */
-  --blur-sm: 10px;
-  --blur-md: 18px;
-  --blur-lg: 28px;
+  /* ---- Blur: zeroed — the editorial direction excludes glassmorphism.
+     Tokens kept so legacy call sites compile to a no-op. ---- */
+  --blur-sm: 0px;
+  --blur-md: 0px;
+  --blur-lg: 0px;
 
   /* ---- Z-index ---- */
   --z-nav: 10;
@@ -125,134 +160,248 @@
   --z-modal: 51;
   --z-tooltip: 60;
 
-  /* ---- Default to light theme ---- */
+  /* ---- Card chrome: thin border + slightly stronger top accent ---- */
+  --card-radius: var(--radius-lg);
+  --card-border-width: 1px;
+  --card-top-accent-width: 2px;
+
   color-scheme: light;
 }
 
 /* =================================================================
- * LIGHT — Linen paper, Shadow Grey ink, Stormy Teal primary accent,
- *          Soft Periwinkle secondary, Vanilla Custard warm detail.
+ * LIGHT — Warm parchment ground, ivory cards, deep navy primary,
+ *          espresso-charcoal text, muted taupe borders.
+ *          Print-inspired, tactile, like high-end stationery.
  * ============================================================== */
 :root,
 :root[data-theme="light"] {
   color-scheme: light;
 
-  --fg:           var(--palette-shadow-grey);
-  --fg-muted:     rgba(35, 31, 32, 0.65);
-  --fg-subtle:    rgba(35, 31, 32, 0.45);
-  --fg-on-accent: var(--palette-linen);
+  /* ---- Foreground ---- */
+  --fg:           var(--palette-espresso);
+  --fg-muted:     var(--palette-warm-gray);
+  --fg-subtle:    var(--palette-warm-gray-soft);
+  --fg-on-accent: var(--palette-ivory);
 
-  --bg:           var(--palette-linen);
+  /* ---- Background — layered radial atmospheric gradients on parchment ---- */
+  --bg:           var(--palette-parchment);
   --bg-gradient:
-    radial-gradient(ellipse 75% 55% at 20% 10%,  rgba(166,  74,  53, 0.15) 0%, transparent 58%),
-    radial-gradient(ellipse 65% 55% at 85% 15%,  rgba( 47, 122, 111, 0.20) 0%, transparent 60%),
-    radial-gradient(ellipse 90% 70% at 50% 95%,  rgba(243, 223, 162, 0.34) 0%, transparent 70%),
-    linear-gradient(180deg, #efe6dd 0%, #e4d9cb 100%);
+    radial-gradient(ellipse 80% 60% at 18% 12%,  rgba(28,  44,  78, 0.08) 0%, transparent 62%),
+    radial-gradient(ellipse 70% 60% at 86% 22%,  rgba(195, 155, 84, 0.10) 0%, transparent 64%),
+    radial-gradient(ellipse 100% 75% at 50% 100%, rgba(168, 150, 120, 0.18) 0%, transparent 70%),
+    linear-gradient(180deg, #efe6d6 0%, #e6dbc7 100%);
 
-  --surface:          rgba(248, 241, 233, 0.58);
-  --surface-solid:    #ffffff;
-  --surface-elevated: rgba(248, 241, 233, 0.85);
-  --surface-sunken:   rgba(35, 31, 32, 0.05);
-  --surface-hover:    rgba(47, 122, 111, 0.13);
+  /* ---- Surfaces ---- */
+  --surface:          var(--palette-ivory);
+  --surface-solid:    var(--palette-ivory);
+  --surface-elevated: #fdfaf3;
+  --surface-sunken:   var(--palette-bone);
+  --surface-input:    var(--palette-bone);
+  --surface-hover:    rgba(28, 44, 78, 0.06);
+  --surface-pressed:  rgba(28, 44, 78, 0.10);
 
-  --border:         rgba(35, 31, 32, 0.18);
-  --border-strong:  rgba(35, 31, 32, 0.32);
-  --border-soft:    rgba(35, 31, 32, 0.08);
+  /* ---- Borders ---- */
+  --border:         rgba(168, 150, 120, 0.55);
+  --border-strong:  rgba(106, 90, 66, 0.55);
+  --border-soft:    rgba(168, 150, 120, 0.28);
 
-  --accent:           var(--palette-stormy-teal);
-  --accent-soft:      var(--palette-soft-periwinkle);
-  --accent-contrast:  var(--palette-linen);
-  --accent-hover:     var(--palette-teal-deep);
-  --accent-highlight: var(--palette-vanilla-custard);
+  /* ---- Accent: deep navy blue ---- */
+  --accent:           var(--palette-navy);
+  --accent-soft:      var(--palette-navy-soft);
+  --accent-tint:      var(--palette-navy-tint);
+  --accent-contrast:  var(--palette-ivory);
+  --accent-hover:     var(--palette-navy-deep);
+  --accent-highlight: var(--palette-brass);     /* warm second voice */
 
-  --info:    var(--palette-soft-periwinkle);
-  --success: var(--palette-stormy-teal);
-  --warn:    var(--palette-vanilla-deep);
-  --danger:  var(--palette-danger-light);
+  /* ---- Status ---- */
+  --info:    var(--palette-status-info-l);
+  --success: var(--palette-status-success-l);
+  --warn:    var(--palette-status-warn-l);
+  --danger:  var(--palette-status-danger-l);
 
-  --focus-ring: rgba(47, 122, 111, 0.55);
+  /* ---- Focus ring: translucent navy ---- */
+  --focus-ring: rgba(28, 44, 78, 0.32);
+  --focus-ring-strong: rgba(28, 44, 78, 0.55);
 
-  --scrim: rgba(35, 31, 32, 0.35);
+  --scrim: rgba(28, 30, 36, 0.42);
 
-  --glass-bg:        rgba(248, 241, 233, 0.55);
-  --glass-bg-strong: rgba(248, 241, 233, 0.78);
-  --glass-border:    rgba(255, 255, 255, 0.58);
-  --glass-shadow:    0 22px 60px -20px rgba(35, 31, 32, 0.32),
-                     0 1px 0 0 rgba(255, 255, 255, 0.65) inset;
+  /* ---- "Glass" tokens repurposed as clean opaque editorial surfaces.
+        Same names so legacy call sites continue to render correctly,
+        but now they read as solid panels with a thin border and a
+        subtle paper shadow — no blur, no glassmorphism. ---- */
+  --glass-bg:        var(--palette-ivory);
+  --glass-bg-strong: var(--surface-elevated);
+  --glass-border:    rgba(168, 150, 120, 0.55);
+  --glass-shadow:
+    0 1px 0 0 rgba(255, 252, 244, 0.6) inset,
+    0 8px 24px -16px rgba(50, 40, 28, 0.18),
+    0 1px 2px rgba(50, 40, 28, 0.06);
 
-  --status-on:  var(--palette-shadow-grey);
-  --status-off: rgba(35, 31, 32, 0.22);
+  /* ---- Card top accent ---- */
+  --card-top-accent: var(--palette-navy);
 
-  /* Graph canvas surface — paper-like linen with subtle grid */
-  --graph-canvas-bg:   var(--palette-linen);
-  --graph-grid-line:   rgba(35, 31, 32, 0.08);
+  /* ---- Status indicators ---- */
+  --status-on:  var(--palette-navy);
+  --status-off: rgba(120, 105, 85, 0.35);
+
+  /* ---- Graph canvas — paper-like with subtle warm grid ---- */
+  --graph-canvas-bg:   var(--palette-parchment);
+  --graph-grid-line:   rgba(106, 90, 66, 0.10);
 }
 
 /* =================================================================
- * DARK — Shadow Grey surface, Linen ink, Stormy Teal primary accent,
- *         Soft Periwinkle secondary, Vanilla Custard highlight pop.
+ * DARK — Midnight navy-charcoal ground, dark blue-black surfaces,
+ *         antique gold accent, warm off-white text. Subtle teal
+ *         atmospheric glow lives only in the page backdrop.
+ *         Premium, art-directed, never neon.
  * ============================================================== */
 :root[data-theme="dark"] {
   color-scheme: dark;
 
-  --fg:           var(--palette-linen);
-  --fg-muted:     rgba(239, 230, 221, 0.7);
-  --fg-subtle:    rgba(239, 230, 221, 0.5);
-  --fg-on-accent: var(--palette-linen);
+  /* ---- Foreground ---- */
+  --fg:           var(--palette-cream);
+  --fg-muted:     var(--palette-stone);
+  --fg-subtle:    var(--palette-stone-soft);
+  --fg-on-accent: var(--palette-midnight-deep);
 
-  --bg:           var(--palette-shadow-grey);
+  /* ---- Background — midnight + subtle teal glow + brass kiss ---- */
+  --bg:           var(--palette-midnight);
   --bg-gradient:
-    radial-gradient(ellipse 70% 60% at 15% 10%,  rgba(111, 181, 167, 0.26) 0%, transparent 58%),
-    radial-gradient(ellipse 65% 55% at 90% 20%,  rgba(216, 138, 115, 0.22) 0%, transparent 58%),
-    radial-gradient(ellipse 90% 70% at 50% 100%, rgba( 27,  23,  24, 0.95) 0%, transparent 65%),
-    linear-gradient(180deg, #231f20 0%, #1b1718 100%);
+    radial-gradient(ellipse 65% 55% at 12% 8%,   rgba(80, 134, 142, 0.18) 0%, transparent 60%),
+    radial-gradient(ellipse 55% 50% at 92% 18%,  rgba(195, 155, 84, 0.10) 0%, transparent 62%),
+    radial-gradient(ellipse 90% 70% at 50% 100%, rgba(8, 13, 23, 0.92) 0%, transparent 70%),
+    linear-gradient(180deg, #0e1622 0%, #080d17 100%);
 
-  --surface:          rgba(43, 38, 39, 0.55);
-  --surface-solid:    #2b2627;
-  --surface-elevated: rgba(239, 230, 221, 0.06);
-  --surface-sunken:   rgba(0, 0, 0, 0.32);
-  --surface-hover:    rgba(111, 181, 167, 0.22);
+  /* ---- Surfaces ---- */
+  --surface:          var(--palette-midnight-lift);
+  --surface-solid:    var(--palette-midnight-lift);
+  --surface-elevated: var(--palette-midnight-soft);
+  --surface-sunken:   var(--palette-midnight-deep);
+  --surface-input:    var(--palette-midnight-input);
+  --surface-hover:    rgba(195, 155, 84, 0.10);
+  --surface-pressed:  rgba(195, 155, 84, 0.16);
 
-  --border:         rgba(239, 230, 221, 0.15);
-  --border-strong:  rgba(239, 230, 221, 0.32);
-  --border-soft:    rgba(239, 230, 221, 0.08);
+  /* ---- Borders ---- */
+  --border:         rgba(236, 228, 210, 0.12);
+  --border-strong:  rgba(236, 228, 210, 0.24);
+  --border-soft:    rgba(236, 228, 210, 0.06);
 
-  --accent:           var(--palette-stormy-teal);
-  --accent-soft:      var(--palette-soft-periwinkle);
-  --accent-contrast:  var(--palette-shadow-grey);
-  --accent-hover:     var(--palette-teal-bright);
-  --accent-highlight: var(--palette-vanilla-custard);
+  /* ---- Accent: antique gold / brass ---- */
+  --accent:           var(--palette-brass);
+  --accent-soft:      var(--palette-brass-soft);
+  --accent-tint:      var(--palette-brass-tint);
+  --accent-contrast:  var(--palette-midnight-deep);
+  --accent-hover:     var(--palette-brass-soft);
+  --accent-highlight: var(--palette-cream);
 
-  --info:    var(--palette-soft-periwinkle);
-  --success: var(--palette-stormy-teal);
-  --warn:    var(--palette-vanilla-custard);
-  --danger:  var(--palette-danger-dark);
+  /* ---- Status ---- */
+  --info:    var(--palette-status-info-d);
+  --success: var(--palette-status-success-d);
+  --warn:    var(--palette-status-warn-d);
+  --danger:  var(--palette-status-danger-d);
 
-  --focus-ring: rgba(111, 181, 167, 0.65);
+  /* ---- Focus ring: translucent brass ---- */
+  --focus-ring: rgba(195, 155, 84, 0.38);
+  --focus-ring-strong: rgba(195, 155, 84, 0.60);
 
-  --scrim: rgba(10, 8, 8, 0.65);
+  --scrim: rgba(4, 8, 14, 0.72);
 
-  --glass-bg:        rgba(43, 38, 39, 0.48);
-  --glass-bg-strong: rgba(43, 38, 39, 0.78);
-  --glass-border:    rgba(239, 230, 221, 0.2);
-  --glass-shadow:    0 32px 70px -24px rgba(0, 0, 0, 0.7),
-                     0 1px 0 0 rgba(239, 230, 221, 0.1) inset;
+  /* ---- "Glass" tokens — solid midnight panels with a hairline border ---- */
+  --glass-bg:        var(--palette-midnight-lift);
+  --glass-bg-strong: var(--palette-midnight-soft);
+  --glass-border:    rgba(236, 228, 210, 0.12);
+  --glass-shadow:
+    0 1px 0 0 rgba(236, 228, 210, 0.04) inset,
+    0 16px 48px -24px rgba(0, 0, 0, 0.7),
+    0 1px 2px rgba(0, 0, 0, 0.4);
 
-  --status-on:  var(--palette-linen);
-  --status-off: rgba(239, 230, 221, 0.28);
+  /* ---- Card top accent ---- */
+  --card-top-accent: var(--palette-brass);
 
-  /* Graph canvas surface — deep shadow with faint linen grid */
-  --graph-canvas-bg:   var(--palette-shadow-grey);
-  --graph-grid-line:   rgba(239, 230, 221, 0.08);
+  /* ---- Status indicators ---- */
+  --status-on:  var(--palette-brass);
+  --status-off: rgba(236, 228, 210, 0.18);
+
+  /* ---- Graph canvas — deep midnight with faint cream grid ---- */
+  --graph-canvas-bg:   var(--palette-midnight);
+  --graph-grid-line:   rgba(236, 228, 210, 0.06);
 }
 
-/* ---- Smooth cross-theme transitions for surface colours ---- */
+/* =================================================================
+ * Automatic dark mode via prefers-color-scheme. Only applies when
+ * the user has NOT set data-theme explicitly. The rule fires when
+ * data-theme attribute is absent; explicit data-theme="light" or
+ * data-theme="dark" wins because it has higher specificity above.
+ * ============================================================== */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    color-scheme: dark;
+
+    --fg:           var(--palette-cream);
+    --fg-muted:     var(--palette-stone);
+    --fg-subtle:    var(--palette-stone-soft);
+    --fg-on-accent: var(--palette-midnight-deep);
+
+    --bg:           var(--palette-midnight);
+    --bg-gradient:
+      radial-gradient(ellipse 65% 55% at 12% 8%,   rgba(80, 134, 142, 0.18) 0%, transparent 60%),
+      radial-gradient(ellipse 55% 50% at 92% 18%,  rgba(195, 155, 84, 0.10) 0%, transparent 62%),
+      radial-gradient(ellipse 90% 70% at 50% 100%, rgba(8, 13, 23, 0.92) 0%, transparent 70%),
+      linear-gradient(180deg, #0e1622 0%, #080d17 100%);
+
+    --surface:          var(--palette-midnight-lift);
+    --surface-solid:    var(--palette-midnight-lift);
+    --surface-elevated: var(--palette-midnight-soft);
+    --surface-sunken:   var(--palette-midnight-deep);
+    --surface-input:    var(--palette-midnight-input);
+    --surface-hover:    rgba(195, 155, 84, 0.10);
+    --surface-pressed:  rgba(195, 155, 84, 0.16);
+
+    --border:         rgba(236, 228, 210, 0.12);
+    --border-strong:  rgba(236, 228, 210, 0.24);
+    --border-soft:    rgba(236, 228, 210, 0.06);
+
+    --accent:           var(--palette-brass);
+    --accent-soft:      var(--palette-brass-soft);
+    --accent-tint:      var(--palette-brass-tint);
+    --accent-contrast:  var(--palette-midnight-deep);
+    --accent-hover:     var(--palette-brass-soft);
+    --accent-highlight: var(--palette-cream);
+
+    --info:    var(--palette-status-info-d);
+    --success: var(--palette-status-success-d);
+    --warn:    var(--palette-status-warn-d);
+    --danger:  var(--palette-status-danger-d);
+
+    --focus-ring: rgba(195, 155, 84, 0.38);
+    --focus-ring-strong: rgba(195, 155, 84, 0.60);
+
+    --scrim: rgba(4, 8, 14, 0.72);
+
+    --glass-bg:        var(--palette-midnight-lift);
+    --glass-bg-strong: var(--palette-midnight-soft);
+    --glass-border:    rgba(236, 228, 210, 0.12);
+    --glass-shadow:
+      0 1px 0 0 rgba(236, 228, 210, 0.04) inset,
+      0 16px 48px -24px rgba(0, 0, 0, 0.7),
+      0 1px 2px rgba(0, 0, 0, 0.4);
+
+    --card-top-accent: var(--palette-brass);
+
+    --status-on:  var(--palette-brass);
+    --status-off: rgba(236, 228, 210, 0.18);
+
+    --graph-canvas-bg: var(--palette-midnight);
+    --graph-grid-line: rgba(236, 228, 210, 0.06);
+  }
+}
+
+/* ---- Cross-theme transitions: subtle, restrained ---- */
 :root {
   transition: background-color var(--dur-base) var(--ease-out),
               color var(--dur-base) var(--ease-out);
 }
 
-/* Elements that cross themes should animate their glass/bg softly. */
 .themed-transition,
 .top-nav,
 .side-nav,
@@ -270,6 +419,27 @@
     background-color var(--dur-base) var(--ease-out),
     border-color var(--dur-base) var(--ease-out),
     color var(--dur-base) var(--ease-out),
-    box-shadow var(--dur-base) var(--ease-out),
-    backdrop-filter var(--dur-base) var(--ease-out);
+    box-shadow var(--dur-base) var(--ease-out);
+}
+
+/* ---- Reduced motion: respect user preference ---- */
+@media (prefers-reduced-motion: reduce) {
+  :root,
+  .themed-transition,
+  .top-nav,
+  .side-nav,
+  .dashboard-main,
+  .graph-canvas-wrapper,
+  .graph-canvas-container,
+  .dialog-content,
+  .dialog-overlay,
+  .node-detail-panel,
+  .dynamic-legend,
+  .ui-button,
+  .ui-input,
+  .ui-badge {
+    transition: none !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }
