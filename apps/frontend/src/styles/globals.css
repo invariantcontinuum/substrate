@@ -172,7 +172,6 @@ html, body, #root {
   border-radius: var(--radius-lg);
   background: var(--glass-bg);
   border: 1px solid var(--glass-border);
-  border-top: 2px solid var(--card-top-accent);
   box-shadow: var(--glass-shadow);
   flex-shrink: 0;
 }
@@ -240,18 +239,39 @@ html, body, #root {
   box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
-.top-nav-search input {
+/* The search slot hosts a ui-input primitive; strip the primitive's own
+ * 42px height, fill, border, and focus ring so it renders as a flush
+ * inline field inside the 36px pill-less search container. The outer
+ * .top-nav-search owns the border + focus-ring treatment. */
+.top-nav-search input,
+.top-nav-search .ui-input {
   border: 0;
   outline: 0;
   background: transparent;
   flex: 1;
   min-width: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
   font-size: var(--text-sm);
   font-family: var(--font-sans);
   color: var(--fg);
+  box-shadow: none;
+  border-radius: 0;
 }
 
-.top-nav-search input::placeholder {
+.top-nav-search input:focus,
+.top-nav-search .ui-input:focus,
+.top-nav-search input:hover,
+.top-nav-search .ui-input:hover {
+  border: 0;
+  outline: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.top-nav-search input::placeholder,
+.top-nav-search .ui-input::placeholder {
   color: var(--fg-subtle);
 }
 
