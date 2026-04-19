@@ -111,11 +111,20 @@ export function useSyncs() {
     client.on("sync_progress", (ev) => {
       const sid = ev.sync_id;
       if (!sid) return;
+      const prev = qc.getQueryData<{ items: SyncRun[] }>(["syncs", "active"]);
+      // If the sync isn't in cache yet — e.g. a just-triggered run whose
+      // lifecycle "running" event hasn't refetched the list yet — fall back
+      // to invalidation so the row appears. In-place patching only makes
+      // sense for rows we already hold.
+      if (!prev?.items.some((r) => r.id === sid)) {
+        invalidate();
+        return;
+      }
       const p = ev.payload ?? {};
-      qc.setQueryData<{ items: SyncRun[] }>(["syncs", "active"], (prev) => {
-        if (!prev) return prev;
+      qc.setQueryData<{ items: SyncRun[] }>(["syncs", "active"], (curr) => {
+        if (!curr) return curr;
         let changed = false;
-        const items = prev.items.map((r) => {
+        const items = curr.items.map((r) => {
           if (r.id !== sid) return r;
           changed = true;
           return {
@@ -125,7 +134,7 @@ export function useSyncs() {
             progress_meta: (p.progress_meta as SyncProgressMeta | undefined) ?? r.progress_meta,
           };
         });
-        return changed ? { ...prev, items } : prev;
+        return changed ? { ...curr, items } : curr;
       });
     });
     client.on("token_expired", () => client.close());

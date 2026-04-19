@@ -50,13 +50,23 @@ export function useSourceSyncs(sourceId: string | null, status?: string) {
     client.on("sync_progress", (ev) => {
       const sid = ev.sync_id;
       if (!sid) return;
+      const prev = qc.getQueryData<{ pages: SyncsPage[]; pageParams: unknown[] }>(queryKey);
+      const existsInCache =
+        prev?.pages.some((page) => page.items.some((r) => r.id === sid)) ?? false;
+      // New sync that hasn't made it into any page yet → invalidate so the
+      // row appears (same reasoning as useSyncs). Patching silently would
+      // drop progress for syncs triggered moments ago.
+      if (!existsInCache) {
+        invalidate();
+        return;
+      }
       const p = ev.payload ?? {};
       qc.setQueryData<{ pages: SyncsPage[]; pageParams: unknown[] }>(
         queryKey,
-        (prev) => {
-          if (!prev) return prev;
+        (curr) => {
+          if (!curr) return curr;
           let anyChanged = false;
-          const pages = prev.pages.map((page) => {
+          const pages = curr.pages.map((page) => {
             let pageChanged = false;
             const items = page.items.map((r) => {
               if (r.id !== sid) return r;
@@ -71,7 +81,7 @@ export function useSourceSyncs(sourceId: string | null, status?: string) {
             if (pageChanged) anyChanged = true;
             return pageChanged ? { ...page, items } : page;
           });
-          return anyChanged ? { ...prev, pages } : prev;
+          return anyChanged ? { ...curr, pages } : curr;
         },
       );
     });

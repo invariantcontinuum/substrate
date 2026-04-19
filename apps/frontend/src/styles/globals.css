@@ -45,7 +45,6 @@ html, body, #root {
 .dialog-content,
 .search-modal-results,
 .sources-schedules,
-.side-nav,
 .modal-body {
   scrollbar-width: thin;
   scrollbar-color: var(--border-strong) transparent;
@@ -60,7 +59,6 @@ html, body, #root {
 .dialog-content::-webkit-scrollbar,
 .search-modal-results::-webkit-scrollbar,
 .sources-schedules::-webkit-scrollbar,
-.side-nav::-webkit-scrollbar,
 .modal-body::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -72,11 +70,22 @@ html, body, #root {
 .dialog-content::-webkit-scrollbar-thumb,
 .search-modal-results::-webkit-scrollbar-thumb,
 .sources-schedules::-webkit-scrollbar-thumb,
-.side-nav::-webkit-scrollbar-thumb,
 .modal-body::-webkit-scrollbar-thumb {
   background: var(--border-strong);
   border-radius: var(--radius-pill);
 }
+
+/* Side nav: keep scroll behavior but suppress the visible bar — the
+ * rail is narrow and any scrollbar looks more like a visual defect
+ * than an affordance. */
+.side-nav {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  overscroll-behavior: contain;
+}
+.side-nav::-webkit-scrollbar { display: none; width: 0; height: 0; }
 
 /* ---- Layout ---- */
 .dashboard {

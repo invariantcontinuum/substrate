@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { LayoutGrid, Maximize2, ZoomIn, ZoomOut } from "lucide-react";
 import { useGraphStore } from "@/stores/graph";
 import { useUIStore } from "@/stores/ui";
 import { useThemeStore } from "@/stores/theme";
@@ -569,6 +570,33 @@ export function GraphCanvas() {
     return () => { cancelled = true; };
   }, [elementsWithParents, filtered.nodes.length, ready, isMobile, finalizeLoad]);
 
+  const runRelayout = useCallback(() => {
+    const cy = cyRef.current;
+    const container = containerRef.current;
+    if (!cy || !container) return;
+    const childNodeCount = cy.nodes(":childless").length;
+    if (childNodeCount === 0) return;
+    const vw = container.clientWidth || 1600;
+    const vh = container.clientHeight || 900;
+    const aspectPx = Math.max(0.25, vw / vh);
+    const cols = Math.max(
+      1,
+      Math.ceil(Math.sqrt(childNodeCount * aspectPx * (CELL_H / CELL_W))),
+    );
+    const rows = Math.max(1, Math.ceil(childNodeCount / cols));
+    cy.layout({
+      name: "grid",
+      fit: true,
+      padding: 30,
+      avoidOverlap: true,
+      avoidOverlapPadding: 10,
+      condense: false,
+      rows,
+      cols,
+      animate: false,
+    } as cytoscape.LayoutOptions).run();
+  }, []);
+
   /* Re-layout on container resize transitions.
    *
    * When a user loads a snapshot from the Sources page, the graph canvas
@@ -580,34 +608,9 @@ export function GraphCanvas() {
    * against significant window resizes leaving the graph off-axis. */
   useEffect(() => {
     if (!ready || !cyRef.current || !containerRef.current) return;
-    const cy = cyRef.current;
     const container = containerRef.current;
     let lastW = container.clientWidth;
     let lastH = container.clientHeight;
-
-    const relayout = () => {
-      const childNodeCount = cy.nodes(":childless").length;
-      if (childNodeCount === 0) return;
-      const vw = container.clientWidth || 1600;
-      const vh = container.clientHeight || 900;
-      const aspectPx = Math.max(0.25, vw / vh);
-      const cols = Math.max(
-        1,
-        Math.ceil(Math.sqrt(childNodeCount * aspectPx * (CELL_H / CELL_W))),
-      );
-      const rows = Math.max(1, Math.ceil(childNodeCount / cols));
-      cy.layout({
-        name: "grid",
-        fit: true,
-        padding: 30,
-        avoidOverlap: true,
-        avoidOverlapPadding: 10,
-        condense: false,
-        rows,
-        cols,
-        animate: false,
-      } as any).run();
-    };
 
     const observer = new ResizeObserver(() => {
       const w = container.clientWidth;
@@ -619,7 +622,7 @@ export function GraphCanvas() {
       if (zeroToNonzero || deltaW > 0.2 || deltaH > 0.2) {
         lastW = w;
         lastH = h;
-        relayout();
+        runRelayout();
       }
     });
     observer.observe(container);
@@ -632,7 +635,7 @@ export function GraphCanvas() {
     }
 
     return () => observer.disconnect();
-  }, [ready]);
+  }, [ready, runRelayout]);
 
   /* selection highlight + spotlight zoom
    *
@@ -736,10 +739,50 @@ export function GraphCanvas() {
       </div>
 
       <div className="graph-toolbar">
-        <button onClick={() => cyRef.current?.fit(undefined, 48)} title="Fit">&#x2298;</button>
-        <button onClick={() => cyRef.current?.zoom(cyRef.current.zoom() * 1.1)} title="Zoom in">+</button>
-        <button onClick={() => cyRef.current?.zoom(cyRef.current.zoom() * 0.9)} title="Zoom out">&minus;</button>
-        <button onClick={() => setLayoutName(layoutName === "cose" ? "breadthfirst" : "cose")} title="Relayout">L</button>
+        <button
+          onClick={() => {
+            const cy = cyRef.current;
+            if (!cy) return;
+            cy.resize();
+            cy.fit(cy.elements(), 48);
+          }}
+          title="Fit"
+          aria-label="Fit"
+        >
+          <Maximize2 size={16} strokeWidth={1.75} />
+        </button>
+        <button
+          onClick={() => {
+            const cy = cyRef.current;
+            if (!cy) return;
+            cy.zoom(cy.zoom() * 1.1);
+          }}
+          title="Zoom in"
+          aria-label="Zoom in"
+        >
+          <ZoomIn size={16} strokeWidth={1.75} />
+        </button>
+        <button
+          onClick={() => {
+            const cy = cyRef.current;
+            if (!cy) return;
+            cy.zoom(cy.zoom() * 0.9);
+          }}
+          title="Zoom out"
+          aria-label="Zoom out"
+        >
+          <ZoomOut size={16} strokeWidth={1.75} />
+        </button>
+        <button
+          onClick={() => {
+            setLayoutName(layoutName === "cose" ? "breadthfirst" : "cose");
+            runRelayout();
+          }}
+          title="Relayout"
+          aria-label="Relayout"
+        >
+          <LayoutGrid size={16} strokeWidth={1.75} />
+        </button>
       </div>
     </div>
   );
