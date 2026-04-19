@@ -705,25 +705,32 @@ export function GraphCanvas() {
   /* keyboard shortcuts */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      const cy = cyRef.current;
       if (e.ctrlKey || e.metaKey) {
         if (e.key.toLowerCase() === "0") {
           e.preventDefault();
-          cyRef.current?.fit(undefined, 48);
+          if (!cy) return;
+          cy.resize();
+          cy.fit(cy.elements(), 48);
         } else if (e.key === "=" || e.key === "+") {
           e.preventDefault();
-          cyRef.current?.zoom(cyRef.current.zoom() * 1.1);
+          if (!cy) return;
+          cy.zoom(cy.zoom() * 1.1);
         } else if (e.key === "-" || e.key === "_") {
           e.preventDefault();
-          cyRef.current?.zoom(cyRef.current.zoom() * 0.9);
+          if (!cy) return;
+          cy.zoom(cy.zoom() * 0.9);
         }
       }
       if (e.key === "Escape") setSelectedNodeId(null);
-      if (e.key.toLowerCase() === "l" && !e.ctrlKey && !e.metaKey)
+      if (e.key.toLowerCase() === "l" && !e.ctrlKey && !e.metaKey) {
         setLayoutName(layoutName === "cose" ? "breadthfirst" : "cose");
+        runRelayout();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [layoutName, setLayoutName, setSelectedNodeId]);
+  }, [layoutName, setLayoutName, setSelectedNodeId, runRelayout]);
 
   return (
     <div className="graph-canvas">
