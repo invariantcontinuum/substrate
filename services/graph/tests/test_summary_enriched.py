@@ -4,7 +4,7 @@ Validates `src.graph.enriched_summary` primitives (cosine ranking, prompt
 assembly with budget caps) and the summary HTTP endpoint's end-to-end
 wiring with a mocked `_post_llm`. Real DENSE_LLM_URL is never reached.
 
-Integration tests seed a real file_embeddings row (with a 1024-dim
+Integration tests seed a real file_embeddings row (with a 896-dim
 embedding vector) + content_chunks so the enriched pipeline has
 something to reconstruct. The AGE graph is intentionally left empty for
 these tests — the enriched module's edge-fetch must gracefully fall back

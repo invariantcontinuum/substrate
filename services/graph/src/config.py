@@ -10,9 +10,9 @@ class _GraphSettings(BaseSettings):
     embedding_url: str = "http://host.docker.internal:8101/v1/embeddings"
     # lazy-lamacpp exposes models by systemd-unit name, not HF path.
     embedding_model: str = "embeddings"
-    embedding_dim: int = 1024
+    embedding_dim: int = 896
     # Dense chat LLM used for node summaries. lazy-lamacpp serves the
-    # Qwen2.5-7B GGUF on port 8102 with a single full-context slot.
+    # Qwen3.5-2B Q8_0 GGUF on port 8102 with a 65536-token context slot.
     dense_llm_url: str = "http://host.docker.internal:8102/v1/chat/completions"
     dense_llm_model: str = "dense"
     # Bearer token shared by both the embedding and chat endpoints.

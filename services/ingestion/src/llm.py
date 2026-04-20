@@ -31,8 +31,9 @@ _client: httpx.AsyncClient | None = None
 
 # Keep individual embedding inputs small enough that a single oversize
 # chunk cannot fail an entire batch request. The active embeddings model
-# has a much larger context window than this cap, but the conservative
-# limit keeps ingestion latency and retry behavior predictable.
+# (nomic-embed-text-v2-moe) has a 512-token context window; at ~3 chars/tok
+# this 1400-char cap stays safely inside it while keeping batch latency
+# and retry behavior predictable.
 _MAX_INPUT_CHARS = 1400
 
 

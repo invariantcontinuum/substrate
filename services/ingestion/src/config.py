@@ -11,9 +11,9 @@ class _IngestionSettings(BaseSettings):
     embedding_url: str = "http://host.docker.internal:8101/v1/embeddings"
     # lazy-lamacpp exposes the model by the systemd-unit name (`embeddings`),
     # not the underlying HF path. Dim must match the served model
-    # (Qwen3-Embedding-0.6B → 1024).
+    # (jina-code-embeddings-0.5b → 896).
     embedding_model: str = "embeddings"
-    embedding_dim: int = 1024
+    embedding_dim: int = 896
     llm_api_key: str = "test"
     chunk_size: int = 512
     chunk_overlap: int = 64
