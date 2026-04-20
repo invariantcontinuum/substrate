@@ -147,19 +147,19 @@ If MkDocs fails during the build, a placeholder HTML page is used so the image s
 
 ```bash
 # 1. Start infrastructure (home-stack)
-cd ~/Desktop/home-stack
+cd ~/github/danycrafts/home-stack
 docker compose up -d
 
 # 2. Wait for PostgreSQL and Keycloak to be healthy
 # (home-stack includes health checks)
 
 # 3. Start required LLM models
-cd ~/Desktop/substrate/ops/llm/lazy-lamacpp
+cd ~/github/lazy-lamacpp
 make start MODEL=embeddings
 make start MODEL=dense
 
 # 4. Start Substrate services
-cd ~/Desktop/substrate
+cd ~/github/invariantcontinuum/substrate-platform
 docker compose up -d
 
 # 5. Verify
@@ -278,5 +278,5 @@ curl http://localhost:8082/api/syncs/{sync_id}/issues
 curl http://localhost:8101/health
 
 # Or check lazy-lamacpp status
-cd ~/Desktop/substrate/ops/llm/lazy-lamacpp && make status MODEL=embeddings
+cd ~/github/lazy-lamacpp && make status MODEL=embeddings
 ```

@@ -1,7 +1,7 @@
 site_name: Substrate Platform Documentation
 site_description: Structural Integrity Platform - Documentation
 site_author: Invariant Continuum Technologies
-site_url: http://localhost:3535/docs
+site_url: https://app.invariantcontinuum.io/docs
 
 theme:
   name: material
