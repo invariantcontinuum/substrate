@@ -10,7 +10,7 @@ Usage:
 
   # Check drift at HEAD:
   uv run python packages/substrate-graph-builder/scripts/parity_harness.py \
-      --corpus /home/dany/github/invariantcontinuum/substrate \
+      --corpus /home/dany/Desktop/substrate \
       --baseline packages/substrate-graph-builder/tests/fixtures/parity-baseline.json \
       --check
 """

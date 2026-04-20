@@ -93,7 +93,7 @@ server: {
 
 ## Infrastructure (home-stack)
 
-These are typically managed in `~/github/danycrafts/home-stack/.env`:
+These are typically managed in `~/Desktop/home-stack/.env`:
 
 | Variable | Purpose |
 |----------|---------|
@@ -105,7 +105,7 @@ These are typically managed in `~/github/danycrafts/home-stack/.env`:
 
 ## lazy-lamacpp (LLM Stack)
 
-These are typically managed in `~/github/lazy-lamacpp/.env`:
+These are typically managed in `~/Desktop/substrate/ops/llm/lazy-lamacpp/.env`:
 
 | Variable | Purpose |
 |----------|---------|

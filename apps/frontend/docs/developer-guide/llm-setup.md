@@ -18,7 +18,7 @@ Substrate relies on **lazy-lamacpp** for local, privacy-first AI inference. This
 You can verify the status of the local LLM stack using the `make` commands in the `lazy-lamacpp` directory:
 
 ```bash
-cd ~/github/lazy-lamacpp
+cd ~/Desktop/substrate/ops/llm/lazy-lamacpp
 make status MODEL=embeddings
 make status MODEL=dense
 ```

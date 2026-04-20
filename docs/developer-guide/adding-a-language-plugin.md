@@ -38,7 +38,7 @@ SP-2 established a plugin registry in `packages/substrate-graph-builder/`. To ad
 
 8. **Update `tests/test_symbols_contract.py`:** add a canned snippet for the new language under `CANNED` and a new entry in `test_registry_has_expected_languages`'s expected set. This contract test fails loudly if a plugin lands without a working `symbols_query`.
 
-9. **Update the subsystem entry** at `/home/dany/github/docs/invariant/subsystems/2026-04-18-substrate-graph-builder.md` (local-only doc) — bump the plugin count, note any known limitations per the "Known limitations" paragraph.
+9. **Update the subsystem entry** at `/home/dany/Desktop/docs/invariant/subsystems/2026-04-18-substrate-graph-builder.md` (local-only doc) — bump the plugin count, note any known limitations per the "Known limitations" paragraph.
 
 10. **Commit + push:** `feat(graph-builder): <lang> plugin (...)`. Single-line Conventional Commits per CLAUDE.md. Push immediately.
 

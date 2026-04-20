@@ -168,7 +168,7 @@ On-demand local LLM serving for embeddings and summaries.
 ### Startup Commands
 
 ```bash
-cd ~/github/lazy-lamacpp
+cd ~/Desktop/substrate/ops/llm/lazy-lamacpp
 make start MODEL=embeddings
 make start MODEL=dense
 make status MODEL=embeddings

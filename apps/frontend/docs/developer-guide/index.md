@@ -28,9 +28,9 @@ This section provides practical documentation for developers working on or exten
 
 ## Development Workflow
 
-1. Start infrastructure: `cd ~/github/danycrafts/home-stack && docker compose up -d`
-2. Start LLM models: `cd ~/github/lazy-lamacpp && make start MODEL=embeddings && make start MODEL=dense`
-3. Start Substrate services: `cd ~/github/invariantcontinuum/substrate-platform && docker compose up -d`
+1. Start infrastructure: `cd ~/Desktop/home-stack && docker compose up -d`
+2. Start LLM models: `cd ~/Desktop/substrate/ops/llm/lazy-lamacpp && make start MODEL=embeddings && make start MODEL=dense`
+3. Start Substrate services: `cd ~/Desktop/substrate && docker compose --project-directory ops/compose --env-file .env up -d`
 4. Start frontend dev server: `cd frontend && npm run dev`
 
 ---
