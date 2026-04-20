@@ -31,7 +31,7 @@ echo "==> banned-token grep"
 if grep -rnE '(WebSocket|/ws|refetchInterval|\bRedis\b|\bredis\b)' \
       --include='*.py' --include='*.ts' --include='*.tsx' \
       --include='*.yaml' --include='*.yml' --include='*.conf' \
-      services/ apps/ ops/compose/ 2>/dev/null; then
+      services/ apps/ compose.yaml 2>/dev/null; then
   echo "  banned token found"
   FAILED=1
 fi

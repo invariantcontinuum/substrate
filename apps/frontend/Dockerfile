@@ -1,9 +1,9 @@
 FROM node:22-alpine AS build
 
 ARG GITHUB_TOKEN=""
-# Vite bakes these at build time. Compose must pass them via build args
-# (see ops/compose/compose.yaml frontend.build.args). No defaults on
-# purpose — an unbranded build would leak dev URLs into a prod bundle.
+# Vite bakes these at build time. Compose passes them via build args from
+# .env (see compose.yaml frontend.build.args). No defaults on purpose —
+# an unbranded build would leak dev URLs into a prod bundle.
 ARG VITE_KEYCLOAK_URL
 ARG VITE_KEYCLOAK_REALM
 ARG VITE_KEYCLOAK_CLIENT_ID

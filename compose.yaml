@@ -1,5 +1,12 @@
 name: substrate
 
+# Single compose file for both local dev and prod. Ports are published on
+# the host identically in either mode — in prod, the home-stack
+# nginx-proxy-manager reaches them via host.docker.internal and terminates
+# TLS upstream (see home-stack/services/nginx-proxy-manager/init-proxy-hosts.sh).
+# Mode switching is entirely via `.env`: flip the URL block and KC_*
+# values, then `make up`.
+
 networks:
   substrate_internal:
     driver: bridge
@@ -12,22 +19,17 @@ volumes:
 services:
 
   postgres:
-    build: ../infra/postgres
+    build: ops/infra/postgres
     container_name: substrate-postgres
-    env_file: [../../env/infra.env]
+    env_file: [.env]
     environment:
       POSTGRES_DB: postgres
       POSTGRES_USER: ${POSTGRES_SUPERUSER}
       POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD}
-      GRAPH_DB_USER: ${GRAPH_DB_USER}
-      GRAPH_DB_PASSWORD: ${GRAPH_DB_PASSWORD}
-      GRAPH_DB_NAME: ${GRAPH_DB_NAME}
-      KC_DB_USER: ${KC_DB_USER}
-      KC_DB_PASSWORD: ${KC_DB_PASSWORD}
-      KC_DB_NAME: ${KC_DB_NAME}
+    ports: ["5432:5432"]
     volumes:
       - pg_data:/var/lib/postgresql/data
-      - ../infra/postgres/init:/docker-entrypoint-initdb.d:ro
+      - ./ops/infra/postgres/init:/docker-entrypoint-initdb.d:ro
     networks: [substrate_internal]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_SUPERUSER} -d postgres"]
@@ -40,10 +42,8 @@ services:
     image: quay.io/keycloak/keycloak:26.0
     container_name: substrate-keycloak
     command: ["${KC_START_COMMAND}", "--import-realm"]
-    env_file: [../../env/infra.env]
+    env_file: [.env]
     environment:
-      GITHUB_OAUTH_APP_CLIENT_ID: ${GITHUB_OAUTH_APP_CLIENT_ID}
-      GITHUB_OAUTH_APP_CLIENT_SECRET: ${GITHUB_OAUTH_APP_CLIENT_SECRET}
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://postgres:5432/${KC_DB_NAME}
       KC_DB_USERNAME: ${KC_DB_USER}
@@ -56,10 +56,11 @@ services:
       KC_PROXY_HEADERS: xforwarded
       KC_HEALTH_ENABLED: "true"
       KC_METRICS_ENABLED: "true"
+    ports: ["8080:8080"]
     volumes:
       - kc_data:/opt/keycloak/data
-      - ../infra/keycloak/substrate-realm.json:/opt/keycloak/data/import/substrate-realm.json:ro
-      - ../infra/keycloak/themes:/opt/keycloak/themes:ro
+      - ./ops/infra/keycloak/substrate-realm.json:/opt/keycloak/data/import/substrate-realm.json:ro
+      - ./ops/infra/keycloak/themes:/opt/keycloak/themes:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -71,24 +72,41 @@ services:
       retries: 30
     restart: unless-stopped
 
+  pgadmin:
+    image: dpage/pgadmin4:8
+    container_name: substrate-pgadmin
+    env_file: [.env]
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+    ports: ["5050:80"]
+    entrypoint: /custom-entrypoint.sh
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+      - ./ops/infra/pgadmin/servers.json:/pgadmin4/servers.json:ro
+      - ./ops/infra/pgadmin/entrypoint.sh:/custom-entrypoint.sh:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [substrate_internal]
+    restart: unless-stopped
+
   gateway:
     build:
-      context: ../..
+      context: .
       dockerfile: services/gateway/Dockerfile
     container_name: substrate-gateway
-    env_file: [../../env/platform.env, ../../env/infra.env, ../../env/llm.env]
+    env_file: [.env]
     environment:
       SERVICE_NAME: gateway
       GRAPH_SERVICE_URL: http://graph:8082
       INGESTION_SERVICE_URL: http://ingestion:8081
       KEYCLOAK_URL: http://keycloak:8080
-      KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER}
-      KEYCLOAK_REALM: ${KEYCLOAK_REALM}
-      KC_GATEWAY_CLIENT_SECRET: ${KC_GATEWAY_CLIENT_SECRET}
-      AUTH_DISABLED: ${AUTH_DISABLED}
-      CORS_ORIGINS: ${CORS_ORIGINS}
       DATABASE_URL: postgresql+asyncpg://${GRAPH_DB_USER}:${GRAPH_DB_PASSWORD}@postgres:5432/${GRAPH_DB_NAME}
       APP_PORT: "8080"
+    ports: ["8180:8080"]
     depends_on:
       postgres: { condition: service_healthy }
       keycloak: { condition: service_started }
@@ -102,18 +120,15 @@ services:
 
   ingestion:
     build:
-      context: ../..
+      context: .
       dockerfile: services/ingestion/Dockerfile
     container_name: substrate-ingestion
-    env_file: [../../env/platform.env, ../../env/infra.env, ../../env/llm.env]
+    env_file: [.env]
     environment:
       SERVICE_NAME: ingestion
       DATABASE_URL: postgresql+asyncpg://${GRAPH_DB_USER}:${GRAPH_DB_PASSWORD}@postgres:5432/${GRAPH_DB_NAME}
-      EMBEDDING_URL: ${EMBEDDING_URL}
-      EMBEDDING_MODEL: ${EMBEDDING_MODEL}
-      EMBEDDING_DIM: ${EMBEDDING_DIM}
-      LLM_API_KEY: ${LLM_API_KEY}
       APP_PORT: "8081"
+    ports: ["8181:8081"]
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -128,23 +143,18 @@ services:
 
   graph:
     build:
-      context: ../..
+      context: .
       dockerfile: services/graph/Dockerfile
     container_name: substrate-graph
-    env_file: [../../env/platform.env, ../../env/infra.env, ../../env/llm.env]
+    env_file: [.env]
     environment:
       SERVICE_NAME: graph
       FLYWAY_URL: jdbc:postgresql://postgres:5432/${GRAPH_DB_NAME}
       FLYWAY_USER: ${GRAPH_DB_USER}
       FLYWAY_PASSWORD: ${GRAPH_DB_PASSWORD}
       DATABASE_URL: postgresql+asyncpg://${GRAPH_DB_USER}:${GRAPH_DB_PASSWORD}@postgres:5432/${GRAPH_DB_NAME}
-      EMBEDDING_URL: ${EMBEDDING_URL}
-      EMBEDDING_MODEL: ${EMBEDDING_MODEL}
-      EMBEDDING_DIM: ${EMBEDDING_DIM}
-      DENSE_LLM_URL: ${DENSE_LLM_URL}
-      DENSE_LLM_MODEL: ${DENSE_LLM_MODEL}
-      LLM_API_KEY: ${LLM_API_KEY}
       APP_PORT: "8082"
+    ports: ["8182:8082"]
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -159,7 +169,7 @@ services:
 
   frontend:
     build:
-      context: ../..
+      context: .
       dockerfile: apps/frontend/Dockerfile
       args:
         GITHUB_TOKEN: ""
@@ -167,6 +177,7 @@ services:
         VITE_KEYCLOAK_REALM: ${KEYCLOAK_REALM}
         VITE_KEYCLOAK_CLIENT_ID: "substrate-frontend"
     container_name: substrate-frontend
+    ports: ["3535:3000"]
     depends_on:
       gateway: { condition: service_started }
     networks: [substrate_internal]
