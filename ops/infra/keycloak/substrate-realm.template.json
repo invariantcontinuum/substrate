@@ -1,0 +1,98 @@
+{
+  "realm": "__KEYCLOAK_REALM__",
+  "enabled": true,
+  "displayName": "Substrate Platform",
+  "displayNameHtml": "<strong>Substrate</strong>",
+  "loginTheme": "invariant",
+  "sslRequired": "__SSL_REQUIRED__",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": true,
+  "rememberMe": true,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "verifyEmail": false,
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "maxFailureWaitSeconds": 900,
+  "failureFactor": 5,
+  "roles": {
+    "realm": [
+      { "name": "admin", "description": "Full access to Substrate" },
+      { "name": "engineer", "description": "Graph view, query, read policies" },
+      { "name": "viewer", "description": "Read-only graph access" }
+    ]
+  },
+  "defaultRoles": ["engineer"],
+  "users": [
+    {
+      "username": "admin",
+      "email": "__BOOTSTRAP_ADMIN_EMAIL__",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Admin",
+      "lastName": "User",
+      "realmRoles": ["admin", "engineer", "viewer"],
+      "credentials": [
+        { "type": "password", "value": "__BOOTSTRAP_ADMIN_PASSWORD__", "temporary": false }
+      ]
+    }
+  ],
+  "identityProviders": [
+    {
+      "alias": "github",
+      "displayName": "GitHub",
+      "providerId": "github",
+      "enabled": true,
+      "updateProfileFirstLoginMode": "on",
+      "trustEmail": true,
+      "storeToken": false,
+      "addReadTokenRoleOnCreate": false,
+      "authenticateByDefault": false,
+      "linkOnly": false,
+      "hideOnLogin": false,
+      "firstBrokerLoginFlowAlias": "first broker login",
+      "config": {
+        "syncMode": "IMPORT",
+        "clientId": "${GITHUB_OAUTH_APP_CLIENT_ID}",
+        "clientSecret": "${GITHUB_OAUTH_APP_CLIENT_SECRET}",
+        "guiOrder": "1"
+      }
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "substrate-frontend",
+      "name": "Substrate Frontend",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": __FRONTEND_REDIRECT_URIS__,
+      "webOrigins": __FRONTEND_WEB_ORIGINS__,
+      "attributes": { "pkce.code.challenge.method": "S256" },
+      "protocol": "openid-connect",
+      "fullScopeAllowed": true,
+      "rootUrl": "__APP_URL__",
+      "baseUrl": "__APP_URL__"
+    },
+    {
+      "clientId": "substrate-gateway",
+      "name": "Substrate Gateway",
+      "enabled": true,
+      "publicClient": false,
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "secret": "__KC_GATEWAY_CLIENT_SECRET__",
+      "protocol": "openid-connect",
+      "webOrigins": __GATEWAY_WEB_ORIGINS__
+    }
+  ],
+  "scopeMappings": [],
+  "clientScopes": [
+    { "name": "openid", "protocol": "openid-connect", "attributes": { "include.in.token.scope": "true" } },
+    { "name": "profile", "protocol": "openid-connect", "attributes": { "include.in.token.scope": "true" } },
+    { "name": "email", "protocol": "openid-connect", "attributes": { "include.in.token.scope": "true" } }
+  ],
+  "defaultDefaultClientScopes": ["openid", "profile", "email"]
+}

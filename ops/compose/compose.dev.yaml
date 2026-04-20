@@ -1,0 +1,52 @@
+# Dev override — publishes every service on localhost for direct browser
+# and tool access, and adds pgadmin. Use via:
+#   docker compose -f compose.yaml -f compose.dev.yaml up -d --build
+
+services:
+
+  postgres:
+    ports: ["${POSTGRES_HOST_PORT:-5432}:5432"]
+
+  keycloak:
+    ports: ["${KEYCLOAK_HOST_PORT:-8080}:8080"]
+
+  gateway:
+    ports: ["${GATEWAY_HOST_PORT:-8180}:8080"]
+
+  ingestion:
+    ports: ["${INGESTION_HOST_PORT:-8181}:8081"]
+
+  graph:
+    ports: ["${GRAPH_HOST_PORT:-8182}:8082"]
+
+  frontend:
+    ports: ["${FRONTEND_HOST_PORT:-3535}:3000"]
+
+  pgadmin:
+    image: dpage/pgadmin4:8
+    container_name: substrate-pgadmin
+    env_file: [../../env/infra.env]
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+      GRAPH_DB_USER: ${GRAPH_DB_USER}
+      GRAPH_DB_PASSWORD: ${GRAPH_DB_PASSWORD}
+      GRAPH_DB_NAME: ${GRAPH_DB_NAME}
+      KC_DB_USER: ${KC_DB_USER}
+      KC_DB_PASSWORD: ${KC_DB_PASSWORD}
+      KC_DB_NAME: ${KC_DB_NAME}
+      POSTGRES_SUPERUSER: ${POSTGRES_SUPERUSER}
+      POSTGRES_SUPERUSER_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD}
+    ports: ["${PGADMIN_HOST_PORT:-5050}:80"]
+    entrypoint: /custom-entrypoint.sh
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+      - ../infra/pgadmin/servers.json:/pgadmin4/servers.json:ro
+      - ../infra/pgadmin/entrypoint.sh:/custom-entrypoint.sh:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [substrate_internal]
+    restart: unless-stopped

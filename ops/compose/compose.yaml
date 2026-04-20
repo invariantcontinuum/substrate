@@ -25,7 +25,6 @@ services:
       KC_DB_USER: ${KC_DB_USER}
       KC_DB_PASSWORD: ${KC_DB_PASSWORD}
       KC_DB_NAME: ${KC_DB_NAME}
-    ports: ["5432:5432"]
     volumes:
       - pg_data:/var/lib/postgresql/data
       - ../infra/postgres/init:/docker-entrypoint-initdb.d:ro
@@ -40,9 +39,11 @@ services:
   keycloak:
     image: quay.io/keycloak/keycloak:26.0
     container_name: substrate-keycloak
-    command: ["start-dev", "--import-realm"]
+    command: ["${KC_START_COMMAND}", "--import-realm"]
     env_file: [../../env/infra.env]
     environment:
+      GITHUB_OAUTH_APP_CLIENT_ID: ${GITHUB_OAUTH_APP_CLIENT_ID}
+      GITHUB_OAUTH_APP_CLIENT_SECRET: ${GITHUB_OAUTH_APP_CLIENT_SECRET}
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://postgres:5432/${KC_DB_NAME}
       KC_DB_USERNAME: ${KC_DB_USER}
@@ -52,54 +53,22 @@ services:
       KC_HOSTNAME: ${KC_HOSTNAME}
       KC_HOSTNAME_STRICT: ${KC_HOSTNAME_STRICT}
       KC_HTTP_ENABLED: ${KC_HTTP_ENABLED}
+      KC_PROXY_HEADERS: xforwarded
       KC_HEALTH_ENABLED: "true"
       KC_METRICS_ENABLED: "true"
-    ports: ["8080:8080"]
     volumes:
       - kc_data:/opt/keycloak/data
-      - ../infra/keycloak:/opt/keycloak/data/import:ro
+      - ../infra/keycloak/substrate-realm.json:/opt/keycloak/data/import/substrate-realm.json:ro
+      - ../infra/keycloak/themes:/opt/keycloak/themes:ro
     depends_on:
       postgres:
         condition: service_healthy
     networks: [substrate_internal]
     healthcheck:
-      # /health/ready ships with every Keycloak 26+. Avoids the realm handler's
-      # HostnameV2Provider path entirely so we don't need a Host header.
-      # /health/ready returns 200 once the realm import is complete and the
-      # HTTP listener is accepting traffic.
       test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/9000 && printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && head -c 15 <&3 | grep -q '200'"]
       interval: 10s
       timeout: 5s
       retries: 30
-    restart: unless-stopped
-
-  pgadmin:
-    image: dpage/pgadmin4:8
-    container_name: substrate-pgadmin
-    env_file: [../../env/infra.env]
-    environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
-      PGADMIN_CONFIG_SERVER_MODE: "False"
-      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
-      GRAPH_DB_USER: ${GRAPH_DB_USER}
-      GRAPH_DB_PASSWORD: ${GRAPH_DB_PASSWORD}
-      GRAPH_DB_NAME: ${GRAPH_DB_NAME}
-      KC_DB_USER: ${KC_DB_USER}
-      KC_DB_PASSWORD: ${KC_DB_PASSWORD}
-      KC_DB_NAME: ${KC_DB_NAME}
-      POSTGRES_SUPERUSER: ${POSTGRES_SUPERUSER}
-      POSTGRES_SUPERUSER_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD}
-    ports: ["5050:80"]
-    entrypoint: /custom-entrypoint.sh
-    volumes:
-      - pgadmin_data:/var/lib/pgadmin
-      - ../infra/pgadmin/servers.json:/pgadmin4/servers.json:ro
-      - ../infra/pgadmin/entrypoint.sh:/custom-entrypoint.sh:ro
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks: [substrate_internal]
     restart: unless-stopped
 
   gateway:
@@ -115,11 +84,11 @@ services:
       KEYCLOAK_URL: http://keycloak:8080
       KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER}
       KEYCLOAK_REALM: ${KEYCLOAK_REALM}
+      KC_GATEWAY_CLIENT_SECRET: ${KC_GATEWAY_CLIENT_SECRET}
       AUTH_DISABLED: ${AUTH_DISABLED}
       CORS_ORIGINS: ${CORS_ORIGINS}
       DATABASE_URL: postgresql+asyncpg://${GRAPH_DB_USER}:${GRAPH_DB_PASSWORD}@postgres:5432/${GRAPH_DB_NAME}
       APP_PORT: "8080"
-    ports: ["8180:8080"]
     depends_on:
       postgres: { condition: service_healthy }
       keycloak: { condition: service_started }
@@ -145,7 +114,6 @@ services:
       EMBEDDING_DIM: ${EMBEDDING_DIM}
       LLM_API_KEY: ${LLM_API_KEY}
       APP_PORT: "8081"
-    ports: ["8181:8081"]
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -177,7 +145,6 @@ services:
       DENSE_LLM_MODEL: ${DENSE_LLM_MODEL}
       LLM_API_KEY: ${LLM_API_KEY}
       APP_PORT: "8082"
-    ports: ["8182:8082"]
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -196,14 +163,10 @@ services:
       dockerfile: apps/frontend/Dockerfile
       args:
         GITHUB_TOKEN: ""
-        # Vite bakes these at build time. All browser-facing URLs must
-        # use host-published ports (browser cannot resolve the internal
-        # substrate_internal DNS). Runtime env has no effect here.
-        VITE_KEYCLOAK_URL: "http://localhost:8080"
-        VITE_KEYCLOAK_REALM: "${KEYCLOAK_REALM}"
+        VITE_KEYCLOAK_URL: ${VITE_KEYCLOAK_URL}
+        VITE_KEYCLOAK_REALM: ${KEYCLOAK_REALM}
         VITE_KEYCLOAK_CLIENT_ID: "substrate-frontend"
     container_name: substrate-frontend
-    ports: ["3535:3000"]
     depends_on:
       gateway: { condition: service_started }
     networks: [substrate_internal]
