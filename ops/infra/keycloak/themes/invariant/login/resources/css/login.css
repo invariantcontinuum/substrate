@@ -1,29 +1,855 @@
-/* Invariant Continuum - Custom Keycloak Login Theme */
+/* =============================================================
+ * Invariant Continuum — Keycloak Login Theme
+ *
+ * Design language ported from substrate/apps/frontend/src/styles/
+ * Tokens, palette, typography and primitives from theme.css +
+ * globals.css adapted for PatternFly v5 Keycloak login pages.
+ *
+ * Theme switching: prefers-color-scheme (no data-theme control
+ * in stock Keycloak templates). Light = warm parchment; Dark =
+ * midnight navy-charcoal with antique gold accent.
+ * ============================================================ */
 
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:wght@400;500&display=swap");
+
+/* ---- Raw palette ---- */
 :root {
-  --pf-v5-global--primary-color--100: #1a1a2e;
-  --pf-v5-global--primary-color--200: #16213e;
-  --pf-v5-global--active-color--100: #0f3460;
-  --pf-v5-global--link--Color: #0f3460;
+  --palette-parchment:        #efe6d6;
+  --palette-parchment-deep:   #e6dbc7;
+  --palette-ivory:            #faf5ec;
+  --palette-bone:             #f3ecdf;
+  --palette-bone-deep:        #e8dec9;
+  --palette-taupe:            #c8b89c;
+  --palette-taupe-strong:     #a89678;
+  --palette-espresso:         #2a221c;
+  --palette-espresso-soft:    #4a3f36;
+  --palette-warm-gray:        #7a6e62;
+  --palette-warm-gray-soft:   #9a8d7e;
+
+  --palette-navy:             #1c2c4e;
+  --palette-navy-deep:        #122039;
+  --palette-navy-soft:        #3a4d72;
+  --palette-navy-tint:        rgba(28, 44, 78, 0.10);
+
+  --palette-midnight:         #0e1622;
+  --palette-midnight-deep:    #080d17;
+  --palette-midnight-lift:    #131c2c;
+  --palette-midnight-soft:    #1a2438;
+  --palette-midnight-input:   #182338;
+
+  --palette-brass:            #c39b54;
+  --palette-brass-deep:       #a37e3a;
+  --palette-brass-soft:       #d6b577;
+  --palette-brass-tint:       rgba(195, 155, 84, 0.14);
+
+  --palette-cream:            #ece4d2;
+  --palette-cream-soft:       #d6cdb9;
+  --palette-stone:            #8c8474;
+  --palette-stone-soft:       #6a6357;
+
+  --palette-teal-glow:        rgba(80, 134, 142, 0.18);
+
+  --palette-status-success-l: #4a7a5a;
+  --palette-status-success-d: #8aae93;
+  --palette-status-warn-l:    #b8843a;
+  --palette-status-warn-d:    #d6a868;
+  --palette-status-danger-l:  #a13b3b;
+  --palette-status-danger-d:  #d97a76;
+  --palette-status-info-l:    #3a5a82;
+  --palette-status-info-d:    #8ab0d4;
+
+  /* Typography */
+  --font-display: "Fraunces", ui-serif, Georgia, "Iowan Old Style", serif;
+  --font-sans:    "Instrument Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono:    "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --fw-light:     300;
+  --fw-regular:   400;
+  --fw-medium:    500;
+  --fw-semibold:  600;
+  --fw-bold:      700;
+
+  --text-2xs: 11px;
+  --text-xs:  12px;
+  --text-sm:  13px;
+  --text-base: 14px;
+  --text-md:  15px;
+  --text-lg:  17px;
+  --text-xl:  20px;
+  --text-2xl: 24px;
+  --text-3xl: 30px;
+
+  --leading-tight:  1.18;
+  --leading-snug:   1.35;
+  --leading-normal: 1.55;
+  --leading-loose:  1.75;
+
+  --tracking-tightest: -0.025em;
+  --tracking-tight:  -0.012em;
+  --tracking-normal: 0;
+  --tracking-wide:   0.06em;
+  --tracking-wider:  0.10em;
+  --tracking-widest: 0.18em;
+
+  /* Spatial */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+  --space-9: 56px;
+
+  /* Radii */
+  --radius-xs:   2px;
+  --radius-sm:   4px;
+  --radius-md:   6px;
+  --radius-lg:   8px;
+  --radius-xl:  12px;
+  --radius-pill: 999px;
+
+  /* Motion */
+  --ease-out:   cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-inout: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-fast: 140ms;
+  --dur-base: 220ms;
+  --dur-slow: 360ms;
+
+  /* Card chrome */
+  --card-radius: var(--radius-lg);
+  --card-border-width: 1px;
+  --card-top-accent-width: 2px;
+
+  color-scheme: light;
 }
 
-.login-pf body {
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+/* ---- Light theme (default) ---- */
+:root {
+  --fg:           var(--palette-espresso);
+  --fg-muted:     var(--palette-warm-gray);
+  --fg-subtle:    var(--palette-warm-gray-soft);
+  --fg-on-accent: var(--palette-ivory);
+
+  --bg:           var(--palette-parchment);
+  --bg-gradient:
+    radial-gradient(ellipse 80% 60% at 18% 12%,  rgba(28,  44,  78, 0.08) 0%, transparent 62%),
+    radial-gradient(ellipse 70% 60% at 86% 22%,  rgba(195, 155, 84, 0.10) 0%, transparent 64%),
+    radial-gradient(ellipse 100% 75% at 50% 100%, rgba(168, 150, 120, 0.18) 0%, transparent 70%),
+    linear-gradient(180deg, #efe6d6 0%, #e6dbc7 100%);
+
+  --surface:          var(--palette-ivory);
+  --surface-solid:    var(--palette-ivory);
+  --surface-elevated: #fdfaf3;
+  --surface-sunken:   var(--palette-bone);
+  --surface-input:    var(--palette-bone);
+  --surface-hover:    rgba(28, 44, 78, 0.06);
+  --surface-pressed:  rgba(28, 44, 78, 0.10);
+
+  --border:         rgba(168, 150, 120, 0.55);
+  --border-strong:  rgba(106, 90, 66, 0.55);
+  --border-soft:    rgba(168, 150, 120, 0.28);
+
+  --accent:           var(--palette-navy);
+  --accent-soft:      var(--palette-navy-soft);
+  --accent-tint:      var(--palette-navy-tint);
+  --accent-contrast:  var(--palette-ivory);
+  --accent-hover:     var(--palette-navy-deep);
+  --accent-highlight: var(--palette-brass);
+
+  --info:    var(--palette-status-info-l);
+  --success: var(--palette-status-success-l);
+  --warn:    var(--palette-status-warn-l);
+  --danger:  var(--palette-status-danger-l);
+
+  --focus-ring: rgba(28, 44, 78, 0.32);
+  --focus-ring-strong: rgba(28, 44, 78, 0.55);
+  --scrim: rgba(28, 30, 36, 0.42);
+
+  --glass-bg:        var(--palette-ivory);
+  --glass-bg-strong: var(--surface-elevated);
+  --glass-border:    rgba(168, 150, 120, 0.55);
+  --glass-shadow:
+    0 1px 0 0 rgba(255, 252, 244, 0.6) inset,
+    0 8px 24px -16px rgba(50, 40, 28, 0.18),
+    0 1px 2px rgba(50, 40, 28, 0.06);
+
+  --card-top-accent: var(--palette-navy);
+  --status-on:  var(--palette-navy);
+  --status-off: rgba(120, 105, 85, 0.35);
 }
+
+/* ---- Dark theme via prefers-color-scheme ---- */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+
+    --fg:           var(--palette-cream);
+    --fg-muted:     var(--palette-stone);
+    --fg-subtle:    var(--palette-stone-soft);
+    --fg-on-accent: var(--palette-midnight-deep);
+
+    --bg:           var(--palette-midnight);
+    --bg-gradient:
+      radial-gradient(ellipse 65% 55% at 12% 8%,   rgba(80, 134, 142, 0.18) 0%, transparent 60%),
+      radial-gradient(ellipse 55% 50% at 92% 18%,  rgba(195, 155, 84, 0.10) 0%, transparent 62%),
+      radial-gradient(ellipse 90% 70% at 50% 100%, rgba(8, 13, 23, 0.92) 0%, transparent 70%),
+      linear-gradient(180deg, #0e1622 0%, #080d17 100%);
+
+    --surface:          var(--palette-midnight-lift);
+    --surface-solid:    var(--palette-midnight-lift);
+    --surface-elevated: var(--palette-midnight-soft);
+    --surface-sunken:   var(--palette-midnight-deep);
+    --surface-input:    var(--palette-midnight-input);
+    --surface-hover:    rgba(195, 155, 84, 0.10);
+    --surface-pressed:  rgba(195, 155, 84, 0.16);
+
+    --border:         rgba(236, 228, 210, 0.12);
+    --border-strong:  rgba(236, 228, 210, 0.24);
+    --border-soft:    rgba(236, 228, 210, 0.06);
+
+    --accent:           var(--palette-brass);
+    --accent-soft:      var(--palette-brass-soft);
+    --accent-tint:      var(--palette-brass-tint);
+    --accent-contrast:  var(--palette-midnight-deep);
+    --accent-hover:     var(--palette-brass-soft);
+    --accent-highlight: var(--palette-cream);
+
+    --info:    var(--palette-status-info-d);
+    --success: var(--palette-status-success-d);
+    --warn:    var(--palette-status-warn-d);
+    --danger:  var(--palette-status-danger-d);
+
+    --focus-ring: rgba(195, 155, 84, 0.38);
+    --focus-ring-strong: rgba(195, 155, 84, 0.60);
+    --scrim: rgba(4, 8, 14, 0.72);
+
+    --glass-bg:        var(--palette-midnight-lift);
+    --glass-bg-strong: var(--palette-midnight-soft);
+    --glass-border:    rgba(236, 228, 210, 0.12);
+    --glass-shadow:
+      0 1px 0 0 rgba(236, 228, 210, 0.04) inset,
+      0 16px 48px -24px rgba(0, 0, 0, 0.7),
+      0 1px 2px rgba(0, 0, 0, 0.4);
+
+    --card-top-accent: var(--palette-brass);
+    --status-on:  var(--palette-brass);
+    --status-off: rgba(236, 228, 210, 0.18);
+  }
+}
+
+/* ---- Reduced motion ---- */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+/* =============================================================
+ * Page base
+ * ============================================================ */
+
+.invariant-login-html,
+.invariant-login-body,
+.pf-v5-c-login,
+.pf-v5-c-login__container {
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  font-weight: var(--fw-regular);
+  line-height: var(--leading-normal);
+  color: var(--fg);
+}
+
+.invariant-login-html,
+.invariant-login-body {
+  min-height: 100%;
+}
+
+.invariant-login-body {
+  background: var(--bg);
+  background-image: var(--bg-gradient);
+  background-attachment: fixed;
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.pf-v5-c-login {
+  min-height: 100vh;
+  padding: var(--space-8) var(--space-4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pf-v5-c-login__container {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+}
+
+/* =============================================================
+ * Header / branding
+ * ============================================================ */
 
 #kc-header-wrapper {
-  font-size: 2rem;
-  font-weight: 700;
-  color: #ffffff;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: var(--fw-light);
+  font-size: var(--text-2xl);
+  letter-spacing: var(--tracking-tight);
+  color: var(--fg);
   text-transform: none;
-  letter-spacing: 0.05em;
+  text-align: center;
+  padding: var(--space-4) var(--space-5);
 }
+
+.pf-v5-c-login__header {
+  order: 0;
+  width: 100%;
+  margin-bottom: var(--space-4);
+}
+
+.pf-v5-c-login__main {
+  order: 1;
+  width: 100%;
+}
+
+#kc-page-title {
+  font-family: var(--font-sans);
+  font-size: var(--text-xl);
+  font-weight: var(--fw-semibold);
+  color: var(--fg);
+  letter-spacing: var(--tracking-tight);
+  margin-bottom: var(--space-4);
+}
+
+/* =============================================================
+ * Login card (PatternFly v5 + legacy)
+ * ============================================================ */
+
+.card-pf,
+.pf-v5-c-login__main {
+  background: var(--glass-bg-strong);
+  border: 1px solid var(--glass-border);
+  border-top: 2px solid var(--card-top-accent);
+  border-radius: var(--card-radius);
+  box-shadow: var(--glass-shadow);
+  color: var(--fg);
+}
+
+.pf-v5-c-login__main-header {
+  padding: var(--space-5) var(--space-6) var(--space-3);
+}
+
+.pf-v5-c-login__main-body {
+  padding: var(--space-4) var(--space-6);
+}
+
+.pf-v5-c-login__main {
+  overflow: hidden;
+}
+
+.pf-v5-c-login__main-header-utilities {
+  margin-top: var(--space-3);
+}
+
+.pf-v5-c-login__main-footer {
+  padding: var(--space-3) var(--space-6) var(--space-5);
+  background: transparent;
+}
+
+.pf-v5-c-login__main-footer-band {
+  background: transparent;
+  border-top: 1px solid var(--border-soft);
+  padding-top: var(--space-4);
+  margin-top: var(--space-2);
+}
+
+/* =============================================================
+ * Form labels
+ * ============================================================ */
+
+.pf-v5-c-form__label,
+.pf-v5-c-form__label-text,
+.control-label {
+  font-family: var(--font-sans);
+  font-size: var(--text-2xs);
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wider);
+  color: var(--fg-muted);
+}
+
+.pf-v5-c-form__label-required {
+  color: var(--danger);
+  font-size: var(--text-sm);
+  margin-left: 2px;
+}
+
+.invariant-login-label-wrap,
+.invariant-login-input-wrap {
+  width: 100%;
+}
+
+/* =============================================================
+ * Inputs
+ * ============================================================ */
+
+.pf-v5-c-form-control,
+.pf-v5-c-login__main-body input[type="text"],
+.pf-v5-c-login__main-body input[type="password"],
+.pf-v5-c-login__main-body input[type="email"],
+.pf-v5-c-login__main-body input[type="tel"],
+.pf-v5-c-login__main-body input[type="number"],
+.pf-v5-c-login__main-body textarea,
+.pf-v5-c-login__main-body select,
+input.form-control {
+  width: 100%;
+  height: 42px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-input);
+  font-size: var(--text-sm);
+  font-family: var(--font-sans);
+  font-weight: var(--fw-regular);
+  color: var(--fg);
+  outline: none;
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out),
+    background-color var(--dur-fast) var(--ease-out);
+}
+
+.pf-v5-c-form-control::placeholder,
+input.form-control::placeholder {
+  color: var(--fg-subtle);
+}
+
+.pf-v5-c-form-control:hover:not(:focus):not(:disabled),
+input.form-control:hover:not(:focus):not(:disabled) {
+  border-color: var(--border-strong);
+}
+
+.pf-v5-c-form-control:focus,
+.pf-v5-c-input-group .pf-v5-c-form-control:focus,
+input.form-control:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+  background: var(--surface-elevated);
+}
+
+.pf-v5-c-input-group .pf-v5-c-form-control {
+  min-width: 0;
+}
+
+.pf-v5-c-form-control[readonly] {
+  color: var(--fg-muted);
+}
+
+.pf-v5-c-form-control[aria-invalid="true"],
+input.form-control.is-error,
+input.form-control[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+.pf-v5-c-form-control[aria-invalid="true"]:focus,
+input.form-control.is-error:focus {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 28%, transparent);
+}
+
+/* =============================================================
+ * Buttons
+ * ============================================================ */
+
+.pf-v5-c-button,
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  height: 42px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--fg);
+  font-size: var(--text-sm);
+  font-family: var(--font-sans);
+  font-weight: var(--fw-medium);
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
+}
+
+.pf-v5-c-button:hover:not(:disabled),
+.btn:hover:not(:disabled) {
+  background: var(--surface-hover);
+  border-color: var(--border-strong);
+}
+
+.pf-v5-c-button:focus-visible,
+.btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+/* Primary button */
+.pf-v5-c-button.pf-m-primary,
+.btn-primary {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: var(--accent);
+}
+
+.pf-v5-c-button.pf-m-primary:hover:not(:disabled),
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.invariant-login-button-lg {
+  min-height: 42px;
+  padding-inline: var(--space-4);
+}
+
+.pf-v5-c-button.pf-m-secondary {
+  background: var(--surface);
+  color: var(--fg);
+  border-color: var(--border-strong);
+}
+
+.pf-v5-c-button.pf-m-secondary:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+/* Link button */
+.pf-v5-c-button.pf-m-link,
+.btn-link {
+  background: transparent;
+  border-color: transparent;
+  color: var(--accent);
+  padding: 0 var(--space-2);
+  height: auto;
+}
+
+.pf-v5-c-button.pf-m-link:hover:not(:disabled),
+.btn-link:hover:not(:disabled) {
+  background: transparent;
+  border-color: transparent;
+  color: var(--accent-hover);
+  text-decoration: underline;
+}
+
+/* Disabled */
+.pf-v5-c-button:disabled,
+.btn:disabled,
+[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* =============================================================
+ * Alerts
+ * ============================================================ */
+
+.pf-v5-c-alert {
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-elevated);
+  color: var(--fg);
+  font-size: var(--text-sm);
+}
+
+.pf-v5-c-alert.pf-m-success {
+  border-color: color-mix(in srgb, var(--success) 35%, transparent);
+  background: color-mix(in srgb, var(--success) 10%, var(--surface));
+}
+
+.pf-v5-c-alert.pf-m-danger {
+  border-color: color-mix(in srgb, var(--danger) 35%, transparent);
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface));
+}
+
+.pf-v5-c-alert.pf-m-warning {
+  border-color: color-mix(in srgb, var(--warn) 35%, transparent);
+  background: color-mix(in srgb, var(--warn) 10%, var(--surface));
+}
+
+.pf-v5-c-alert.pf-m-info {
+  border-color: color-mix(in srgb, var(--info) 35%, transparent);
+  background: color-mix(in srgb, var(--info) 10%, var(--surface));
+}
+
+.pf-v5-c-alert__title {
+  font-family: var(--font-sans);
+  font-weight: var(--fw-semibold);
+  font-size: var(--text-sm);
+}
+
+/* =============================================================
+ * Helper text
+ * ============================================================ */
+
+.pf-v5-c-helper-text,
+.pf-v5-c-form__helper-text {
+  font-size: var(--text-xs);
+  color: var(--fg-subtle);
+  font-family: var(--font-sans);
+  line-height: var(--leading-snug);
+}
+
+.pf-v5-c-helper-text__item.pf-m-error,
+.pf-v5-c-form__helper-text.pf-m-error {
+  color: var(--danger);
+}
+
+.kc-feedback-text {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* =============================================================
+ * Checkbox / radio
+ * ============================================================ */
+
+.pf-v5-c-check__label,
+.pf-v5-c-checkbox__label {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  color: var(--fg);
+}
+
+.pf-v5-c-check__input,
+.pf-v5-c-checkbox__input {
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.pf-v5-c-check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* =============================================================
+ * Links
+ * ============================================================ */
+
+a,
+.pf-v5-c-login__main-body a,
+.pf-v5-c-login__main-footer a {
+  color: var(--accent);
+  text-decoration: none;
+  transition: color var(--dur-fast) var(--ease-out);
+}
+
+a:hover,
+.pf-v5-c-login__main-body a:hover,
+.pf-v5-c-login__main-footer a:hover {
+  color: var(--accent-hover);
+  text-decoration: underline;
+}
+
+/* =============================================================
+ * Social providers list
+ * ============================================================ */
+
+.pf-v5-c-login__main-footer-links,
+#kc-social-providers ul {
+  list-style: none;
+  padding: 0;
+  margin: var(--space-3) 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.pf-v5-c-login__main-footer-links-item,
+#kc-social-providers li {
+  display: inline-flex;
+}
+
+.pf-v5-c-login__main-footer-links-item a,
+#kc-social-providers a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--fg);
+  font-size: var(--text-sm);
+  font-family: var(--font-sans);
+  text-decoration: none;
+  transition:
+    background-color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out);
+}
+
+.pf-v5-c-login__main-footer-links-item a:hover,
+#kc-social-providers a:hover {
+  background: var(--surface-hover);
+  border-color: var(--border-strong);
+  text-decoration: none;
+}
+
+.invariant-login-social-name {
+  font-weight: var(--fw-medium);
+}
+
+.invariant-login-social-icon {
+  font-size: var(--text-base);
+}
+
+/* =============================================================
+ * OTP / code inputs
+ * ============================================================ */
+
+.pf-v5-c-login__main-body input[type="text"][maxlength="1"],
+.pf-v5-c-login__main-body input[type="number"][maxlength="1"] {
+  width: 42px;
+  text-align: center;
+  padding: 0;
+}
+
+/* =============================================================
+ * Divider / separator
+ * ============================================================ */
+
+.pf-v5-c-divider {
+  border-color: var(--border-soft);
+}
+
+.pf-v5-c-login__main-footer-band::before {
+  border-top-color: var(--border-soft);
+}
+
+/* =============================================================
+ * Info / instruction text
+ * ============================================================ */
+
+.pf-v5-c-login__main-header-desc,
+#kc-info-message,
+.instruction {
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+  line-height: var(--leading-snug);
+}
+
+/* =============================================================
+ * Logo area
+ * ============================================================ */
 
 #kc-logo {
-  margin-bottom: 1rem;
+  margin-bottom: var(--space-4);
 }
 
-.card-pf {
-  border-radius: 8px;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+#kc-logo a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
+
+.invariant-login-settings,
+.invariant-login-options,
+.invariant-login-options-wrap,
+.invariant-login-signup {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.invariant-login-signup {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-soft);
+  color: var(--fg-muted);
+}
+
+#kc-registration-container {
+  margin-top: var(--space-4);
+}
+
+#kc-registration {
+  color: var(--fg-muted);
+}
+
+.kc-login-tooltip {
+  white-space: nowrap;
+}
+
+/* =============================================================
+ * Container width restraint (keeps card from getting too wide)
+ * ============================================================ */
+
+.pf-v5-c-login__container {
+  max-width: 440px;
+  width: 100%;
+  padding: var(--space-4);
+}
+
+@media (max-width: 480px) {
+  .pf-v5-c-login__container {
+    padding: var(--space-3);
+  }
+
+  #kc-header-wrapper {
+    font-size: var(--text-xl);
+    padding: var(--space-3);
+  }
+
+  .pf-v5-c-login__main-header,
+  .pf-v5-c-login__main-body,
+  .pf-v5-c-login__main-footer {
+    padding-left: var(--space-4);
+    padding-right: var(--space-4);
+  }
+}
+
+/* =============================================================
+ * Scrollbar treatment (editorial, consistent with frontend)
+ * ============================================================ */
+
+html {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track,
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: var(--radius-pill);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--fg-muted);
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
