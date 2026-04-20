@@ -165,12 +165,13 @@ async def insert_chunks(file_id: str, sync_id: str, chunks: list[dict]) -> None:
                     """
                     INSERT INTO content_chunks
                         (file_id, sync_id, chunk_index, content, start_line, end_line,
-                         token_count, language, embedding)
-                    VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, NULL)
+                         token_count, language, chunk_type, symbols, embedding)
+                    VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, NULL)
                     """,
                     file_id, sync_id, ch["chunk_index"], ch["content"],
                     ch["start_line"], ch["end_line"], ch["token_count"],
-                    ch.get("language", ""),
+                    ch.get("language", ""), ch.get("chunk_type", "block"),
+                    ch.get("symbols", []),
                 )
             else:
                 assert_embedding_dim(sync_id=sync_id, embeddings=[embedding], expected=settings.embedding_dim)
@@ -178,12 +179,13 @@ async def insert_chunks(file_id: str, sync_id: str, chunks: list[dict]) -> None:
                     """
                     INSERT INTO content_chunks
                         (file_id, sync_id, chunk_index, content, start_line, end_line,
-                         token_count, language, embedding)
-                    VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9::vector)
+                         token_count, language, chunk_type, symbols, embedding)
+                    VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11::vector)
                     """,
                     file_id, sync_id, ch["chunk_index"], ch["content"],
                     ch["start_line"], ch["end_line"], ch["token_count"],
-                    ch.get("language", ""), str(embedding),
+                    ch.get("language", ""), ch.get("chunk_type", "block"),
+                    ch.get("symbols", []), str(embedding),
                 )
 
 

@@ -164,7 +164,7 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
             size_bytes = len(content.encode("utf-8", errors="replace")) if content else 0
             content_hash = hashlib.sha256(content.encode("utf-8", errors="replace")).hexdigest() if content else None
             summary = file_summary_text(node.id, node.type, language, content)
-            chunks = chunk_file(content, settings.chunk_size, settings.chunk_overlap) if content.strip() else []
+            chunks = chunk_file(node.id, content, settings.chunk_size, settings.chunk_overlap) if content.strip() else []
             file_info_list.append({
                 "node": node, "content": content, "language": language,
                 "line_count": line_count, "size_bytes": size_bytes,
@@ -195,7 +195,10 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
             chunk_dicts = [{
                 "chunk_index": ch.chunk_index, "content": ch.content,
                 "start_line": ch.start_line, "end_line": ch.end_line,
-                "token_count": ch.token_count, "language": fi["language"],
+                "token_count": ch.token_count,
+                "language": ch.language or fi["language"],
+                "chunk_type": ch.chunk_type,
+                "symbols": ch.symbols,
                 "embedding": None,
             } for ch in fi["chunks"]]
             if chunk_dicts:

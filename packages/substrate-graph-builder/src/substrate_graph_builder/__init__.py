@@ -1,9 +1,10 @@
 """Public API for substrate-graph-builder.
 
-Consumers import `build_graph` + `REGISTRY`; everything else is internal.
+Consumers import `build_graph` + `REGISTRY` + `chunk_content`.
 """
 
 from substrate_graph_builder.builder import build_graph
+from substrate_graph_builder.chunker import Chunk, chunk_content
 from substrate_graph_builder.model import (
     FileAnalysis,
     GraphDocument,
@@ -17,6 +18,7 @@ from substrate_graph_builder.plugins import REGISTRY
 from substrate_graph_builder.plugins._base import LanguagePlugin, TreeSitterPlugin
 
 __all__ = [
+    "Chunk",
     "REGISTRY",
     "FileAnalysis",
     "GraphDocument",
@@ -27,5 +29,6 @@ __all__ = [
     "Symbol",
     "TreeSitterPlugin",
     "build_graph",
+    "chunk_content",
     "classify_file_type",
 ]
