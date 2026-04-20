@@ -20,4 +20,4 @@ def test_raises_on_wrong_length():
         )
     assert exc_info.value.sync_id == "abc"
     assert exc_info.value.expected == 896
-    assert exc_info.value.actual == 896
+    assert exc_info.value.actual == 2560
