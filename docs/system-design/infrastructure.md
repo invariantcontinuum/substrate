@@ -1,18 +1,19 @@
 # Infrastructure
 
-Substrate's infrastructure layer provides data persistence, identity services, and local AI inference.
+Substrate's infrastructure layer is deliberately spartan: **one Postgres instance** (with AGE + pgvector), **one Keycloak instance**, and **two llama.cpp workers** for local AI. Prod TLS is handled upstream by home-stack's nginx-proxy-manager — substrate bundles no reverse proxy of its own.
 
 ---
 
 ## Overview
 
-| Component | Technology | Purpose | Port |
-|-----------|------------|---------|------|
-| Primary Database | PostgreSQL 16 | Relational data, embeddings, graph queries | 5432 |
-| Graph Extension | Apache AGE | Cypher graph queries inside PostgreSQL | — |
-| Vector Extension | pgvector | 1024-dimensional embeddings | — |
-| Identity | Keycloak | OIDC, JWT issuance | 8080 |
-| AI Inference | lazy-lamacpp | Local embedding and LLM serving | 8101-8105 |
+| Component | Technology | Host port | Purpose |
+|---|---|---|---|
+| Primary DB | PostgreSQL 16 | 5432 | Relational, graph, embeddings, SSE |
+| Graph extension | Apache AGE | — | Cypher inside Postgres |
+| Vector extension | pgvector | — | 896-dim embeddings |
+| Identity | Keycloak 26 | 8080 | OIDC, JWT |
+| AI inference | lazy-lamacpp | 8101 (embeddings), 8102 (dense) | Local LLM serving |
+| DB admin | pgadmin 4 | 5050 | DB introspection |
 
 ---
 
@@ -20,46 +21,41 @@ Substrate's infrastructure layer provides data persistence, identity services, a
 
 ### Role
 
-PostgreSQL is the **single source of truth** for all Substrate data. It stores:
+PostgreSQL is the **single source of truth** for all Substrate data:
 - Relational metadata (sources, syncs, schedules, issues)
 - Vector embeddings (`pgvector`)
 - Graph topology (`Apache AGE`)
+- SSE replay buffer (`sse_events` table)
 
 ### Databases
 
+The Postgres instance hosts two logical databases:
+
 | Database | Owner | Purpose |
-|----------|-------|---------|
-| `substrate_graph` | `substrate_graph` | Graph service data |
-| `substrate_ingestion` | `substrate_ingestion` | Ingestion service state |
+|---|---|---|
+| `substrate_graph` | `substrate_graph` | All substrate data (graph, chunks, embeddings, SSE) |
+| `keycloak` | `keycloak` | Keycloak's own state |
+
+There is **no `substrate_ingestion`** database. Ingestion and graph share `substrate_graph`.
 
 ### Extensions
 
 ```sql
--- Enable required extensions
-CREATE EXTENSION IF NOT EXISTS age;
-CREATE EXTENSION IF NOT EXISTS vector;
+CREATE EXTENSION IF NOT EXISTS age;      -- Cypher
+CREATE EXTENSION IF NOT EXISTS vector;   -- pgvector
 ```
 
-### Connection Pooling
+### Connection pools
 
-Both services use `asyncpg` connection pools:
+Every service uses `asyncpg` pools against `substrate_graph`:
 
-- **Graph Service**: Default pool sizing
-- **Ingestion Service**: Pool sized 4–25 to avoid saturation during heavy background writes
+- **Graph service** — default pool sizing
+- **Ingestion service** — sized for heavy background writes, configured via asyncpg defaults; uses `UNWIND …` batching via `graph_writer.py::write_age_nodes/edges` (batches of 500 with per-row fallback) to avoid saturating the pool
+- **Gateway** — a small pool used only for the SSE replay path (`sse_endpoint.py`), which does `SELECT … FROM sse_events WHERE id > $last`, then `LISTEN substrate_sse`
 
-For production, PgBouncer is recommended:
+Every pool registers an `init` callback that runs `LOAD 'age'` and sets `server_settings={"search_path":"ag_catalog,public"}` so Cypher queries work on any pooled connection.
 
-```ini
-[databases]
-substrate_graph = host=localhost port=5432 dbname=substrate_graph
-
-[pgbouncer]
-listen_port = 6432
-listen_addr = 0.0.0.0
-auth_type = md5
-max_client_conn = 1000
-default_pool_size = 25
-```
+For high-scale prod, PgBouncer in front of Postgres is viable but not currently part of the default compose.
 
 ---
 
@@ -67,35 +63,29 @@ default_pool_size = 25
 
 ### Role
 
-Apache AGE is a PostgreSQL extension that enables Cypher graph queries natively inside PostgreSQL. Substrate uses it instead of a standalone Neo4j server.
+Apache AGE adds Cypher graph queries to Postgres as an extension. Substrate uses it instead of running a separate Neo4j server.
 
-### Graph Name
+### Graph
 
 ```sql
--- The graph used by Substrate
 SELECT * FROM ag_catalog.create_graph('substrate');
 ```
 
-### Cypher Execution
+The graph is named **`substrate`** and holds `:File` vertices plus `depends_on` and `defines` edges. See `docs/architecture/data-model.md` for the schema.
 
-Queries are executed via:
+### Cypher execution
+
 ```sql
 SELECT * FROM cypher('substrate', $$
-  MATCH (a:File)-[r]->(b:File)
+  MATCH (a:File)-[r:depends_on]->(b:File)
   WHERE r.sync_id IN ['uuid1', 'uuid2']
   RETURN a.file_id, b.file_id, r.weight
 $$) AS (result agtype);
 ```
 
-### Connection Setup
+All pool connections run `LOAD 'age'` on init (and `search_path` is set via `server_settings`, not per-query, because `RESET ALL` on pool release wipes in-session `SET`s).
 
-On every new pool connection, the Graph and Ingestion services run:
-```sql
-LOAD 'age';
-SET search_path = ag_catalog, public;
-```
-
-This is done via `asyncpg` `init` callbacks and `server_settings` to survive connection resets.
+AGE expression indexes (migration V5) make `MATCH (f:File {file_id: '...'})` lookups logarithmic against the File vertex table.
 
 ---
 
@@ -103,19 +93,18 @@ This is done via `asyncpg` `init` callbacks and `server_settings` to survive con
 
 ### Role
 
-Stores 1024-dimensional vector embeddings for semantic search.
+Stores 896-dimensional embeddings produced by jina-code-embeddings-0.5b.
 
 ### Columns
 
 | Table | Column | Type |
-|-------|--------|------|
-| `file_embeddings` | `embedding` | `vector(1024)` |
-| `content_chunks` | `embedding` | `vector(1024)` |
+|---|---|---|
+| `file_embeddings` | `embedding` | `vector(896)` |
+| `content_chunks` | `embedding` | `vector(896)` |
 
-### Search Queries
+### Search query
 
 ```sql
--- Cosine similarity search
 SELECT id, name, file_path, embedding <=> $1 AS distance
 FROM file_embeddings
 WHERE type = 'source'
@@ -123,7 +112,9 @@ ORDER BY embedding <=> $1
 LIMIT 10;
 ```
 
-The `<=>` operator computes cosine distance (lower is better).
+The `<=>` operator computes cosine distance. The graph service uses this for `/api/graph/search`; the ingestion service only writes — no reads of embedding columns on the ingestion side.
+
+Dim migrations are tracked in `services/graph/migrations/postgres/` (V4 → V7 → V8 → V9 → V10, currently at 896-dim). A startup guard (`services/graph/src/startup.py::check_embedding_dim`) verifies the column's declared dimension matches `EMBEDDING_DIM` and fails the graph service at boot on mismatch.
 
 ---
 
@@ -133,126 +124,152 @@ The `<=>` operator computes cosine distance (lower is better).
 
 Identity provider for OIDC authentication and JWT issuance.
 
-### Realm Configuration
+### Realm
 
-- **Realm**: `substrate`
-- **Client (frontend)**: `substrate-frontend` (public client, PKCE)
-- **Issuer**: `{KEYCLOAK_URL}/realms/substrate`
-- **JWKS Endpoint**: `{KEYCLOAK_URL}/realms/substrate/protocol/openid-connect/certs`
+- **Realm:** `substrate` (imported from `ops/infra/keycloak/substrate-realm.json`, which is rendered from the committed template by `scripts/render-realm.py`)
+- **Frontend client:** `substrate-frontend` — public, PKCE-S256
+- **Gateway client:** `substrate-gateway` — confidential, service-accounts enabled (secret comes from `KC_GATEWAY_CLIENT_SECRET` in the active env file)
+- **Issuer:** `${KC_HOSTNAME}/realms/substrate` (e.g. `http://localhost:8080/realms/substrate` in dev, `https://auth.<domain>/realms/substrate` in prod)
+- **JWKS endpoint:** `${KC_HOSTNAME}/realms/substrate/protocol/openid-connect/certs`
 
-### Token Characteristics
+### Command mode
 
-- **Algorithm**: RS256
-- **Access token lifetime**: 5 minutes
-- **Refresh token lifetime**: 30 minutes
-- **Audience verification**: Not enforced by Gateway (`verify_aud=False`)
+- Dev: `start-dev --import-realm` with `KC_HOSTNAME_STRICT=false`
+- Prod: `start --import-realm` with `KC_HOSTNAME_STRICT=true` and `KC_PROXY_HEADERS=xforwarded` so NPM-forwarded `X-Forwarded-Proto: https` is honored
+
+### Token characteristics
+
+- Algorithm: RS256
+- JWKS cached in the gateway for 5 minutes with background refresh
+- Audience verification is disabled in the gateway (`verify_aud=False`) — issuer + signature + expiry are enforced
 
 ---
 
-## lazy-lamacpp (Local AI Inference)
+## lazy-lamacpp (local AI inference)
 
-### Role
+Runs on the **host** via systemd-user units, not inside compose. Substrate's containers reach it via `host.docker.internal` — the one justified use of that host alias.
 
-On-demand local LLM serving for embeddings and summaries.
+### Models currently served
 
-### Models and Ports
+| Role | Model | Port | Notes |
+|---|---|---|---|
+| embeddings | jina-code-embeddings-0.5b Q8_0 | 8101 | 896-dim, 32 k context |
+| dense | Qwen3.5-2B Q8_0 | 8102 | 60 k context, used for enriched summaries |
 
-| Model | Port | Purpose |
-|-------|------|---------|
-| `embeddings` | 8101 | File and chunk embeddings (1024-dim) |
-| `dense` | 8102 | File summaries, dense reasoning |
-| `sparse` | 8103 | Sparse retrieval (future) |
-| `reranker` | 8104 | Search reranking (future) |
-| `coding` | 8105 | Code generation (future) |
+Additional model roles (`sparse`, `reranker`, `coding`) are defined under `ops/llm/lazy-lamacpp/config/models/` but are on-demand only — the embeddings + dense pair is required concurrently.
 
-### Startup Commands
+### Starting / stopping / status
 
 ```bash
-cd ~/github/lazy-lamacpp
+cd ops/llm/lazy-lamacpp
 make start MODEL=embeddings
 make start MODEL=dense
 make status MODEL=embeddings
+make status-all
+make stop MODEL=embeddings
 ```
 
-### API Compatibility
+The top-level Substrate Makefile does **not** re-export these targets — manage lazy-lamacpp directly from its own Makefile.
 
-All endpoints expose an OpenAI-compatible API:
-- Embeddings: `POST /v1/embeddings`
-- Chat completions: `POST /v1/chat/completions`
+### API compatibility
+
+Both ports expose OpenAI-compatible endpoints:
+
+- `POST /v1/embeddings`
+- `POST /v1/chat/completions`
+
+### VRAM budget
+
+Both workers must fit simultaneously in the host's 4 GB VRAM (Quadro P1000 Mobile):
+
+- Embeddings Q8_0 weights ≈ 600 MiB + KV cache with Q8_0 quantization ≈ 500 MiB → ~1.1 GB
+- Dense Q8_0 weights ≈ 1.9 GB + 60 k-token Q8_0 KV cache ≈ 1.1 GB → ~2.85 GB
+- Combined ≈ 4 GB with ~25 MiB headroom
+
+See `ops/llm/lazy-lamacpp/AGENTS.md` for the full accounting and the rationale behind simultaneous GPU residency.
 
 ---
 
-## Resource Requirements
+## pgadmin
+
+Deployed in both modes. Container listens on 80, published on host `5050`. Servers pre-registered via `ops/infra/pgadmin/servers.json`:
+
+- `substrate_graph` — the main substrate DB
+- `keycloak` — Keycloak's DB
+- `postgres (superuser)` — full admin
+
+In prod, home-stack's NPM exposes this at `pgadmin.<domain>` (typically behind an IP allowlist at the NPM layer).
+
+---
+
+## Resource requirements
 
 ### Development
 
 | Component | CPU | Memory | Storage |
-|-----------|-----|--------|---------|
+|---|---|---|---|
 | PostgreSQL | 2 cores | 2 GB | 20 GB |
 | Keycloak | 1 core | 1 GB | 5 GB |
-| lazy-lamacpp | 2 cores | 4 GB | 10 GB |
+| lazy-lamacpp | 2 cores | 4 GB (VRAM shared 4 GB) | 10 GB |
 
 ### Production
 
 | Component | CPU | Memory | Storage |
-|-----------|-----|--------|---------|
+|---|---|---|---|
 | PostgreSQL | 4 cores | 8 GB | 200 GB SSD |
 | Keycloak | 2 cores | 2 GB | 20 GB |
-| lazy-lamacpp | 4 cores | 8+ GB | 20 GB |
+| lazy-lamacpp | 4 cores | 8 GB (VRAM 6+ GB) | 20 GB |
 
 ---
 
-## Health Checks
-
-### PostgreSQL
+## Health checks
 
 ```bash
+# Postgres
 pg_isready -U postgres -h localhost
-```
 
-### Keycloak
+# Keycloak
+curl http://localhost:8080/health/ready    # uses port 9000 inside the container;
+                                           # compose.yaml's healthcheck uses a
+                                           # raw TCP probe to bypass strict hostname
 
-```bash
-curl http://localhost:8080/health/ready
-```
+# lazy-lamacpp
+curl http://localhost:8101/v1/models
+curl http://localhost:8102/v1/models
 
-### lazy-lamacpp
-
-```bash
-curl http://localhost:8101/health
-curl http://localhost:8102/health
+# Full substrate sweep
+make doctor
 ```
 
 ---
 
-## Backup Strategy
-
-### PostgreSQL
+## Backup strategy
 
 ```bash
-# Backup graph database
-pg_dump -h localhost -U substrate_graph substrate_graph > substrate_graph_backup.sql
+# Single-DB substrate backup
+pg_dump -h localhost -U substrate_graph substrate_graph > substrate_graph.sql
 
-# Backup ingestion database
-pg_dump -h localhost -U substrate_ingestion substrate_ingestion > substrate_ingestion_backup.sql
-
-# Point-in-time recovery via WAL archiving (recommended for production)
+# Keycloak state
+pg_dump -h localhost -U keycloak keycloak > keycloak.sql
 ```
+
+For prod, prefer WAL archiving + point-in-time recovery at the Postgres layer, managed by whatever runs the home-stack Postgres container.
 
 ---
 
 ## Security
 
 ### Network
-- All inter-service traffic over internal Docker network
-- No external exposure except Gateway (8080), Keycloak (8080), and frontend (3000)
-- TLS recommended for production
+- All inter-service traffic rides the `substrate_internal` Docker bridge
+- Only the debug ports (3535 / 8080 / 5050 / 8180 / 8181 / 8182 / 5432) are published on the host
+- Prod: TLS terminated at home-stack's NPM; substrate sees plain HTTP on internal ports with `X-Forwarded-Proto: https` headers forwarded by NPM
 
-### Data at Rest
-- PostgreSQL: Enable transparent data encryption (TDE) or filesystem-level encryption
-- No sensitive data in local AI inference caches
+### Data at rest
+- PostgreSQL: filesystem-level encryption recommended (LUKS / dm-crypt on the host)
+- No sensitive data in lazy-lamacpp model caches (models are public GGUFs)
+- `.env.local` and `.env.prod` are gitignored and live on local disk only
 
-### Access Control
-- Database users per service (`substrate_graph`, `substrate_ingestion`)
+### Access control
+- Separate DB users per logical database (`substrate_graph`, `keycloak`)
 - Minimal privileges (no superuser access from applications)
-- Keycloak realm separation for multi-environment deployments
+- Keycloak realm import driven by a gitignored rendered file (template + template variables live in git, secrets do not)

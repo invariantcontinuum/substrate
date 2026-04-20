@@ -1,91 +1,117 @@
 # System Design
 
-This section provides detailed design documentation for each component of the Substrate Platform.
+Detailed design documentation for each component of the Substrate platform.
 
 ---
 
-## Services Overview
+## Services overview
 
 ```mermaid
 flowchart TB
-    subgraph Frontend["Frontend Layer"]
-        UI[React Dashboard]
-        CY[Cytoscape.js Graph]
+    subgraph Frontend["Frontend layer"]
+        UI[React dashboard]
+        CY[Cytoscape.js canvas]
     end
 
-    subgraph Gateway["Gateway Layer"]
-        GW[FastAPI Gateway]
+    subgraph Gateway["Gateway layer"]
+        GW[FastAPI gateway + SSE fan-out]
     end
 
-    subgraph Services["Service Layer"]
-        ING[Ingestion Service]
-        GRAPH[Graph Service]
+    subgraph Services["Service layer"]
+        ING[Ingestion]
+        GRAPH[Graph]
     end
 
-    subgraph Data["Data Layer"]
-        PG[(PostgreSQL)]
+    subgraph Data["Data layer"]
+        PG[(PostgreSQL 16)]
         AGE[Apache AGE]
+        VEC[pgvector]
+        SSE[(sse_events + LISTEN/NOTIFY)]
         KC[Keycloak]
     end
 
-    UI -->|HTTP / WS| GW
+    UI -->|HTTP + SSE| GW
 
-    GW -->|/api/*| GRAPH
-    GW -->|/ingest/*| ING
+    GW -->|/api/graph/*, /api/sources/* GET| GRAPH
+    GW -->|/api/syncs POST/DELETE, /api/schedules writes, /ingest/*| ING
     GW -->|/auth/*| KC
+    GW -->|/api/events| SSE
 
     ING -->|Write| PG
     ING -->|Write| AGE
+    ING -->|NOTIFY| SSE
     GRAPH -->|Read| PG
     GRAPH -->|Cypher| AGE
 ```
 
 ---
 
-## Service Responsibilities
+## Service responsibilities
 
-| Service | Core Responsibility | Key Technologies |
-|---------|---------------------|------------------|
-| **Gateway** | Single ingress point, auth enforcement, HTTP/WS proxy | FastAPI, JWT, httpx |
-| **Ingestion** | GitHub connector, sync orchestration, chunking, embeddings | FastAPI, asyncpg, Apache AGE |
-| **Graph Service** | Graph queries, semantic search, LLM summaries | FastAPI, asyncpg, pgvector, Apache AGE |
-| **Frontend** | Dashboard UI, graph visualization, source management | React, Vite, Cytoscape.js, Zustand |
-
----
-
-## Communication Patterns
-
-### Synchronous (REST)
-- Frontend → Gateway → Services
-- Request/response for all queries and commands
-- JWT authentication on every request
-
-### Real-Time (WebSocket)
-- Gateway proxies WebSocket connections to the Graph Service
-- Currently used for live connections; delta streaming is planned
-
-### Data Flow
-- Ingestion directly writes to shared PostgreSQL + AGE
-- Graph Service reads from the same database
-- No message bus in the current implementation
+| Service | Core responsibility | Key technologies |
+|---|---|---|
+| **Gateway** | Single ingress, JWT auth, HTTP proxy, SSE fan-out | FastAPI, PyJWT, httpx, asyncpg (SSE replay only) |
+| **Ingestion** | GitHub connector, sync orchestration, AST-aware chunking, embeddings | FastAPI, asyncpg, tree-sitter via substrate-graph-builder |
+| **Graph** | Graph queries, semantic search, enriched summaries | FastAPI, asyncpg, pgvector, Apache AGE |
+| **Frontend** | Dashboard, graph visualization, source management | React 19, Vite 6, Cytoscape.js, Zustand, TanStack Query |
 
 ---
 
-## Design Principles
+## Communication patterns
 
-1. **Single Responsibility**: Each service owns one domain
-2. **Shared Database**: PostgreSQL + AGE serves as the unified store for graph and relational data
-3. **No Mock Data**: All graph elements come from real source code analysis
-4. **Idempotency**: Ingestion operations are safe to retry
-5. **Graceful Degradation**: Services continue with reduced functionality when dependencies fail
+### Synchronous HTTP (REST)
+- Frontend → frontend's internal nginx → Gateway → Services
+- Request/response for all reads and non-lifecycle writes
+- JWT `Authorization: Bearer` on every `/api/*` request
+
+### Server push (SSE — Server-Sent Events)
+- **Transport:** `GET /api/events` (native browser `EventSource`)
+- **Backing:** Postgres `LISTEN/NOTIFY` on channel `substrate_sse`, with a durable `sse_events` replay table
+- **Reconnect:** browsers send `Last-Event-ID`; gateway replays rows past that id then streams live
+- **Banned:** WebSocket, client polling (`refetchInterval`), Redis. `make lint` fails the build if any reappear in application code.
+
+### Data flow
+- Ingestion writes directly to `substrate_graph` (single DB with AGE + pgvector)
+- Graph reads from the same database
+- No message bus; inter-service sequencing is all via Postgres rows
 
 ---
 
-## Service Documentation
+## Service DNS
 
-- [Gateway Service](gateway.md) — Authentication, routing, WebSocket proxying
-- [Ingestion Service](ingestion.md) — Connectors, sync lifecycle, scheduling
-- [Graph Service](graph-service.md) — Graph queries, search, summaries
+Container-to-container traffic uses the `substrate_internal` bridge and container DNS — `gateway`, `ingestion`, `graph`, `postgres`, `keycloak`, `pgadmin`. The **only** justified `host.docker.internal` usage is outbound to the host-local lazy-lamacpp LLM endpoints on ports 8101 / 8102.
+
+Host-published ports (for browsers and, in prod, for home-stack NPM):
+
+| Port | Service |
+|---|---|
+| 3535 | Frontend nginx (container :3000) |
+| 5050 | pgadmin |
+| 5432 | Postgres |
+| 8080 | Keycloak |
+| 8180 | Gateway debug (container :8080) |
+| 8181 | Ingestion debug (container :8081) |
+| 8182 | Graph debug (container :8082) |
+| 8101 | Embeddings LLM (host systemd, not a compose service) |
+| 8102 | Dense LLM (host systemd, not a compose service) |
+
+---
+
+## Design principles
+
+1. **Single responsibility** — each service owns one domain
+2. **Single data boundary** — PostgreSQL + AGE + pgvector; one DB, one pool per service
+3. **No mock data** — every graph element comes from real source-code analysis
+4. **Idempotency** — ingestion operations are safe to retry; sync_runs is the state machine
+5. **Graceful degradation** — missing embeddings / missing AGE edges / LLM failures never block the rest of the pipeline
+
+---
+
+## Service documentation
+
+- [Gateway Service](gateway.md) — auth, routing, SSE fan-out
+- [Ingestion Service](ingestion.md) — connectors, sync lifecycle, AST chunking, embeddings
+- [Graph Service](graph-service.md) — queries, search, enriched summaries
 - [Frontend](frontend.md) — React dashboard, Cytoscape graph
-- [Infrastructure](infrastructure.md) — PostgreSQL, Apache AGE, Keycloak
-- [Graph Edge Symbols](graph-edge-symbols.md) — Edge glyph reference for the node detail panel
+- [Infrastructure](infrastructure.md) — PostgreSQL + AGE + pgvector, Keycloak, lazy-lamacpp
+- [Graph Edge Symbols](graph-edge-symbols.md) — edge glyph reference for the node detail panel

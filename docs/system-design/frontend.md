@@ -1,8 +1,8 @@
 # Frontend
 
-**Port:** 3000  
-**Stack:** React 19 + TypeScript 6 + Vite  
-**Repository:** `frontend/`
+**Host port:** 3535 (container listens on 3000)
+**Stack:** React 19 + TypeScript 5 + Vite 6
+**Repository:** `apps/frontend/`
 
 ---
 
@@ -66,7 +66,7 @@ flowchart TB
 ## Directory Structure
 
 ```
-frontend/src/
+apps/frontend/src/
 ├── components/
 │   ├── graph/
 │   │   ├── GraphCanvas.tsx         # Main graph container + Cytoscape init
@@ -388,21 +388,26 @@ All API calls use **relative paths**:
 - `/ingest/*` → Gateway → Ingestion Service
 - `/auth/*` → Gateway → Keycloak
 
-### Production Nginx Proxy
+### In-container nginx proxy
 
-In the Docker image, an nginx server handles routing:
+Inside `substrate-frontend`, nginx serves the static bundle and proxies API traffic to the gateway via **container DNS** on the `substrate_internal` bridge — not `host.docker.internal`.
 
 | Location | Upstream |
-|----------|----------|
-| `/api/` | `host.docker.internal:8180/api/` |
-| `/jobs` | `host.docker.internal:8180` |
-| `/ingest/` | `host.docker.internal:8180/ingest/` |
-| `/ws/` | `host.docker.internal:8180/ws/` (WebSocket upgrade) |
-| `/auth/` | `host.docker.internal:8180/auth/` |
+|---|---|
+| `/api/` | `http://gateway:8080/api/` |
+| `/jobs` | `http://gateway:8080` |
+| `/ingest/` | `http://gateway:8080/ingest/` |
+| `/auth/` | `http://gateway:8080/auth/` |
 | `/docs` | Built-in MkDocs static site |
 | `/health` | Returns `200 healthy` |
 
-The `docker-entrypoint.sh` strips IPv6 `host.docker.internal` entries from `/etc/hosts` to prevent nginx from attempting unreachable IPv6 connections.
+`/api/events` (SSE) flows through `/api/` → `gateway:8080/api/events` — the nginx block includes `proxy_read_timeout 86400` and `proxy_buffering off` semantics via the `proxy_set_header Upgrade` / `Connection: upgrade` pair, which works for SSE as well as any future HTTP streaming. There is no WebSocket path.
+
+`docker-entrypoint.sh` strips IPv6 `host.docker.internal` entries from `/etc/hosts` to prevent nginx from attempting unreachable IPv6 connections when the frontend container does talk to the host (for mkdocs builds during image assembly, not at runtime).
+
+### Production
+
+In prod, home-stack's nginx-proxy-manager (NPM) is the TLS termination + hostname router in front of everything. NPM reaches the frontend container via `host.docker.internal:3535` on the host. Substrate publishes the same ports in dev and prod — mode switching is purely in `.env.<mode>` URL values + realm rendering.
 
 ---
 
@@ -428,19 +433,20 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   server: {
-    port: 3000,
+    port: 5173,
     proxy: {
-      '/api': 'http://localhost:8080',
-      '/ingest': 'http://localhost:8080',
-      '/auth': 'http://localhost:8080',
-      '/ws': {
-        target: 'ws://localhost:8080',
-        ws: true
-      }
-    }
-  }
+      // Vite dev-server (`pnpm dev`) proxies API paths to the host-
+      // published gateway. SSE at /api/events is carried over this
+      // same proxy — no special WebSocket config needed.
+      '/api':    { target: 'http://localhost:8180', changeOrigin: true },
+      '/ingest': { target: 'http://localhost:8180', changeOrigin: true },
+      '/auth':   { target: 'http://localhost:8180', changeOrigin: true },
+    },
+  },
 });
 ```
+
+For the containerized build (`make up`), build-time Vite env vars (`VITE_KEYCLOAK_URL`, `VITE_KEYCLOAK_REALM`, `VITE_KEYCLOAK_CLIENT_ID`) are passed as Docker build args from the active `.env.<mode>` file via `compose.yaml`'s `frontend.build.args` block. The Dockerfile requires them to be set — an unbranded build exits with an error rather than silently baking wrong URLs.
 
 ---
 

@@ -1,282 +1,280 @@
 # Deployment
 
-Substrate is designed for **self-hosted first** deployment with support for development and production environments.
+Substrate is self-hosted. One repo, one `compose.yaml`, two env templates. Dev runs on localhost; prod rides behind the home-stack nginx-proxy-manager (NPM) for TLS and hostname routing.
 
 ---
 
-## Deployment Modes
+## Deployment modes
 
-### Development Mode
-- Single machine (laptop or workstation)
-- Docker Compose with application services
-- Local AI via `lazy-lamacpp` (on-demand model serving)
-- Infrastructure (PostgreSQL, Keycloak) provided by `home-stack`
+### Local dev (`MODE=local`, default)
+- Single machine.
+- `make up` reads `.env.local` and brings up the full stack on localhost.
+- Browser-facing URLs: `http://localhost:3535` (frontend), `http://localhost:8080` (Keycloak).
 
-### Production Mode
-- Docker Compose on dedicated server
-- Persistent volumes for PostgreSQL
-- Local or remote AI inference endpoints
+### Prod (`MODE=prod`)
+- Same compose file. `make up MODE=prod` reads `.env.prod`.
+- Ports are still published on the host (3535, 8080, 5050). [home-stack](../../../home-stack)'s NPM proxies `app.<domain>`, `auth.<domain>`, and `pgadmin.<domain>` to those ports via `host.docker.internal` and terminates TLS with Let's Encrypt.
+- Substrate itself does not bundle any reverse proxy or TLS terminator.
 
 ---
 
-## Docker Compose Structure
+## Startup sequence
+
+```bash
+# 1. Start the local LLM stack (systemd-user; out of band)
+cd ops/llm/lazy-lamacpp
+make start MODEL=embeddings
+make start MODEL=dense
+cd -
+
+# 2. Bring up substrate
+make up                 # MODE=local is the default
+# First run copies .env.local.example → .env.local and exits. Edit,
+# then re-run `make up`.
+
+# 3. Verify
+make doctor             # 15/15 PASS when green
+```
+
+Prod uses the same sequence with `make up MODE=prod` after populating `.env.prod` from `.env.prod.example`.
+
+---
+
+## Env file layout
+
+| File | Committed? | Purpose |
+|---|---|---|
+| `.env.local.example` | Yes | Dev template — localhost URLs, `change-me` placeholders. |
+| `.env.prod.example` | Yes | Prod template — `<your-domain>` / `<set-a-strong-password>` placeholders. |
+| `.env.local` | No (gitignored) | User-owned dev values. Must persist across sessions. |
+| `.env.prod` | No (gitignored) | User-owned prod values. Must persist across sessions. |
+
+Per-service `.env.example` files do **not** exist. The two root-level templates are the single source of truth.
+
+The Makefile passes the active file via `--env-file` and exports `ENV_FILE` so `compose.yaml` can resolve `env_file: ["${ENV_FILE:-.env.local}"]` for each service. Every target accepts `MODE=local|prod`.
+
+---
+
+## compose.yaml (abridged)
+
+Single compose file at repo root. Ports are published identically in both modes so NPM can reach them in prod:
 
 ```yaml
-# compose.yaml - Application Services
-name: substrate-platform
+name: substrate
 
-# All services communicate with each other and with the home-stack infra
-# (Keycloak, Postgres, Redis) exclusively via host.docker.internal on the
-# host's published ports. No shared docker bridge network is used.
+networks:
+  substrate_internal: { driver: bridge }
 
-x-host-aliases: &host-aliases
-  extra_hosts:
-    - "host.docker.internal:host-gateway"
+volumes:
+  pg_data: {}
+  kc_data: {}
+  pgadmin_data: {}
 
 services:
-  gateway:
-    build: ./services/gateway
-    container_name: substrate-gateway
-    ports: ["8180:8080"]
-    environment:
-      KEYCLOAK_URL: http://host.docker.internal:8080
-      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-substrate}
-      KEYCLOAK_ISSUER: https://auth.invariantcontinuum.io/realms/substrate
-      GRAPH_SERVICE_URL: http://host.docker.internal:8182
-      INGESTION_SERVICE_URL: http://host.docker.internal:8181
-      REDIS_URL: redis://host.docker.internal:6379
-    <<: *host-aliases
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
+  postgres:
+    env_file: ["${ENV_FILE:-.env.local}"]
+    ports: ["5432:5432"]
+    networks: [substrate_internal]
+    # healthcheck uses pg_isready
 
-  ingestion:
-    build: ./services/ingestion
-    container_name: substrate-ingestion
-    ports: ["8181:8081"]
-    environment:
-      FLYWAY_URL: jdbc:postgresql://host.docker.internal:5432/substrate_ingestion
-      FLYWAY_USER: substrate_ingestion
-      FLYWAY_PASSWORD: ${INGESTION_DB_PASSWORD}
-      DATABASE_URL: postgresql+asyncpg://substrate_ingestion:${INGESTION_DB_PASSWORD}@host.docker.internal:5432/substrate_ingestion
-      GRAPH_DATABASE_URL: postgresql+asyncpg://substrate_graph:${GRAPH_DB_PASSWORD}@host.docker.internal:5432/substrate_graph
-      EMBEDDING_URL: http://host.docker.internal:8101/v1/embeddings
-      GITHUB_TOKEN: ${GITHUB_TOKEN}
-      APP_PORT: "8081"
-    <<: *host-aliases
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    command: ["${KC_START_COMMAND}", "--import-realm"]
+    env_file: ["${ENV_FILE:-.env.local}"]
+    ports: ["8080:8080"]
+    networks: [substrate_internal]
+    volumes:
+      - ./ops/infra/keycloak/substrate-realm.json:/opt/keycloak/data/import/substrate-realm.json:ro
 
-  graph-service:
-    build: ./services/graph
-    container_name: substrate-graph
-    ports: ["8182:8082"]
-    environment:
-      FLYWAY_URL: jdbc:postgresql://host.docker.internal:5432/substrate_graph
-      FLYWAY_USER: substrate_graph
-      FLYWAY_PASSWORD: ${GRAPH_DB_PASSWORD}
-      DATABASE_URL: postgresql+asyncpg://substrate_graph:${GRAPH_DB_PASSWORD}@host.docker.internal:5432/substrate_graph
-      EMBEDDING_URL: http://host.docker.internal:8101/v1/embeddings
-      DENSE_LLM_URL: http://host.docker.internal:8102/v1/chat/completions
-      APP_PORT: "8082"
-    <<: *host-aliases
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
+  pgadmin:
+    env_file: ["${ENV_FILE:-.env.local}"]
+    ports: ["5050:80"]
+
+  gateway:   { ports: ["8180:8080"], networks: [substrate_internal] }
+  ingestion: { ports: ["8181:8081"], networks: [substrate_internal] }
+  graph:     { ports: ["8182:8082"], networks: [substrate_internal] }
 
   frontend:
     build:
-      context: ./frontend
       args:
-        GITHUB_TOKEN: ${GITHUB_TOKEN}
-    container_name: substrate-frontend
-    ports: ["3000:3000"]
-    <<: *host-aliases
-    networks: [local-infra-network]
-    restart: unless-stopped
-
-networks:
-  local-infra-network:
-    external: true
+        VITE_KEYCLOAK_URL: ${VITE_KEYCLOAK_URL}
+        VITE_KEYCLOAK_REALM: ${KEYCLOAK_REALM}
+        VITE_KEYCLOAK_CLIENT_ID: "substrate-frontend"
+    ports: ["3535:3000"]
 ```
 
-### Frontend Dockerfile Notes
-
-The frontend image is a multi-stage build:
-1. **Node stage**: Builds the React app with Vite (authenticates to GitHub Packages via `GITHUB_TOKEN` build arg)
-2. **Python/MkDocs stage**: Builds the documentation site from `frontend/docs/`
-3. **Nginx stage**: Serves the React app at `/` and documentation at `/docs`
-
-If MkDocs fails during the build, a placeholder HTML page is used so the image still assembles successfully.
+Service-to-service traffic uses the `substrate_internal` bridge and container DNS (`gateway`, `postgres`, `keycloak`, …). The sole justified `host.docker.internal` usage is outbound to the local LLM endpoints on the host (lazy-lamacpp).
 
 ---
 
-## Infrastructure Requirements
+## Keycloak realm rendering
 
-### Minimum (Development)
+`ops/infra/keycloak/substrate-realm.template.json` is committed. `scripts/render-realm.py` (called by `scripts/configure.sh`, which `make up` runs first) renders `substrate-realm.json` — substituting:
 
-| Resource | Specification |
-|----------|---------------|
-| CPU | 8 cores |
+- `APP_URL` → `rootUrl` / `baseUrl` and `redirectUris` / `webOrigins`
+- `KC_GATEWAY_CLIENT_SECRET` → `substrate-gateway` client secret
+- `KC_BOOTSTRAP_ADMIN_PASSWORD` → initial admin credential
+- `KEYCLOAK_REALM` → realm name
+- `sslRequired` → `external` when `APP_URL` is `https://`, else `none`
+
+The rendered realm always includes both the canonical `APP_URL` origin and `http://localhost:3535` / `http://localhost:3000` origins, so switching modes doesn't require re-rendering logic — same realm works in both. The generated file is gitignored.
+
+---
+
+## Infrastructure requirements
+
+### Minimum (dev)
+
+| Resource | Spec |
+|---|---|
+| CPU | 6+ cores |
 | RAM | 16 GB |
 | Storage | 50 GB SSD |
-| GPU | Optional |
+| GPU | 4 GB VRAM (serves embeddings + dense concurrently) |
 
-### Recommended (Production)
+### Recommended (prod)
 
-| Resource | Specification |
-|----------|---------------|
+| Resource | Spec |
+|---|---|
 | CPU | 16+ cores |
 | RAM | 32+ GB |
 | Storage | 200 GB NVMe SSD |
-| GPU | Optional (speeds up embeddings/summaries) |
+| GPU | 6+ GB VRAM |
 
 ---
 
-## Startup Sequence
+## Environment variables
+
+All variables live in the active `.env.<mode>` file. The URL block is the only thing that changes between dev and prod; everything else (DB credentials, LLM endpoints, Keycloak bootstrap, pgadmin) is mode-agnostic.
+
+### URL block (mode-specific)
 
 ```bash
-# 1. Start infrastructure (home-stack)
-cd ~/github/danycrafts/home-stack
-docker compose up -d
+# Dev (.env.local)
+APP_URL=http://localhost:3535
+VITE_KEYCLOAK_URL=http://localhost:8080
+KEYCLOAK_ISSUER=http://localhost:8080/realms/substrate
+KC_HOSTNAME=http://localhost:8080
+KC_HOSTNAME_STRICT=false
+KC_START_COMMAND=start-dev
+CORS_ORIGINS=["http://localhost:3535","http://localhost:3000"]
 
-# 2. Wait for PostgreSQL and Keycloak to be healthy
-# (home-stack includes health checks)
-
-# 3. Start required LLM models
-cd ~/github/lazy-lamacpp
-make start MODEL=embeddings
-make start MODEL=dense
-
-# 4. Start Substrate services
-cd ~/github/invariantcontinuum/substrate-platform
-docker compose up -d
-
-# 5. Verify
-curl http://localhost:8080/health
-curl http://localhost:8081/health
-curl http://localhost:8082/health
+# Prod (.env.prod) — NPM terminates TLS upstream
+APP_URL=https://app.<domain>
+VITE_KEYCLOAK_URL=https://auth.<domain>
+KEYCLOAK_ISSUER=https://auth.<domain>/realms/substrate
+KC_HOSTNAME=https://auth.<domain>
+KC_HOSTNAME_STRICT=true
+KC_START_COMMAND=start
+CORS_ORIGINS=["https://app.<domain>"]
 ```
 
----
-
-## Environment Configuration
-
-### Required Environment Variables
+### Shared (both modes)
 
 ```bash
-# Gateway
-KEYCLOAK_URL=http://local-keycloak:8080
 KEYCLOAK_REALM=substrate
-GRAPH_SERVICE_URL=http://substrate-graph:8082
-INGESTION_SERVICE_URL=http://substrate-ingestion:8081
 
-# Ingestion
-DATABASE_URL=postgresql+asyncpg://substrate_ingestion:changeme@local-postgres:5432/substrate_ingestion
-GRAPH_DATABASE_URL=postgresql+asyncpg://substrate_graph:changeme@local-postgres:5432/substrate_graph
-GITHUB_TOKEN=ghp_...
-EMBEDDING_URL=http://localhost:8101/v1/embeddings
+# Single Postgres DB — substrate_graph (AGE + pgvector)
+POSTGRES_SUPERUSER=postgres
+POSTGRES_SUPERUSER_PASSWORD=...
+GRAPH_DB_USER=substrate_graph
+GRAPH_DB_PASSWORD=...
+GRAPH_DB_NAME=substrate_graph
 
-# Graph Service
-DATABASE_URL=postgresql+asyncpg://substrate_graph:changeme@local-postgres:5432/substrate_graph
-EMBEDDING_URL=http://localhost:8101/v1/embeddings
-DENSE_LLM_URL=http://localhost:8102/v1/chat/completions
+# Keycloak (dedicated role; separate DB inside the same Postgres)
+KC_DB_USER=keycloak
+KC_DB_PASSWORD=...
+KC_DB_NAME=keycloak
+KC_BOOTSTRAP_ADMIN_USERNAME=admin
+KC_BOOTSTRAP_ADMIN_PASSWORD=...
+KC_GATEWAY_CLIENT_SECRET=...   # rendered into the realm JSON
 
-# Frontend
-VITE_KEYCLOAK_URL=https://auth.invariantcontinuum.io
-VITE_KEYCLOAK_REALM=substrate
-VITE_KEYCLOAK_CLIENT_ID=substrate-frontend
+# pgadmin (always deployed; scoped to localhost in prod via NPM ACL)
+PGADMIN_DEFAULT_EMAIL=admin@substrate.dev
+PGADMIN_DEFAULT_PASSWORD=...
+
+# Local LLM endpoints (lazy-lamacpp on the host)
+EMBEDDING_URL=http://host.docker.internal:8101/v1/embeddings
+EMBEDDING_MODEL=embeddings
+EMBEDDING_DIM=896
+DENSE_LLM_URL=http://host.docker.internal:8102/v1/chat/completions
+DENSE_LLM_MODEL=dense
+LLM_API_KEY=test
 ```
 
----
-
-## Migration Management
-
-| Database | Tool | Location |
-|----------|------|----------|
-| PostgreSQL | SQL migrations | `services/graph/migrations/`<br>`services/ingestion/migrations/` |
-
-Migrations are applied automatically on service startup or manually via the service-specific migration scripts.
+Note: there is no `REDIS_URL`, no `substrate_ingestion` database, no `GITHUB_TOKEN` global (GitHub PATs travel per-source via the sources API). The schema enforces a single graph database and SSE-only realtime transport.
 
 ---
 
-## Backup and Recovery
+## Migration management
 
-### PostgreSQL
+All SQL migrations live in a single tree: `services/graph/migrations/postgres/`. They run on graph service startup via Flyway (Dockerfile entrypoint). Every migration applies against the single `substrate_graph` database; there is no `substrate_ingestion` migration tree.
+
+Current migration set includes:
+
+- `V1__initial_schema.sql` — base tables (`sources`, `sync_runs`, `sync_issues`, `sync_schedules`, `file_embeddings`, `content_chunks`)
+- `V2__add_enabled_to_sources.sql`, `V3__description_generated_at.sql` — incremental columns
+- `V5__age_file_id_indexes.sql` — AGE lookup indexes
+- `V6__sse_events.sql` — SSE replay table backing `GET /api/events`
+- `V4/V7/V8/V9/V10__embedding_dim_*.sql` — embedding column migrations across model swaps (currently `vector(896)` after V10)
+- `V11__drop_content_chunks.sql` — drops all chunks so the new AST/semantic chunker repopulates
+
+---
+
+## Backup and recovery
 
 ```bash
-# Backup the graph database
-pg_dump -h localhost -U substrate_graph substrate_graph > substrate_graph_backup.sql
+# Single DB backup
+pg_dump -h localhost -U $GRAPH_DB_USER $GRAPH_DB_NAME > substrate_graph.sql
 
-# Backup the ingestion database
-pg_dump -h localhost -U substrate_ingestion substrate_ingestion > substrate_ingestion_backup.sql
+# Keycloak state (separate DB in the same Postgres instance)
+pg_dump -h localhost -U $KC_DB_USER $KC_DB_NAME > keycloak.sql
 
 # Restore
-psql -h localhost -U substrate_graph substrate_graph < substrate_graph_backup.sql
+psql -h localhost -U $GRAPH_DB_USER $GRAPH_DB_NAME < substrate_graph.sql
 ```
+
+For prod, prefer WAL archiving + point-in-time recovery managed by whatever runs `home-stack/services/postgres`.
 
 ---
 
 ## Monitoring
 
-### Health Endpoints
+### Health endpoints
 
 ```bash
-# Service health
-curl http://localhost:8080/health
-curl http://localhost:8081/health
-curl http://localhost:8082/health
+curl http://localhost:8180/health         # gateway (debug port; browser uses the nginx proxy)
+curl http://localhost:8181/health         # ingestion
+curl http://localhost:8182/health         # graph
+curl http://localhost:3535/health         # frontend nginx
+curl http://localhost:8080/health/ready   # keycloak
 ```
 
 ### Logs
 
 ```bash
-# Service logs
-docker logs -f substrate-gateway
-docker logs -f substrate-graph
-docker logs -f substrate-ingestion
+docker compose logs -f gateway ingestion graph
+# or via Makefile
+make logs
+```
 
-# All services
-docker compose logs -f
+### Full probe
+
+```bash
+make doctor              # prints PASS/FAIL per component (15 checks)
+make doctor MODE=prod    # same, against .env.prod values
 ```
 
 ---
 
 ## Troubleshooting
 
-### PostgreSQL connection refused
-
-```bash
-# Check if PostgreSQL is healthy
-docker exec local-postgres pg_isready -U postgres
-```
-
-### Graph empty after sync
-
-```bash
-# Check sync status
-curl http://localhost:8081/api/syncs
-
-# Check for sync issues
-curl http://localhost:8082/api/syncs/{sync_id}/issues
-```
-
-### Embeddings failing
-
-```bash
-# Verify embedding server is running
-curl http://localhost:8101/health
-
-# Or check lazy-lamacpp status
-cd ~/github/lazy-lamacpp && make status MODEL=embeddings
-```
+| Symptom | Fix |
+|---|---|
+| `make up` exits creating `.env.local` / `.env.prod` | Expected on first run — edit it, re-run. |
+| Keycloak login redirects to the wrong URL | Active env file still has the other mode's URL block — swap and re-run `make up`. |
+| Realm doesn't pick up an env edit | `make nuke-keycloak` — `--import-realm` only runs on a fresh `kc_data` volume. |
+| pgadmin restarts with "permission denied" on pgpass | `docker volume rm substrate_pgadmin_data && make up`. |
+| `doctor` fails on LLM probes | `cd ops/llm/lazy-lamacpp && make start MODEL=embeddings && make start MODEL=dense`. |
+| Embedding dim guard fires on graph startup | `pgvector` column dimension in `content_chunks.embedding` / `file_embeddings.embedding` doesn't match `EMBEDDING_DIM`. Run the relevant `V*__embedding_dim_*.sql` migration (auto-applied by Flyway). |
+| Prod: `app.<domain>` returns 502 | home-stack NPM isn't reaching `host.docker.internal:3535`. Check NPM's proxy host provisioning (`home-stack/services/nginx-proxy-manager/init-proxy-hosts.sh`). |

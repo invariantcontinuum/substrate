@@ -45,7 +45,7 @@ should be added to the map rather than relying on the fallback.
 The mapping lives in a single constant in the Node Detail Panel:
 
 ```
-frontend/src/components/panels/NodeDetailPanel.tsx
+apps/frontend/src/components/panels/NodeDetailPanel.tsx
   └─ const REL_SYMBOL: Record<string, string>
   └─ function relSymbol(type: string): string
 ```
