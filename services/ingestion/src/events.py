@@ -48,14 +48,16 @@ async def publish_sync_lifecycle(
     status: str,
     ref: Optional[str] = None,
     triggered_by: Optional[str] = None,
+    source_id: str | uuid.UUID | None = None,
 ) -> None:
-    await _safe_publish(
-        Event(
-            type="sync_lifecycle",
-            sync_id=uuid.UUID(str(sync_id)),
-            payload={"status": status, "ref": ref, "triggered_by": triggered_by},
-        )
+    event = Event(
+        type="sync_lifecycle",
+        sync_id=uuid.UUID(str(sync_id)),
+        payload={"status": status, "ref": ref, "triggered_by": triggered_by},
     )
+    if source_id is not None:
+        event.source_id = uuid.UUID(str(source_id))
+    await _safe_publish(event)
 
 
 async def publish_sync_progress(
@@ -63,18 +65,20 @@ async def publish_sync_progress(
     progress_done: int,
     progress_total: int,
     progress_meta: Optional[dict[str, Any]] = None,
+    source_id: str | uuid.UUID | None = None,
 ) -> None:
-    await _safe_publish(
-        Event(
-            type="sync_progress",
-            sync_id=uuid.UUID(str(sync_id)),
-            payload={
-                "progress_done": progress_done,
-                "progress_total": progress_total,
-                "progress_meta": progress_meta or {},
-            },
-        )
+    event = Event(
+        type="sync_progress",
+        sync_id=uuid.UUID(str(sync_id)),
+        payload={
+            "progress_done": progress_done,
+            "progress_total": progress_total,
+            "progress_meta": progress_meta or {},
+        },
     )
+    if source_id is not None:
+        event.source_id = uuid.UUID(str(source_id))
+    await _safe_publish(event)
 
 
 async def publish_source_changed(

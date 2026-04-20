@@ -44,6 +44,12 @@ async def create_sync_run(source_id: str, config_snapshot: dict,
         )
 
 
+async def _get_source_id(conn: asyncpg.Connection, sync_id: str) -> str | None:
+    return await conn.fetchval(
+        "SELECT source_id::text FROM sync_runs WHERE id=$1::uuid", sync_id
+    )
+
+
 async def claim_sync_run(sync_id: str) -> bool:
     """Atomically transition pending → running. Returns False if already claimed/cancelled."""
     pool = graph_writer.get_pool()
@@ -53,9 +59,10 @@ async def claim_sync_run(sync_id: str) -> bool:
                WHERE id = $1::uuid AND status = 'pending'""",
             sync_id,
         )
+        source_id = await _get_source_id(conn, sync_id)
     claimed = result == "UPDATE 1"
     if claimed:
-        await events.publish_sync_lifecycle(sync_id, "running")
+        await events.publish_sync_lifecycle(sync_id, "running", source_id=source_id)
     return claimed
 
 
@@ -73,7 +80,8 @@ async def update_sync_progress(sync_id: str, done: int, total: int,
                 "UPDATE sync_runs SET progress_done=$2, progress_total=$3 WHERE id=$1::uuid",
                 sync_id, done, total,
             )
-    await events.publish_sync_progress(sync_id, done, total, meta)
+        source_id = await _get_source_id(conn, sync_id)
+    await events.publish_sync_progress(sync_id, done, total, meta, source_id=source_id)
 
 
 async def set_ref(sync_id: str, ref: str) -> None:
@@ -90,7 +98,8 @@ async def complete_sync_run(sync_id: str, stats: dict) -> None:
                WHERE id=$1::uuid""",
             sync_id, json.dumps(stats),
         )
-    await events.publish_sync_lifecycle(sync_id, "completed")
+        source_id = await _get_source_id(conn, sync_id)
+    await events.publish_sync_lifecycle(sync_id, "completed", source_id=source_id)
 
 
 async def fail_sync_run(sync_id: str, message: str) -> None:
@@ -100,11 +109,12 @@ async def fail_sync_run(sync_id: str, message: str) -> None:
             "UPDATE sync_runs SET status='failed', completed_at=now() WHERE id=$1::uuid",
             sync_id,
         )
+        source_id = await _get_source_id(conn, sync_id)
     # Persist the failure reason as a structured issue so the UI can show it.
     from src import sync_issues
     await sync_issues.record_issue(
         sync_id, "error", "terminal", "sync_failed", message, {})
-    await events.publish_sync_lifecycle(sync_id, "failed")
+    await events.publish_sync_lifecycle(sync_id, "failed", source_id=source_id)
 
 
 async def cancel_sync_run(sync_id: str, message: str) -> None:
@@ -114,10 +124,11 @@ async def cancel_sync_run(sync_id: str, message: str) -> None:
             "UPDATE sync_runs SET status='cancelled', completed_at=now() WHERE id=$1::uuid",
             sync_id,
         )
+        source_id = await _get_source_id(conn, sync_id)
     from src import sync_issues
     await sync_issues.record_issue(
         sync_id, "info", "terminal", "sync_cancelled", message, {})
-    await events.publish_sync_lifecycle(sync_id, "cancelled")
+    await events.publish_sync_lifecycle(sync_id, "cancelled", source_id=source_id)
 
 
 async def check_sync_status(sync_id: str) -> str | None:
