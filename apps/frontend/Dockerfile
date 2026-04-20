@@ -43,8 +43,8 @@ RUN pip install --no-cache-dir \
     mkdocs-material \
     mkdocs-minify-plugin
 
-COPY apps/frontend/docs/mkdocs.yml /src/mkdocs.yml
-COPY apps/frontend/docs /src/docs
+COPY docs/mkdocs.yml /src/mkdocs.yml
+COPY docs /src/docs
 
 RUN mkdocs build --site-dir /src/site \
     || (mkdir -p /src/site && echo '<html><body><h1>Documentation build skipped</h1></body></html>' > /src/site/index.html)
