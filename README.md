@@ -8,11 +8,11 @@ Substrate governance platform — monorepo.
 gh repo clone invariantcontinuum/substrate
 cd substrate
 cd ops/llm/lazy-lamacpp && make start MODEL=embeddings && make start MODEL=dense && cd -
-make up
+make up              # defaults to MODE=local (.env.local)
 # open http://localhost:3535
 ```
 
-First `make up` copies `.env.example` → `.env` and exits — edit `.env`, then re-run.
+First `make up` copies `.env.local.example` → `.env.local` and exits — edit `.env.local`, then re-run.
 
 ### URLs
 
@@ -30,7 +30,15 @@ First `make up` copies `.env.example` → `.env` and exits — edit `.env`, then
 
 ## Prod
 
-Prod is the same stack with different `.env` URLs. Swap the marked block in `.env` to your domain values, then `make up`. TLS and hostname routing are handled upstream by [home-stack](../home-stack)'s nginx-proxy-manager, which auto-provisions:
+Prod is the same stack with a different env file. First-time setup:
+
+```bash
+cp .env.prod.example .env.prod
+# edit .env.prod: replace <your-domain> and <set-a-strong-password> placeholders
+make up MODE=prod
+```
+
+TLS and hostname routing are handled upstream by [home-stack](../home-stack)'s nginx-proxy-manager, which auto-provisions:
 
 - `app.<domain>` → `host.docker.internal:3535`
 - `auth.<domain>` → `host.docker.internal:8080`
@@ -40,9 +48,11 @@ So substrate keeps publishing the same ports in both modes. No reverse proxy is 
 
 ## Make targets
 
+Every target accepts `MODE=local` (default) or `MODE=prod`, which selects `.env.local` or `.env.prod`.
+
 | Target | Effect |
 |---|---|
-| `make up` | Render realm from `.env` and build + start the stack. |
+| `make up` | Render realm from the active env file and build + start the stack. |
 | `make down` | Stop the stack (volumes persist). |
 | `make restart` | `down` + `up`. |
 | `make nuke` | Destroy all volumes (confirms first). |
@@ -61,7 +71,8 @@ LLM models live in `ops/llm/lazy-lamacpp/` and are managed by their own Makefile
 ```text
 substrate/
 ├── compose.yaml            # single compose for dev + prod
-├── .env.example            # single env file — all vars
+├── .env.local.example      # dev template
+├── .env.prod.example       # prod template
 ├── Makefile
 ├── apps/frontend/          # React + Vite + TypeScript
 ├── services/
@@ -80,7 +91,7 @@ substrate/
 └── docs/                   # developer guide, architecture, system design
 ```
 
-`.env` and `ops/infra/keycloak/substrate-realm.json` are generated and gitignored. `substrate-realm.template.json` is committed.
+`.env.local`, `.env.prod`, and `ops/infra/keycloak/substrate-realm.json` are gitignored. The `.example` templates and `substrate-realm.template.json` are committed.
 
 ## Architectural constraints
 

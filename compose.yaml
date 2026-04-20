@@ -4,8 +4,8 @@ name: substrate
 # the host identically in either mode — in prod, the home-stack
 # nginx-proxy-manager reaches them via host.docker.internal and terminates
 # TLS upstream (see home-stack/services/nginx-proxy-manager/init-proxy-hosts.sh).
-# Mode switching is entirely via `.env`: flip the URL block and KC_*
-# values, then `make up`.
+# Mode switching: `make up` reads .env.local; `make up MODE=prod` reads
+# .env.prod. The active file is passed via --env-file and ENV_FILE.
 
 networks:
   substrate_internal:
@@ -21,7 +21,7 @@ services:
   postgres:
     build: ops/infra/postgres
     container_name: substrate-postgres
-    env_file: [.env]
+    env_file: ["${ENV_FILE:-.env.local}"]
     environment:
       POSTGRES_DB: postgres
       POSTGRES_USER: ${POSTGRES_SUPERUSER}
@@ -42,7 +42,7 @@ services:
     image: quay.io/keycloak/keycloak:26.0
     container_name: substrate-keycloak
     command: ["${KC_START_COMMAND}", "--import-realm"]
-    env_file: [.env]
+    env_file: ["${ENV_FILE:-.env.local}"]
     environment:
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://postgres:5432/${KC_DB_NAME}
@@ -75,7 +75,7 @@ services:
   pgadmin:
     image: dpage/pgadmin4:8
     container_name: substrate-pgadmin
-    env_file: [.env]
+    env_file: ["${ENV_FILE:-.env.local}"]
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
@@ -98,7 +98,7 @@ services:
       context: .
       dockerfile: services/gateway/Dockerfile
     container_name: substrate-gateway
-    env_file: [.env]
+    env_file: ["${ENV_FILE:-.env.local}"]
     environment:
       SERVICE_NAME: gateway
       GRAPH_SERVICE_URL: http://graph:8082
@@ -123,7 +123,7 @@ services:
       context: .
       dockerfile: services/ingestion/Dockerfile
     container_name: substrate-ingestion
-    env_file: [.env]
+    env_file: ["${ENV_FILE:-.env.local}"]
     environment:
       SERVICE_NAME: ingestion
       DATABASE_URL: postgresql+asyncpg://${GRAPH_DB_USER}:${GRAPH_DB_PASSWORD}@postgres:5432/${GRAPH_DB_NAME}
@@ -146,7 +146,7 @@ services:
       context: .
       dockerfile: services/graph/Dockerfile
     container_name: substrate-graph
-    env_file: [.env]
+    env_file: ["${ENV_FILE:-.env.local}"]
     environment:
       SERVICE_NAME: graph
       FLYWAY_URL: jdbc:postgresql://postgres:5432/${GRAPH_DB_NAME}

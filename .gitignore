@@ -1,5 +1,7 @@
-# Env
+# Env (per-mode; .example templates are committed)
 .env
+.env.local
+.env.prod
 
 # Generated Keycloak realm — rendered from substrate-realm.template.json
 ops/infra/keycloak/substrate-realm.json

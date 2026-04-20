@@ -5,8 +5,9 @@ set -euo pipefail
 STRICT=0
 [[ "${1:-}" == "--strict" ]] && STRICT=1
 
-if [[ -f .env ]]; then
-  set -a; source .env; set +a
+ENV_FILE="${ENV_FILE:-.env.local}"
+if [[ -f "$ENV_FILE" ]]; then
+  set -a; source "$ENV_FILE"; set +a
 fi
 
 pass() { printf "  PASS  %s\n" "$1"; }
@@ -19,7 +20,7 @@ pass "monorepo skeleton present"
 [[ -f compose.yaml ]] && pass "compose.yaml present" \
                      || fail "compose.yaml missing"
 
-[[ -f .env ]] && pass ".env present" || fail ".env missing — run: make up (creates from .env.example)"
+[[ -f "$ENV_FILE" ]] && pass "$ENV_FILE present" || fail "$ENV_FILE missing — run: make up MODE=${ENV_FILE#.env.}"
 
 [[ -f ops/infra/keycloak/substrate-realm.json ]] && pass "realm rendered" \
                      || fail "realm not rendered — run: make up"
