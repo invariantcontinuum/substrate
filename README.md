@@ -7,81 +7,91 @@ Substrate governance platform — monorepo.
 ```bash
 gh repo clone invariantcontinuum/substrate
 cd substrate
-make llm-start MODEL=embeddings
-make llm-start MODEL=dense
-make deploy-dev
+cd ops/llm/lazy-lamacpp && make start MODEL=embeddings && make start MODEL=dense && cd -
+make up
 # open http://localhost:3535
 ```
 
-`make deploy-dev` regenerates config for localhost, builds the stack, and brings it up. See `docs/developer-guide/quickstart.md` for hot reload, troubleshooting, and the full make target list.
+First `make up` copies `.env.example` → `.env` and exits — edit `.env`, then re-run.
 
-### Dev URLs
+### URLs
 
 | URL | Service |
 |---|---|
 | http://localhost:3535 | Frontend |
 | http://localhost:8080 | Keycloak |
-| http://localhost:5050 | pgadmin (dev only) |
-| http://localhost:5432 | Postgres (optional) |
+| http://localhost:5050 | pgadmin |
+| http://localhost:5432 | Postgres |
 | http://localhost:8180 | Gateway (debug) |
-| http://localhost:8101 | Embeddings LLM |
-| http://localhost:8102 | Dense LLM |
+| http://localhost:8181 | Ingestion (debug) |
+| http://localhost:8182 | Graph (debug) |
+| http://localhost:8101 | Embeddings LLM (host systemd) |
+| http://localhost:8102 | Dense LLM (host systemd) |
 
-## Production
+## Prod
 
-```bash
-make deploy-prod DOMAIN=example.com ACME_EMAIL=ops@example.com
-```
+Prod is the same stack with different `.env` URLs. Swap the marked block in `.env` to your domain values, then `make up`. TLS and hostname routing are handled upstream by [home-stack](../home-stack)'s nginx-proxy-manager, which auto-provisions:
 
-Requires DNS `A` records for `app.<domain>` and `auth.<domain>` and ports 80 + 443 open on the host. Prod bundles Traefik v3 with Let's Encrypt; no other ports are published and pgadmin is not deployed.
+- `app.<domain>` → `host.docker.internal:3535`
+- `auth.<domain>` → `host.docker.internal:8080`
+- `pgadmin.<domain>` → `host.docker.internal:5050`
 
-## How the deploy switcher works
+So substrate keeps publishing the same ports in both modes. No reverse proxy is bundled here.
 
-| Generator | Output | Checked in? |
-|---|---|---|
-| `scripts/set-env.sh <mode>` | `.env`, `env/overlays/<mode>.env`, `.deploy-mode` | Gitignored |
-| `scripts/render-realm.py` | `ops/infra/keycloak/substrate-realm.json` | Gitignored |
-| — | `ops/infra/keycloak/substrate-realm.template.json` | Yes |
-| — | `env/{platform,infra,llm}.env.example`, `env/overlays/*.env.example` | Yes |
+## Make targets
 
-`make configure MODE=dev|prod [DOMAIN=...] [ACME_EMAIL=...]` runs both generators. `make up/down/restart` read `.deploy-mode` to pick the right compose overlay automatically.
+| Target | Effect |
+|---|---|
+| `make up` | Render realm from `.env` and build + start the stack. |
+| `make down` | Stop the stack (volumes persist). |
+| `make restart` | `down` + `up`. |
+| `make nuke` | Destroy all volumes (confirms first). |
+| `make nuke-keycloak` | Drop keycloak DB + `kc_data` so `--import-realm` re-runs. |
+| `make ps` / `make logs` | Container status / tail logs. |
+| `make doctor` | Probe every component and print PASS/FAIL. |
+| `make test` | Unit + integration tests (testcontainers). |
+| `make test-e2e` | Playwright smoke against the live stack. |
+| `make lint` | ruff + mypy + vulture + tsc + eslint + knip + banned-token gate. |
+| `make check-contracts` | Diff pydantic JSON schemas vs zod JSON schemas. |
 
-Secrets in `env/platform.env` / `env/infra.env` / `env/llm.env` survive re-configure — the script key-merges against the `.example` shape.
+LLM models live in `ops/llm/lazy-lamacpp/` and are managed by their own Makefile (`make start MODEL=<name>`, `make stop MODEL=<name>`, `make status-all`). They're intentionally not re-exposed here.
 
 ## Layout
 
 ```text
-apps/frontend                  # React + Vite + TypeScript
-services/
-  gateway/                     # FastAPI — auth + SSE fan-out + REST proxy
-  ingestion/                   # FastAPI — ingest workers, writes to graph DB
-  graph/                       # FastAPI — read API + AGE + pgvector
-packages/
-  substrate-common/            # Shared Python lib
-  substrate-web-common/        # Shared TS lib
-  substrate-graph-builder/     # Plugin registry producing graph documents
-  graph-ui/                    # Imported from invariantcontinuum/graph
-ops/
-  compose/                     # docker compose (base + dev override + prod override)
-  infra/{postgres,keycloak,pgadmin}/
-  llm/lazy-lamacpp/            # systemd-user LLM runtime
-env/
-  {platform,infra,llm}.env.example
-  overlays/{dev,prod}.env.example
-scripts/                       # set-env, render-realm, doctor, run-tests, run-lint
-docs/                          # developer guide
+substrate/
+├── compose.yaml            # single compose for dev + prod
+├── .env.example            # single env file — all vars
+├── Makefile
+├── apps/frontend/          # React + Vite + TypeScript
+├── services/
+│   ├── gateway/            # FastAPI — auth + SSE fan-out + REST proxy
+│   ├── ingestion/          # FastAPI — ingest workers
+│   └── graph/              # FastAPI — read API + AGE + pgvector
+├── packages/
+│   ├── substrate-common/
+│   ├── substrate-web-common/
+│   ├── substrate-graph-builder/
+│   └── graph-ui/
+├── ops/
+│   ├── infra/{postgres,keycloak,pgadmin}/
+│   └── llm/lazy-lamacpp/
+├── scripts/                # configure, render-realm, doctor, tests, lint
+└── docs/                   # developer guide, architecture, system design
 ```
+
+`.env` and `ops/infra/keycloak/substrate-realm.json` are generated and gitignored. `substrate-realm.template.json` is committed.
 
 ## Architectural constraints
 
-- **Single data boundary:** `substrate_graph` (Apache AGE + pgvector). No `substrate_ingestion` database. No second DSN.
-- **Realtime transport:** `GET /api/events` (SSE) only, backed by Postgres `LISTEN/NOTIFY`. No WebSockets, no polling, no Redis — `make lint` fails if those tokens appear in application code.
-- **Internal service DNS:** Container-to-container traffic uses the `substrate_internal` bridge. `host.docker.internal` is only legal for reaching the host-local LLM endpoints.
-- **Shared code:** `packages/substrate-common` (Python) and `packages/substrate-web-common` (TS) own shared concerns; services don't duplicate them.
-- **Testing:** Integration tests use `testcontainers-python` for a real Postgres + AGE + pgvector. No DB mocks.
+- **Single data boundary:** `substrate_graph` (Apache AGE + pgvector).
+- **Realtime transport:** `GET /api/events` (SSE) only. No WebSockets, no polling, no Redis — `make lint` fails if those tokens appear in application code.
+- **Internal service DNS:** Container-to-container traffic uses `substrate_internal`. `host.docker.internal` is only legal for reaching the host-local LLM endpoints.
+- **Shared code:** `packages/substrate-common` (Python) and `packages/substrate-web-common` (TS) own shared concerns.
+- **Testing:** Integration tests use `testcontainers-python` for real Postgres + AGE + pgvector. No DB mocks.
 
 ## Docs
 
-- `docs/developer-guide/quickstart.md` — full setup, make target reference, troubleshooting.
+- `docs/developer-guide/quickstart.md` — setup, troubleshooting, make target reference.
 - `docs/developer-guide/adding-a-language-plugin.md` — graph-builder plugin walkthrough.
-- `apps/frontend/docs/` — frontend architecture and system design.
+- `docs/architecture/`, `docs/system-design/` — architecture and design docs.
