@@ -85,10 +85,14 @@ def _envelope(code: str, message: str, details: dict[str, Any], request_id: str)
     }
 
 
+def _known_error_log_method(status: int) -> str:
+    return "error" if status >= 500 else "info"
+
+
 def register_handlers(app: FastAPI) -> None:
     @app.exception_handler(SubstrateError)
     async def handle_known(request: Request, exc: SubstrateError):
-        log.warning(
+        getattr(log, _known_error_log_method(exc.status))(
             "error_returned",
             error_code=exc.code,
             error_status=exc.status,

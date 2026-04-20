@@ -5,6 +5,7 @@ from substrate_common.errors import (
     ConflictError,
     NotFoundError,
     SubstrateError,
+    _known_error_log_method,
     register_handlers,
 )
 
@@ -60,3 +61,9 @@ def test_substrate_error_default_fields():
     assert e.code == "INTERNAL"
     assert e.status == 500
     assert e.details == {}
+
+
+def test_known_error_log_method():
+    assert _known_error_log_method(401) == "info"
+    assert _known_error_log_method(404) == "info"
+    assert _known_error_log_method(500) == "error"
