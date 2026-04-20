@@ -42,27 +42,32 @@ This is enforced per model in `runtime/config/<model>.env`.
 
 ---
 
-## Critical Mandate: On-Demand Startup
+## Critical Mandate: Simultaneous GPU Operation
 
-**Services in this stack should be started ON DEMAND.**
+**Embeddings and Dense MUST both run on GPU concurrently.**
 
-Due to memory constraints (15.6 GiB RAM, 6 GiB VRAM), running all models concurrently is not recommended. When another locally running service (e.g., in `home-stack` or a standalone app) needs an LLM capability:
+The substrate stack requires both services to be available at all times. With the current 4 GB VRAM budget, this is achieved by:
 
-1. **Check if the required model is running:**
-   ```bash
-   make status MODEL=<name>
-   ```
+- **jina-code-embeddings-0.5b Q8_0** on GPU at port 8101 with **32768 context**
+- **Qwen3.5-2B Q8_0** on GPU at port 8102 with **60416 context**
 
-2. **Start the model if needed:**
-   ```bash
-   make start MODEL=<name>
-   ```
+Both models use Q8_0 KV cache quantization to maximize quality within the memory budget. Total VRAM usage is ~4007 MiB / 4096 MiB, leaving ~25 MiB headroom.
 
-3. **Verify health before use:**
-   Wait for the model to be ready by checking the `/health` endpoint or using:
-   ```bash
-   make sample MODEL=<name>
-   ```
+Other models (sparse, reranker, coding) are still started on-demand and should NOT run concurrently with dense + embeddings on this GPU.
+
+### Starting the required pair
+
+```bash
+make start MODEL=embeddings
+make start MODEL=dense
+```
+
+### Verify both are healthy
+
+```bash
+make status MODEL=embeddings
+make status MODEL=dense
+```
 
 ---
 
@@ -85,13 +90,13 @@ Device assignment is **configurable per model** based on your needs:
 
 ### Default Configurations
 
-| Model Role | Default Device | Notes |
-|------------|---------------|-------|
-| embeddings | gpu | Can run on CPU if VRAM constrained |
-| dense | gpu | Benefits significantly from GPU |
-| sparse | gpu | Benefits significantly from GPU |
-| reranker | gpu | Benefits significantly from GPU |
-| coding | gpu | Large model, benefits from GPU |
+| Model Role | Default Device | Context | KV Cache | Notes |
+|------------|---------------|---------|----------|-------|
+| embeddings | gpu | 32768 | Q8_0 | Runs concurrently with dense |
+| dense | gpu | 60416 | Q8_0 | Runs concurrently with embeddings |
+| sparse | gpu | 16384 | Q8_0 | Start on-demand only |
+| reranker | gpu | 32768 | Q8_0 | Start on-demand only |
+| coding | cpu | 32768 | Q8_0 | 9B model, too large for 4 GB GPU |
 
 ### Changing Device
 
