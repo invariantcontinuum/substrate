@@ -17,9 +17,12 @@ _VALID_PROJECTIONS = {"full", "minimal"}
 
 
 async def _embed_query(query: str) -> list[float]:
-    # Prefix queries so they cluster with `search_document: …`-prefixed
-    # corpus embeddings produced by the ingestion service.
-    prefixed = f"search_query: {query}"
+    # Prefix queries so they cluster with the document embeddings produced
+    # by the ingestion service. Prefix + cap are env-configurable so model
+    # swaps are a .env.<mode> edit, not a code change.
+    prefix = settings.embedding_query_prefix
+    cap = settings.embedding_max_input_chars - len(prefix)
+    prefixed = prefix + (query[:cap] if len(query) > cap else query)
     headers: dict[str, str] = {}
     if settings.llm_api_key:
         headers["Authorization"] = f"Bearer {settings.llm_api_key}"
@@ -159,7 +162,7 @@ async def get_node_file(node_id: str, sync_id: str | None = None):
             "truncated": False,
         }
 
-    rec = reconstruct_chunks([dict(c) for c in chunk_rows])
+    rec = reconstruct_chunks([dict(c) for c in chunk_rows], cap_bytes=settings.file_reconstruct_max_bytes)
     return {
         **base_payload,
         "chunk_count": rec["chunk_count"],

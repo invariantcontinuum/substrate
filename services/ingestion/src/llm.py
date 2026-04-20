@@ -29,13 +29,6 @@ def assert_embedding_dim(sync_id: str, embeddings: list[list[float]], expected: 
 
 _client: httpx.AsyncClient | None = None
 
-# Keep individual embedding inputs small enough that a single oversize
-# chunk cannot fail an entire batch request. The active embeddings model
-# (nomic-embed-text-v2-moe) has a 512-token context window; at ~3 chars/tok
-# this 1400-char cap stays safely inside it while keeping batch latency
-# and retry behavior predictable.
-_MAX_INPUT_CHARS = 1400
-
 
 async def _get_client() -> httpx.AsyncClient:
     global _client
@@ -53,18 +46,19 @@ async def close_client() -> None:
         _client = None
 
 
-# Prefix corpus content so it clusters with query embeddings produced by
-# the graph service:
-#   - `search_document: …` for corpus content (this service)
-#   - `search_query: …`    for user queries (graph-service search)
-_DOCUMENT_PREFIX = "search_document: "
+# Prefix scheme configured via settings.embedding_document_prefix.
+# jina-code-embeddings uses "search_document: " for corpus content and
+# "search_query: " for user queries so vectors cluster together. Other
+# models may require a different prefix (or none) — override per-model
+# via EMBEDDING_DOCUMENT_PREFIX in .env.<mode>.
 
 
 def _truncate(text: str) -> str:
-    body_cap = _MAX_INPUT_CHARS - len(_DOCUMENT_PREFIX)
+    prefix = settings.embedding_document_prefix
+    body_cap = settings.embedding_max_input_chars - len(prefix)
     if len(text) <= body_cap:
-        return _DOCUMENT_PREFIX + text
-    return _DOCUMENT_PREFIX + text[:body_cap]
+        return prefix + text
+    return prefix + text[:body_cap]
 
 
 def _auth_headers() -> dict[str, str]:
@@ -128,9 +122,10 @@ async def embed_batch(texts: list[str]) -> list[list[float] | None]:
                 # Last-ditch: the prefix + first half of the body may
                 # still tokenise under 512. Retry once at 40 % length
                 # before giving up on this chunk.
-                body = truncated[0][len(_DOCUMENT_PREFIX):]
+                prefix = settings.embedding_document_prefix
+                body = truncated[0][len(prefix):]
                 if len(body) > 320:
-                    short = _DOCUMENT_PREFIX + body[: int(len(body) * 0.4)]
+                    short = prefix + body[: int(len(body) * 0.4)]
                     try:
                         vectors = await _embed_call(client, [short])
                         logger.info(

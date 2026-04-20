@@ -28,7 +28,8 @@ from src.graph.file_reconstruct import reconstruct_chunks
 
 logger = structlog.get_logger()
 
-_SUMMARY_CONTEXT_RETRY_SCALES = (1.0, 0.5, 0.25)
+# Retry scales are read from settings so deployers can tune them without
+# a code change. Accessed via settings.summary_retry_scales_tuple.
 
 
 def _parse_vector(raw) -> list[float] | None:
@@ -333,7 +334,7 @@ async def generate_enriched_summary(
                 "neighbor_count": 0,
                 "truncated_file": False,
             }
-        rec = reconstruct_chunks([dict(c) for c in chunk_rows])
+        rec = reconstruct_chunks([dict(c) for c in chunk_rows], cap_bytes=settings.file_reconstruct_max_bytes)
 
         edge_triples = await _fetch_edge_neighbors(conn, row["id"])
         neighbor_ids = [t["neighbor_id"] for t in edge_triples]
@@ -390,7 +391,7 @@ async def generate_enriched_summary(
     # Connection released before the slow LLM call — see docstring.
     llm_resp: dict | None = None
     last_error: Exception | None = None
-    for idx, scale in enumerate(_SUMMARY_CONTEXT_RETRY_SCALES):
+    for idx, scale in enumerate(settings.summary_retry_scales_tuple):
         prompt = assemble_prompt(
             file_path=row["file_path"],
             language=row["language"] or "",
@@ -424,12 +425,12 @@ async def generate_enriched_summary(
             break
         except (httpx.HTTPError, httpx.TimeoutException) as exc:
             last_error = exc
-            if _is_context_window_error(exc) and idx < len(_SUMMARY_CONTEXT_RETRY_SCALES) - 1:
+            if _is_context_window_error(exc) and idx < len(settings.summary_retry_scales_tuple) - 1:
                 logger.warning(
                     "enriched_summary_llm_context_retry",
                     node_id=node_id,
                     scale=scale,
-                    next_scale=_SUMMARY_CONTEXT_RETRY_SCALES[idx + 1],
+                    next_scale=settings.summary_retry_scales_tuple[idx + 1],
                     error=str(exc),
                 )
                 continue

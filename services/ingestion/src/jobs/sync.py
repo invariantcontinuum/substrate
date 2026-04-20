@@ -15,7 +15,7 @@ from substrate_graph_builder import build_graph
 
 logger = structlog.get_logger()
 
-EMBED_BATCH_SIZE = 32
+EMBED_BATCH_SIZE = settings.embed_batch_size
 CANCELLATION_POLL_EVERY_N = 50
 
 

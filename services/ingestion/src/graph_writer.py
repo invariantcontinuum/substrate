@@ -6,7 +6,7 @@ from src.llm import assert_embedding_dim
 
 logger = structlog.get_logger()
 
-CHUNK_SIZE = 500
+CHUNK_SIZE = settings.age_batch_size
 
 _pool: asyncpg.Pool | None = None
 
