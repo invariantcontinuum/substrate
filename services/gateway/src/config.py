@@ -7,13 +7,17 @@ from substrate_common.config import load_settings
 class _GatewaySettings(BaseSettings):
     keycloak_url: str = "http://keycloak:8080"
     keycloak_realm: str = "substrate"
-    keycloak_issuer: str = "http://localhost:8080/realms/substrate"
+    # Browser-facing issuer — must match KC_HOSTNAME on the Keycloak side.
+    # Populated by docker-compose from the active deployment overlay; empty
+    # default falls back to the internal keycloak_url via the issuer property.
+    keycloak_issuer: str = ""
+    kc_gateway_client_secret: str = ""
     graph_service_url: str = "http://graph:8082"
     ingestion_service_url: str = "http://ingestion:8081"
     database_url: str = "postgresql+asyncpg://substrate_graph:change-me@postgres:5432/substrate_graph"
 
     auth_disabled: bool = False
-    cors_origins: list[str] = ["http://localhost:3535"]
+    cors_origins: list[str] = []
     service_name: str = "gateway"
 
     @property
