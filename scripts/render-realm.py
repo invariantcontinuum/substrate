@@ -33,6 +33,8 @@ def main() -> None:
     gateway_secret = require("KC_GATEWAY_CLIENT_SECRET")
     admin_password = require("KC_BOOTSTRAP_ADMIN_PASSWORD")
     admin_email = os.environ.get("KC_BOOTSTRAP_ADMIN_EMAIL", "admin@substrate.local")
+    github_client_id = os.environ.get("GITHUB_OAUTH_APP_CLIENT_ID", "").strip()
+    github_client_secret = os.environ.get("GITHUB_OAUTH_APP_CLIENT_SECRET", "").strip()
 
     ssl_required = "external" if app_url.startswith("https://") else "none"
 
@@ -54,6 +56,8 @@ def main() -> None:
         "__FRONTEND_REDIRECT_URIS__": json.dumps(redirect_uris),
         "__FRONTEND_WEB_ORIGINS__": json.dumps(web_origins),
         "__GATEWAY_WEB_ORIGINS__": json.dumps(origins),
+        "__GITHUB_OAUTH_APP_CLIENT_ID__": github_client_id,
+        "__GITHUB_OAUTH_APP_CLIENT_SECRET__": github_client_secret,
     }
     for key, value in replacements.items():
         text = text.replace(key, value)
