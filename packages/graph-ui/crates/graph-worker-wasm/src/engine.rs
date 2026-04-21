@@ -5,14 +5,25 @@ use graph_core::graph::GraphStore;
 use graph_core::search::SearchIndex;
 use graph_core::types::{EdgeData, NodeData, NodeType, Status};
 use graph_layout::incremental::place_added_nodes;
-use graph_layout::{ForceLayout, HierarchicalLayout, LayoutEngine};
+use graph_layout::{ForceLayout, GridLayout, HierarchicalLayout, LayoutEngine};
 
 use crate::protocol::FilterIn;
+
+// Grid layout defaults — typical node footprint plus padding. Width/height
+// match the theme's default node size (110x38); padding provides a visual
+// gutter. `viewport_ratio` is approximated at 16:9 (1.77) here because the
+// worker does not know the live canvas aspect; the RenderEngine's `fit`
+// normalizes whatever aspect the grid ends up at.
+const GRID_PADDING: f32 = 20.0;
+const GRID_NODE_W: f32 = 110.0;
+const GRID_NODE_H: f32 = 38.0;
+const GRID_VIEWPORT_RATIO: f32 = 1.77;
 
 #[derive(Clone, Copy, PartialEq)]
 enum LayoutKind {
     Force,
     Hierarchical,
+    Grid,
 }
 
 pub struct WorkerEngine {
@@ -23,6 +34,7 @@ pub struct WorkerEngine {
 
     force_layout: ForceLayout,
     hier_layout: HierarchicalLayout,
+    grid_layout: GridLayout,
     active_layout: LayoutKind,
     layout_running: bool,
 
@@ -50,6 +62,12 @@ impl WorkerEngine {
             node_order: Vec::new(),
             force_layout: ForceLayout::new(),
             hier_layout: HierarchicalLayout::new(),
+            grid_layout: GridLayout::new(
+                GRID_PADDING,
+                GRID_NODE_W,
+                GRID_NODE_H,
+                GRID_VIEWPORT_RATIO,
+            ),
             active_layout: LayoutKind::Force,
             layout_running: false,
             visible_nodes: None,
@@ -151,6 +169,11 @@ impl WorkerEngine {
                 self.layout_running = false;
                 false
             }
+            LayoutKind::Grid => {
+                // Grid is one-shot; positions are set in `set_layout`.
+                self.layout_running = false;
+                false
+            }
         }
     }
 
@@ -177,6 +200,23 @@ impl WorkerEngine {
                 for (id, x, y) in result {
                     self.positions.insert(id, (x, y));
                 }
+                self.layout_running = false;
+            }
+            "grid" => {
+                self.active_layout = LayoutKind::Grid;
+                // Fresh engine so converged flag resets and a re-issued
+                // `set_layout=grid` recomputes even if no nodes changed.
+                self.grid_layout = GridLayout::new(
+                    GRID_PADDING,
+                    GRID_NODE_W,
+                    GRID_NODE_H,
+                    GRID_VIEWPORT_RATIO,
+                );
+                let result = self.grid_layout.compute(&self.store);
+                for (id, x, y) in result {
+                    self.positions.insert(id, (x, y));
+                }
+                // Grid is one-shot and non-overlapping by construction.
                 self.layout_running = false;
             }
             _ => {

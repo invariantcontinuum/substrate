@@ -183,7 +183,7 @@ export function GraphCanvas() {
             ref={engineRef}
             snapshot={snapshot}
             theme={engineThemeJson as Record<string, unknown>}
-            layout="force"
+            layout="grid"
             onNodeClick={onNodeClick}
             onReady={onReady}
             className="graph-canvas-webgl"
@@ -235,7 +235,7 @@ export function GraphCanvas() {
           <ZoomOut size={16} strokeWidth={1.75} />
         </button>
         <button
-          onClick={() => engineRef.current?.relayout("force")}
+          onClick={() => engineRef.current?.relayout("grid")}
           title="Relayout"
           aria-label="Relayout"
         >

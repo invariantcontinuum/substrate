@@ -40,7 +40,7 @@ export interface GraphFilter {
   status?: string[];
 }
 
-export type LayoutType = "force" | "hierarchical";
+export type LayoutType = "force" | "hierarchical" | "grid";
 
 export interface LegendEntry {
   type_key: string;
