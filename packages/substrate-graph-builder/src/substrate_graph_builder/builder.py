@@ -19,6 +19,7 @@ from typing import Any
 import structlog
 from substrate_common.schema import EdgeAffected, NodeAffected
 
+from substrate_graph_builder.denylist import is_denied
 from substrate_graph_builder.model import (
     FileAnalysis,
     GraphDocument,
@@ -50,13 +51,21 @@ def build_graph(
     """
     ctx = RepoContext.from_root(root_dir, source_name=source_name)
 
-    # ---- 1. file nodes ----
-    nodes: list[NodeAffected] = [
-        _make_file_node(entry["path"], source_name)
-        for entry in tree
-        if entry.get("type") == "blob"
-    ]
+    # ---- 1. file nodes (deny-list filtered before node creation) ----
+    nodes: list[NodeAffected] = []
+    denied_count = 0
+    for entry in tree:
+        if entry.get("type") != "blob":
+            continue
+        path = entry["path"]
+        if is_denied(path):
+            denied_count += 1
+            continue
+        nodes.append(_make_file_node(path, source_name))
     known_files: set[str] = {n.id for n in nodes}
+
+    if denied_count:
+        logger.info("graph_builder_denied_skip", count=denied_count)
 
     # ---- 2. parse ----
     parseable: list[tuple[NodeAffected, Any]] = []
@@ -119,7 +128,11 @@ def build_graph(
                                    "files_parsed": total,
                                    "edges_found": len(edges)})
 
-    return GraphDocument(nodes=nodes, edges=edges)
+    return GraphDocument(
+        nodes=nodes,
+        edges=edges,
+        stats={"denied_file_count": denied_count},
+    )
 
 
 # ---- private helpers ----

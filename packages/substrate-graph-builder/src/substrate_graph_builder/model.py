@@ -8,7 +8,7 @@ conversion at the boundary.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Any, Literal
 
 from substrate_common.errors import SubstrateError
 from substrate_common.schema import EdgeAffected, NodeAffected
@@ -63,9 +63,16 @@ class RepoContext:
 
 @dataclass
 class GraphDocument:
-    """Everything build_graph emits for a single repo/tree."""
+    """Everything build_graph emits for a single repo/tree.
+
+    ``stats`` carries build-time counters consumed by the ingestion worker
+    (e.g. ``denied_file_count`` — how many tree blobs were skipped by the
+    deny-list before plugin lookup). Keys are stable wire-level names; adding
+    new keys is additive and safe for downstream consumers.
+    """
     nodes: list[NodeAffected] = field(default_factory=list)
     edges: list[EdgeAffected] = field(default_factory=list)
+    stats: dict[str, Any] = field(default_factory=dict)
 
 
 # ---- file-type classifier (moved from services/ingestion/src/connectors/github.py) ----
