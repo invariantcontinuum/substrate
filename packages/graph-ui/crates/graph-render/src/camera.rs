@@ -6,6 +6,7 @@ pub struct Camera {
     pub max_zoom: f32,
     viewport_width: f32,
     viewport_height: f32,
+    world_aabb: Option<(f32, f32, f32, f32)>,
 }
 
 impl Camera {
@@ -18,6 +19,7 @@ impl Camera {
             max_zoom: 5.0,
             viewport_width,
             viewport_height,
+            world_aabb: None,
         }
     }
 
@@ -67,6 +69,50 @@ impl Camera {
             (screen_x - self.viewport_width / 2.0) / self.zoom - self.x,
             (screen_y - self.viewport_height / 2.0) / self.zoom - self.y,
         )
+    }
+
+    /// Record the current world AABB of the content — used by `pan_clamped`
+    /// to ensure ≥ 25% of the content stays in the viewport.
+    pub fn set_world_bounds(&mut self, x0: f32, y0: f32, x1: f32, y1: f32) {
+        self.world_aabb = Some((x0, y0, x1, y1));
+    }
+
+    /// Center on the AABB mid and set zoom so the AABB (+padding_px in screen space)
+    /// fits inside the viewport. Also records the AABB for pan clamping.
+    pub fn fit_to_bounds(&mut self, x0: f32, y0: f32, x1: f32, y1: f32, padding_px: f32) {
+        let graph_w = (x1 - x0).max(f32::EPSILON);
+        let graph_h = (y1 - y0).max(f32::EPSILON);
+        let scale_x = (self.viewport_width - 2.0 * padding_px).max(1.0) / graph_w;
+        let scale_y = (self.viewport_height - 2.0 * padding_px).max(1.0) / graph_h;
+        let z = scale_x.min(scale_y).clamp(self.min_zoom, self.max_zoom);
+
+        self.x = (x0 + x1) * 0.5;
+        self.y = (y0 + y1) * 0.5;
+        self.zoom = z;
+        self.world_aabb = Some((x0, y0, x1, y1));
+    }
+
+    /// Pan with clamp: at least 25% of `world_aabb` (if set) must intersect the viewport.
+    pub fn pan_clamped(&mut self, dx: f32, dy: f32) {
+        self.pan(dx, dy);
+        if let Some((x0, y0, x1, y1)) = self.world_aabb {
+            let (vxa, vya, vxb, vyb) = self.visible_bounds();
+            let ix_a = x0.max(vxa);
+            let ix_b = x1.min(vxb);
+            let iy_a = y0.max(vya);
+            let iy_b = y1.min(vyb);
+            let inter_w = (ix_b - ix_a).max(0.0);
+            let inter_h = (iy_b - iy_a).max(0.0);
+            let inter_area = inter_w * inter_h;
+            let aabb_area = ((x1 - x0) * (y1 - y0)).max(f32::EPSILON);
+            if inter_area / aabb_area < 0.25 {
+                // Pull camera back toward the AABB centroid along (dx, dy).
+                let cx = (x0 + x1) * 0.5;
+                let cy = (y0 + y1) * 0.5;
+                self.x = cx;
+                self.y = cy;
+            }
+        }
     }
 }
 
