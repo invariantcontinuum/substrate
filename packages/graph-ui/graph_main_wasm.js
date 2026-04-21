@@ -42,6 +42,17 @@ export class RenderEngine {
         wasm.renderengine_fit(this.__wbg_ptr, padding_px);
     }
     /**
+     * Focus a node AND fit the camera to its 1-hop neighborhood.
+     * When `id` is `None`, clears focus and fits to all nodes.
+     * @param {string | null | undefined} id
+     * @param {number} padding_px
+     */
+    focus_fit(id, padding_px) {
+        var ptr0 = isLikeNone(id) ? 0 : passStringToWasm0(id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len0 = WASM_VECTOR_LEN;
+        wasm.renderengine_focus_fit(this.__wbg_ptr, ptr0, len0, padding_px);
+    }
+    /**
      * @param {number} timestamp
      * @returns {boolean}
      */

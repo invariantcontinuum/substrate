@@ -153,6 +153,16 @@ export function GraphCanvas() {
     [finalizeLoad],
   );
 
+  /* Auto-fit the camera after every snapshot change once the engine is
+   * ready and has something to show. The 100ms delay gives the worker a
+   * tick to emit its first `positions` message, so `fit` computes over
+   * real node coordinates rather than an empty buffer. */
+  useEffect(() => {
+    if (!ready || snapshot.nodes.length === 0) return;
+    const id = window.setTimeout(() => engineRef.current?.fit(48), 100);
+    return () => window.clearTimeout(id);
+  }, [ready, snapshot]);
+
   /* Drive the engine's internal selection/spotlight state from the
    * store. A null id clears the focus; a non-null id triggers a
    * spotlight dim + zoom inside the engine. */

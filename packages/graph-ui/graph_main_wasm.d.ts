@@ -16,6 +16,11 @@ export class RenderEngine {
      * Called from JS after every `update_positions` + layout settlement.
      */
     fit(padding_px: number): void;
+    /**
+     * Focus a node AND fit the camera to its 1-hop neighborhood.
+     * When `id` is `None`, clears focus and fits to all nodes.
+     */
+    focus_fit(id: string | null | undefined, padding_px: number): void;
     frame(timestamp: number): boolean;
     get_legend(): any;
     handle_click(screen_x: number, screen_y: number): string | undefined;
@@ -103,6 +108,7 @@ export interface InitOutput {
     readonly renderengine_create: (a: any) => [number, number, number];
     readonly renderengine_drain_worker_messages: (a: number) => any;
     readonly renderengine_fit: (a: number, b: number) => void;
+    readonly renderengine_focus_fit: (a: number, b: number, c: number, d: number) => void;
     readonly renderengine_frame: (a: number, b: number) => number;
     readonly renderengine_get_legend: (a: number) => any;
     readonly renderengine_handle_click: (a: number, b: number, c: number) => [number, number];

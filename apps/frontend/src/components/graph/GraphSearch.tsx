@@ -88,8 +88,7 @@ export function GraphSearch({ slimNodes, engineRef, onOpenDetail, maxResults = 2
                 <li
                   key={n.id}
                   onMouseDown={() => {
-                    engineRef.current?.selectNode(n.id);
-                    engineRef.current?.fit(80);
+                    engineRef.current?.focusFit(n.id, 80);
                     onOpenDetail({ id: n.id });
                     setOpen(false);
                   }}

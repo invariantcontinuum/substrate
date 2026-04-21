@@ -5,6 +5,7 @@ export const __wbg_renderengine_free: (a: number, b: number) => void;
 export const renderengine_create: (a: any) => [number, number, number];
 export const renderengine_drain_worker_messages: (a: number) => any;
 export const renderengine_fit: (a: number, b: number) => void;
+export const renderengine_focus_fit: (a: number, b: number, c: number, d: number) => void;
 export const renderengine_frame: (a: number, b: number) => number;
 export const renderengine_get_legend: (a: number) => any;
 export const renderengine_handle_click: (a: number, b: number, c: number) => [number, number];

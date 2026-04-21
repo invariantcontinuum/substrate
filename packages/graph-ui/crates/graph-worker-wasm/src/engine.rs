@@ -349,7 +349,7 @@ impl WorkerEngine {
                 .get_node(id)
                 .map(|n| node_type_index(&n.node_type))
                 .unwrap_or(0.0);
-            buf.extend_from_slice(&[x, y, 10.0, type_index]);
+            buf.extend_from_slice(&[x, y, 55.0, type_index]);
         }
         buf
     }

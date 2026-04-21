@@ -75,7 +75,9 @@ impl Camera {
     pub fn screen_to_world(&self, screen_x: f32, screen_y: f32) -> (f32, f32) {
         (
             (screen_x - self.viewport_width / 2.0) / self.zoom - self.x,
-            (screen_y - self.viewport_height / 2.0) / self.zoom - self.y,
+            // World Y points up; screen Y points down. Flip so hit-testing
+            // agrees with view_projection (which has sy > 0).
+            (self.viewport_height / 2.0 - screen_y) / self.zoom - self.y,
         )
     }
 

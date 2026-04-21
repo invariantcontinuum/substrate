@@ -323,7 +323,8 @@ impl RenderEngine {
         if self.is_panning {
             let dx = x - self.last_mouse_x;
             let dy = y - self.last_mouse_y;
-            self.camera.pan(dx, dy);
+            // World Y is up, screen Y is down. Flip dy so drag-down pans content down.
+            self.camera.pan(dx, -dy);
             self.last_mouse_x = x;
             self.last_mouse_y = y;
             self.needs_render = true;
@@ -591,6 +592,61 @@ impl RenderEngine {
             }
         }
         self.needs_render = true;
+    }
+
+    /// Focus a node AND fit the camera to its 1-hop neighborhood.
+    /// When `id` is `None`, clears focus and fits to all nodes.
+    pub fn focus_fit(&mut self, id: Option<String>, padding_px: f32) {
+        // Reuse set_focus to dim non-neighbors (already handles None for clear).
+        self.set_focus(id.clone());
+
+        if id.is_none() {
+            // Fit-to-all.
+            self.fit(padding_px);
+            return;
+        }
+        let id = id.unwrap();
+        let Some(focus_idx) = self.node_ids.iter().position(|n| n == &id) else {
+            return;
+        };
+
+        // Build coord->idx map (same scheme as set_focus).
+        use std::collections::HashMap;
+        let mut coord_to_idx: HashMap<(u32, u32), usize> = HashMap::new();
+        for (i, chunk) in self.positions.chunks_exact(4).enumerate() {
+            coord_to_idx.insert((chunk[0].to_bits(), chunk[1].to_bits()), i);
+        }
+
+        // Collect focused + 1-hop neighbor indices.
+        let mut keep: std::collections::HashSet<usize> = std::collections::HashSet::new();
+        keep.insert(focus_idx);
+        for chunk in self.edge_data.chunks_exact(6) {
+            let s = coord_to_idx.get(&(chunk[0].to_bits(), chunk[1].to_bits())).copied();
+            let t = coord_to_idx.get(&(chunk[2].to_bits(), chunk[3].to_bits())).copied();
+            if let (Some(s), Some(t)) = (s, t) {
+                if s == focus_idx { keep.insert(t); }
+                if t == focus_idx { keep.insert(s); }
+            }
+        }
+
+        // Compute AABB of the focused set.
+        let mut min_x = f32::INFINITY;
+        let mut min_y = f32::INFINITY;
+        let mut max_x = f32::NEG_INFINITY;
+        let mut max_y = f32::NEG_INFINITY;
+        for &idx in &keep {
+            let base = idx * 4;
+            if base + 1 >= self.positions.len() { continue; }
+            let (x, y, r) = (self.positions[base], self.positions[base + 1], self.positions[base + 2]);
+            min_x = min_x.min(x - r);
+            min_y = min_y.min(y - r);
+            max_x = max_x.max(x + r);
+            max_y = max_y.max(y + r);
+        }
+        if min_x.is_finite() {
+            self.camera.fit_to_bounds(min_x, min_y, max_x, max_y, padding_px);
+            self.needs_render = true;
+        }
     }
 
     /// Re-upload GPU buffers after a WebGL context loss → restore sequence.
