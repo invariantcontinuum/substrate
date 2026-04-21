@@ -1,6 +1,6 @@
 import httpx
 import structlog
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Response
 
 from substrate_common import NotFoundError, UpstreamError, ValidationError
 
@@ -176,7 +176,7 @@ async def get_node_file(node_id: str, sync_id: str | None = None):
 
 
 @router.get("/nodes/{node_id:path}")
-async def get_node(node_id: str, sync_id: str | None = None):
+async def get_node(node_id: str, response: Response, sync_id: str | None = None):
     try:
         data = await get_node_detail(node_id, sync_id=sync_id)
     except GraphQueryTimeout as e:
@@ -190,6 +190,7 @@ async def get_node(node_id: str, sync_id: str | None = None):
         ) from e
     if not data:
         raise NotFoundError("node not found")
+    response.headers["Cache-Control"] = "private, max-age=30"
     return data
 
 
