@@ -12,7 +12,6 @@ import { SignalsOverlay } from "./SignalsOverlay";
 import { ViolationBadge } from "./ViolationBadge";
 import { DynamicLegend } from "./DynamicLegend";
 import { LabelOverlay } from "./LabelOverlay";
-import { GraphSearch } from "./GraphSearch";
 import { buildGraphTheme, graphThemeToEngineJson } from "./styleAdapter";
 
 /**
@@ -153,15 +152,17 @@ export function GraphCanvas() {
     [finalizeLoad],
   );
 
-  /* Auto-fit the camera after every snapshot change once the engine is
-   * ready and has something to show. The 100ms delay gives the worker a
-   * tick to emit its first `positions` message, so `fit` computes over
-   * real node coordinates rather than an empty buffer. */
-  useEffect(() => {
-    if (!ready || snapshot.nodes.length === 0) return;
-    const id = window.setTimeout(() => engineRef.current?.fit(48), 100);
-    return () => window.clearTimeout(id);
-  }, [ready, snapshot]);
+  const onPositionsReady = useCallback(() => {
+    // The worker has emitted its first positions buffer after a snapshot
+    // load. This is the correct moment to fit the camera — the engine's
+    // positions buffer is populated and the AABB is real. Replaces the
+    // previous 100ms setTimeout race.
+    engineRef.current?.fit(48);
+  }, []);
+
+  /* Auto-fit is now driven by onPositionsReady from the <Graph> component,
+   * which fires after the worker sends its first positions message. No
+   * setTimeout race. */
 
   /* Drive the engine's internal selection/spotlight state from the
    * store. A null id clears the focus; a non-null id triggers a
@@ -208,6 +209,7 @@ export function GraphCanvas() {
             onNodeClick={onNodeClick}
             onReady={onReady}
             onStatsChange={onStatsChange}
+            onPositionsReady={onPositionsReady}
             className="graph-canvas-webgl"
             style={{ width: "100%", height: "100%" }}
           />
@@ -236,7 +238,6 @@ export function GraphCanvas() {
       </div>
 
       <div className="graph-toolbar">
-<GraphSearch slimNodes={nodes} engineRef={engineRef} onOpenDetail={onNodeClick} />
         <button
           onClick={() => engineRef.current?.fit(48)}
           title="Fit"

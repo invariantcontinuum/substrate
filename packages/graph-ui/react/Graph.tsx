@@ -27,6 +27,7 @@ export interface GraphProps {
   onNodeHover?: (node: NodeData | null) => void;
   onLegendChange?: (legend: LegendSummary) => void;
   onStatsChange?: (stats: GraphStats) => void;
+  onPositionsReady?: () => void;
   onReady?: () => void;
   spotlightIds?: string[] | null;
   showCommunities?: boolean;
@@ -61,6 +62,7 @@ export const Graph = forwardRef<GraphHandle, GraphProps>(function Graph(
     onNodeHover,
     onLegendChange,
     onStatsChange,
+    onPositionsReady,
     onReady,
     spotlightIds,
     showCommunities = false,
@@ -75,11 +77,12 @@ export const Graph = forwardRef<GraphHandle, GraphProps>(function Graph(
   const workerRef = useRef<Worker | null>(null);
   const rafRef = useRef<number>(0);
   const convergedRef = useRef(false);
-  const callbacksRef = useRef({ onNodeClick, onNodeHover, onStatsChange, onLegendChange });
+  const callbacksRef = useRef({ onNodeClick, onNodeHover, onStatsChange, onLegendChange, onPositionsReady });
   const draggingNodeRef = useRef<string | null>(null);
+  const pendingFitRef = useRef(false);
   const [ready, setReady] = useState(false);
 
-  callbacksRef.current = { onNodeClick, onNodeHover, onStatsChange, onLegendChange };
+  callbacksRef.current = { onNodeClick, onNodeHover, onStatsChange, onLegendChange, onPositionsReady };
 
   /* Restart the RAF render loop. Called after every camera-mutating
    * interaction (zoom/pan/fit/drag) because the loop exits when
@@ -135,10 +138,14 @@ export const Graph = forwardRef<GraphHandle, GraphProps>(function Graph(
         if (msg.type === "positions") {
           const positions = new Float32Array(msg.positions);
           const flags = new Uint8Array(msg.flags);
-          engine.update_positions(positions, flags);
           // Always request a paint. For force (non-converged) this keeps the
           // simulation visibly advancing; for grid / hierarchical (converged)
           // this is the one-and-only chance to paint the final positions.
+          engine.update_positions(positions, flags);
+          if (pendingFitRef.current) {
+            pendingFitRef.current = false;
+            callbacksRef.current.onPositionsReady?.();
+          }
           requestRender();
         } else if (msg.type === "edges") {
           const edges = new Float32Array(msg.edges);
@@ -203,6 +210,7 @@ export const Graph = forwardRef<GraphHandle, GraphProps>(function Graph(
   const applySnapshot = useCallback((snap: GraphSnapshot) => {
     if (!workerRef.current) return;
     convergedRef.current = false;
+    pendingFitRef.current = true;
 
     if (snap.nodes.length === 0 && snap.edges.length === 0) {
       workerRef.current.postMessage({ type: "clear_snapshot" });
@@ -327,6 +335,21 @@ export const Graph = forwardRef<GraphHandle, GraphProps>(function Graph(
     ro.observe(canvas);
     return () => ro.disconnect();
   }, [ready]);
+
+  // If the first render happens before layout settles, the WebGL canvas can
+  // paint once with a 0x0 backing store and then stay blank forever because
+  // grid layout converges immediately. Re-request a frame on every canvas
+  // resize so RenderContext::resize() gets a chance to upload the real size.
+  useEffect(() => {
+    if (!ready) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ro = new ResizeObserver(() => {
+      requestRender();
+    });
+    ro.observe(canvas);
+    return () => ro.disconnect();
+  }, [ready, requestRender]);
 
   // Native non-passive wheel listener — React's onWheel prop is passive since React 17,
   // so e.preventDefault() inside it is a no-op. Attach directly to the canvas with

@@ -129,7 +129,7 @@ impl WorkerEngine {
                     GRID_PADDING,
                     GRID_NODE_W,
                     GRID_NODE_H,
-                    GRID_VIEWPORT_RATIO,
+                    self.grid_layout.viewport_ratio,
                 );
                 let result = self.grid_layout.compute(&self.store);
                 for (id, x, y) in result {

@@ -596,10 +596,6 @@ function __wbg_get_imports() {
             const ret = new Array();
             return ret;
         },
-        __wbg_new_from_slice_d85ad974cf8f6f35: function(arg0, arg1) {
-            const ret = new Float32Array(getArrayF32FromWasm0(arg0, arg1));
-            return ret;
-        },
         __wbg_next_01132ed6134b8ef5: function(arg0) {
             const ret = arg0.next;
             return ret;

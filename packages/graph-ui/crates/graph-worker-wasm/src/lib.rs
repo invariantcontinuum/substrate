@@ -82,6 +82,11 @@ pub fn handle_message(msg_js: &JsValue) -> Result<(), JsValue> {
             }
             InMessage::SetViewport { ratio } => {
                 engine.set_viewport_ratio(ratio);
+                post_positions(&engine);
+                post_edges(&engine);
+                if !engine.is_layout_running() {
+                    post_json(&OutMessage::Converged {});
+                }
             }
         }
     });

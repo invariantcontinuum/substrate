@@ -340,7 +340,7 @@ impl RenderEngine {
     }
 
     pub fn handle_zoom(&mut self, delta: f32, x: f32, y: f32) {
-        let factor = if delta > 0.0 { 0.9 } else { 1.1 };
+        let factor = if delta > 0.0 { 0.96 } else { 1.04 };
         self.camera.zoom_at(factor, x, y);
         self.needs_render = true;
     }
@@ -456,12 +456,19 @@ impl RenderEngine {
     }
 
     /// Notify all frame subscribers with the current positions and VP matrix.
+    ///
+    /// SAFETY: `Float32Array::view` borrows from the WASM linear memory.
+    /// We do not mutate `self.positions` while the view is live (single-threaded,
+    /// callbacks run synchronously and return before we resume). This is a
+    /// zero-copy path vs. the old `Float32Array::from` which allocates + copies.
     fn notify_subscribers(&self, vp: &[f32; 16]) {
         if self.frame_subscribers.is_empty() || self.positions.is_empty() {
             return;
         }
-        let positions_f32 = js_sys::Float32Array::from(self.positions.as_slice());
-        let vp_f32 = js_sys::Float32Array::from(&vp[..]);
+        // Zero-copy views into the WASM memory buffer. Safe because we guarantee
+        // the backing Vec is not reallocated for the duration of the callbacks.
+        let positions_f32 = unsafe { js_sys::Float32Array::view(&self.positions) };
+        let vp_f32 = unsafe { js_sys::Float32Array::view(&vp[..]) };
         let obj = js_sys::Object::new();
         let _ = js_sys::Reflect::set(&obj, &"positions".into(), &positions_f32);
         let _ = js_sys::Reflect::set(&obj, &"vpMatrix".into(), &vp_f32);
@@ -506,14 +513,14 @@ impl RenderEngine {
     pub fn zoom_in(&mut self) {
         let cx = self.camera.viewport_width() * 0.5;
         let cy = self.camera.viewport_height() * 0.5;
-        self.camera.zoom_at(1.1, cx, cy);
+        self.camera.zoom_at(1.04, cx, cy);
         self.needs_render = true;
     }
 
     pub fn zoom_out(&mut self) {
         let cx = self.camera.viewport_width() * 0.5;
         let cy = self.camera.viewport_height() * 0.5;
-        self.camera.zoom_at(0.9, cx, cy);
+        self.camera.zoom_at(0.96, cx, cy);
         self.needs_render = true;
     }
 
