@@ -46,5 +46,10 @@
   "peerDependenciesMeta": {
     "react": { "optional": true },
     "react-dom": { "optional": true }
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^6.0.2"
   }
 }

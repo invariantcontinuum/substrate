@@ -5,7 +5,7 @@ import type { GraphHandle } from "@invariantcontinuum/graph/react";
 
 export interface GraphSearchProps {
   slimNodes: SlimNode[];
-  engineRef: React.RefObject<GraphHandle>;
+  engineRef: React.RefObject<GraphHandle | null>;
   onOpenDetail: (node: { id: string }) => void;
   maxResults?: number;
 }

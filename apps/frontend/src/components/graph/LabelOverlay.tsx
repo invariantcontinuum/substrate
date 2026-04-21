@@ -3,7 +3,7 @@ import type { GraphHandle } from "@invariantcontinuum/graph/react";
 import type { GraphTheme } from "./styleAdapter";
 
 export interface LabelOverlayProps {
-  engineRef: React.RefObject<GraphHandle>;
+  engineRef: React.RefObject<GraphHandle | null>;
   theme: GraphTheme;
   /** Ordered list of node ids matching the engine's internal positions buffer order.
    *  MUST be the same array the parent passed to `engine.set_node_ids(...)`. */
