@@ -44,6 +44,7 @@ CREATE TABLE sync_runs (
     progress_total  INT DEFAULT 0,
     progress_meta   JSONB,
     stats           JSONB DEFAULT '{}',
+    denied_file_count INTEGER NOT NULL DEFAULT 0,
     schedule_id     BIGINT,
     triggered_by    TEXT,
     started_at      TIMESTAMPTZ,
