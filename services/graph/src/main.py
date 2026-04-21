@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 
 import structlog
 from fastapi import FastAPI
+from fastapi.middleware.gzip import GZipMiddleware
 
 from substrate_common import (
     ExceptionLoggingMiddleware,
@@ -35,6 +36,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Substrate Graph Service", lifespan=lifespan)
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 app.add_middleware(RequestIdMiddleware)
 app.add_middleware(ExceptionLoggingMiddleware)
 register_handlers(app)
