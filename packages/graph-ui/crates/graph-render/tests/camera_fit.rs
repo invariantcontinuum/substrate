@@ -47,4 +47,6 @@ fn zoom_is_clamped_to_valid_range() {
     cam.fit_to_bounds(0.0, 0.0, 0.001, 0.001, 0.0);
     assert!(cam.zoom <= 8.0, "zoom={}", cam.zoom);
     assert!(cam.zoom >= 0.05, "zoom={}", cam.zoom);
+    // Tight assertion: for a sub-pixel graph, the clamp should land at the upper bound.
+    assert!((cam.zoom - 8.0).abs() < 1e-5, "expected zoom clamped to 8.0, got {}", cam.zoom);
 }
