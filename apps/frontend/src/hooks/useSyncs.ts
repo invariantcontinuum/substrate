@@ -42,6 +42,8 @@ async function postSyncMutation(
 export interface SyncRunStats {
   nodes?: number;
   edges?: number;
+  symbols?: number;
+  defines_edges?: number;
   files_embedded?: number;
   chunks?: number;
   chunks_embedded?: number;
@@ -66,6 +68,15 @@ export interface SyncProgressMeta {
    * instead of em-dashing until the final complete_sync_run fires. */
   nodes_total?: number;
   edges_total?: number;
+  /** Set by the graph-builder pass before AGE writes start. `edges_found`
+   * is the total depends-on edge count; `symbol_count` and
+   * `defines_edges` land during the symbol+defines phases. */
+  edges_found?: number;
+  symbol_count?: number;
+  defines_edges?: number;
+  /** Count breakdown by ingestion's node type taxonomy
+   * (source/doc/config/script/service/asset/data). */
+  nodes_by_type?: Record<string, number>;
 }
 
 export interface SyncRun {
@@ -105,9 +116,25 @@ export function useSyncs() {
   useEffect(() => {
     if (!token) return;
     const client = openSseClient("/api/events", { token });
+    // Scope invalidations to the active-list query only. `useLoadedSyncs`
+    // caches per-id rows under `["syncs", <id>]` with a 60s staleTime —
+    // matching those with a prefix match would fire 1 + N parallel
+    // GET /api/syncs/{id} per SSE event, enough to hit the browser's
+    // 6-per-host concurrent-connection ceiling and surface as
+    // net::ERR_INSUFFICIENT_RESOURCES on page refresh.
     const invalidate = () =>
-      qc.invalidateQueries({ queryKey: ["syncs", "active"] });
-    client.on("sync_lifecycle", invalidate);
+      qc.invalidateQueries({ queryKey: ["syncs", "active"], exact: true });
+    client.on("sync_lifecycle", (ev) => {
+      invalidate();
+      // When a sync completes, the graph-read side has fresh nodes/edges
+      // and summaries. Drop any cached ["node-detail", ...] entries so
+      // re-opening the detail panel refetches instead of showing stale
+      // pre-sync data. `exact: false` matches all node-detail variants
+      // (selectedNodeId + selectedSnapshotId permutations).
+      if (ev.payload?.status === "completed") {
+        qc.invalidateQueries({ queryKey: ["node-detail"] });
+      }
+    });
     client.on("sync_progress", (ev) => {
       const sid = ev.sync_id;
       if (!sid) return;
@@ -199,7 +226,7 @@ export function useSyncs() {
       }
     }
     if (needsActiveLookup) {
-      qc.invalidateQueries({ queryKey: ["syncs"] });
+      qc.invalidateQueries({ queryKey: ["syncs", "active"], exact: true });
       qc.invalidateQueries({ queryKey: ["sources"] });
     }
   }, [active.data, lookups.data, qc, setSyncStatus]);
@@ -209,7 +236,7 @@ export function useSyncs() {
       postSyncMutation("/api/syncs", { ...req, config_overrides: {} }, token),
     onSuccess: (outcome) => {
       if (outcome.kind === "created") setSyncStatus("syncing");
-      qc.invalidateQueries({ queryKey: ["syncs"] });
+      qc.invalidateQueries({ queryKey: ["syncs", "active"], exact: true });
     },
     onError: () => setSyncStatus("error"),
   });
@@ -217,7 +244,12 @@ export function useSyncs() {
   const cancelSync = useMutation({
     mutationFn: (id: string) =>
       apiFetch(`/api/syncs/${id}/cancel`, token, { method: "POST" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["syncs"] }),
+    onSuccess: (_data, id) => {
+      qc.invalidateQueries({ queryKey: ["syncs", "active"], exact: true });
+      // Just the affected per-id row — leave every other ["syncs", X]
+      // cache entry alone.
+      qc.invalidateQueries({ queryKey: ["syncs", id], exact: true });
+    },
   });
 
   const cleanSync = useMutation({
@@ -226,7 +258,8 @@ export function useSyncs() {
     onSuccess: (_data, id) => {
       const remaining = useSyncSetStore.getState().syncIds.filter((x) => x !== id);
       useSyncSetStore.getState().pruneInvalid(new Set(remaining));
-      qc.invalidateQueries({ queryKey: ["syncs"] });
+      qc.invalidateQueries({ queryKey: ["syncs", "active"], exact: true });
+      qc.invalidateQueries({ queryKey: ["syncs", id], exact: true });
     },
   });
 
@@ -236,7 +269,10 @@ export function useSyncs() {
     onSuccess: (_data, id) => {
       const remaining = useSyncSetStore.getState().syncIds.filter((x) => x !== id);
       useSyncSetStore.getState().pruneInvalid(new Set(remaining));
-      qc.invalidateQueries({ queryKey: ["syncs"] });
+      qc.invalidateQueries({ queryKey: ["syncs", "active"], exact: true });
+      // The purged row no longer exists server-side — drop the cache entry
+      // entirely rather than invalidating (which would re-fetch a 404).
+      qc.removeQueries({ queryKey: ["syncs", id], exact: true });
     },
   });
 
