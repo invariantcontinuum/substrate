@@ -1,73 +1,97 @@
-# React + TypeScript + Vite
+# Substrate Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React 19 + Vite + TypeScript single-page application for the Substrate governance platform.
 
-Currently, two official plugins are available:
+## Role In The Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+The frontend is the authenticated user interface for exploring the graph, managing syncs, and working with sources and schedules.
 
-## React Compiler
+- Serves the dashboard on `http://localhost:3535` in the full Compose stack
+- Uses Keycloak and OIDC for authentication
+- Talks to the backend through the gateway, not directly to internal services
+- Consumes shared browser utilities and schemas from `packages/substrate-web-common`
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Runtime Model
 
-## Expanding the ESLint configuration
+The browser only talks to the frontend host.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- In local Vite development, the dev server proxies `/api`, `/jobs`, `/ingest`, and `/auth` to `http://localhost:8180`
+- In the containerized stack, frontend nginx serves the built SPA and forwards backend traffic to the gateway
+- Realtime updates use server-sent events through the gateway endpoint `/api/events`
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Authentication
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+OIDC configuration is built from Vite env vars in [`src/lib/auth.ts`](/home/dany/Desktop/substrate/apps/frontend/src/lib/auth.ts:1).
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+Required build-time variables:
+
+- `VITE_KEYCLOAK_URL`
+- `VITE_KEYCLOAK_REALM`
+- `VITE_KEYCLOAK_CLIENT_ID`
+
+Optional frontend variables:
+
+- `VITE_API_URL` to override the default relative API base
+- `VITE_LOG_LEVEL` to control client logging verbosity
+
+Root env templates live at:
+
+- [`../../.env.local.example`](/home/dany/Desktop/substrate/.env.local.example:1)
+- [`../../.env.prod.example`](/home/dany/Desktop/substrate/.env.prod.example:1)
+
+## Local Development
+
+From the repository root, use the full stack when you want the real application environment:
+
+```bash
+cd /home/dany/Desktop/substrate
+cd ops/llm/lazy-lamacpp && make start MODEL=embeddings && make start MODEL=dense && cd -
+make up
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Then open `http://localhost:3535`.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+If you only need the frontend dev server with HMR:
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+cd /home/dany/Desktop/substrate/apps/frontend
+pnpm install
+pnpm dev
 ```
+
+That starts Vite on `http://localhost:3000`. Backend requests are proxied to the gateway on `http://localhost:8180`, so the gateway, auth, and dependent services still need to be available.
+
+## Scripts
+
+- `pnpm dev` runs the Vite dev server on port `3000`
+- `pnpm build` runs TypeScript project builds and produces the production bundle
+- `pnpm lint` runs ESLint for the frontend package
+- `pnpm preview` serves the built output locally
+
+## Testing
+
+The frontend uses Vitest with `jsdom` and Testing Library.
+
+Frontend-focused tests live alongside the source files, for example under `src/hooks`, `src/lib`, and `src/stores`.
+
+From `apps/frontend`:
+
+```bash
+pnpm exec vitest run
+```
+
+From the repository root, the standard validation path is:
+
+```bash
+make lint
+make test
+make test-e2e
+```
+
+## Key Files
+
+- [`src/main.tsx`](/home/dany/Desktop/substrate/apps/frontend/src/main.tsx:1) wires React, routing, auth, and React Query
+- [`src/App.tsx`](/home/dany/Desktop/substrate/apps/frontend/src/App.tsx:1) defines route structure and the auth gate
+- [`src/lib/auth.ts`](/home/dany/Desktop/substrate/apps/frontend/src/lib/auth.ts:1) builds the OIDC configuration
+- [`src/lib/api.ts`](/home/dany/Desktop/substrate/apps/frontend/src/lib/api.ts:1) centralizes API fetch behavior
+- [`vite.config.ts`](/home/dany/Desktop/substrate/apps/frontend/vite.config.ts:1) defines path aliases, dev-server port, proxies, and Vitest config
