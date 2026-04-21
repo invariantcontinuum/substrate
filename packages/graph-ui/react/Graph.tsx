@@ -212,10 +212,19 @@ export const Graph = forwardRef<GraphHandle, GraphProps>(function Graph(
     // Feed node metadata to the engine synchronously so it can resolve theme styles.
     if (engineRef.current) {
       try {
+        // Required before metadata: engine's node_ids is what handle_click /
+        // handle_node_drag_start / set_focus / hit_test_node index into.
+        // Without this, every hit returns None and click/drag/spotlight all
+        // silently fail.
+        engineRef.current.set_node_ids(snap.nodes.map((n) => n.id));
         engineRef.current.set_node_metadata(
           snap.nodes.map((n) => n.id),
           snap.nodes.map((n) => n.type),
           snap.nodes.map((n) => n.status),
+        );
+        engineRef.current.set_edge_metadata(
+          snap.edges.map((e) => e.id),
+          snap.edges.map((e) => e.type),
         );
       } catch (e) {
         console.error("set_node_metadata failed:", e);

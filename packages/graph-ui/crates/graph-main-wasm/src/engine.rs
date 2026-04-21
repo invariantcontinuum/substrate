@@ -537,6 +537,7 @@ impl RenderEngine {
             for f in self.visual_flags.iter_mut() {
                 *f &= !1; // clear dim bit
             }
+            self.buffers_dirty = true;
             self.needs_render = true;
             return;
         };
@@ -591,6 +592,7 @@ impl RenderEngine {
                 *f |= 1;
             }
         }
+        self.buffers_dirty = true;
         self.needs_render = true;
     }
 
