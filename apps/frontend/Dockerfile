@@ -22,11 +22,13 @@ RUN npm config set @invariantcontinuum:registry https://npm.pkg.github.com/ \
 
 COPY pnpm-workspace.yaml /workspace/pnpm-workspace.yaml
 COPY package.json /workspace/package.json
+COPY pnpm-lock.yaml /workspace/pnpm-lock.yaml
 COPY packages/substrate-web-common /workspace/packages/substrate-web-common
+COPY packages/graph-ui /workspace/packages/graph-ui
 
 COPY apps/frontend/package.json /workspace/apps/frontend/package.json
 
-RUN pnpm install --filter frontend...
+RUN pnpm install --filter frontend... --frozen-lockfile
 
 COPY apps/frontend /workspace/apps/frontend
 
