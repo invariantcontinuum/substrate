@@ -1,0 +1,11 @@
+{
+  "nodes": [
+    {"id": "orders-api", "type": "service", "name": "orders-api"},
+    {"id": "users-db", "type": "database", "name": "users-db"},
+    {"id": "redis-cache", "type": "cache", "name": "redis-cache"}
+  ],
+  "edges": [
+    {"id": "e1", "source": "orders-api", "target": "users-db", "type": "depends"},
+    {"id": "e2", "source": "orders-api", "target": "redis-cache", "type": "depends"}
+  ]
+}
