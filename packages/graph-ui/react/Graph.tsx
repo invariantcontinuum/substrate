@@ -1,4 +1,11 @@
-import React, { useEffect, useRef, useCallback, useState } from "react";
+import React, {
+  useEffect,
+  useRef,
+  useCallback,
+  useState,
+  useImperativeHandle,
+  forwardRef,
+} from "react";
 import type {
   GraphSnapshot,
   GraphFilter,
@@ -28,24 +35,40 @@ export interface GraphProps {
   authToken?: string;
 }
 
-export function Graph({
-  snapshotUrl,
-  wsUrl,
-  snapshot,
-  theme,
-  layout = "force",
-  filter,
-  onNodeClick,
-  onNodeHover,
-  onLegendChange,
-  onStatsChange,
-  onReady,
-  spotlightIds,
-  showCommunities = false,
-  className,
-  style,
-  authToken,
-}: GraphProps) {
+export interface GraphHandle {
+  fit: (padding?: number) => void;
+  zoomIn: () => void;
+  zoomOut: () => void;
+  relayout: (layout: LayoutType) => void;
+  setTheme: (theme: unknown) => void;
+  setData: (snapshot: GraphSnapshot) => void;
+  selectNode: (id: string | null) => void;
+  subscribeFrame: (
+    cb: (m: { positions: Float32Array; vpMatrix: Float32Array }) => void,
+  ) => () => void;
+}
+
+export const Graph = forwardRef<GraphHandle, GraphProps>(function Graph(
+  {
+    snapshotUrl,
+    wsUrl,
+    snapshot,
+    theme,
+    layout = "force",
+    filter,
+    onNodeClick,
+    onNodeHover,
+    onLegendChange,
+    onStatsChange,
+    onReady,
+    spotlightIds,
+    showCommunities = false,
+    className,
+    style,
+    authToken,
+  },
+  ref,
+) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<any>(null);
   const workerRef = useRef<Worker | null>(null);
@@ -164,6 +187,37 @@ export function Graph({
     };
   }, []);
 
+  // Helper: load a snapshot via worker + engine metadata. Used by both the
+  // `snapshot` prop effect and the imperative `setData` handle method.
+  const applySnapshot = useCallback((snap: GraphSnapshot) => {
+    if (!workerRef.current) return;
+    convergedRef.current = false;
+
+    if (snap.nodes.length === 0 && snap.edges.length === 0) {
+      workerRef.current.postMessage({ type: "clear_snapshot" });
+      return;
+    }
+
+    // Feed node metadata to the engine synchronously so it can resolve theme styles.
+    if (engineRef.current) {
+      try {
+        engineRef.current.set_node_metadata(
+          snap.nodes.map((n) => n.id),
+          snap.nodes.map((n) => n.type),
+          snap.nodes.map((n) => n.status),
+        );
+      } catch (e) {
+        console.error("set_node_metadata failed:", e);
+      }
+    }
+
+    workerRef.current.postMessage({
+      type: "load_snapshot",
+      nodes: snap.nodes,
+      edges: snap.edges,
+    });
+  }, []);
+
   // Load snapshot from URL
   useEffect(() => {
     if (!ready || !snapshotUrl || !workerRef.current) return;
@@ -182,33 +236,9 @@ export function Graph({
 
   // Load snapshot from prop
   useEffect(() => {
-    if (!ready || !snapshot || !workerRef.current) return;
-    convergedRef.current = false;
-
-    if (snapshot.nodes.length === 0 && snapshot.edges.length === 0) {
-      workerRef.current.postMessage({ type: "clear_snapshot" });
-      return;
-    }
-
-    // Feed node metadata to the engine synchronously so it can resolve theme styles.
-    if (engineRef.current) {
-      try {
-        engineRef.current.set_node_metadata(
-          snapshot.nodes.map((n) => n.id),
-          snapshot.nodes.map((n) => n.type),
-          snapshot.nodes.map((n) => n.status),
-        );
-      } catch (e) {
-        console.error("set_node_metadata failed:", e);
-      }
-    }
-
-    workerRef.current.postMessage({
-      type: "load_snapshot",
-      nodes: snapshot.nodes,
-      edges: snapshot.edges,
-    });
-  }, [ready, snapshot]);
+    if (!ready || !snapshot) return;
+    applySnapshot(snapshot);
+  }, [ready, snapshot, applySnapshot]);
 
   // WebSocket
   useEffect(() => {
@@ -292,73 +322,207 @@ export function Graph({
     }
   }, []);
 
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent<HTMLCanvasElement>) => {
-      const rect = (e.target as HTMLCanvasElement).getBoundingClientRect();
+  // Pointer + pinch-zoom handling. Replaces the old mouse-only listeners with
+  // unified pointer events that cover mouse, touch, and pen. Single pointer →
+  // node-drag OR pan OR hover (depending on hit test). Two pointers → pinch
+  // zoom + centroid pan. `touch-action: none` on the canvas prevents the
+  // browser from hijacking touch gestures (scroll, double-tap zoom).
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    type PointerState = { id: number; x: number; y: number };
+
+    // Cache-adjusted coordinate helpers. The engine expects canvas-local,
+    // DPR-scaled coordinates (matches the wheel + existing drag/hover/click
+    // FFI contract), not raw clientX/Y.
+    const toLocal = (clientX: number, clientY: number) => {
+      const rect = canvas.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
-      const sx = (e.clientX - rect.left) * dpr;
-      const sy = (e.clientY - rect.top) * dpr;
-      const nodeId = engineRef.current?.handle_node_drag_start(sx, sy);
-      if (nodeId) {
-        draggingNodeRef.current = nodeId;
-        pumpWorkerMessages();
-      } else {
-        engineRef.current?.handle_pan_start(sx, sy);
+      return {
+        x: (clientX - rect.left) * dpr,
+        y: (clientY - rect.top) * dpr,
+      };
+    };
+
+    const active: Map<number, PointerState> = new Map();
+    // Track whether the current single-pointer gesture is dragging a node,
+    // panning the camera, or neither (pre-hit-test state). Resets on release.
+    let singleMode: "drag" | "pan" | null = null;
+    let suppressNextClick = false;
+    let lastPinchDist = 0;
+    let lastCentroid: { x: number; y: number } | null = null;
+
+    function centroid(): { x: number; y: number } {
+      let x = 0;
+      let y = 0;
+      for (const p of active.values()) {
+        x += p.x;
+        y += p.y;
       }
-    },
-    [pumpWorkerMessages]
-  );
+      return { x: x / active.size, y: y / active.size };
+    }
+    function pinchDist(): number {
+      const arr = [...active.values()];
+      const dx = arr[0].x - arr[1].x;
+      const dy = arr[0].y - arr[1].y;
+      return Math.hypot(dx, dy);
+    }
 
-  const handleMouseMove = useCallback(
-    (e: React.MouseEvent<HTMLCanvasElement>) => {
-      const rect = (e.target as HTMLCanvasElement).getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
-      const sx = (e.clientX - rect.left) * dpr;
-      const sy = (e.clientY - rect.top) * dpr;
+    const onDown = (e: PointerEvent) => {
+      canvas.setPointerCapture(e.pointerId);
+      const local = toLocal(e.clientX, e.clientY);
+      active.set(e.pointerId, { id: e.pointerId, x: local.x, y: local.y });
 
-      if (draggingNodeRef.current) {
-        engineRef.current?.handle_node_drag_move(sx, sy);
-        pumpWorkerMessages();
+      if (active.size === 1) {
+        // Hit-test: if the pointer lands on a node, start a node-drag;
+        // otherwise start a camera pan.
+        const nodeId = engineRef.current?.handle_node_drag_start(local.x, local.y);
+        if (nodeId) {
+          draggingNodeRef.current = nodeId;
+          singleMode = "drag";
+          pumpWorkerMessages();
+        } else {
+          engineRef.current?.handle_pan_start(local.x, local.y);
+          singleMode = "pan";
+        }
+      } else if (active.size === 2) {
+        // Second pointer joined — end any single-pointer gesture and begin pinch.
+        if (singleMode === "drag") {
+          engineRef.current?.handle_node_drag_end();
+          pumpWorkerMessages();
+          draggingNodeRef.current = null;
+          suppressNextClick = true;
+        } else if (singleMode === "pan") {
+          engineRef.current?.handle_pan_end();
+        }
+        singleMode = null;
+        lastPinchDist = pinchDist();
+        lastCentroid = centroid();
+      }
+    };
+
+    const onMove = (e: PointerEvent) => {
+      const existing = active.get(e.pointerId);
+      if (!existing) return;
+      const local = toLocal(e.clientX, e.clientY);
+      active.set(e.pointerId, { id: e.pointerId, x: local.x, y: local.y });
+
+      if (active.size === 1) {
+        if (singleMode === "drag") {
+          engineRef.current?.handle_node_drag_move(local.x, local.y);
+          pumpWorkerMessages();
+        } else if (singleMode === "pan") {
+          engineRef.current?.handle_pan_move(local.x, local.y);
+          // Hover updates only while panning (or hovering without a button).
+          const hoveredId = engineRef.current?.handle_hover(local.x, local.y);
+          if (hoveredId !== undefined) {
+            callbacksRef.current.onNodeHover?.({ id: hoveredId } as NodeData);
+          }
+        }
+      } else if (active.size === 2) {
+        const d = pinchDist();
+        const c = centroid();
+        const deltaZoom = d / Math.max(lastPinchDist, 1e-3);
+        // handle_zoom(delta, x, y) — delta > 0 → zoom out, < 0 → zoom in.
+        // Invert via -log so a growing distance zooms in.
+        engineRef.current?.handle_zoom(-Math.log(deltaZoom), c.x, c.y);
+        if (lastCentroid) {
+          engineRef.current?.handle_pan_start(lastCentroid.x, lastCentroid.y);
+          engineRef.current?.handle_pan_move(c.x, c.y);
+          engineRef.current?.handle_pan_end();
+        }
+        lastPinchDist = d;
+        lastCentroid = c;
+      }
+    };
+
+    const onUp = (e: PointerEvent) => {
+      if (canvas.hasPointerCapture(e.pointerId)) {
+        canvas.releasePointerCapture(e.pointerId);
+      }
+      active.delete(e.pointerId);
+
+      if (active.size === 0) {
+        if (singleMode === "drag") {
+          engineRef.current?.handle_node_drag_end();
+          pumpWorkerMessages();
+          // Clear on next tick to suppress the synthetic click that fires
+          // immediately after pointerup on the same element.
+          setTimeout(() => {
+            draggingNodeRef.current = null;
+          }, 0);
+        } else if (singleMode === "pan") {
+          engineRef.current?.handle_pan_end();
+        }
+        singleMode = null;
+        lastCentroid = null;
+        lastPinchDist = 0;
+      } else if (active.size === 1) {
+        // Transitioned from pinch back to single pointer — resume panning from
+        // the remaining pointer. Treat as a new pan gesture (not a drag).
+        const only = [...active.values()][0];
+        engineRef.current?.handle_pan_start(only.x, only.y);
+        singleMode = "pan";
+        // The next click would be a pinch-release → suppress.
+        suppressNextClick = true;
+      }
+    };
+
+    const onClick = (e: MouseEvent) => {
+      if (suppressNextClick) {
+        suppressNextClick = false;
         return;
       }
-
-      engineRef.current?.handle_pan_move(sx, sy);
-      const hoveredId = engineRef.current?.handle_hover(sx, sy);
-      if (hoveredId !== undefined) {
-        callbacksRef.current.onNodeHover?.({ id: hoveredId } as NodeData);
-      }
-    },
-    [pumpWorkerMessages]
-  );
-
-  const handleMouseUp = useCallback(() => {
-    if (draggingNodeRef.current !== null) {
-      engineRef.current?.handle_node_drag_end();
-      pumpWorkerMessages();
-      // Clear the ref on the next tick to block the synthetic click event that
-      // fires immediately after mouseup on the same element.
-      setTimeout(() => {
-        draggingNodeRef.current = null;
-      }, 0);
-      return;
-    }
-    engineRef.current?.handle_pan_end();
-  }, [pumpWorkerMessages]);
-
-  const handleClick = useCallback(
-    (e: React.MouseEvent<HTMLCanvasElement>) => {
       if (draggingNodeRef.current !== null) return; // consumed by drag
-      const rect = (e.target as HTMLCanvasElement).getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
-      const clickedId = engineRef.current?.handle_click(
-        (e.clientX - rect.left) * dpr,
-        (e.clientY - rect.top) * dpr
-      );
+      const local = toLocal(e.clientX, e.clientY);
+      const clickedId = engineRef.current?.handle_click(local.x, local.y);
       if (clickedId) {
         callbacksRef.current.onNodeClick?.({ id: clickedId } as NodeData);
       }
-    },
-    []
+    };
+
+    canvas.style.touchAction = "none";
+    canvas.addEventListener("pointerdown", onDown);
+    canvas.addEventListener("pointermove", onMove);
+    canvas.addEventListener("pointerup", onUp);
+    canvas.addEventListener("pointercancel", onUp);
+    canvas.addEventListener("click", onClick);
+    return () => {
+      canvas.removeEventListener("pointerdown", onDown);
+      canvas.removeEventListener("pointermove", onMove);
+      canvas.removeEventListener("pointerup", onUp);
+      canvas.removeEventListener("pointercancel", onUp);
+      canvas.removeEventListener("click", onClick);
+    };
+  }, [pumpWorkerMessages]);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      fit: (padding = 40) => engineRef.current?.fit(padding),
+      zoomIn: () => engineRef.current?.zoom_in(),
+      zoomOut: () => engineRef.current?.zoom_out(),
+      relayout: (nextLayout) => {
+        // Worker protocol uses `set_layout` (see graph-worker-wasm protocol.rs).
+        convergedRef.current = false;
+        workerRef.current?.postMessage({ type: "set_layout", layout: nextLayout });
+      },
+      setTheme: (nextTheme) => engineRef.current?.set_theme(nextTheme),
+      setData: (nextSnapshot) => applySnapshot(nextSnapshot),
+      selectNode: (id) => engineRef.current?.set_focus(id ?? undefined),
+      subscribeFrame: (cb) => {
+        // Wrap the high-level callback in the low-level one the engine expects.
+        const wrapped = (obj: { positions: Float32Array; vpMatrix: Float32Array }) =>
+          cb({ positions: obj.positions, vpMatrix: obj.vpMatrix });
+        engineRef.current?.subscribe_frame(wrapped);
+        // Engine currently has no unsubscribe API (single-component consumer);
+        // return a no-op disposer. If the component remounts while a new engine
+        // is created, the subscriber list is rebuilt with the new engine.
+        return () => {};
+      },
+    }),
+    [applySnapshot],
   );
 
   return (
@@ -366,11 +530,6 @@ export function Graph({
       ref={canvasRef}
       className={className}
       style={{ width: "100%", height: "100%", display: "block", touchAction: "none", ...style }}
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseUp}
-      onClick={handleClick}
     />
   );
-}
+});
