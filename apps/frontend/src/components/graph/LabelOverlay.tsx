@@ -14,6 +14,10 @@ export interface LabelOverlayProps {
   nodeTypes: Record<string, string>;
   /** Below this zoom (from vpMatrix scale), labels are hidden to preserve FPS. */
   minZoomToShowLabels?: number;
+  /** True once the `<Graph>` component signalled `onReady` — before this the
+   *  engine ref's `subscribeFrame` is not yet wired up and subscribing will
+   *  silently no-op, so we must gate the subscription on it. */
+  ready: boolean;
 }
 
 interface FrameState {
@@ -28,20 +32,24 @@ export function LabelOverlay({
   labels,
   nodeTypes,
   minZoomToShowLabels = 0.25,
+  ready,
 }: LabelOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const frameRef = useRef<FrameState>({ positions: null, vpMatrix: null });
   const rafRef = useRef<number | null>(null);
 
-  // Subscribe to engine frame updates.
+  // Subscribe to engine frame updates. Gated on `ready` because the engine
+  // ref is initially null and the `<Graph>` component only wires up the
+  // frame subscription after its internal `init` effect has run.
   useEffect(() => {
+    if (!ready) return;
     const engine = engineRef.current;
     if (!engine) return;
     const unsubscribe = engine.subscribeFrame(({ positions, vpMatrix }) => {
       frameRef.current = { positions, vpMatrix };
     });
     return unsubscribe;
-  }, [engineRef]);
+  }, [engineRef, ready]);
 
   // Render loop.
   useEffect(() => {

@@ -105,11 +105,38 @@ impl WorkerEngine {
             self.store.add_edge(edge);
         }
 
-        self.force_layout = ForceLayout::new();
-        self.layout_running = true;
-        let result = self.force_layout.compute(&self.store);
-        for (id, x, y) in result {
-            self.positions.insert(id, (x, y));
+        // Run the layout that was set via `set_layout`. Force is iterative and
+        // keeps `layout_running=true` so the tick loop advances it; grid and
+        // hierarchical are one-shot — their positions are final after `compute`.
+        match self.active_layout {
+            LayoutKind::Force => {
+                self.force_layout = ForceLayout::new();
+                self.layout_running = true;
+                let result = self.force_layout.compute(&self.store);
+                for (id, x, y) in result {
+                    self.positions.insert(id, (x, y));
+                }
+            }
+            LayoutKind::Hierarchical => {
+                let result = self.hier_layout.compute(&self.store);
+                for (id, x, y) in result {
+                    self.positions.insert(id, (x, y));
+                }
+                self.layout_running = false;
+            }
+            LayoutKind::Grid => {
+                self.grid_layout = GridLayout::new(
+                    GRID_PADDING,
+                    GRID_NODE_W,
+                    GRID_NODE_H,
+                    GRID_VIEWPORT_RATIO,
+                );
+                let result = self.grid_layout.compute(&self.store);
+                for (id, x, y) in result {
+                    self.positions.insert(id, (x, y));
+                }
+                self.layout_running = false;
+            }
         }
 
         self.rebuild_visual_flags();

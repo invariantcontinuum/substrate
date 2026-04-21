@@ -151,7 +151,10 @@ export function graphThemeToEngineJson(t: GraphTheme): unknown {
   for (const [k, v] of Object.entries(t.edgeTypes)) byTypeEdges[k] = toEdgeOverride(v);
 
   return {
-    background: t.canvasBg,
+    // Transparent so the `.graph-canvas-container` CSS grid-lines render
+    // through the WebGL canvas. The visible "page" background still uses
+    // canvasBg via the container's CSS.
+    background: "rgba(0,0,0,0)",
     nodes: {
       default: toNodeOverride(t.defaultNodeStyle),
       by_type: byTypeNodes,

@@ -143,6 +143,16 @@ export function GraphCanvas() {
     window.dispatchEvent(new CustomEvent("graph:ready"));
   }, [finalizeLoad]);
 
+  const onStatsChange = useCallback(
+    () => {
+      // Fires on every worker `snapshot_loaded` / `stats` message, which
+      // marks the canvas as having received the new graph data. Closes
+      // the end-to-end load timer the topbar reads.
+      finalizeLoad();
+    },
+    [finalizeLoad],
+  );
+
   /* Drive the engine's internal selection/spotlight state from the
    * store. A null id clears the focus; a non-null id triggers a
    * spotlight dim + zoom inside the engine. */
@@ -187,6 +197,7 @@ export function GraphCanvas() {
             layout="grid"
             onNodeClick={onNodeClick}
             onReady={onReady}
+            onStatsChange={onStatsChange}
             className="graph-canvas-webgl"
             style={{ width: "100%", height: "100%" }}
           />
@@ -196,6 +207,8 @@ export function GraphCanvas() {
             nodeIds={nodeIds}
             labels={labels}
             nodeTypes={nodeTypeMap}
+            ready={ready}
+            minZoomToShowLabels={0.1}
           />
         </div>
       </div>

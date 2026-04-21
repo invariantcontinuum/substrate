@@ -45,6 +45,11 @@ pub fn handle_message(msg_js: &JsValue) -> Result<(), JsValue> {
             }
             InMessage::SetLayout { layout } => {
                 engine.set_layout(&layout);
+                post_positions(&engine);
+                post_edges(&engine);
+                if !engine.is_layout_running() {
+                    post_json(&OutMessage::Converged {});
+                }
             }
             InMessage::SetFilter { filter } => {
                 engine.set_filter(filter);

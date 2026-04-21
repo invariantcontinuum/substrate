@@ -109,10 +109,10 @@ export const Graph = forwardRef<GraphHandle, GraphProps>(function Graph(
           const positions = new Float32Array(msg.positions);
           const flags = new Uint8Array(msg.flags);
           engine.update_positions(positions, flags);
-
-          if (!convergedRef.current) {
-            requestRender();
-          }
+          // Always request a paint. For force (non-converged) this keeps the
+          // simulation visibly advancing; for grid / hierarchical (converged)
+          // this is the one-and-only chance to paint the final positions.
+          requestRender();
         } else if (msg.type === "edges") {
           const edges = new Float32Array(msg.edges);
           engine.update_edges(edges, msg.edge_count);
@@ -218,6 +218,19 @@ export const Graph = forwardRef<GraphHandle, GraphProps>(function Graph(
     });
   }, []);
 
+  // Layout — MUST run BEFORE the snapshot effects. React fires effects in
+  // declaration order, which is the same order the worker receives messages.
+  // When snapshot loads before layout, the worker runs its default (force)
+  // layout on the new nodes, then receives `set_layout=grid` but load_snapshot
+  // has already populated positions — a subsequent snapshot/relayout is then
+  // required. Keeping layout first guarantees the worker's active_layout is
+  // `grid` when load_snapshot arrives, so positions are final on first paint.
+  useEffect(() => {
+    if (!ready || !workerRef.current) return;
+    convergedRef.current = false;
+    workerRef.current.postMessage({ type: "set_layout", layout });
+  }, [ready, layout]);
+
   // Load snapshot from URL
   useEffect(() => {
     if (!ready || !snapshotUrl || !workerRef.current) return;
@@ -250,13 +263,6 @@ export const Graph = forwardRef<GraphHandle, GraphProps>(function Graph(
     if (!ready || !theme || !engineRef.current) return;
     engineRef.current.set_theme(theme);
   }, [ready, theme]);
-
-  // Layout
-  useEffect(() => {
-    if (!ready || !workerRef.current) return;
-    convergedRef.current = false;
-    workerRef.current.postMessage({ type: "set_layout", layout });
-  }, [ready, layout]);
 
   // Filter
   useEffect(() => {
