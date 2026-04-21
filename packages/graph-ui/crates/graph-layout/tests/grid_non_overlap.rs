@@ -15,10 +15,6 @@ fn node(id: &str, t: NodeType) -> NodeData {
     }
 }
 
-fn positions_from(store: &GraphStore, mut layout: GridLayout) -> Vec<(String, f32, f32)> {
-    layout.compute(store)
-}
-
 /// Node AABB is 100x40 for every node (matches typical theme defaults in tests).
 const W: f32 = 100.0;
 const H: f32 = 40.0;

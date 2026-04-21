@@ -60,6 +60,7 @@ impl LayoutEngine for GridLayout {
     }
 
     fn tick(&mut self, graph: &GraphStore) -> bool {
+        // Grid is one-shot. If already computed, it's converged.
         if !self.converged {
             let _ = self.compute(graph);
         }
