@@ -12,6 +12,7 @@ import { SignalsOverlay } from "./SignalsOverlay";
 import { ViolationBadge } from "./ViolationBadge";
 import { DynamicLegend } from "./DynamicLegend";
 import { LabelOverlay } from "./LabelOverlay";
+import { GraphSearch } from "./GraphSearch";
 import { buildGraphTheme, graphThemeToEngineJson } from "./styleAdapter";
 
 /**
@@ -212,7 +213,7 @@ export function GraphCanvas() {
       </div>
 
       <div className="graph-toolbar">
-        {/* <GraphSearch slimNodes={nodes} engineRef={engineRef} onOpenDetail={onNodeClick} /> — T18 */}
+<GraphSearch slimNodes={nodes} engineRef={engineRef} onOpenDetail={onNodeClick} />
         <button
           onClick={() => engineRef.current?.fit(48)}
           title="Fit"
