@@ -1,8 +1,10 @@
 pub mod force;
+pub mod grid;
 pub mod hierarchical;
 pub mod incremental;
 
 pub use force::ForceLayout;
+pub use grid::GridLayout;
 pub use hierarchical::HierarchicalLayout;
 
 pub trait LayoutEngine {
