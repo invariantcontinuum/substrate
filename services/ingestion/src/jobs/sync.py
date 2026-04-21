@@ -121,6 +121,7 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
         # mapping, embeddings, stats, etc.
         local_tree = _walk_local_tree(tree.root_dir)
         doc = build_graph(local_tree, tree.root_dir, source_name="github")
+        denied_count = doc.stats.get("denied_file_count", 0) if hasattr(doc, "stats") else 0
         file_nodes = [n for n in doc.nodes if "#" not in n.id]
         symbol_nodes = [n for n in doc.nodes if "#" in n.id]
         depends_edges = [e for e in doc.edges if e.type == "depends"]
@@ -368,6 +369,7 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
             "files_embedded": meta["files_embedded"],
             "chunks": total_chunks, "chunks_embedded": meta.get("chunks_embedded", 0),
             "duration_ms": round(sync_elapsed * 1000),
+            "denied_file_count": denied_count,
         }
         await sync_runs.complete_sync_run(sync_id, stats)
         await sync_runs.update_source_last_sync(source_id, sync_id)

@@ -94,7 +94,11 @@ async def complete_sync_run(sync_id: str, stats: dict) -> None:
     pool = graph_writer.get_pool()
     async with pool.acquire() as conn:
         await conn.execute(
-            """UPDATE sync_runs SET status='completed', completed_at=now(), stats=$2::jsonb
+            """UPDATE sync_runs
+               SET status='completed',
+                   completed_at=now(),
+                   stats=$2::jsonb,
+                   denied_file_count=COALESCE(($2::jsonb)->>'denied_file_count', '0')::int
                WHERE id=$1::uuid""",
             sync_id, json.dumps(stats),
         )
