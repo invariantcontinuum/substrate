@@ -356,12 +356,21 @@ impl RenderEngine {
         self.is_dragging_node = true;
         self.dragged_idx = Some(idx);
         let node_id = self.node_ids.get(idx).cloned();
+        // Pin at the node's CURRENT position, not the click coordinates.
+        // Clicking near the edge of a node should not teleport it to the
+        // click point — only a real drag should change its position.
+        let base = idx * 4;
+        let (pin_x, pin_y) = if base + 1 < self.positions.len() {
+            (self.positions[base], self.positions[base + 1])
+        } else {
+            (wx, wy)
+        };
         // Queue a pin_node message — the React wrapper will pump this to the worker.
         self.pending_worker_messages.push(serde_json::json!({
             "type": "pin_node",
             "idx": idx,
-            "x": wx,
-            "y": wy,
+            "x": pin_x,
+            "y": pin_y,
         }));
         node_id
     }

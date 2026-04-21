@@ -22,9 +22,11 @@ void main() {
     float flags = a_flags;
     bool pulse = mod(flags, 2.0) > 0.5;
     bool hovered = mod(floor(flags / 2.0), 2.0) > 0.5;
+    bool selected = mod(floor(flags / 4.0), 2.0) > 0.5;
     float scale_mod = 1.0;
     if (pulse)   scale_mod *= 1.0 + 0.08 * sin(u_time * 3.0);
     if (hovered) scale_mod *= 1.3;
+    if (selected) scale_mod *= 1.0 + 0.04 * sin(u_time * 6.0);
     vec2 half_size = vec2(a_half_w, a_half_h) * scale_mod;
     vec2 world = a_center + a_position * half_size;
     gl_Position = u_vp * vec4(world, 0.0, 1.0);
