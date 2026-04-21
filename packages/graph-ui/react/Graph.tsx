@@ -80,6 +80,32 @@ export const Graph = forwardRef<GraphHandle, GraphProps>(function Graph(
 
   callbacksRef.current = { onNodeClick, onNodeHover, onStatsChange, onLegendChange };
 
+  /* Restart the RAF render loop. Called after every camera-mutating
+   * interaction (zoom/pan/fit/drag) because the loop exits when
+   * `engine.needs_frame()` returns false (i.e., at steady state after
+   * grid convergence). Without an explicit restart, subsequent camera
+   * state changes never paint. */
+  const requestRender = useCallback(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.request_render();
+    if (rafRef.current !== 0) return; // loop already running
+    const loop = (timestamp: number) => {
+      const e = engineRef.current;
+      if (!e) {
+        rafRef.current = 0;
+        return;
+      }
+      e.frame(timestamp);
+      if (e.needs_frame()) {
+        rafRef.current = requestAnimationFrame(loop);
+      } else {
+        rafRef.current = 0;
+      }
+    };
+    rafRef.current = requestAnimationFrame(loop);
+  }, []);
+
   // Initialize engine and worker
   useEffect(() => {
     let cancelled = false;
@@ -158,22 +184,6 @@ export const Graph = forwardRef<GraphHandle, GraphProps>(function Graph(
       // Signal ready — this triggers prop-sync effects
       setReady(true);
       onReady?.();
-    }
-
-    function requestRender() {
-      engineRef.current?.request_render();
-      if (rafRef.current === 0 && engineRef.current) {
-        function loop(timestamp: number) {
-          if (!engineRef.current) return;
-          engineRef.current.frame(timestamp);
-          if (engineRef.current.needs_frame()) {
-            rafRef.current = requestAnimationFrame(loop);
-          } else {
-            rafRef.current = 0;
-          }
-        }
-        rafRef.current = requestAnimationFrame(loop);
-      }
     }
 
     init().catch((err) => console.error("Graph init failed:", err));
@@ -307,10 +317,11 @@ export const Graph = forwardRef<GraphHandle, GraphProps>(function Graph(
         (e.clientX - rect.left) * dpr,
         (e.clientY - rect.top) * dpr
       );
+      requestRender();
     };
     canvas.addEventListener("wheel", handler, { passive: false });
     return () => canvas.removeEventListener("wheel", handler);
-  }, []);
+  }, [requestRender]);
 
   const pumpWorkerMessages = useCallback(() => {
     const raw = engineRef.current?.drain_worker_messages();
@@ -401,6 +412,7 @@ export const Graph = forwardRef<GraphHandle, GraphProps>(function Graph(
         lastPinchDist = pinchDist();
         lastCentroid = centroid();
       }
+      requestRender();
     };
 
     const onMove = (e: PointerEvent) => {
@@ -436,6 +448,7 @@ export const Graph = forwardRef<GraphHandle, GraphProps>(function Graph(
         lastPinchDist = d;
         lastCentroid = c;
       }
+      requestRender();
     };
 
     const onUp = (e: PointerEvent) => {
@@ -468,6 +481,7 @@ export const Graph = forwardRef<GraphHandle, GraphProps>(function Graph(
         // The next click would be a pinch-release → suppress.
         suppressNextClick = true;
       }
+      requestRender();
     };
 
     const onClick = (e: MouseEvent) => {
@@ -481,6 +495,7 @@ export const Graph = forwardRef<GraphHandle, GraphProps>(function Graph(
       if (clickedId) {
         callbacksRef.current.onNodeClick?.({ id: clickedId } as NodeData);
       }
+      requestRender();
     };
 
     canvas.style.touchAction = "none";
@@ -496,22 +511,39 @@ export const Graph = forwardRef<GraphHandle, GraphProps>(function Graph(
       canvas.removeEventListener("pointercancel", onUp);
       canvas.removeEventListener("click", onClick);
     };
-  }, [pumpWorkerMessages]);
+  }, [pumpWorkerMessages, requestRender]);
 
   useImperativeHandle(
     ref,
     () => ({
-      fit: (padding = 40) => engineRef.current?.fit(padding),
-      zoomIn: () => engineRef.current?.zoom_in(),
-      zoomOut: () => engineRef.current?.zoom_out(),
+      fit: (padding = 40) => {
+        engineRef.current?.fit(padding);
+        requestRender();
+      },
+      zoomIn: () => {
+        engineRef.current?.zoom_in();
+        requestRender();
+      },
+      zoomOut: () => {
+        engineRef.current?.zoom_out();
+        requestRender();
+      },
       relayout: (nextLayout) => {
         // Worker protocol uses `set_layout` (see graph-worker-wasm protocol.rs).
+        // positions will arrive via worker message; requestRender is chained
+        // automatically in the positions handler, so no explicit call here.
         convergedRef.current = false;
         workerRef.current?.postMessage({ type: "set_layout", layout: nextLayout });
       },
-      setTheme: (nextTheme) => engineRef.current?.set_theme(nextTheme),
+      setTheme: (nextTheme) => {
+        engineRef.current?.set_theme(nextTheme);
+        requestRender();
+      },
       setData: (nextSnapshot) => applySnapshot(nextSnapshot),
-      selectNode: (id) => engineRef.current?.set_focus(id ?? undefined),
+      selectNode: (id) => {
+        engineRef.current?.set_focus(id ?? undefined);
+        requestRender();
+      },
       subscribeFrame: (cb) => {
         // Wrap the high-level callback in the low-level one the engine expects.
         const wrapped = (obj: { positions: Float32Array; vpMatrix: Float32Array }) =>
@@ -523,7 +555,7 @@ export const Graph = forwardRef<GraphHandle, GraphProps>(function Graph(
         return () => {};
       },
     }),
-    [applySnapshot],
+    [applySnapshot, requestRender],
   );
 
   return (
