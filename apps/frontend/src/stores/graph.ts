@@ -3,30 +3,26 @@ import { logger } from "@/lib/logger";
 import { apiFetch } from "@/lib/api";
 import { useSyncSetStore } from "./syncSet";
 
-export interface GraphNode {
+export interface SlimNode {
   id: string;
-  label?: string;
-  name?: string;
   type: string;
+  name: string;
   layer?: string;
-  owner?: string;
   source_id?: string;
-  file_path?: string;
-  loaded_sync_ids?: string[];
-  latest_sync_id?: string;
-  divergent?: boolean;
-  [key: string]: unknown;
 }
 
-export interface GraphEdge {
+export interface SlimEdge {
   id: string;
   source: string;
   target: string;
-  label?: string;
-  loaded_sync_ids?: string[];
-  weight_max?: number;
-  [key: string]: unknown;
+  type: string;
 }
+
+// Aliases preserved so existing callsites (GraphCanvas, NodeDetailPanel,
+// DynamicLegend, etc.) still compile during migration. T17/T19 rewrite
+// those consumers against the engine-owned Node/Edge shapes.
+export type GraphNode = SlimNode;
+export type GraphEdge = SlimEdge;
 
 export interface GraphSignal {
   nodeId: string;
@@ -77,9 +73,10 @@ interface GraphStats {
   violationCount: number;
   lastUpdated: string;
   // End-to-end load time: from fetchGraph start until the canvas layout
-  // settles. Captures fetch + JSON parse + reconciliation + Cytoscape
+  // settles. Captures fetch + JSON parse + reconciliation + engine
   // add/layout, so the topbar reflects what the user actually waited for.
-  // Finalised by GraphCanvas via finalizeLoad() on `layoutstop`.
+  // Finalised by the canvas via finalizeLoad() when the engine signals
+  // the first frame is ready (onReady callback).
   lastLoadMs: number | null;
   // Network/parse round-trip time for /api/graph alone.
   lastFetchMs: number | null;
@@ -87,8 +84,9 @@ interface GraphStats {
   // Useful to distinguish slow DB from slow network.
   lastServerMs: number | null;
   // Internal: timestamp (performance.now) when the in-flight fetchGraph
-  // started. Non-null while a load is awaiting layoutstop. GraphCanvas
-  // reads this to decide whether to call finalizeLoad after a layout.
+  // started. Non-null while a load is awaiting the engine's ready
+  // signal. The canvas reads this to decide whether to call
+  // finalizeLoad after layout completes.
   loadStartedAt: number | null;
 }
 
@@ -151,14 +149,17 @@ interface GraphState {
 
   /* Data loading */
   fetchGraph: (token?: string, syncIds?: string[]) => Promise<void>;
-  // Called by GraphCanvas after Cytoscape's `layoutstop` so the topbar
-  // timer reflects fetch + render, not just the network round-trip.
+  // Called by the canvas when the render engine signals its first frame
+  // is ready (e.g. via an onReady callback), so the topbar timer
+  // reflects fetch + render, not just the network round-trip.
+  // Engine-agnostic: the store does not subscribe to any engine events.
   finalizeLoad: () => void;
 
   /* Per-sync render time (ms). Populated by finalizeLoad; keyed by the
-   * sync ids that were active at the moment layoutstop fired. In-memory
-   * only — a page reload clears it. Consumed by the Sources page to
-   * show "Render time: 812 ms" in the expanded snapshot row. */
+   * sync ids that were active at the moment the engine finished its
+   * first layout. In-memory only — a page reload clears it. Consumed
+   * by the Sources page to show "Render time: 812 ms" in the expanded
+   * snapshot row. */
   renderTimeBySyncId: Record<string, number>;
   recordRenderTime: (syncIds: string[], ms: number) => void;
 }
@@ -357,7 +358,7 @@ export const useGraphStore = create<GraphState>((set) => ({
 // which produces a new array reference with identical contents — would
 // fire a redundant fetchGraph alongside App.tsx's initial-load effect.
 // Two concurrent /api/graph requests for the same syncIds produced a
-// double cy.add+layout cycle for ~100k node graphs, which the user
+// double engine add+layout cycle for ~100k node graphs, which the user
 // experienced as the canvas going blank right after it first appeared.
 let refetchTimer: ReturnType<typeof setTimeout> | null = null;
 let lastSyncIdsKey =
