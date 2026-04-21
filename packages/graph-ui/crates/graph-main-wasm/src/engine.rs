@@ -174,6 +174,7 @@ impl RenderEngine {
         // Do not remove — spatial.rebuild is the invariant that handle_click / handle_hover
         // depend on. Tests: crates/graph-main-wasm/tests/spatial_index.rs
         self.spatial.rebuild(&self.positions, 200);
+        self.update_min_zoom();
     }
 
     pub fn update_edges(&mut self, edge_data: &[f32], edge_count: usize) {
@@ -339,9 +340,15 @@ impl RenderEngine {
         self.is_panning = false;
     }
 
-    pub fn handle_zoom(&mut self, delta: f32, x: f32, y: f32) {
+    pub fn handle_zoom(&mut self, delta: f32, _x: f32, _y: f32) {
         let factor = if delta > 0.0 { 0.96 } else { 1.04 };
-        self.camera.zoom_at(factor, x, y);
+        // Zoom anchored to viewport center so the graph stays centered
+        // during wheel / pinch gestures. Pointer-relative zoom causes the
+        // graph to drift off-screen with repeated zooms, which is the
+        // stereotypical UX complaint this addresses.
+        let cx = self.camera.viewport_width() * 0.5;
+        let cy = self.camera.viewport_height() * 0.5;
+        self.camera.zoom_at(factor, cx, cy);
         self.needs_render = true;
     }
 
@@ -514,6 +521,7 @@ impl RenderEngine {
         if min_x.is_finite() {
             self.camera
                 .fit_to_bounds(min_x, min_y, max_x, max_y, padding_px);
+            self.update_min_zoom();
             self.needs_render = true;
         }
     }
@@ -674,8 +682,42 @@ impl RenderEngine {
         }
         if min_x.is_finite() {
             self.camera.fit_to_bounds(min_x, min_y, max_x, max_y, padding_px);
+            self.update_min_zoom();
             self.needs_render = true;
         }
+    }
+
+    /// Recompute `camera.min_zoom` so the user cannot zoom out past the
+    /// rendered graph into empty background. The floor is set to 70% of the
+    /// zoom level that would make the graph exactly fill the viewport.
+    fn update_min_zoom(&mut self) {
+        if self.positions.is_empty() {
+            return;
+        }
+        let vw = self.camera.viewport_width();
+        let vh = self.camera.viewport_height();
+        if vw < 1.0 || vh < 1.0 {
+            return;
+        }
+        let mut min_x = f32::INFINITY;
+        let mut min_y = f32::INFINITY;
+        let mut max_x = f32::NEG_INFINITY;
+        let mut max_y = f32::NEG_INFINITY;
+        for chunk in self.positions.chunks_exact(4) {
+            let (x, y, r) = (chunk[0], chunk[1], chunk[2]);
+            min_x = min_x.min(x - r);
+            min_y = min_y.min(y - r);
+            max_x = max_x.max(x + r);
+            max_y = max_y.max(y + r);
+        }
+        let graph_w = (max_x - min_x).max(f32::EPSILON);
+        let graph_h = (max_y - min_y).max(f32::EPSILON);
+        let scale_x = vw / graph_w;
+        let scale_y = vh / graph_h;
+        let fit_zoom = scale_x.min(scale_y);
+        // Allow zooming out to 70% of "exact fit" — enough to see a little
+        // surrounding context, but not enough to lose the graph in empty space.
+        self.camera.min_zoom = (fit_zoom * 0.7).clamp(0.01, self.camera.max_zoom);
     }
 
     /// Re-upload GPU buffers after a WebGL context loss → restore sequence.
