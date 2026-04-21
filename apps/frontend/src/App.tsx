@@ -78,7 +78,7 @@ function RequireAuth({ children }: { children: ReactNode }) {
   // on every accessToken rotation: silent token renewal happens every
   // few minutes (Keycloak default ~5 min), and re-running fetchGraph on
   // each rotation would re-do a 3-5 MB request and a multi-second
-  // cytoscape relayout for no user-visible benefit. After the first
+  // graph relayout for no user-visible benefit. After the first
   // load the syncSet subscriber in stores/graph.ts handles refetches
   // when the active sync set actually changes; the sentinel below
   // ensures we never fetch a second time just because the JWT rotated.
