@@ -1,8 +1,18 @@
 -- services/graph/migrations/postgres/V1__initial_schema.sql
--- AGE extension, pgvector extension, and the 'substrate' graph are created
--- by the home-stack init script (01-init-databases.sh) as superuser.
--- This migration owns every relational table the substrate platform writes to.
+-- Consolidated initial schema as of 2026-04-21. Replaces the former
+-- V1..V12 chain, which was collapsed pre-MVP: final-state DDL only,
+-- applied to a fresh database via `make nuke && make up`.
+--
+-- Extensions (age, vector), the 'substrate' AGE graph, and the
+-- 'File' / 'Symbol' vlabels are created as superuser by the
+-- home-stack postgres init script (ops/infra/postgres/init/
+-- 01-init-databases.sh) before Flyway runs. This migration owns
+-- every relational table the substrate platform writes to, plus
+-- the AGE property indexes that the query paths depend on.
 
+-- ---------------------------------------------------------------------------
+-- sources
+-- ---------------------------------------------------------------------------
 CREATE TABLE sources (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     source_type     TEXT NOT NULL DEFAULT 'github_repo',
@@ -11,14 +21,18 @@ CREATE TABLE sources (
     url             TEXT NOT NULL,
     default_branch  TEXT DEFAULT 'main',
     config          JSONB NOT NULL DEFAULT '{}',
+    enabled         BOOLEAN NOT NULL DEFAULT true,
     last_sync_id    UUID,
     last_synced_at  TIMESTAMPTZ,
     meta            JSONB DEFAULT '{}',
     created_at      TIMESTAMPTZ DEFAULT now(),
     updated_at      TIMESTAMPTZ DEFAULT now(),
-    UNIQUE(source_type, owner, name)
+    UNIQUE (source_type, owner, name)
 );
 
+-- ---------------------------------------------------------------------------
+-- sync_runs
+-- ---------------------------------------------------------------------------
 CREATE TABLE sync_runs (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     source_id       UUID NOT NULL REFERENCES sources(id) ON DELETE CASCADE,
@@ -37,15 +51,21 @@ CREATE TABLE sync_runs (
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_sync_runs_source_completed ON sync_runs(source_id, completed_at DESC NULLS LAST);
-CREATE INDEX idx_sync_runs_active           ON sync_runs(status) WHERE status IN ('pending','running');
+CREATE INDEX idx_sync_runs_source_completed
+    ON sync_runs(source_id, completed_at DESC NULLS LAST);
+CREATE INDEX idx_sync_runs_active
+    ON sync_runs(status) WHERE status IN ('pending','running');
 CREATE UNIQUE INDEX ux_sync_runs_one_active_per_source
     ON sync_runs(source_id) WHERE status IN ('pending','running');
 
+-- Deferred FK: sources.last_sync_id -> sync_runs.id (back-reference).
 ALTER TABLE sources
     ADD CONSTRAINT sources_last_sync_fk
     FOREIGN KEY (last_sync_id) REFERENCES sync_runs(id) ON DELETE SET NULL;
 
+-- ---------------------------------------------------------------------------
+-- sync_issues
+-- ---------------------------------------------------------------------------
 CREATE TABLE sync_issues (
     id          BIGSERIAL PRIMARY KEY,
     sync_id     UUID NOT NULL REFERENCES sync_runs(id) ON DELETE CASCADE,
@@ -59,6 +79,9 @@ CREATE TABLE sync_issues (
 
 CREATE INDEX idx_sync_issues_sync ON sync_issues(sync_id, level, occurred_at DESC);
 
+-- ---------------------------------------------------------------------------
+-- sync_schedules
+-- ---------------------------------------------------------------------------
 CREATE TABLE sync_schedules (
     id               BIGSERIAL PRIMARY KEY,
     source_id        UUID NOT NULL REFERENCES sources(id) ON DELETE CASCADE,
@@ -68,36 +91,51 @@ CREATE TABLE sync_schedules (
     last_run_at      TIMESTAMPTZ,
     next_run_at      TIMESTAMPTZ,
     created_at       TIMESTAMPTZ DEFAULT now(),
-    UNIQUE(source_id, interval_minutes)
+    UNIQUE (source_id, interval_minutes)
 );
 
+-- ---------------------------------------------------------------------------
+-- file_embeddings
+-- Final embedding dimension: 896 (jina-code-embeddings-0.5b, per V10).
+-- The startup dim guard (src.startup.check_embedding_dim) fail-fasts
+-- if the configured embeddings model emits a different dimension.
+-- ---------------------------------------------------------------------------
 CREATE TABLE file_embeddings (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    sync_id         UUID NOT NULL REFERENCES sync_runs(id) ON DELETE CASCADE,
-    source_id       UUID NOT NULL REFERENCES sources(id) ON DELETE CASCADE,
-    file_path       TEXT NOT NULL,
-    name            TEXT NOT NULL,
-    type            TEXT NOT NULL,
-    domain          TEXT DEFAULT '',
-    language        TEXT DEFAULT '',
-    size_bytes      INT DEFAULT 0,
-    line_count      INT DEFAULT 0,
-    description     TEXT DEFAULT '',
-    exports         TEXT[] DEFAULT '{}',
-    imports_count   INT DEFAULT 0,
-    status          TEXT DEFAULT 'healthy',
-    embedding       vector(1024),
-    content_hash    CHAR(64),
-    last_commit_sha TEXT DEFAULT '',
-    last_commit_at  TIMESTAMPTZ,
-    created_at      TIMESTAMPTZ DEFAULT now(),
-    UNIQUE(sync_id, file_path)
+    id                       UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    sync_id                  UUID NOT NULL REFERENCES sync_runs(id) ON DELETE CASCADE,
+    source_id                UUID NOT NULL REFERENCES sources(id) ON DELETE CASCADE,
+    file_path                TEXT NOT NULL,
+    name                     TEXT NOT NULL,
+    type                     TEXT NOT NULL,
+    domain                   TEXT DEFAULT '',
+    language                 TEXT DEFAULT '',
+    size_bytes               INT DEFAULT 0,
+    line_count               INT DEFAULT 0,
+    description              TEXT DEFAULT '',
+    description_generated_at TIMESTAMPTZ,
+    exports                  TEXT[] DEFAULT '{}',
+    imports_count            INT DEFAULT 0,
+    status                   TEXT DEFAULT 'healthy',
+    embedding                vector(896),
+    content_hash             CHAR(64),
+    last_commit_sha          TEXT DEFAULT '',
+    last_commit_at           TIMESTAMPTZ,
+    created_at               TIMESTAMPTZ DEFAULT now(),
+    UNIQUE (sync_id, file_path)
 );
 
 CREATE INDEX idx_file_embeddings_sync        ON file_embeddings(sync_id);
 CREATE INDEX idx_file_embeddings_source_path ON file_embeddings(source_id, file_path);
 CREATE INDEX idx_file_embeddings_sync_type   ON file_embeddings(sync_id, type);
+CREATE INDEX idx_file_embeddings_desc_gen
+    ON file_embeddings(description_generated_at)
+    WHERE description_generated_at IS NOT NULL;
 
+-- ---------------------------------------------------------------------------
+-- content_chunks
+-- Populated by the AST/semantic chunker (substrate-graph-builder.chunker)
+-- on each sync run. Embeddings use the same 896-dim model as file_embeddings.
+-- ---------------------------------------------------------------------------
 CREATE TABLE content_chunks (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     file_id     UUID NOT NULL REFERENCES file_embeddings(id) ON DELETE CASCADE,
@@ -110,11 +148,59 @@ CREATE TABLE content_chunks (
     language    TEXT DEFAULT '',
     chunk_type  TEXT DEFAULT 'block',
     symbols     TEXT[] DEFAULT '{}',
-    embedding   vector(1024),
+    embedding   vector(896),
     created_at  TIMESTAMPTZ DEFAULT now(),
-    UNIQUE(file_id, chunk_index)
+    UNIQUE (file_id, chunk_index)
 );
 
 CREATE INDEX idx_content_chunks_file ON content_chunks(file_id);
 CREATE INDEX idx_content_chunks_sync ON content_chunks(sync_id);
-CREATE INDEX idx_content_chunks_fts  ON content_chunks USING gin (to_tsvector('english', content));
+CREATE INDEX idx_content_chunks_fts
+    ON content_chunks USING gin (to_tsvector('english', content));
+
+-- ---------------------------------------------------------------------------
+-- sse_events
+-- Append-only event log backing the SSE bus. Producers insert a row and
+-- emit pg_notify('substrate_sse', id) in the same transaction; subscribers
+-- (gateway /api/events) replay past Last-Event-ID and stream NOTIFY ids.
+-- 24h retention is managed by a cron in the graph service.
+-- ---------------------------------------------------------------------------
+CREATE TABLE sse_events (
+    id          TEXT PRIMARY KEY,   -- ULID, monotonic, used as SSE `id:` / Last-Event-ID
+    type        TEXT NOT NULL,
+    sync_id     UUID NULL,
+    source_id   UUID NULL,
+    payload     JSONB NOT NULL,
+    emitted_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX sse_events_sync_id_idx
+    ON sse_events (sync_id, emitted_at DESC)
+    WHERE sync_id IS NOT NULL;
+
+CREATE INDEX sse_events_source_id_idx
+    ON sse_events (source_id, emitted_at DESC)
+    WHERE source_id IS NOT NULL;
+
+CREATE INDEX sse_events_emitted_at_brin
+    ON sse_events USING BRIN (emitted_at);
+
+-- ---------------------------------------------------------------------------
+-- AGE property indexes
+-- Cypher `MATCH (n:Label {k: v, ...})` lowers to `properties @> '{...}'::agtype`
+-- containment. GIN with gin_agtype_ops is the operator class AGE ships for @>
+-- on agtype — see V12 rationale in the historical chain (EXPLAIN cost dropped
+-- from 10238 Parallel Seq Scan to 42 Bitmap Index Scan on the Symbol MATCH
+-- shape used by graph_writer.write_age_edges / write_age_defines_edges).
+-- ---------------------------------------------------------------------------
+LOAD 'age';
+SET LOCAL search_path = ag_catalog, public;
+
+CREATE INDEX ix_substrate_file_properties
+    ON substrate."File" USING gin (properties gin_agtype_ops);
+
+CREATE INDEX ix_substrate_symbol_properties
+    ON substrate."Symbol" USING gin (properties gin_agtype_ops);
+
+ANALYZE substrate."File";
+ANALYZE substrate."Symbol";
