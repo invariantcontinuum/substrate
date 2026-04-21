@@ -224,15 +224,10 @@ export const Graph = forwardRef<GraphHandle, GraphProps>(function Graph(
     fetch(snapshotUrl)
       .then((res) => res.json())
       .then((data) => {
-        convergedRef.current = false;
-        workerRef.current?.postMessage({
-          type: "load_snapshot",
-          nodes: data.nodes,
-          edges: data.edges,
-        });
+        applySnapshot(data as GraphSnapshot);
       })
       .catch((err) => console.error("Snapshot fetch failed:", err));
-  }, [ready, snapshotUrl]);
+  }, [ready, snapshotUrl, applySnapshot]);
 
   // Load snapshot from prop
   useEffect(() => {
