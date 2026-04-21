@@ -128,16 +128,44 @@ export function buildGraphTheme(themeMode: "light" | "dark"): GraphTheme {
 }
 
 /** Convert the pure `GraphTheme` into the `ThemeConfig` JSON graph-ui's
- *  `RenderEngine.set_theme(js_value)` accepts (snake_case per Rust struct). */
+ *  `RenderEngine.set_theme(js_value)` accepts.
+ *
+ *  ALL FIELDS ARE camelCase — the Rust `ThemeConfig` uses
+ *  `#[serde(rename = "halfWidth")]` etc. on every field. Emitting
+ *  snake_case makes serde silently ignore the key and fall back to
+ *  defaults (tiny square nodes with placeholder colors). That was the
+ *  root cause of the "small squares, no rectangles" symptom. */
 export function graphThemeToEngineJson(t: GraphTheme): unknown {
+  const toNodeStyleFull = (s: NodeTypeStyle) => ({
+    shape: s.shape,
+    // `size` is required on the default NodeStyle (serde default = 30).
+    // Use the max half-dimension so any consumer path that falls back
+    // to `size` still renders visibly.
+    size: Math.max(s.halfWidth, s.halfHeight),
+    halfWidth: s.halfWidth,
+    halfHeight: s.halfHeight,
+    cornerRadius: s.cornerRadius,
+    color: s.color,
+    borderWidth: s.borderWidth,
+    borderColor: s.borderColor,
+  });
   const toNodeOverride = (s: Partial<NodeTypeStyle>) => ({
     shape: s.shape,
-    half_width: s.halfWidth,
-    half_height: s.halfHeight,
-    corner_radius: s.cornerRadius,
+    size:
+      s.halfWidth !== undefined && s.halfHeight !== undefined
+        ? Math.max(s.halfWidth, s.halfHeight)
+        : undefined,
+    halfWidth: s.halfWidth,
+    halfHeight: s.halfHeight,
+    cornerRadius: s.cornerRadius,
     color: s.color,
-    border_width: s.borderWidth,
-    border_color: s.borderColor,
+    borderWidth: s.borderWidth,
+    borderColor: s.borderColor,
+  });
+  const toEdgeStyleFull = (s: EdgeTypeStyle) => ({
+    color: s.color,
+    width: s.width,
+    arrow: s.arrow,
   });
   const toEdgeOverride = (s: Partial<EdgeTypeStyle>) => ({
     color: s.color,
@@ -156,21 +184,25 @@ export function graphThemeToEngineJson(t: GraphTheme): unknown {
     // canvasBg via the container's CSS.
     background: "rgba(0,0,0,0)",
     nodes: {
-      default: toNodeOverride(t.defaultNodeStyle),
-      by_type: byTypeNodes,
+      default: toNodeStyleFull(t.defaultNodeStyle),
+      byType: byTypeNodes,
     },
     edges: {
-      default: toEdgeOverride(t.defaultEdgeStyle),
-      by_type: byTypeEdges,
+      default: toEdgeStyleFull(t.defaultEdgeStyle),
+      byType: byTypeEdges,
     },
     communities: {
-      hull_fill: t.hullFill,
-      hull_stroke: t.hullStroke,
+      hull: false,
+      hullOpacity: 0.15,
     },
     interaction: {
-      selection_border: t.selectionBorder,
-      selection_fill: t.selectionFill,
-      dim_opacity: t.dimOpacity,
+      select: {
+        borderColor: t.selectionBorder,
+        borderWidth: 3.0,
+      },
+      spotlight: {
+        dimOpacity: t.dimOpacity,
+      },
     },
   };
 }
