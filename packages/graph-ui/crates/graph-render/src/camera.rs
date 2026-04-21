@@ -28,6 +28,14 @@ impl Camera {
         self.viewport_height = height;
     }
 
+    pub fn viewport_width(&self) -> f32 {
+        self.viewport_width
+    }
+
+    pub fn viewport_height(&self) -> f32 {
+        self.viewport_height
+    }
+
     pub fn pan(&mut self, dx: f32, dy: f32) {
         self.x += dx / self.zoom;
         self.y += dy / self.zoom;

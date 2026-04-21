@@ -107,6 +107,10 @@ pub struct RenderEngine {
 
     // Frame budget tracking
     budget_overruns: u32,
+
+    // Per-frame JS subscribers (e.g., Canvas2D label overlay).
+    // Invoked at the end of each `frame()` tick with `{positions, vpMatrix}`.
+    frame_subscribers: Vec<js_sys::Function>,
 }
 
 #[wasm_bindgen]
@@ -156,6 +160,7 @@ impl RenderEngine {
             buffers_dirty: true,
             needs_render: true,
             budget_overruns: 0,
+            frame_subscribers: Vec::new(),
         })
     }
 
@@ -436,6 +441,19 @@ impl RenderEngine {
         self.node_renderer.draw(&self.ctx.gl, &vp, time);
         self.text_renderer.draw(&self.ctx.gl, &vp);
 
+        // Invoke per-frame subscribers (e.g., LabelOverlay). Runs on the normal
+        // completion path only — early abort paths above skip this.
+        if !self.frame_subscribers.is_empty() {
+            let positions_f32 = js_sys::Float32Array::from(self.positions.as_slice());
+            let vp_f32 = js_sys::Float32Array::from(&vp[..]);
+            let obj = js_sys::Object::new();
+            let _ = js_sys::Reflect::set(&obj, &"positions".into(), &positions_f32);
+            let _ = js_sys::Reflect::set(&obj, &"vpMatrix".into(), &vp_f32);
+            for cb in &self.frame_subscribers {
+                let _ = cb.call1(&wasm_bindgen::JsValue::NULL, &obj);
+            }
+        }
+
         self.needs_render = false;
         true
     }
@@ -446,6 +464,133 @@ impl RenderEngine {
 
     pub fn request_render(&mut self) {
         self.needs_render = true;
+    }
+
+    // --- T4: Camera fit / zoom / focus / recovery / frame subscription ---
+
+    /// Compute the AABB of current node positions and fit the camera to it.
+    /// Called from JS after every `update_positions` + layout settlement.
+    pub fn fit(&mut self, padding_px: f32) {
+        let mut min_x = f32::INFINITY;
+        let mut min_y = f32::INFINITY;
+        let mut max_x = f32::NEG_INFINITY;
+        let mut max_y = f32::NEG_INFINITY;
+        // Positions buffer is stride-4: [x, y, radius, type_idx].
+        for chunk in self.positions.chunks_exact(4) {
+            let (x, y, r) = (chunk[0], chunk[1], chunk[2]);
+            min_x = min_x.min(x - r);
+            min_y = min_y.min(y - r);
+            max_x = max_x.max(x + r);
+            max_y = max_y.max(y + r);
+        }
+        if min_x.is_finite() {
+            self.camera
+                .fit_to_bounds(min_x, min_y, max_x, max_y, padding_px);
+            self.needs_render = true;
+        }
+    }
+
+    /// Multiplicative zoom around screen center.
+    pub fn zoom_in(&mut self) {
+        let cx = self.camera.viewport_width() * 0.5;
+        let cy = self.camera.viewport_height() * 0.5;
+        self.camera.zoom_at(1.1, cx, cy);
+        self.needs_render = true;
+    }
+
+    pub fn zoom_out(&mut self) {
+        let cx = self.camera.viewport_width() * 0.5;
+        let cy = self.camera.viewport_height() * 0.5;
+        self.camera.zoom_at(0.9, cx, cy);
+        self.needs_render = true;
+    }
+
+    /// Focus a node: dim every non-neighbor via `visual_flags` (bit 0 = dimmed).
+    /// `None` clears the focus.
+    ///
+    /// NOTE on data layout: the plan spec assumed `edge_data` stride-4 with
+    /// `[source_idx, target_idx, ...]`, but the actual worker layout is stride-6
+    /// `[sx, sy, tx, ty, type_idx, weight]` in world coordinates (see
+    /// `graph-worker-wasm::engine::get_edge_buffer`). We therefore resolve
+    /// source/target node indices by matching edge endpoint coordinates to
+    /// `self.positions`. This is semantically equivalent — the coordinates came
+    /// from the same `positions` map — and avoids a worker-side schema change.
+    ///
+    /// NOTE on `visual_flags` semantics: the existing renderer treats the whole
+    /// byte as `== 1` for "dimmed" (see `rebuild_buffers` ~line 584). Since we
+    /// only use bit 0 here (values end up 0 or 1), this matches the renderer's
+    /// current check. If additional bits are ever added to `visual_flags`, the
+    /// renderer's `== 1` comparison must be upgraded to a `& 1` bit test.
+    pub fn set_focus(&mut self, id: Option<String>) {
+        let Some(id) = id else {
+            for f in self.visual_flags.iter_mut() {
+                *f &= !1; // clear dim bit
+            }
+            self.needs_render = true;
+            return;
+        };
+        let Some(focus_idx) = self.node_ids.iter().position(|n| n == &id) else {
+            return;
+        };
+
+        // Build a coordinate -> node index map from `positions` (stride-4).
+        // Use rounded i32 keys to tolerate the f32 round-trip from worker edges.
+        let node_count = self.positions.len() / 4;
+        let mut coord_to_idx: std::collections::HashMap<(i32, i32), usize> =
+            std::collections::HashMap::with_capacity(node_count);
+        for i in 0..node_count {
+            let x = (self.positions[i * 4]).round() as i32;
+            let y = (self.positions[i * 4 + 1]).round() as i32;
+            coord_to_idx.insert((x, y), i);
+        }
+
+        let mut keep: std::collections::HashSet<usize> = std::collections::HashSet::new();
+        keep.insert(focus_idx);
+
+        // edge_data stride-6: [sx, sy, tx, ty, type_idx, weight] in world coords.
+        for chunk in self.edge_data.chunks_exact(6) {
+            let sx = chunk[0].round() as i32;
+            let sy = chunk[1].round() as i32;
+            let tx = chunk[2].round() as i32;
+            let ty = chunk[3].round() as i32;
+            let s = coord_to_idx.get(&(sx, sy)).copied();
+            let t = coord_to_idx.get(&(tx, ty)).copied();
+            if s == Some(focus_idx) {
+                if let Some(ti) = t {
+                    keep.insert(ti);
+                }
+            }
+            if t == Some(focus_idx) {
+                if let Some(si) = s {
+                    keep.insert(si);
+                }
+            }
+        }
+
+        // Ensure visual_flags is sized to node_count before writing.
+        if self.visual_flags.len() < node_count {
+            self.visual_flags.resize(node_count, 0);
+        }
+        for (i, f) in self.visual_flags.iter_mut().enumerate() {
+            if keep.contains(&i) {
+                *f &= !1;
+            } else {
+                *f |= 1;
+            }
+        }
+        self.needs_render = true;
+    }
+
+    /// Re-upload GPU buffers after a WebGL context loss → restore sequence.
+    pub fn rehydrate(&mut self) {
+        self.buffers_dirty = true;
+        self.needs_render = true;
+    }
+
+    /// Subscribe to per-frame position+camera updates (for the Canvas2D label overlay).
+    /// Callback invoked once per `frame()` tick with `{positions: Float32Array, vpMatrix: Float32Array}`.
+    pub fn subscribe_frame(&mut self, cb: js_sys::Function) {
+        self.frame_subscribers.push(cb);
     }
 }
 
