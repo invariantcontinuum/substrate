@@ -516,6 +516,16 @@ impl RenderEngine {
     /// `self.positions`. This is semantically equivalent — the coordinates came
     /// from the same `positions` map — and avoids a worker-side schema change.
     ///
+    /// NOTE on coordinate keying: we key the position→index map by
+    /// `(x.to_bits(), y.to_bits())` rather than rounded integers. f32 values
+    /// transit through the worker boundary bit-identical — Float32Array
+    /// preserves exact bits — so bit-for-bit matching is correct and
+    /// collision-free. Rounded-integer keys would silently collide for any
+    /// two nodes whose positions round to the same integer pair (realistic
+    /// at sub-pixel separation during layout convergence), dropping one of
+    /// them from the lookup. Bit keys only collide when two nodes occupy the
+    /// exact same f32 position — a genuine overlap, not an aliasing artifact.
+    ///
     /// NOTE on `visual_flags` semantics: the existing renderer treats the whole
     /// byte as `== 1` for "dimmed" (see `rebuild_buffers` ~line 584). Since we
     /// only use bit 0 here (values end up 0 or 1), this matches the renderer's
@@ -534,13 +544,15 @@ impl RenderEngine {
         };
 
         // Build a coordinate -> node index map from `positions` (stride-4).
-        // Use rounded i32 keys to tolerate the f32 round-trip from worker edges.
+        // Key on the raw f32 bits (u32) so the match is bit-exact: the worker
+        // ships Float32Array bytes which round-trip byte-identical, making
+        // this lossless and collision-free at sub-pixel separation.
         let node_count = self.positions.len() / 4;
-        let mut coord_to_idx: std::collections::HashMap<(i32, i32), usize> =
+        let mut coord_to_idx: std::collections::HashMap<(u32, u32), usize> =
             std::collections::HashMap::with_capacity(node_count);
         for i in 0..node_count {
-            let x = (self.positions[i * 4]).round() as i32;
-            let y = (self.positions[i * 4 + 1]).round() as i32;
+            let x = self.positions[i * 4].to_bits();
+            let y = self.positions[i * 4 + 1].to_bits();
             coord_to_idx.insert((x, y), i);
         }
 
@@ -549,10 +561,10 @@ impl RenderEngine {
 
         // edge_data stride-6: [sx, sy, tx, ty, type_idx, weight] in world coords.
         for chunk in self.edge_data.chunks_exact(6) {
-            let sx = chunk[0].round() as i32;
-            let sy = chunk[1].round() as i32;
-            let tx = chunk[2].round() as i32;
-            let ty = chunk[3].round() as i32;
+            let sx = chunk[0].to_bits();
+            let sy = chunk[1].to_bits();
+            let tx = chunk[2].to_bits();
+            let ty = chunk[3].to_bits();
             let s = coord_to_idx.get(&(sx, sy)).copied();
             let t = coord_to_idx.get(&(tx, ty)).copied();
             if s == Some(focus_idx) {
