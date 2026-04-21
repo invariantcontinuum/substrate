@@ -285,14 +285,24 @@ export const useGraphStore = create<GraphState>((set) => ({
     if (!syncIds.length) return;
     try {
       const url = `/api/graph?sync_ids=${encodeURIComponent(syncIds.join(","))}`;
+      // Slim default projection emits flat `{id, type, name, layer, source_id}`
+      // per element; legacy full projection wraps each element in `{data: {...}}`.
+      // Tolerate both shapes so a caller explicitly requesting `?projection=full`
+      // still works without a second code path.
+      type WireNode = GraphNode | { data: GraphNode };
+      type WireEdge = GraphEdge | { data: GraphEdge };
       const raw = await apiFetch<{
-        nodes: { data: GraphNode }[];
-        edges: { data: GraphEdge }[];
+        nodes: WireNode[];
+        edges: WireEdge[];
         meta: { node_count?: number; edge_count?: number; duration_ms?: number;
                 active_sync_ids?: string[] };
       }>(url, token);
-      const nodes = (raw.nodes ?? []).map((n) => n.data);
-      const edges = (raw.edges ?? []).map((e) => e.data);
+      const unwrapNode = (n: WireNode): GraphNode =>
+        (n as { data?: GraphNode }).data ?? (n as GraphNode);
+      const unwrapEdge = (e: WireEdge): GraphEdge =>
+        (e as { data?: GraphEdge }).data ?? (e as GraphEdge);
+      const nodes = (raw.nodes ?? []).map(unwrapNode);
+      const edges = (raw.edges ?? []).map(unwrapEdge);
       const presentTypes = new Set<string>();
       for (const n of nodes) presentTypes.add(String(n.type || "unknown"));
       const fetchMs = Math.round(performance.now() - start);
