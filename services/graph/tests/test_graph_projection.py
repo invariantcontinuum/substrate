@@ -1,9 +1,10 @@
-"""Task A2 — `projection=minimal` query param on GET /api/graph.
+"""`projection` query param on GET /api/graph.
 
-The existing default (full) projection wraps nodes/edges in the Cytoscape
-`{"data": {...}}` shape. The minimal projection returns flat dicts with
-exactly the 6 node keys and 3 edge keys the brainrot frontend consumes on
-first paint.
+The default projection is now `minimal`: flat dicts with exactly the slim
+contract the graph-ui renderer's first paint consumes
+(`{id, type, name, layer, source_id}` nodes, `{id, source, target, type}`
+edges). The `full` projection (explicit opt-in) wraps nodes/edges in the
+legacy Cytoscape `{"data": {...}}` shape with rich fields.
 """
 import pytest
 import pytest_asyncio
@@ -81,9 +82,29 @@ async def seeded_sync_id():
         await conn.execute("DELETE FROM sources WHERE id=$1::uuid", src_id)
 
 
-async def test_default_projection_returns_full_fields(seeded_sync_id):
+async def test_default_projection_is_minimal(seeded_sync_id):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as c:
         r = await c.get(f"/api/graph?sync_ids={seeded_sync_id}")
+    assert r.status_code == 200, r.text
+    payload = r.json()
+    assert payload["meta"]["projection"] == "minimal"
+
+    assert len(payload["nodes"]) >= 2
+    for node in payload["nodes"]:
+        assert set(node.keys()) == {"id", "type", "name", "layer", "source_id"}, (
+            f"slim node keys: {sorted(node.keys())}"
+        )
+
+    assert len(payload["edges"]) >= 1
+    for edge in payload["edges"]:
+        assert set(edge.keys()) == {"id", "source", "target", "type"}, (
+            f"slim edge keys: {sorted(edge.keys())}"
+        )
+
+
+async def test_full_projection_returns_rich_fields(seeded_sync_id):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as c:
+        r = await c.get(f"/api/graph?sync_ids={seeded_sync_id}&projection=full")
     assert r.status_code == 200, r.text
     payload = r.json()
     assert "nodes" in payload and len(payload["nodes"]) > 0
@@ -98,30 +119,17 @@ async def test_default_projection_returns_full_fields(seeded_sync_id):
     assert payload["meta"]["projection"] == "full"
 
 
-async def test_minimal_projection_returns_only_essentials(seeded_sync_id):
+async def test_minimal_projection_explicit_matches_default(seeded_sync_id):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as c:
         r = await c.get(f"/api/graph?sync_ids={seeded_sync_id}&projection=minimal")
     assert r.status_code == 200, r.text
     payload = r.json()
     assert payload["meta"]["projection"] == "minimal"
 
-    assert len(payload["nodes"]) >= 2
-    for node in payload["nodes"]:
-        assert set(node.keys()) == {"id", "name", "type", "domain", "status", "violations"}, (
-            f"minimal node keys: {sorted(node.keys())}"
-        )
-
-    # Exactly one seeded edge between our two fixture files.
-    assert len(payload["edges"]) >= 1
-    for edge in payload["edges"]:
-        assert set(edge.keys()) == {"source", "target", "type"}, (
-            f"minimal edge keys: {sorted(edge.keys())}"
-        )
-
-    # At least one node should have violations > 0 (fe_a seeded with 1 error).
-    assert any(n["violations"] >= 1 for n in payload["nodes"])
-    # The other node should have violations == 0 (fe_b has no errors).
-    assert any(n["violations"] == 0 for n in payload["nodes"])
+    # `layer` aliases the underlying `domain` column (seeded as 'core').
+    assert any(n["layer"] == "core" for n in payload["nodes"])
+    # `source_id` is the parent source UUID string (non-empty for seeded rows).
+    assert all(isinstance(n["source_id"], str) and n["source_id"] for n in payload["nodes"])
 
 
 async def test_unknown_projection_returns_400():

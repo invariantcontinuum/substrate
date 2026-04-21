@@ -186,82 +186,33 @@ async def get_merged_graph(sync_ids: list[str], projection: str = "full") -> dic
 
 
 async def _shape_minimal(conn, nodes: list[dict], edges: list[dict], sync_ids: list[str]) -> tuple[list[dict], list[dict]]:
-    """Project full-shape nodes/edges into the minimal payload used by brainrot's
-    first paint. Runs one secondary query to pull per-file `status` and one to
-    count `sync_issues` with level='error' per file_id. Never mutates the full
-    payload — the full-projection code path is unchanged above this point.
+    """Project full-shape nodes/edges into the slim payload consumed by the
+    graph-ui renderer's first paint. Slim contract:
+
+        node: {id, type, name, layer, source_id}
+        edge: {id, source, target, type}
+
+    `layer` aliases the full-projection `domain` field so the renderer's
+    styleAdapter can key on a semantic grouping without a separate lookup.
+    Never mutates the full payload — the full-projection code path is
+    unchanged above this point. Per-file `status` / `violations` are NOT
+    part of the slim contract; they are fetched on demand via the node
+    detail endpoint.
     """
-    # Collect (source_id, file_path, latest_sync_id) to look up each node's
-    # file_embeddings.id + status. Nodes still carry the full `{"data": {...}}`
-    # wrapper at this point.
-    keys: list[tuple[str, str, str]] = []
-    for n in nodes:
-        d = n["data"]
-        latest = d.get("latest_sync_id")
-        if latest:
-            keys.append((d["source_id"], d["file_path"], latest))
-
-    fe_rows = []
-    if keys:
-        src_ids = [k[0] for k in keys]
-        paths = [k[1] for k in keys]
-        sync_vals = [k[2] for k in keys]
-        fe_rows = await conn.fetch(
-            """
-            SELECT fe.id::text AS id,
-                   fe.source_id::text AS source_id,
-                   fe.file_path AS file_path,
-                   fe.sync_id::text AS sync_id,
-                   fe.status AS status
-              FROM file_embeddings fe
-             WHERE (fe.source_id, fe.file_path, fe.sync_id) IN (
-                   SELECT unnest($1::uuid[]), unnest($2::text[]), unnest($3::uuid[])
-             )
-            """,
-            src_ids, paths, sync_vals,
-        )
-
-    # Map (source_id, file_path, sync_id) -> (file_id, status)
-    fe_map: dict[tuple[str, str, str], tuple[str, str]] = {
-        (r["source_id"], r["file_path"], r["sync_id"]): (r["id"], r["status"] or "healthy")
-        for r in fe_rows
-    }
-
-    # Count sync_issues(level='error') per file_id across the active sync set.
-    file_ids = [v[0] for v in fe_map.values()]
-    violations_by_file: dict[str, int] = {}
-    if file_ids:
-        issue_rows = await conn.fetch(
-            """
-            SELECT (context->>'file_id') AS file_id, COUNT(*)::int AS violations
-              FROM sync_issues
-             WHERE level = 'error'
-               AND sync_id = ANY($1::uuid[])
-               AND context ? 'file_id'
-               AND (context->>'file_id') = ANY($2::text[])
-             GROUP BY 1
-            """,
-            sync_ids, file_ids,
-        )
-        violations_by_file = {r["file_id"]: r["violations"] for r in issue_rows}
-
-    minimal_nodes = []
-    for n in nodes:
-        d = n["data"]
-        latest = d.get("latest_sync_id")
-        fe_key = (d["source_id"], d["file_path"], latest) if latest else None
-        file_id, status = fe_map.get(fe_key, (None, "healthy")) if fe_key else (None, "healthy")
-        minimal_nodes.append({
-            "id": d["id"],
-            "name": d.get("name", "") or "",
-            "type": d.get("type", "") or "",
-            "domain": d.get("domain", "") or "",
-            "status": status or "healthy",
-            "violations": violations_by_file.get(file_id, 0) if file_id else 0,
-        })
+    minimal_nodes = [
+        {
+            "id": n["data"]["id"],
+            "type": n["data"].get("type", "") or "",
+            "name": n["data"].get("name", "") or "",
+            "layer": n["data"].get("domain", "") or "",
+            "source_id": n["data"].get("source_id", "") or "",
+        }
+        for n in nodes
+    ]
 
     minimal_edges = [
         {
+            "id": e["data"].get("id", f"{e['data']['source']}->{e['data']['target']}"),
             "source": e["data"]["source"],
             "target": e["data"]["target"],
             "type": e["data"].get("label", "") or "",

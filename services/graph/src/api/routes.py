@@ -39,7 +39,7 @@ async def _embed_query(query: str) -> list[float]:
 @router.get("")
 async def get_graph(
     sync_ids: str = Query(..., description="Comma-separated active sync_ids"),
-    projection: str = Query("full", description="full | minimal"),
+    projection: str = Query("minimal", description="minimal | full"),
 ):
     if projection not in _VALID_PROJECTIONS:
         raise ValidationError("invalid_projection", details={"projection": projection})
@@ -162,7 +162,11 @@ async def get_node_file(node_id: str, sync_id: str | None = None):
             "truncated": False,
         }
 
-    rec = reconstruct_chunks([dict(c) for c in chunk_rows], cap_bytes=settings.file_reconstruct_max_bytes)
+    rec = reconstruct_chunks(
+        [dict(c) for c in chunk_rows],
+        cap_bytes=settings.file_reconstruct_max_bytes,
+        total_lines=row["line_count"],
+    )
     return {
         **base_payload,
         "chunk_count": rec["chunk_count"],
