@@ -63,7 +63,7 @@ docs/
 
 ```bash
 # Navigate to docs directory
-cd frontend/docs
+cd docs
 
 # Install dependencies
 pip install mkdocs mkdocs-material mkdocs-minify-plugin
@@ -73,6 +73,15 @@ mkdocs serve
 ```
 
 The documentation will be available at `http://localhost:8000`
+
+### Docker
+
+```bash
+# Build and run the standalone docs container
+docker compose up -d --build docs
+```
+
+The container publishes the MkDocs site at `http://localhost:8190`
 
 ### Build
 

@@ -398,12 +398,11 @@ Inside `substrate-frontend`, nginx serves the static bundle and proxies API traf
 | `/jobs` | `http://gateway:8080` |
 | `/ingest/` | `http://gateway:8080/ingest/` |
 | `/auth/` | `http://gateway:8080/auth/` |
-| `/docs` | Built-in MkDocs static site |
 | `/health` | Returns `200 healthy` |
 
 `/api/events` (SSE) flows through `/api/` → `gateway:8080/api/events` — the nginx block includes `proxy_read_timeout 86400` and `proxy_buffering off` semantics via the `proxy_set_header Upgrade` / `Connection: upgrade` pair, which works for SSE as well as any future HTTP streaming. There is no WebSocket path.
 
-`docker-entrypoint.sh` strips IPv6 `host.docker.internal` entries from `/etc/hosts` to prevent nginx from attempting unreachable IPv6 connections when the frontend container does talk to the host (for mkdocs builds during image assembly, not at runtime).
+MkDocs is served by the dedicated `substrate-docs` nginx container on host port `8190`, with `home-stack` nginx-proxy-manager publishing it at `https://docs.invariantcontinuum.io`.
 
 ### Production
 

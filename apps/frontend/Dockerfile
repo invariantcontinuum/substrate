@@ -34,27 +34,9 @@ WORKDIR /workspace/apps/frontend
 RUN test -n "$VITE_KEYCLOAK_URL" || (echo "VITE_KEYCLOAK_URL build arg is required" >&2 && exit 1)
 RUN pnpm run build
 
-FROM python:3.12-alpine AS docs-build
-
-WORKDIR /src
-
-RUN pip install --no-cache-dir \
-    mkdocs \
-    mkdocs-material \
-    mkdocs-minify-plugin
-
-COPY docs/mkdocs.yml /src/mkdocs.yml
-COPY docs /src/docs
-
-RUN mkdocs build --site-dir /src/site \
-    || (mkdir -p /src/site && echo '<html><body><h1>Documentation build skipped</h1></body></html>' > /src/site/index.html)
-
-RUN find /src/site -name "*.html" -exec sed -i 's|<head>|<head><base href="/docs/">|' {} +
-
 FROM nginx:alpine
 
 COPY --from=build /workspace/apps/frontend/dist /usr/share/nginx/html
-COPY --from=docs-build /src/site /usr/share/nginx/html/docs
 COPY apps/frontend/nginx.conf /etc/nginx/conf.d/default.conf
 COPY apps/frontend/docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh

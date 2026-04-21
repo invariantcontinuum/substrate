@@ -182,3 +182,17 @@ services:
       gateway: { condition: service_started }
     networks: [substrate_internal]
     restart: unless-stopped
+
+  docs:
+    build:
+      context: .
+      dockerfile: docs/Dockerfile
+    container_name: substrate-docs
+    ports: ["8190:80"]
+    networks: [substrate_internal]
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
