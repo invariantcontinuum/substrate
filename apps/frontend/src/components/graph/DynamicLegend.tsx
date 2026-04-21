@@ -1,52 +1,19 @@
 import { useMemo } from "react";
 import { useGraphStore } from "@/stores/graph";
 import { useThemeStore } from "@/stores/theme";
-
-// Dot colors mirror the cytoscape border colors per node type (see
-// buildCyStylesheet in GraphCanvas.tsx) so the legend and canvas read
-// as a single system. Two palettes because the canvas uses deeper
-// hues on linen (for contrast) and brighter hues on shadow-grey.
-const DARK_TYPE_PALETTE: Record<string, string> = {
-  service:   "#6fb5a7",
-  source:    "#6fb5a7",
-  database:  "#d88a73",
-  cache:     "#e8aa99",
-  data:      "#d88a73",
-  policy:    "#f3dfa2",
-  adr:       "#e6c866",
-  incident:  "#e6706b",
-  external:  "#a19890",
-  config:    "#c5b8a8",
-  script:    "#e6c866",
-  doc:       "#d88a73",
-  asset:     "#a19890",
-  default:   "rgba(239,230,221,0.28)",
-};
-
-const LIGHT_TYPE_PALETTE: Record<string, string> = {
-  service:   "#1c554e",
-  source:    "#1c554e",
-  database:  "#a64a35",
-  cache:     "#7a3728",
-  data:      "#a64a35",
-  policy:    "#c59e3a",
-  adr:       "#b8882a",
-  incident:  "#a43b3b",
-  external:  "#6b6866",
-  config:    "#8a7f74",
-  script:    "#b8882a",
-  doc:       "#7a3728",
-  asset:     "#6b6866",
-  default:   "rgba(35,31,32,0.22)",
-};
+import { buildGraphTheme } from "./styleAdapter";
 
 export function DynamicLegend() {
   const nodes = useGraphStore((s) => s.nodes);
   const visibleTypes = useGraphStore((s) => s.filters.types);
   const isolateTypeFilter = useGraphStore((s) => s.isolateTypeFilter);
-  const theme = useThemeStore((s) => s.theme);
+  const themeMode = useThemeStore((s) => s.theme);
+  const graphTheme = useMemo(() => buildGraphTheme(themeMode), [themeMode]);
 
-  const typePalette = theme === "light" ? LIGHT_TYPE_PALETTE : DARK_TYPE_PALETTE;
+  const colorForType = (type: string): string => {
+    const style = graphTheme.nodeTypes[type] ?? graphTheme.defaultNodeStyle;
+    return style.borderColor ?? graphTheme.defaultNodeStyle.borderColor;
+  };
 
   const types = useMemo(() => {
     const counts = new Map<string, number>();
@@ -93,7 +60,7 @@ export function DynamicLegend() {
           >
             <span
               className="dynamic-legend-dot"
-              style={{ background: active ? (typePalette[t] || typePalette.default) : "transparent" }}
+              style={{ background: active ? colorForType(t) : "transparent" }}
             />
             <span className="dynamic-legend-label">{t}</span>
             <span className="dynamic-legend-count">{count}</span>
