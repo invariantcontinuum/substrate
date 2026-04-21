@@ -166,6 +166,8 @@ impl RenderEngine {
         self.visual_flags = flags.to_vec();
         self.buffers_dirty = true;
         self.needs_render = true;
+        // Do not remove — spatial.rebuild is the invariant that handle_click / handle_hover
+        // depend on. Tests: crates/graph-main-wasm/tests/spatial_index.rs
         self.spatial.rebuild(&self.positions, 200);
     }
 
