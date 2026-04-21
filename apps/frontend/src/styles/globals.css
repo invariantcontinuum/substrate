@@ -33,7 +33,7 @@ html, body, #root {
 @media (hover: none) and (pointer: coarse) {
   button, .ui-button, .side-nav-btn, .mobile-nav-item,
   .dynamic-legend-item, .node-detail-neighbor-btn,
-  .search-result-item, .sources-schedule-item {
+  .search-result-item {
     min-height: 38px;
   }
 }
@@ -184,9 +184,14 @@ html {
 }
 
 /* ---- View toggling (graph / sources dual-mount) ---- */
-/* display: contents makes the wrapper transparent to the parent flex/grid
-   layout — children are laid out as if the wrapper wasn't there. */
-.view-root { display: contents; }
+/* Each mounted view needs to participate in the height / overflow chain.
+ * `display: contents` breaks that on smaller screens, which then makes
+ * the graph canvas and sources panes compute against inconsistent heights. */
+.view-root {
+  display: block;
+  height: 100%;
+  min-height: 0;
+}
 .view-root.is-hidden { display: none; }
 
 /* ---- TopBar ---- */
@@ -660,7 +665,7 @@ html {
 @media (max-width: 1023px) {
   .graph-page {
     padding: var(--space-2);
-    padding-bottom: 76px;
+    padding-bottom: var(--space-3);
     gap: var(--space-2);
   }
 }
@@ -669,10 +674,23 @@ html {
   flex: 1;
   position: relative;
   min-width: 0;
+  min-height: 0;
   border-radius: var(--radius-lg);
   border: 1px solid var(--glass-border);
   background: var(--surface-elevated);
   overflow: hidden;
+}
+
+@media (max-width: 1023px) {
+  .graph-canvas-wrapper {
+    min-height: 420px;
+  }
+}
+
+@media (max-width: 640px) {
+  .graph-canvas-wrapper {
+    min-height: 480px;
+  }
 }
 
 .graph-canvas,
@@ -717,6 +735,30 @@ html {
   justify-content: center;
   pointer-events: none;
   z-index: 5;
+  /* Give the overlay a large painted surface so LCP lands here — a
+   * faint gradient keeps it visually quiet but big enough to qualify
+   * as a meaningful Largest Contentful Paint element instead of the
+   * ~40×13px loading text span. */
+  background:
+    radial-gradient(
+      ellipse at center,
+      color-mix(in srgb, var(--accent) 4%, transparent) 0%,
+      transparent 60%
+    );
+}
+
+/* Block interactions with the Cytoscape canvas while chunked add +
+ * grid layout are running. Without this, any click during the 2-10s
+ * load window queues against a busy main thread, surfacing as INP
+ * > 10s in Chrome devtools. `pointer-events: auto` on the overlay
+ * absorbs the click at a no-op target so the browser can dispatch it
+ * immediately instead of waiting for Cytoscape's canvas to be free. */
+.graph-loading-overlay.is-blocking {
+  pointer-events: auto;
+  cursor: progress;
+}
+.graph-canvas-container.is-loading {
+  pointer-events: none;
 }
 
 .graph-loading-text {
@@ -1218,6 +1260,22 @@ html {
   font-variant-numeric: tabular-nums;
 }
 
+@media (max-width: 900px) {
+  .dynamic-legend {
+    gap: 4px;
+    padding: 8px;
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-md);
+    background: var(--glass-bg-strong);
+    box-shadow: var(--glass-shadow);
+  }
+
+  .dynamic-legend-item {
+    gap: 8px;
+    padding: 5px 6px;
+  }
+}
+
 /* ---- Filter Panel ---- */
 .filter-panel {
   position: absolute;
@@ -1506,6 +1564,22 @@ html {
   color: var(--fg);
   font-variation-settings: "opsz" 36, "SOFT" 80;
   line-height: var(--leading-tight);
+  /* File paths and other long unbroken strings (e.g.
+   * "adapters/saml/core/src/main/java/.../HttpClientBuilder.java")
+   * otherwise push the modal width past `maxWidth`. `anywhere` wraps
+   * mid-token including at slash boundaries; `min-width: 0` lets the
+   * title shrink inside its flex/grid parent instead of enforcing
+   * intrinsic min-content. */
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  min-width: 0;
+}
+
+/* The file-viewer modal gets an extra-sized title — path-heavy titles
+ * can get long, so use a slightly smaller step-down on narrow viewports
+ * rather than a single wrap on every title site. */
+.node-file-modal .dialog-title {
+  font-size: clamp(var(--text-base), 2.2vw, var(--text-xl));
 }
 
 .dialog-description {
@@ -2180,20 +2254,22 @@ html {
  * caches `:has()` results aggressively and doesn't always recompute when a
  * descendant is mounted via React state, which caused the "snapshot menu
  * doesn't appear until screen lock/unlock" bug on iPhone. */
-@media (max-width: 900px) {
-  .sources-modal-body { flex-direction: column; }
-  .sources-sidebar { width: 100%; min-width: 0; border-right: none; border-bottom: 1px solid var(--border); }
-  .sources-modal-body.has-active-source > .sources-sidebar { display: none; }
-  .sources-modal-body > .sources-modal-detail { display: block; }
-  .sources-modal-body:not(.has-active-source) > .sources-modal-detail { display: none; }
-}
-
 /* Mobile graph canvas */
 @media (max-width: 900px) {
-  .graph-overlay-bottom-right { display: none; }
+  .graph-overlay-bottom-left {
+    left: var(--space-2);
+    bottom: calc(116px + env(safe-area-inset-bottom));
+    max-width: min(58vw, 240px);
+  }
+  .graph-overlay-bottom-right {
+    display: block;
+    right: var(--space-2);
+    bottom: calc(116px + env(safe-area-inset-bottom));
+    max-width: min(42vw, 176px);
+  }
   .graph-toolbar {
     top: auto;
-    bottom: var(--space-3);
+    bottom: calc(var(--space-4) + env(safe-area-inset-bottom));
     transform: none;
     flex-direction: row;
   }
@@ -2209,6 +2285,7 @@ html {
   grid-template-rows: auto auto 1fr;   /* header | toolbar | body */
   height: 100%;
   min-height: 0;
+  overflow: hidden;
 }
 .sources-settings-header {
   display: flex;
@@ -2226,48 +2303,10 @@ html {
   gap: 8px;
   grid-template-columns: minmax(200px, 240px) 1fr minmax(220px, 260px);
   min-height: 0;
+  overflow: hidden;
   padding: 0 var(--space-2) var(--space-2);
 }
 
-/* Small / portrait screens: stack the three columns vertically. Each
- * section gets a pixel-floor min-height so its contents never get
- * squeezed out of view on short viewports; when the stacked rows
- * exceed the available height the whole body scrolls (rather than
- * clipping the bottom of the detail pane). */
-@media (max-width: 1023.98px) {
-  .sources-settings-body {
-    grid-template-columns: 1fr;
-    /* Sources list | source detail (flex) | currently-rendered rail.
-     * Each row has a fixed px floor and grows with content — vh-based
-     * caps used to collapse rows below usability on landscape phones. */
-    grid-template-rows: minmax(220px, auto) minmax(320px, auto) minmax(160px, auto);
-    gap: var(--space-3);
-    padding: var(--space-2) var(--space-3) var(--space-3);
-    overflow-y: auto;
-  }
-  .sources-settings-body > .sources-sidebar {
-    min-height: 220px;
-    max-height: none;
-    border-right: none;
-    border-radius: var(--radius-md);
-    border: 1px solid var(--border);
-  }
-  .sources-settings-body > .sources-settings-detail {
-    min-height: 320px;
-    max-height: none;
-    border-radius: var(--radius-md);
-    border: 1px solid var(--border);
-    background: var(--surface);
-  }
-  .sources-settings-body > .currently-rendered-rail {
-    min-height: 160px;
-    max-height: none;
-  }
-  /* Relax row padding so entries are comfortable to tap */
-  .source-list-item { padding: 12px 14px; gap: 10px; }
-  .snapshot-list { max-height: none; min-height: 240px; padding: var(--space-3); }
-  .snapshot-row-summary { padding: 10px 2px; }
-}
 .sources-settings-detail {
   min-height: 0;
   overflow: auto;
@@ -2287,6 +2326,7 @@ html {
   min-height: 0;
   overflow-y: auto;
 }
+
 .currently-rendered-header {
   display: flex;
   align-items: center;
