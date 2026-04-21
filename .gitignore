@@ -29,3 +29,4 @@ coverage/
 
 # Imports artifact (one-shot)
 .import-work/
+.superpowers/
