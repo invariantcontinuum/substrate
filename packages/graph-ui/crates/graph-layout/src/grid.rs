@@ -27,7 +27,9 @@ impl GridLayout {
 
 impl LayoutEngine for GridLayout {
     fn compute(&mut self, graph: &GraphStore) -> Vec<(String, f32, f32)> {
-        let nodes: Vec<&graph_core::types::NodeData> = graph.nodes().collect();
+        let mut nodes: Vec<&graph_core::types::NodeData> = graph.nodes().collect();
+        // Stable deterministic ordering so reloads produce the same visual layout.
+        nodes.sort_by(|a, b| a.id.cmp(&b.id));
         let n = nodes.len();
         if n == 0 {
             self.converged = true;

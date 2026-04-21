@@ -70,6 +70,7 @@ graph-ui-build: ## Rebuild packages/graph-ui WASM artifacts (main + worker)
 	  cargo install wasm-pack; \
 	fi
 	@cp $(GRAPH_UI_DIR)/package.json /tmp/graph-ui-package.json.bak
+	@cp $(GRAPH_UI_DIR)/.gitignore /tmp/graph-ui-gitignore.bak
 	@$(WASM_PACK) build --release --target web \
 	  --out-dir $(GRAPH_UI_DIR) \
 	  --out-name graph_main_wasm \
@@ -79,4 +80,5 @@ graph-ui-build: ## Rebuild packages/graph-ui WASM artifacts (main + worker)
 	  --out-name graph_worker_wasm \
 	  $(GRAPH_UI_DIR)/crates/graph-worker-wasm
 	@cp /tmp/graph-ui-package.json.bak $(GRAPH_UI_DIR)/package.json
-	@rm /tmp/graph-ui-package.json.bak
+	@cp /tmp/graph-ui-gitignore.bak $(GRAPH_UI_DIR)/.gitignore
+	@rm /tmp/graph-ui-package.json.bak /tmp/graph-ui-gitignore.bak

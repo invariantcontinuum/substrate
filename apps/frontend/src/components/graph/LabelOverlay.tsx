@@ -6,7 +6,7 @@ export interface LabelOverlayProps {
   engineRef: React.RefObject<GraphHandle | null>;
   theme: GraphTheme;
   /** Ordered list of node ids matching the engine's internal positions buffer order.
-   *  MUST be the same array the parent passed to `engine.set_node_ids(...)`. */
+   *  MUST match the order of `snapshot.nodes` passed to `<Graph>`. */
   nodeIds: string[];
   /** Map nodeId -> label text (e.g., node.name). */
   labels: Record<string, string>;

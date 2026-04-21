@@ -80,6 +80,9 @@ pub fn handle_message(msg_js: &JsValue) -> Result<(), JsValue> {
                 post_positions(&engine);
                 post_edges(&engine);
             }
+            InMessage::SetViewport { ratio } => {
+                engine.set_viewport_ratio(ratio);
+            }
         }
     });
 

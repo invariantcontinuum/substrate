@@ -199,6 +199,10 @@ impl RenderEngine {
             .map_err(|e| JsValue::from_str(&format!("types: {e}")))?;
         let statuses: Vec<String> = serde_wasm_bindgen::from_value(statuses_js)
             .map_err(|e| JsValue::from_str(&format!("statuses: {e}")))?;
+        // Keep node_ids in sync so hit-testing (click/drag/focus) never silently
+        // fails because the ids vec is empty or stale. This merges the old
+        // set_node_ids call into set_node_metadata so callers can't forget it.
+        self.node_ids = ids.clone();
         self.node_metadata.clear();
         for (i, id) in ids.iter().enumerate() {
             self.node_metadata.insert(
@@ -407,6 +411,12 @@ impl RenderEngine {
     // --- Main render frame ---
 
     pub fn frame(&mut self, timestamp: f64) -> bool {
+        // Subscribers (e.g. LabelOverlay) need vpMatrix updates even when the
+        // scene is static so labels track pan/zoom. Always notify before any
+        // early return so late subscribers are never starved.
+        let vp = self.camera.view_projection_matrix();
+        self.notify_subscribers(&vp);
+
         if !self.needs_render {
             return false;
         }
@@ -435,28 +445,29 @@ impl RenderEngine {
         let (br, bg, bb, ba) = parse_hex_color(&self.theme.background);
         self.ctx.clear(br, bg, bb, ba);
 
-        let vp = self.camera.view_projection_matrix();
         self.hull_renderer.draw(&self.ctx.gl, &vp);
         self.edge_renderer.draw(&self.ctx.gl, &vp, time);
         self.arrow_renderer.draw(&self.ctx.gl, &vp);
         self.node_renderer.draw(&self.ctx.gl, &vp, time);
         self.text_renderer.draw(&self.ctx.gl, &vp);
 
-        // Invoke per-frame subscribers (e.g., LabelOverlay). Runs on the normal
-        // completion path only — early abort paths above skip this.
-        if !self.frame_subscribers.is_empty() {
-            let positions_f32 = js_sys::Float32Array::from(self.positions.as_slice());
-            let vp_f32 = js_sys::Float32Array::from(&vp[..]);
-            let obj = js_sys::Object::new();
-            let _ = js_sys::Reflect::set(&obj, &"positions".into(), &positions_f32);
-            let _ = js_sys::Reflect::set(&obj, &"vpMatrix".into(), &vp_f32);
-            for cb in &self.frame_subscribers {
-                let _ = cb.call1(&wasm_bindgen::JsValue::NULL, &obj);
-            }
-        }
-
         self.needs_render = false;
         true
+    }
+
+    /// Notify all frame subscribers with the current positions and VP matrix.
+    fn notify_subscribers(&self, vp: &[f32; 16]) {
+        if self.frame_subscribers.is_empty() || self.positions.is_empty() {
+            return;
+        }
+        let positions_f32 = js_sys::Float32Array::from(self.positions.as_slice());
+        let vp_f32 = js_sys::Float32Array::from(&vp[..]);
+        let obj = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&obj, &"positions".into(), &positions_f32);
+        let _ = js_sys::Reflect::set(&obj, &"vpMatrix".into(), &vp_f32);
+        for cb in &self.frame_subscribers {
+            let _ = cb.call1(&wasm_bindgen::JsValue::NULL, &obj);
+        }
     }
 
     pub fn needs_frame(&self) -> bool {
@@ -661,6 +672,11 @@ impl RenderEngine {
     /// Callback invoked once per `frame()` tick with `{positions: Float32Array, vpMatrix: Float32Array}`.
     pub fn subscribe_frame(&mut self, cb: js_sys::Function) {
         self.frame_subscribers.push(cb);
+        // Immediate synchronous callback so late subscribers (e.g. LabelOverlay
+        // mounting after grid convergence) receive the current state instead of
+        // waiting for the next render frame that may never come.
+        let vp = self.camera.view_projection_matrix();
+        self.notify_subscribers(&vp);
     }
 }
 

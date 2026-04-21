@@ -212,11 +212,8 @@ export const Graph = forwardRef<GraphHandle, GraphProps>(function Graph(
     // Feed node metadata to the engine synchronously so it can resolve theme styles.
     if (engineRef.current) {
       try {
-        // Required before metadata: engine's node_ids is what handle_click /
-        // handle_node_drag_start / set_focus / hit_test_node index into.
-        // Without this, every hit returns None and click/drag/spotlight all
-        // silently fail.
-        engineRef.current.set_node_ids(snap.nodes.map((n) => n.id));
+        // set_node_metadata now also populates engine.node_ids internally,
+        // so click/drag/focus/hit-test all work without a separate call.
         engineRef.current.set_node_metadata(
           snap.nodes.map((n) => n.id),
           snap.nodes.map((n) => n.type),
@@ -311,6 +308,25 @@ export const Graph = forwardRef<GraphHandle, GraphProps>(function Graph(
       show: showCommunities,
     });
   }, [ready, showCommunities]);
+
+  // Push live canvas aspect ratio to the worker so GridLayout can compute
+  // cols/rows from the actual viewport instead of a hardcoded 16:9.
+  useEffect(() => {
+    if (!ready || !workerRef.current) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const sendRatio = () => {
+      const rect = canvas.getBoundingClientRect();
+      const ratio = rect.width > 0 && rect.height > 0
+        ? rect.width / rect.height
+        : 1.77;
+      workerRef.current?.postMessage({ type: "set_viewport", ratio });
+    };
+    sendRatio();
+    const ro = new ResizeObserver(sendRatio);
+    ro.observe(canvas);
+    return () => ro.disconnect();
+  }, [ready]);
 
   // Native non-passive wheel listener — React's onWheel prop is passive since React 17,
   // so e.preventDefault() inside it is a no-op. Attach directly to the canvas with

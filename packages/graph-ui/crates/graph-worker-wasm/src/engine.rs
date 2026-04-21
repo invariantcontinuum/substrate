@@ -237,7 +237,7 @@ impl WorkerEngine {
                     GRID_PADDING,
                     GRID_NODE_W,
                     GRID_NODE_H,
-                    GRID_VIEWPORT_RATIO,
+                    self.grid_layout.viewport_ratio,
                 );
                 let result = self.grid_layout.compute(&self.store);
                 for (id, x, y) in result {
@@ -251,6 +251,14 @@ impl WorkerEngine {
                 self.force_layout = ForceLayout::new();
                 self.layout_running = true;
             }
+        }
+    }
+
+    pub fn set_viewport_ratio(&mut self, ratio: f32) {
+        self.grid_layout.viewport_ratio = ratio.max(0.1);
+        if self.active_layout == LayoutKind::Grid && !self.positions.is_empty() {
+            // Recompute grid so cols/rows match the live canvas aspect.
+            self.set_layout("grid");
         }
     }
 

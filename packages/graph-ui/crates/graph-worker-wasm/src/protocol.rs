@@ -25,6 +25,8 @@ pub enum InMessage {
     PinNode { idx: usize, x: f32, y: f32 },
     #[serde(rename = "unpin_node")]
     UnpinNode { idx: usize },
+    #[serde(rename = "set_viewport")]
+    SetViewport { ratio: f32 },
 }
 
 #[derive(Deserialize)]
