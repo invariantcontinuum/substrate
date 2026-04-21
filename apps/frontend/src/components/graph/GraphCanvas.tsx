@@ -114,7 +114,10 @@ export function GraphCanvas() {
    * maps are derived from the same ordering. */
   const nodeIds = useMemo(() => snapshot.nodes.map((n) => n.id), [snapshot]);
   const labels = useMemo(
-    () => Object.fromEntries(filtered.nodes.map((n) => [n.id, n.name])),
+    () =>
+      Object.fromEntries(
+        filtered.nodes.map((n) => [n.id, nodeFileLabel(n.name, n.id)]),
+      ),
     [filtered.nodes],
   );
   const nodeTypeMap = useMemo(
@@ -129,7 +132,6 @@ export function GraphCanvas() {
     (node: { id: string }) => {
       setSelectedNodeId(node.id);
       openModal("nodeDetail");
-      engineRef.current?.selectNode(node.id);
     },
     [setSelectedNodeId, openModal],
   );
@@ -165,11 +167,15 @@ export function GraphCanvas() {
    * setTimeout race. */
 
   /* Drive the engine's internal selection/spotlight state from the
-   * store. A null id clears the focus; a non-null id triggers a
-   * spotlight dim + zoom inside the engine. */
+   * store. A null id clears the focus; a non-null id triggers
+   * focus+fit so click/search always center the spotlight target. */
   useEffect(() => {
     if (!ready) return;
-    engineRef.current?.selectNode(selectedNodeId ?? null);
+    if (selectedNodeId) {
+      engineRef.current?.focusFit(selectedNodeId, 80);
+      return;
+    }
+    engineRef.current?.selectNode(null);
   }, [selectedNodeId, ready]);
 
   /* Keyboard shortcuts — forwarded to the engine's imperative handle.
@@ -220,7 +226,7 @@ export function GraphCanvas() {
             labels={labels}
             nodeTypes={nodeTypeMap}
             ready={ready}
-            minZoomToShowLabels={0.1}
+            minZoomToShowLabels={0.0}
           />
         </div>
       </div>
@@ -269,4 +275,12 @@ export function GraphCanvas() {
       </div>
     </div>
   );
+}
+
+function nodeFileLabel(name: string | undefined, fallbackId: string): string {
+  const raw = (name ?? "").trim();
+  if (!raw) return fallbackId;
+  const normalized = raw.replace(/\\/g, "/");
+  const lastSlash = normalized.lastIndexOf("/");
+  return lastSlash >= 0 ? normalized.slice(lastSlash + 1) || raw : raw;
 }

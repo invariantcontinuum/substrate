@@ -138,6 +138,12 @@ export const Graph = forwardRef<GraphHandle, GraphProps>(function Graph(
         if (msg.type === "positions") {
           const positions = new Float32Array(msg.positions);
           const flags = new Uint8Array(msg.flags);
+          if (Array.isArray(msg.node_ids)) {
+            // Keep index->id mapping exactly aligned with the worker's emitted
+            // position buffer order. This prevents click/focus mismatches when
+            // any upstream ordering differs from the original snapshot order.
+            engine.set_node_ids(msg.node_ids);
+          }
           // Always request a paint. For force (non-converged) this keeps the
           // simulation visibly advancing; for grid / hierarchical (converged)
           // this is the one-and-only chance to paint the final positions.
@@ -624,7 +630,14 @@ export const Graph = forwardRef<GraphHandle, GraphProps>(function Graph(
       subscribeFrame: (cb) => {
         // Wrap the high-level callback in the low-level one the engine expects.
         const wrapped = (obj: { positions: Float32Array; vpMatrix: Float32Array }) =>
-          cb({ positions: obj.positions, vpMatrix: obj.vpMatrix });
+          // Engine side uses WASM-memory-backed typed arrays for frame callbacks.
+          // Copy into detached JS-owned buffers before handing off so downstream
+          // consumers can safely retain the arrays across frames (drag/layout
+          // updates can otherwise mutate/reallocate the backing memory).
+          cb({
+            positions: new Float32Array(obj.positions),
+            vpMatrix: new Float32Array(obj.vpMatrix),
+          });
         engineRef.current?.subscribe_frame(wrapped);
         // Engine currently has no unsubscribe API (single-component consumer);
         // return a no-op disposer. If the component remounts while a new engine

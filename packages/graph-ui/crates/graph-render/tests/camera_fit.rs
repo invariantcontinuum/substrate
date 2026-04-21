@@ -37,7 +37,11 @@ fn pan_is_clamped_so_at_least_25pct_stays_on_screen() {
     let inter_h = (iy_b - iy_a).max(0.0);
     let inter_area = inter_w * inter_h;
     let graph_area = 1000.0 * 1000.0;
-    assert!(inter_area / graph_area >= 0.25, "visible_fraction={}", inter_area / graph_area);
+    assert!(
+        inter_area / graph_area >= 0.25,
+        "visible_fraction={}",
+        inter_area / graph_area
+    );
 }
 
 #[test]
@@ -48,5 +52,9 @@ fn zoom_is_clamped_to_valid_range() {
     assert!(cam.zoom <= 8.0, "zoom={}", cam.zoom);
     assert!(cam.zoom >= 0.05, "zoom={}", cam.zoom);
     // Tight assertion: for a sub-pixel graph, the clamp should land at the upper bound.
-    assert!((cam.zoom - 8.0).abs() < 1e-5, "expected zoom clamped to 8.0, got {}", cam.zoom);
+    assert!(
+        (cam.zoom - 8.0).abs() < 1e-5,
+        "expected zoom clamped to 8.0, got {}",
+        cam.zoom
+    );
 }

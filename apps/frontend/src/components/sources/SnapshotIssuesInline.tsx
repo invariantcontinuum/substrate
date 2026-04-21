@@ -1,7 +1,7 @@
 import { useSyncIssues } from "@/hooks/useSyncIssues";
 import type { SyncRun } from "@/hooks/useSyncs";
 import { useGraphStore } from "@/stores/graph";
-import { formatCount, formatDuration } from "@/lib/formatStats";
+import { formatCount, formatDuration, estimateEtaMs } from "@/lib/formatStats";
 
 const MAX_RENDERED = 100;
 
@@ -31,10 +31,18 @@ export function SnapshotIssuesInline({ run }: Props) {
   const meta = run.progress_meta ?? null;
 
   const nodes          = stats.nodes           ?? meta?.nodes_total     ?? null;
-  const edges          = stats.edges           ?? meta?.edges_total     ?? null;
+  const edges          = stats.edges           ?? meta?.edges_total     ?? meta?.edges_found ?? null;
+  const symbols        = stats.symbols         ?? meta?.symbol_count    ?? null;
+  const definesEdges   = stats.defines_edges   ?? meta?.defines_edges   ?? null;
+  const filesTotal     = meta?.files_total     ?? null;
+  const filesParseable = meta?.files_parseable ?? null;
+  const filesParsed    = meta?.files_parsed    ?? null;
   const filesEmbedded  = stats.files_embedded  ?? meta?.files_embedded  ?? null;
   const chunksTotal    = stats.chunks          ?? meta?.chunks_total    ?? null;
   const chunksEmbedded = stats.chunks_embedded ?? meta?.chunks_embedded ?? null;
+  const nodesByType    = meta?.nodes_by_type   ?? null;
+
+  const isRunning = run.status === "running";
 
   // Running syncs compute elapsed against now(). useSourceSyncs polls
   // every 5s while a sync is running, so the displayed time ticks up
@@ -48,14 +56,38 @@ export function SnapshotIssuesInline({ run }: Props) {
     return end - start;
   })();
 
+  // ETA only computed for running syncs. Uses the same done/total
+  // counters the progress bar uses, so phases where progress_done is
+  // pinned at files_total (embedding_chunks) naturally return null —
+  // we don't pretend to estimate a phase we can't measure.
+  const etaMs = isRunning
+    ? estimateEtaMs(run.started_at, run.progress_done, run.progress_total)
+    : null;
+
+  const nodesByTypeSummary = nodesByType && Object.keys(nodesByType).length > 0
+    ? Object.entries(nodesByType)
+        .sort(([, a], [, b]) => b - a)
+        .map(([k, v]) => `${k} ${formatCount(v)}`)
+        .join(" · ")
+    : null;
+
   return (
     <div className="sync-expanded-body">
       <section className="snapshot-stats-panel">
         <div className="snapshot-stats-title">Stats</div>
         <dl className="snapshot-stats-grid">
-          <StatRow label="Nodes"          value={formatCount(nodes)} />
-          <StatRow label="Edges"          value={formatCount(edges)} />
-          <StatRow label="Files embedded" value={formatCount(filesEmbedded)} />
+          <StatRow
+            label="Files"
+            value={
+              filesTotal != null
+                ? `${formatCount(filesTotal)} (parseable ${formatCount(filesParseable ?? 0)} · parsed ${formatCount(filesParsed ?? 0)})`
+                : "—"
+            }
+          />
+          <StatRow label="Nodes"         value={formatCount(nodes)} />
+          <StatRow label="Edges"         value={formatCount(edges)} />
+          <StatRow label="Symbols"       value={formatCount(symbols)} />
+          <StatRow label="Defines edges" value={formatCount(definesEdges)} />
           <StatRow
             label="Chunks"
             value={
@@ -64,7 +96,14 @@ export function SnapshotIssuesInline({ run }: Props) {
                 : "—"
             }
           />
+          <StatRow label="Files embedded" value={formatCount(filesEmbedded)} />
+          {nodesByTypeSummary && (
+            <StatRow label="Nodes by type" value={nodesByTypeSummary} />
+          )}
           <StatRow label="Sync time"   value={formatDuration(syncMs)} />
+          {isRunning && (
+            <StatRow label="ETA remaining" value={formatDuration(etaMs)} />
+          )}
           <StatRow label="Render time" value={formatDuration(renderMs)} />
         </dl>
       </section>

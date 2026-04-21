@@ -69,11 +69,17 @@ export function UnifiedToolbar(props: Props) {
   const snapshotSomeLoaded = snapshotLoadedCount > 0;
   const snapshotSomeUnloaded = snapshotIds.length > snapshotLoadedCount;
 
-  // Per-snapshot status lookup for Resync visibility gating.
+  // Per-snapshot status lookup for Resync/Stop visibility gating.
   const { syncsById } = useSyncsByIds(snapshotIds);
   const snapshotStatuses = snapshotIds.map((id) => syncsById.get(id)?.status);
   const canResync = snapshotIds.length > 0
     && snapshotStatuses.every((s) => s === "completed" || s === "failed");
+  // Stop is available whenever any selected snapshot is still live.
+  const snapshotRunningIds = snapshotIds.filter((id) => {
+    const s = syncsById.get(id)?.status;
+    return s === "running" || s === "pending";
+  });
+  const canStopSnapshot = snapshotRunningIds.length > 0;
 
   const doLoad = () => {
     snapshotIds.forEach(load);
@@ -94,6 +100,10 @@ export function UnifiedToolbar(props: Props) {
   const onConfirmPurge = () => {
     setConfirmPurge(false);
     snapshotIds.forEach((id) => { void purgeSync(id); });
+    onSnapshotActionComplete();
+  };
+  const doStopSnapshot = () => {
+    snapshotRunningIds.forEach((id) => { void cancelSync(id); });
     onSnapshotActionComplete();
   };
   const doResync = () => {
@@ -180,6 +190,11 @@ export function UnifiedToolbar(props: Props) {
           {snapshotSomeLoaded && (
             <Button onClick={doUnload}>
               <Upload size={12} /> Unload{snapshotSomeUnloaded ? ` (${snapshotLoadedCount})` : ""}
+            </Button>
+          )}
+          {canStopSnapshot && (
+            <Button onClick={doStopSnapshot}>
+              <Square size={12} /> Stop{snapshotRunningIds.length > 1 ? ` (${snapshotRunningIds.length})` : ""}
             </Button>
           )}
           {canResync && (

@@ -43,7 +43,7 @@ export class RenderEngine {
     handle_pan_end(): void;
     handle_pan_move(x: number, y: number): void;
     handle_pan_start(x: number, y: number): void;
-    handle_zoom(delta: number, x: number, y: number): void;
+    handle_zoom(delta: number, _x: number, _y: number): void;
     needs_frame(): boolean;
     /**
      * Re-upload GPU buffers after a WebGL context loss → restore sequence.

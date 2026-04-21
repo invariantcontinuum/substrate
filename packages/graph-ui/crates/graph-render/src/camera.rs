@@ -84,7 +84,10 @@ impl Camera {
     /// Record the current world AABB of the content — used by `pan_clamped`
     /// to ensure ≥ 25% of the content stays in the viewport.
     pub fn set_world_bounds(&mut self, x0: f32, y0: f32, x1: f32, y1: f32) {
-        debug_assert!(x0 <= x1 && y0 <= y1, "inverted AABB passed to set_world_bounds");
+        debug_assert!(
+            x0 <= x1 && y0 <= y1,
+            "inverted AABB passed to set_world_bounds"
+        );
         self.world_aabb = Some((x0, y0, x1, y1));
     }
 

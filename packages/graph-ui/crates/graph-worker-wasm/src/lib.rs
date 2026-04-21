@@ -119,6 +119,7 @@ fn post_positions(engine: &WorkerEngine) {
     let scope: DedicatedWorkerGlobalScope = js_sys::global().unchecked_into();
 
     let pos_data = engine.get_position_buffer();
+    let visible_ids = engine.visible_node_ids();
     let pos_array = Float32Array::new_with_length(pos_data.len() as u32);
     pos_array.copy_from(&pos_data);
 
@@ -130,6 +131,9 @@ fn post_positions(engine: &WorkerEngine) {
     js_sys::Reflect::set(&msg, &"type".into(), &"positions".into()).ok();
     js_sys::Reflect::set(&msg, &"positions".into(), &pos_array).ok();
     js_sys::Reflect::set(&msg, &"flags".into(), &flags_array).ok();
+    if let Ok(ids_js) = serde_wasm_bindgen::to_value(&visible_ids) {
+        js_sys::Reflect::set(&msg, &"node_ids".into(), &ids_js).ok();
+    }
     js_sys::Reflect::set(
         &msg,
         &"visible_count".into(),

@@ -25,13 +25,19 @@ interface FrameState {
   vpMatrix: Float32Array | null;
 }
 
+interface FittedLabel {
+  lines: string[];
+  fontPx: number;
+  lineHeight: number;
+}
+
 export function LabelOverlay({
   engineRef,
   theme,
   nodeIds,
   labels,
   nodeTypes,
-  minZoomToShowLabels = 0.25,
+  minZoomToShowLabels = 0.04,
   ready,
 }: LabelOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -76,8 +82,13 @@ export function LabelOverlay({
         return;
       }
 
-      // Effective zoom from the VP matrix (scale factor on x axis column).
-      const zoom = Math.hypot(vpMatrix[0], vpMatrix[1]);
+      // `vpMatrix` is in normalized-device-coordinate space, not raw camera zoom.
+      // For an ortho camera, converting the VP scale back into screen pixels
+      // gives us the effective on-canvas zoom factor. Using the raw matrix term
+      // directly made a normal zoom of ~1 look like ~0.002 on a 1000px canvas,
+      // which suppressed labels almost all the time.
+      const zoom =
+        Math.hypot(vpMatrix[0], vpMatrix[1]) * 0.5 * cvs.width / dpr;
       if (zoom < minZoomToShowLabels) {
         rafRef.current = requestAnimationFrame(tick);
         return;
@@ -105,23 +116,62 @@ export function LabelOverlay({
 
         const type = nodeTypes[id] ?? "";
         const typeStyle = theme.nodeTypes[type] ?? theme.defaultNodeStyle;
-        const fontSize = (typeStyle.labelSize ?? 11) * dpr;
+        const nodeW = Math.max(
+          ((typeStyle.halfWidth ?? theme.defaultNodeStyle.halfWidth) * 2) * zoom * dpr,
+          0,
+        );
+        const nodeH = Math.max(
+          ((typeStyle.halfHeight ?? theme.defaultNodeStyle.halfHeight) * 2) * zoom * dpr,
+          0,
+        );
+        if (nodeW < 14 * dpr || nodeH < 10 * dpr) continue;
+
+        const padX = Math.min(7 * dpr, nodeW * 0.18);
+        const padY = Math.min(5 * dpr, nodeH * 0.22);
+        const boxW = nodeW - 2 * padX;
+        const boxH = nodeH - 2 * padY;
+        if (boxW < 8 * dpr || boxH < 6 * dpr) continue;
+
         const fontFamily = typeStyle.labelFont ?? "sans-serif";
         const fontWeight = typeStyle.labelWeight ?? 700;
-        ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+        const baseFontPx = Math.min(
+          Math.max((typeStyle.labelSize ?? 11) * zoom * dpr, 7 * dpr),
+          22 * dpr,
+        );
+        const fitted = fitLabelInBox(
+          ctx,
+          labels[id] || "",
+          boxW,
+          boxH,
+          fontFamily,
+          fontWeight,
+          baseFontPx,
+          6 * dpr,
+          dpr,
+        );
+        if (!fitted) continue;
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(sx - nodeW * 0.5, sy - nodeH * 0.5, nodeW, nodeH);
+        ctx.clip();
+
+        ctx.font = `${fontWeight} ${fitted.fontPx}px ${fontFamily}`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-
-        const label = labels[id] || "";
-        const maxW = ((typeStyle.halfWidth ?? 55) * 2 - 16) * zoom * dpr;
-        const text = truncate(ctx, label, maxW);
-
-        // Text outline (stroke in canvas bg color for contrast on grid).
-        ctx.lineWidth = 3 * dpr;
+        ctx.lineJoin = "round";
+        ctx.lineWidth = Math.max(2 * dpr, fitted.fontPx * 0.26);
         ctx.strokeStyle = theme.canvasBg;
-        ctx.strokeText(text, sx, sy);
         ctx.fillStyle = typeStyle.labelColor ?? theme.defaultNodeStyle.labelColor;
-        ctx.fillText(text, sx, sy);
+
+        const startY = sy - ((fitted.lines.length - 1) * fitted.lineHeight) / 2;
+        for (let li = 0; li < fitted.lines.length; li++) {
+          const line = fitted.lines[li];
+          const y = startY + li * fitted.lineHeight;
+          ctx.strokeText(line, sx, y);
+          ctx.fillText(line, sx, y);
+        }
+        ctx.restore();
       }
 
       rafRef.current = requestAnimationFrame(tick);
@@ -141,6 +191,7 @@ export function LabelOverlay({
       style={{
         position: "absolute",
         inset: 0,
+        zIndex: 2,
         pointerEvents: "none",
         width: "100%",
         height: "100%",
@@ -149,14 +200,119 @@ export function LabelOverlay({
   );
 }
 
-function truncate(ctx: CanvasRenderingContext2D, text: string, maxW: number): string {
+function fitLabelInBox(
+  ctx: CanvasRenderingContext2D,
+  rawText: string,
+  maxWidth: number,
+  maxHeight: number,
+  fontFamily: string,
+  fontWeight: number,
+  baseFontPx: number,
+  minFontPx: number,
+  dpr: number,
+): FittedLabel | null {
+  const text = normalizeLabel(rawText);
+  if (!text) return null;
+
+  const step = Math.max(0.5, 0.5 * dpr);
+  for (let fontPx = baseFontPx; fontPx >= minFontPx - 0.01; fontPx -= step) {
+    ctx.font = `${fontWeight} ${fontPx}px ${fontFamily}`;
+    const lineHeight = Math.max(fontPx * 1.16, fontPx + 1 * dpr);
+    const maxLines = Math.max(1, Math.min(4, Math.floor(maxHeight / lineHeight)));
+    if (maxLines < 1) continue;
+    const lines = wrapIntoLines(ctx, text, maxWidth, maxLines);
+    if (lines.length === 0) continue;
+    if (lines.length * lineHeight <= maxHeight + 0.5 * dpr) {
+      return { lines, fontPx, lineHeight };
+    }
+  }
+
+  ctx.font = `${fontWeight} ${minFontPx}px ${fontFamily}`;
+  const lineHeight = Math.max(minFontPx * 1.16, minFontPx + 1 * dpr);
+  if (lineHeight > maxHeight) return null;
+  return {
+    lines: [ellipsize(ctx, text, maxWidth)],
+    fontPx: minFontPx,
+    lineHeight,
+  };
+}
+
+function wrapIntoLines(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+  maxLines: number,
+): string[] {
+  const chars = Array.from(text);
+  const lines: string[] = [];
+  let start = 0;
+
+  while (start < chars.length && lines.length < maxLines) {
+    const hardEnd = fitChars(ctx, chars, start, maxWidth);
+    if (hardEnd <= start) break;
+    let end = hardEnd;
+    if (hardEnd < chars.length) {
+      const softEnd = findSoftBreak(chars, start, hardEnd);
+      if (softEnd > start + 1) end = softEnd;
+    }
+
+    const line = chars.slice(start, end).join("").trim();
+    start = end;
+    while (start < chars.length && chars[start] === " ") start++;
+    if (!line) continue;
+    lines.push(line);
+  }
+
+  if (!lines.length) return [];
+  if (start < chars.length) {
+    const remaining = chars.slice(start).join("").trim();
+    const tail = remaining
+      ? `${lines[lines.length - 1]} ${remaining}`
+      : lines[lines.length - 1];
+    lines[lines.length - 1] = ellipsize(ctx, tail, maxWidth);
+  }
+  return lines;
+}
+
+function fitChars(
+  ctx: CanvasRenderingContext2D,
+  chars: string[],
+  start: number,
+  maxWidth: number,
+): number {
+  let best = start;
+  for (let i = start + 1; i <= chars.length; i++) {
+    const chunk = chars.slice(start, i).join("");
+    if (ctx.measureText(chunk).width > maxWidth) break;
+    best = i;
+  }
+  return best;
+}
+
+function findSoftBreak(chars: string[], start: number, hardEnd: number): number {
+  for (let i = hardEnd; i > start; i--) {
+    if (isBreakChar(chars[i - 1])) return i;
+  }
+  return hardEnd;
+}
+
+function isBreakChar(ch: string): boolean {
+  return ch === " " || ch === "/" || ch === "\\" || ch === "_" || ch === "-" || ch === "." || ch === ":";
+}
+
+function ellipsize(ctx: CanvasRenderingContext2D, text: string, maxW: number): string {
   if (ctx.measureText(text).width <= maxW) return text;
-  const ell = "…";
-  let lo = 0, hi = text.length;
+  const ell = "...";
+  let lo = 0;
+  let hi = text.length;
   while (lo < hi) {
     const mid = (lo + hi + 1) >> 1;
     if (ctx.measureText(text.slice(0, mid) + ell).width <= maxW) lo = mid;
     else hi = mid - 1;
   }
   return text.slice(0, lo) + ell;
+}
+
+function normalizeLabel(raw: string): string {
+  return raw.replace(/\s+/g, " ").trim();
 }

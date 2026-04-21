@@ -46,7 +46,8 @@ fn grid_layout_no_overlap_for_various_sizes() {
                         assert!(
                             !aabbs_overlap(a, b),
                             "overlap at n={n} ratio={ratio}: {:?} vs {:?}",
-                            positions[i], positions[j]
+                            positions[i],
+                            positions[j]
                         );
                     }
                 }

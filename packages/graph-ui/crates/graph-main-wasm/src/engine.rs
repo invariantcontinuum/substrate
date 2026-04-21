@@ -297,12 +297,11 @@ impl RenderEngine {
     pub fn handle_click(&mut self, screen_x: f32, screen_y: f32) -> Option<String> {
         let (wx, wy) = self.camera.screen_to_world(screen_x, screen_y);
         let picked = self.hit_test_node(wx, wy);
-
-        self.selected_idx = picked;
-        self.buffers_dirty = true;
-        self.needs_render = true;
-
-        picked.and_then(|idx| self.node_ids.get(idx).cloned())
+        let picked_id = picked.and_then(|idx| self.node_ids.get(idx).cloned());
+        // Click-to-spotlight is an engine invariant: selecting a node
+        // immediately applies neighborhood dimming and selected styling.
+        self.set_focus(picked_id.clone());
+        picked_id
     }
 
     pub fn handle_hover(&mut self, screen_x: f32, screen_y: f32) -> Option<String> {
@@ -569,6 +568,7 @@ impl RenderEngine {
     /// renderer's `== 1` comparison must be upgraded to a `& 1` bit test.
     pub fn set_focus(&mut self, id: Option<String>) {
         let Some(id) = id else {
+            self.selected_idx = None;
             for f in self.visual_flags.iter_mut() {
                 *f &= !1; // clear dim bit
             }
@@ -577,8 +577,15 @@ impl RenderEngine {
             return;
         };
         let Some(focus_idx) = self.node_ids.iter().position(|n| n == &id) else {
+            self.selected_idx = None;
+            for f in self.visual_flags.iter_mut() {
+                *f &= !1;
+            }
+            self.buffers_dirty = true;
+            self.needs_render = true;
             return;
         };
+        self.selected_idx = Some(focus_idx);
 
         // Build a coordinate -> node index map from `positions` (stride-4).
         // Key on the raw f32 bits (u32) so the match is bit-exact: the worker
@@ -658,11 +665,19 @@ impl RenderEngine {
         let mut keep: std::collections::HashSet<usize> = std::collections::HashSet::new();
         keep.insert(focus_idx);
         for chunk in self.edge_data.chunks_exact(6) {
-            let s = coord_to_idx.get(&(chunk[0].to_bits(), chunk[1].to_bits())).copied();
-            let t = coord_to_idx.get(&(chunk[2].to_bits(), chunk[3].to_bits())).copied();
+            let s = coord_to_idx
+                .get(&(chunk[0].to_bits(), chunk[1].to_bits()))
+                .copied();
+            let t = coord_to_idx
+                .get(&(chunk[2].to_bits(), chunk[3].to_bits()))
+                .copied();
             if let (Some(s), Some(t)) = (s, t) {
-                if s == focus_idx { keep.insert(t); }
-                if t == focus_idx { keep.insert(s); }
+                if s == focus_idx {
+                    keep.insert(t);
+                }
+                if t == focus_idx {
+                    keep.insert(s);
+                }
             }
         }
 
@@ -673,15 +688,22 @@ impl RenderEngine {
         let mut max_y = f32::NEG_INFINITY;
         for &idx in &keep {
             let base = idx * 4;
-            if base + 1 >= self.positions.len() { continue; }
-            let (x, y, r) = (self.positions[base], self.positions[base + 1], self.positions[base + 2]);
+            if base + 1 >= self.positions.len() {
+                continue;
+            }
+            let (x, y, r) = (
+                self.positions[base],
+                self.positions[base + 1],
+                self.positions[base + 2],
+            );
             min_x = min_x.min(x - r);
             min_y = min_y.min(y - r);
             max_x = max_x.max(x + r);
             max_y = max_y.max(y + r);
         }
         if min_x.is_finite() {
-            self.camera.fit_to_bounds(min_x, min_y, max_x, max_y, padding_px);
+            self.camera
+                .fit_to_bounds(min_x, min_y, max_x, max_y, padding_px);
             self.update_min_zoom();
             self.needs_render = true;
         }
@@ -943,6 +965,20 @@ impl RenderEngine {
         let mut edge_buf = Vec::with_capacity(self.edge_count * EDGE_INSTANCE_FLOATS);
         let mut arrow_instances: Vec<f32> =
             Vec::with_capacity(self.edge_count * ARROW_INSTANCE_FLOATS);
+        let spotlight_idx = self.selected_idx;
+        let spotlight_dim_opacity = self
+            .theme
+            .interaction
+            .spotlight
+            .dim_opacity
+            .clamp(0.02, 1.0);
+        let mut coord_to_idx: std::collections::HashMap<(u32, u32), usize> =
+            std::collections::HashMap::new();
+        if spotlight_idx.is_some() {
+            for (i, chunk) in self.positions.chunks_exact(4).enumerate() {
+                coord_to_idx.insert((chunk[0].to_bits(), chunk[1].to_bits()), i);
+            }
+        }
         let edge_stride = 6;
         for i in 0..self.edge_count {
             let base = i * edge_stride;
@@ -989,8 +1025,23 @@ impl RenderEngine {
                 }
             }
 
-            let (er, eg, eb, ea) = parse_hex_color(&ecolor);
-            edge_buf.extend_from_slice(&[sx, sy, tx, ty, ewidth, er, eg, eb, ea, dash, animate]);
+            let mut width = ewidth;
+            let mut alpha_scale = 1.0f32;
+            if let Some(focus_idx) = spotlight_idx {
+                let s_idx = coord_to_idx.get(&(sx.to_bits(), sy.to_bits())).copied();
+                let t_idx = coord_to_idx.get(&(tx.to_bits(), ty.to_bits())).copied();
+                let is_focus_edge = s_idx == Some(focus_idx) || t_idx == Some(focus_idx);
+                if is_focus_edge {
+                    width = (ewidth * 1.35).max(ewidth + 0.25);
+                } else {
+                    width = (ewidth * 0.75).max(0.5);
+                    alpha_scale = spotlight_dim_opacity;
+                }
+            }
+
+            let (er, eg, eb, ea0) = parse_hex_color(&ecolor);
+            let ea = (ea0 * alpha_scale).clamp(0.0, 1.0);
+            edge_buf.extend_from_slice(&[sx, sy, tx, ty, width, er, eg, eb, ea, dash, animate]);
 
             // T11: build arrow instance data alongside each edge.
             arrow_instances.extend_from_slice(&[

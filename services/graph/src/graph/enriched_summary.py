@@ -334,7 +334,11 @@ async def generate_enriched_summary(
                 "neighbor_count": 0,
                 "truncated_file": False,
             }
-        rec = reconstruct_chunks([dict(c) for c in chunk_rows], cap_bytes=settings.file_reconstruct_max_bytes)
+        rec = reconstruct_chunks(
+            [dict(c) for c in chunk_rows],
+            cap_bytes=settings.file_reconstruct_max_bytes,
+            total_lines=row["line_count"] or None,
+        )
 
         edge_triples = await _fetch_edge_neighbors(conn, row["id"])
         neighbor_ids = [t["neighbor_id"] for t in edge_triples]

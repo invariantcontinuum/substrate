@@ -60,7 +60,7 @@ export interface LegendSummary {
 // --- Worker protocol types ---
 
 export type WorkerOutMessage =
-  | { type: "positions"; positions: ArrayBuffer; flags: ArrayBuffer; visible_count: number }
+  | { type: "positions"; positions: ArrayBuffer; flags: ArrayBuffer; visible_count: number; node_ids?: string[] }
   | { type: "edges"; edges: ArrayBuffer; edge_count: number }
   | { type: "snapshot_loaded"; node_count: number; edge_count: number; node_types: string[]; domains: string[] }
   | { type: "stats"; node_count: number; edge_count: number; violation_count: number; last_updated: string }

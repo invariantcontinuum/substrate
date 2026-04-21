@@ -49,13 +49,24 @@ function reducer(state: State, action: Action): State {
       const next = new Set(state.selectedSourceIds);
       if (next.has(action.id)) next.delete(action.id);
       else next.add(action.id);
-      return { ...state, selectedSourceIds: next };
+      // Source and snapshot selection are mutually exclusive: the unified
+      // toolbar only has one action surface, so selecting a source must
+      // clear any active snapshot selection (and vice versa).
+      return {
+        ...state,
+        selectedSourceIds: next,
+        selectedSyncIds: next.size > 0 ? new Set() : state.selectedSyncIds,
+      };
     }
     case "TOGGLE_SELECT_SYNC": {
       const next = new Set(state.selectedSyncIds);
       if (next.has(action.id)) next.delete(action.id);
       else next.add(action.id);
-      return { ...state, selectedSyncIds: next };
+      return {
+        ...state,
+        selectedSyncIds: next,
+        selectedSourceIds: next.size > 0 ? new Set() : state.selectedSourceIds,
+      };
     }
     case "CLEAR_SNAPSHOT_SELECTION":
       return { ...state, selectedSyncIds: new Set() };

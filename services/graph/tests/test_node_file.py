@@ -47,6 +47,55 @@ def test_reconstruct_chunks_truncates_at_cap():
     assert len(out["content"].encode("utf-8")) <= 5_000
 
 
+def test_reconstruct_chunks_preserves_inter_chunk_gaps():
+    # Real-world AST-chunker pattern: named top-level constructs only, so
+    # blank separator lines between methods live in no chunk. Reconstructor
+    # must keep line numbers aligned rather than silently concatenating.
+    chunks = [
+        {"chunk_index": 0, "content": "L1\nL2\nL3",   "start_line": 1, "end_line": 3},
+        # Gap at lines 4 and 5 — no chunk covers them.
+        {"chunk_index": 1, "content": "L6\nL7",       "start_line": 6, "end_line": 7},
+    ]
+    out = reconstruct_chunks(chunks, cap_bytes=10_000)
+    assert out["content"].split("\n") == ["L1", "L2", "L3", "", "", "L6", "L7"]
+
+
+def test_reconstruct_chunks_pads_tail_to_total_lines():
+    # Last chunk ends at 409 but the file actually has 410 lines — the
+    # trailing blank sits past the last named AST construct. Passing
+    # total_lines lets the reconstructor rebuild the correct length.
+    chunks = [
+        {"chunk_index": 0, "content": "\n".join(f"L{i}" for i in range(1, 410)),
+         "start_line": 1, "end_line": 409},
+    ]
+    out = reconstruct_chunks(chunks, cap_bytes=1_000_000, total_lines=410)
+    assert len(out["content"].split("\n")) == 410
+    assert out["content"].split("\n")[-1] == ""
+
+
+def test_reconstruct_chunks_clamps_to_total_lines_when_chunk_overshoots():
+    # Some chunker paths store content with one more line than their
+    # declared end_line range (AST end_point includes a trailing
+    # delimiter). The authoritative file_embeddings.line_count must
+    # still be respected — output never exceeds total_lines.
+    chunks = [
+        {"chunk_index": 0, "content": "L1\nL2\nL3\nL4", "start_line": 1, "end_line": 3},  # content has 4 lines, declared 3
+    ]
+    out = reconstruct_chunks(chunks, cap_bytes=10_000, total_lines=3)
+    assert len(out["content"].split("\n")) == 3
+
+
+def test_reconstruct_chunks_ignores_trailing_newline_artefact():
+    # Chunk content ending with "\n" must not synthesize an extra blank
+    # line at its position — that would shift every following chunk.
+    chunks = [
+        {"chunk_index": 0, "content": "L1\nL2\n",     "start_line": 1, "end_line": 2},
+        {"chunk_index": 1, "content": "L3\nL4",       "start_line": 3, "end_line": 4},
+    ]
+    out = reconstruct_chunks(chunks, cap_bytes=10_000)
+    assert out["content"].split("\n") == ["L1", "L2", "L3", "L4"]
+
+
 # ----------------------------- integration tests -----------------------------
 
 
