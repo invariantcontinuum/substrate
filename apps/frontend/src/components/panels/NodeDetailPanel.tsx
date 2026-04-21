@@ -73,11 +73,18 @@ export function NodeDetailPanel() {
   const [selectedSnapshotId, setSelectedSnapshotId] = useState<string | null>(null);
   const [fileOpen, setFileOpen] = useState(false);
 
-  // Reset snapshot selection when node changes; default to latest_sync_id.
+  // Reset snapshot selection when node changes. Prefer the store's
+  // `latest_sync_id` when available (legacy fat node shape), but the
+  // slim store (SlimNode) does not carry it — in that case fall through
+  // to the detail query's `node.sync_id`, which the backend resolves to
+  // the most recent completed sync for this file. Without this fallback
+  // `selectedSnapshotId` is permanently null for slim-store data and
+  // the `disabled={!selectedSnapshotId}` gate keeps "View file" + "Open
+  // in Sources" greyed out forever.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- sync dependent state on node change
-    setSelectedSnapshotId(cached?.latest_sync_id ?? null);
-  }, [selectedNodeId, cached?.latest_sync_id]);
+    setSelectedSnapshotId(null);
+  }, [selectedNodeId]);
 
   const visible = activeModal === "nodeDetail" && !!selectedNodeId;
 
@@ -213,7 +220,12 @@ export function NodeDetailPanel() {
   const node = detailQuery.data?.node ?? cached;
   const neighbors = detailQuery.data?.neighbors ?? [];
   const loadedSyncIds = cached?.loaded_sync_ids ?? [];
-  const latestSyncId = cached?.latest_sync_id;
+  // Fall back to the detail-query's resolved sync_id when the slim store
+  // doesn't carry latest_sync_id. `effectiveSnapshotId` is what the
+  // "View file" / "Open in Sources" buttons gate on — it's non-null as
+  // soon as the detail payload arrives.
+  const latestSyncId = cached?.latest_sync_id ?? detailQuery.data?.node?.sync_id;
+  const effectiveSnapshotId = selectedSnapshotId ?? latestSyncId ?? null;
 
   const close = () => {
     setSelectedNodeId(null);
@@ -221,10 +233,10 @@ export function NodeDetailPanel() {
   };
 
   const openInSources = () => {
-    if (!cached?.source_id || !selectedSnapshotId) return;
+    if (!cached?.source_id || !effectiveSnapshotId) return;
     setSourcesPageTarget({
       sourceId: cached.source_id as string,
-      expandSyncId: selectedSnapshotId,
+      expandSyncId: effectiveSnapshotId,
     });
     setActiveView("sources");
   };
@@ -261,7 +273,7 @@ export function NodeDetailPanel() {
             </div>
             <Button
               onClick={openInSources}
-              disabled={!cached?.source_id || !selectedSnapshotId}
+              disabled={!cached?.source_id || !effectiveSnapshotId}
               className="node-detail-open-in-sources"
             >
               Open in Sources
@@ -297,7 +309,7 @@ export function NodeDetailPanel() {
                 {node.file_path && (
                   <Button
                     onClick={() => setFileOpen(true)}
-                    disabled={!selectedSnapshotId}
+                    disabled={!effectiveSnapshotId}
                     className="node-detail-view-file"
                   >
                     <FileText size={12} /> View file
