@@ -1001,9 +1001,14 @@ impl RenderEngine {
         self.node_renderer.upload(gl, &node_data, node_count);
 
         // --- Edge buffer ---
-        let mut edge_buf = Vec::with_capacity(self.edge_count * EDGE_INSTANCE_FLOATS);
+        // Each logical edge is tessellated into DEFAULT_SEGMENTS quadratic-bezier
+        // sub-segments; the GPU sees N×logical_edges instances.
+        use crate::bezier::{tessellate_quadratic, DEFAULT_BEND_RATIO, DEFAULT_SEGMENTS};
+        let logical_edge_count = self.edge_count;
+        let mut edge_buf =
+            Vec::with_capacity(logical_edge_count * DEFAULT_SEGMENTS * EDGE_INSTANCE_FLOATS);
         let mut arrow_instances: Vec<f32> =
-            Vec::with_capacity(self.edge_count * ARROW_INSTANCE_FLOATS);
+            Vec::with_capacity(logical_edge_count * ARROW_INSTANCE_FLOATS);
         let spotlight_idx = self.selected_idx;
         let spotlight_dim_opacity = self
             .theme
@@ -1019,7 +1024,7 @@ impl RenderEngine {
             std::collections::HashMap::new()
         };
         let edge_stride = 6;
-        for i in 0..self.edge_count {
+        for i in 0..logical_edge_count {
             let base = i * edge_stride;
             if base + 5 >= self.edge_data.len() {
                 break;
@@ -1064,7 +1069,7 @@ impl RenderEngine {
                 }
             }
 
-            let mut width = ewidth;
+            let mut rendered_width = ewidth;
             let mut alpha_scale = 1.0f32;
             if let Some(focus_idx) = spotlight_idx {
                 let s_idx = coord_to_idx.get(&(sx.to_bits(), sy.to_bits())).copied();
@@ -1072,25 +1077,45 @@ impl RenderEngine {
                 let is_focus_edge = s_idx == Some(focus_idx) || t_idx == Some(focus_idx);
                 if is_focus_edge {
                     // §6 visual rule: focus edges get width *= 1.8
-                    width = ewidth * 1.8;
+                    rendered_width = ewidth * 1.8;
                 } else {
-                    width = (ewidth * 0.75).max(0.5);
+                    rendered_width = (ewidth * 0.75).max(0.5);
                     alpha_scale = spotlight_dim_opacity;
                 }
             }
 
             let (er, eg, eb, ea0) = parse_hex_color(&ecolor);
             let ea = (ea0 * alpha_scale).clamp(0.0, 1.0);
-            edge_buf.extend_from_slice(&[sx, sy, tx, ty, width, er, eg, eb, ea, dash, animate]);
 
-            // T11: build arrow instance data alongside each edge.
+            // Tessellate the logical edge into DEFAULT_SEGMENTS quadratic-bezier
+            // sub-segments and emit one GPU instance per sub-segment.
+            // NOTE: dash holds the dash-mode integer (0=solid, 1=dashed, …).
+            //       Task 21 will overload this field with arc_start for continuous
+            //       dash patterns; for now each segment restarts the dash — acceptable
+            //       first-pass behaviour for pre-MVP.
+            let p0 = (sx, sy);
+            let p1 = (tx, ty);
+            let segs = tessellate_quadratic(p0, p1, DEFAULT_BEND_RATIO, DEFAULT_SEGMENTS);
+            for s in &segs {
+                edge_buf.extend_from_slice(&[
+                    s.from.0, s.from.1,
+                    s.to.0,   s.to.1,
+                    rendered_width,
+                    er, eg, eb, ea,
+                    dash,    // period/mode — Task 21 will replace with s.arc_start for continuity
+                    animate,
+                ]);
+            }
+
+            // T11: one arrow per logical edge (placed at full edge endpoints, not per segment).
             arrow_instances.extend_from_slice(&[
                 sx, sy, tx, ty, 6.0, // arrow scale in world units
                 er, eg, eb, ea,
             ]);
         }
+        let gpu_edge_count = logical_edge_count * DEFAULT_SEGMENTS;
         let arrow_count = arrow_instances.len() / ARROW_INSTANCE_FLOATS;
-        self.edge_renderer.upload(gl, &edge_buf, self.edge_count);
+        self.edge_renderer.upload(gl, &edge_buf, gpu_edge_count);
         self.arrow_renderer
             .upload(gl, &arrow_instances, arrow_count);
 
