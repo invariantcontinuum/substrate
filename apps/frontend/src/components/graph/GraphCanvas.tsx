@@ -8,6 +8,7 @@ import { ViolationBadge } from "./ViolationBadge";
 import { DynamicLegend } from "./DynamicLegend";
 import { LabelOverlay } from "./LabelOverlay";
 import { GridOverlay } from "./overlays/GridOverlay";
+import { EdgeLabelsOverlay } from "./overlays/EdgeLabelsOverlay";
 import { Toolbar } from "./chrome/Toolbar";
 import { buildGraphTheme } from "./theme/buildTheme";
 import { graphThemeToEngineJson } from "./theme/toEngineTheme";
@@ -62,6 +63,7 @@ export function GraphCanvas() {
             ready={ready}
             minZoomToShowLabels={0.0}
           />
+          <EdgeLabelsOverlay engineRef={engineRef} theme={graphTheme} ready={ready} />
         </div>
       </div>
 
