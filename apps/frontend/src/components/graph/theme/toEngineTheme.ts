@@ -8,7 +8,11 @@
 
 import type { GraphTheme, NodeTypeStyle, EdgeTypeStyle } from "./types";
 
-function toNodeStyleFull(s: NodeTypeStyle) {
+// Emits the shape/size/color/border block used for both the default node
+// style and per-type overrides. Rust's `NodeStyle` carries a `label` field,
+// `NodeStyleOverride` does not — neither needs it here because label styling
+// is driven by the overlay, not the WASM renderer.
+function toNodeBody(s: NodeTypeStyle) {
   return {
     shape: s.shape,
     size: Math.max(s.halfWidth, s.halfHeight),
@@ -21,30 +25,19 @@ function toNodeStyleFull(s: NodeTypeStyle) {
   };
 }
 
-function toNodeOverride(s: NodeTypeStyle) {
-  return {
-    shape: s.shape,
-    size: Math.max(s.halfWidth, s.halfHeight),
-    halfWidth: s.halfWidth,
-    halfHeight: s.halfHeight,
-    cornerRadius: s.cornerRadius,
-    color: s.color,
-    borderWidth: s.borderWidth,
-    borderColor: s.borderColor,
-  };
-}
-
-function toEdgeStyleFull(s: EdgeTypeStyle) {
+// Default edge carries `arrow`; per-type override carries `style` instead.
+// Rust treats missing `arrow` on overrides as "inherit from default," and
+// missing `style` on the default as "solid."
+function toDefaultEdge(s: EdgeTypeStyle) {
   return { color: s.color, width: s.width, arrow: s.arrow };
 }
-
 function toEdgeOverride(s: EdgeTypeStyle) {
   return { color: s.color, width: s.width, style: s.style };
 }
 
 export function graphThemeToEngineJson(t: GraphTheme): unknown {
   const byTypeNodes: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(t.nodeTypes)) byTypeNodes[k] = toNodeOverride(v);
+  for (const [k, v] of Object.entries(t.nodeTypes)) byTypeNodes[k] = toNodeBody(v);
   const byTypeEdges: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(t.edgeTypes)) byTypeEdges[k] = toEdgeOverride(v);
 
@@ -52,7 +45,7 @@ export function graphThemeToEngineJson(t: GraphTheme): unknown {
     // Transparent so the underlying GridOverlay paints through.
     background: "rgba(0, 0, 0, 0)",
     nodes: {
-      default: toNodeStyleFull(t.defaultNodeStyle),
+      default: toNodeBody(t.defaultNodeStyle),
       byType: byTypeNodes,
       byStatus: {
         violation: { borderColor: "#e6706b", borderWidth: 2.6, pulse: true },
@@ -60,7 +53,7 @@ export function graphThemeToEngineJson(t: GraphTheme): unknown {
       },
     },
     edges: {
-      default: toEdgeStyleFull(t.defaultEdgeStyle),
+      default: toDefaultEdge(t.defaultEdgeStyle),
       byType: byTypeEdges,
     },
     communities: { hull: false, hullOpacity: 0.15 },
