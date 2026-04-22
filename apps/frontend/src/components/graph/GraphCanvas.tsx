@@ -9,12 +9,14 @@ import { DynamicLegend } from "./DynamicLegend";
 import { LabelOverlay } from "./LabelOverlay";
 import { GridOverlay } from "./overlays/GridOverlay";
 import { EdgeLabelsOverlay } from "./overlays/EdgeLabelsOverlay";
+import { CompoundFramesOverlay } from "./overlays/CompoundFramesOverlay";
 import { Toolbar } from "./chrome/Toolbar";
 import { buildGraphTheme } from "./theme/buildTheme";
 import { graphThemeToEngineJson } from "./theme/toEngineTheme";
 import { useGraphEngine } from "./engine/useGraphEngine";
 import { useGraphSnapshot } from "./engine/useGraphSnapshot";
 import { useSelectionSync } from "./engine/useSelectionSync";
+import { useSources } from "@/hooks/useSources";
 
 export function GraphCanvas() {
   const themeMode = useThemeStore((s) => s.theme);
@@ -22,8 +24,14 @@ export function GraphCanvas() {
   const engineThemeJson = useMemo(() => graphThemeToEngineJson(graphTheme), [graphTheme]);
 
   const { engineRef, ready, onReady, onPositionsReady, onStatsChange } = useGraphEngine(engineThemeJson);
-  const { snapshot, nodeIds, labels, nodeTypeMap } = useGraphSnapshot();
+  const { snapshot, nodeIds, labels, nodeTypeMap, nodeSourceIds } = useGraphSnapshot();
   useSelectionSync(engineRef, ready);
+
+  const { sources } = useSources();
+  const sourceLabels = useMemo(
+    () => Object.fromEntries(sources.map((s) => [s.id, `${s.owner}/${s.name}`])),
+    [sources],
+  );
 
   const setSelectedNodeId = useGraphStore((s) => s.setSelectedNodeId);
   const selectedNodeId = useGraphStore((s) => s.selectedNodeId);
@@ -42,6 +50,15 @@ export function GraphCanvas() {
           style={{ position: "relative" }}
         >
           <GridOverlay engineRef={engineRef} theme={graphTheme} ready={ready} />
+          <CompoundFramesOverlay
+            engineRef={engineRef}
+            theme={graphTheme}
+            ready={ready}
+            nodeIds={nodeIds}
+            nodeSourceIds={nodeSourceIds}
+            nodeTypes={nodeTypeMap}
+            sourceLabels={sourceLabels}
+          />
           <Graph
             ref={engineRef}
             snapshot={snapshot}
