@@ -6,6 +6,13 @@ export class RenderEngine {
     [Symbol.dispose](): void;
     constructor(canvas: HTMLCanvasElement);
     /**
+     * Debug: return current dim tween state so the host can confirm spotlight
+     * is reaching the GPU. Returned object has { progress, target, start,
+     * dimOpacity, selectedIdx, dimmedCount }. Cheap — used only by tests and
+     * ad-hoc DevTools probes, not the render path.
+     */
+    debug_focus_state(): any;
+    /**
      * Return (and clear) pending worker messages queued by drag handlers.
      * The React wrapper calls this after each drag event and forwards the
      * results via `worker.postMessage`.
@@ -118,6 +125,7 @@ export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly __wbg_renderengine_free: (a: number, b: number) => void;
     readonly renderengine_create: (a: any) => [number, number, number];
+    readonly renderengine_debug_focus_state: (a: number) => any;
     readonly renderengine_drain_worker_messages: (a: number) => any;
     readonly renderengine_fit: (a: number, b: number) => void;
     readonly renderengine_focus_fit: (a: number, b: number, c: number, d: number) => void;

@@ -69,17 +69,21 @@ export const DARK: Palette = {
 
 export const LIGHT: Palette = {
   canvasBg:          "#f7f2ea",
-  gridLine:          "rgba(35, 31, 32, 0.06)",
-  nodeGlassFill:     "rgba(255, 255, 255, 0.62)",
-  nodeDefaultBorder: "rgba(35, 31, 32, 0.28)",
+  gridLine:          "rgba(35, 31, 32, 0.08)",
+  // Slightly more opaque fill so nodes lift off the cream canvas instead of
+  // disappearing into it. The prior 0.62 alpha produced near-invisible
+  // rectangles at fit zoom — borders did all the work and spotlight dim had
+  // nothing to fade. This also makes the halo behind labels read cleanly.
+  nodeGlassFill:     "rgba(255, 255, 255, 0.88)",
+  nodeDefaultBorder: "rgba(35, 31, 32, 0.42)",
   labelColor:        "#231f20",
-  labelHalo:         "rgba(255, 253, 250, 0.9)",
+  labelHalo:         "rgba(255, 253, 250, 0.92)",
   selection:         "#1c554e",
   dimText:           "rgba(35, 31, 32, 0.55)",
-  edgeDefault:       "rgba(35, 31, 32, 0.30)",
-  edgeDefaultArrow:  "rgba(35, 31, 32, 0.45)",
-  hullFill:          "rgba(28, 85, 78, 0.06)",
-  hullStroke:        "rgba(28, 85, 78, 0.35)",
+  edgeDefault:       "rgba(35, 31, 32, 0.38)",
+  edgeDefaultArrow:  "rgba(35, 31, 32, 0.55)",
+  hullFill:          "rgba(28, 85, 78, 0.08)",
+  hullStroke:        "rgba(28, 85, 78, 0.38)",
   typeBorders: {
     service:  "#1c554e", source:   "#1c554e",
     database: "#a64a35", cache:    "#7a3728",

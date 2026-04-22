@@ -24,6 +24,17 @@ export class RenderEngine {
         return this;
     }
     /**
+     * Debug: return current dim tween state so the host can confirm spotlight
+     * is reaching the GPU. Returned object has { progress, target, start,
+     * dimOpacity, selectedIdx, dimmedCount }. Cheap — used only by tests and
+     * ad-hoc DevTools probes, not the render path.
+     * @returns {any}
+     */
+    debug_focus_state() {
+        const ret = wasm.renderengine_debug_focus_state(this.__wbg_ptr);
+        return ret;
+    }
+    /**
      * Return (and clear) pending worker messages queued by drag handlers.
      * The React wrapper calls this after each drag event and forwards the
      * results via `worker.postMessage`.

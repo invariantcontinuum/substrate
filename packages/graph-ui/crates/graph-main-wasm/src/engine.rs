@@ -108,6 +108,17 @@ pub struct RenderEngine {
     buffers_dirty: bool,
     needs_render: bool,
 
+    // Dim tween — when focus changes, this progresses 0 -> 1 over ~250 ms so
+    // non-neighbor nodes fade out smoothly instead of hard-cutting. The shader
+    // reads the tweened value via `u_dim_progress`. When focus clears, the
+    // tween progresses 1 -> 0. When focus switches A -> B with buffers_dirty
+    // rebuilt, the tween resets and replays so the new dim set also fades in.
+    dim_progress: f32,
+    dim_progress_target: f32,
+    dim_progress_start: f32,
+    dim_anim_start_ms: f64,
+    dim_anim_duration_ms: f64,
+
     // Frame budget tracking
     budget_overruns: u32,
 
@@ -169,6 +180,11 @@ impl RenderEngine {
             pulse: PulseState::new(Self::current_time_ms()),
             buffers_dirty: true,
             needs_render: true,
+            dim_progress: 0.0,
+            dim_progress_target: 0.0,
+            dim_progress_start: 0.0,
+            dim_anim_start_ms: 0.0,
+            dim_anim_duration_ms: 250.0,
             budget_overruns: 0,
             frame_subscribers: Vec::new(),
             edge_subscribers: Vec::new(),
@@ -452,6 +468,10 @@ impl RenderEngine {
             self.needs_render = true;
         }
 
+        // Dim-progress tween tick — runs every RAF the same way the camera
+        // animation does, so spotlight fade is never starved.
+        self.advance_dim_anim(timestamp);
+
         // Subscribers (e.g. LabelOverlay) need vpMatrix updates even when the
         // scene is static so labels track pan/zoom. Always notify before any
         // early return so late subscribers are never starved.
@@ -489,7 +509,14 @@ impl RenderEngine {
         self.hull_renderer.draw(&self.ctx.gl, &vp);
         self.edge_renderer.draw(&self.ctx.gl, &vp, time);
         self.arrow_renderer.draw(&self.ctx.gl, &vp);
-        self.node_renderer.draw(&self.ctx.gl, &vp, time);
+        let dim_opacity = self
+            .theme
+            .interaction
+            .spotlight
+            .dim_opacity
+            .clamp(0.02, 1.0);
+        self.node_renderer
+            .draw(&self.ctx.gl, &vp, time, dim_opacity, self.dim_progress);
         self.text_renderer.draw(&self.ctx.gl, &vp);
 
         self.needs_render = false;
@@ -651,6 +678,10 @@ impl RenderEngine {
             clear_dim_bits(&mut self.visual_flags);
             self.buffers_dirty = true;
             self.needs_render = true;
+            // Fade dim progress back to 0 (undimmed). The dim-flag bits are
+            // already cleared above, so the tween is purely cosmetic — keeps
+            // visual continuity on focus-off.
+            self.start_dim_anim(0.0);
             return;
         };
         let Some(focus_idx) = self.node_ids.iter().position(|n| n == &id) else {
@@ -658,6 +689,7 @@ impl RenderEngine {
             clear_dim_bits(&mut self.visual_flags);
             self.buffers_dirty = true;
             self.needs_render = true;
+            self.start_dim_anim(0.0);
             return;
         };
         self.selected_idx = Some(focus_idx);
@@ -668,6 +700,36 @@ impl RenderEngine {
         apply_dim_bits(&mut self.visual_flags, node_count, &keep);
 
         self.buffers_dirty = true;
+        self.needs_render = true;
+        // Kick the dim tween: when switching A -> B, this restarts the fade
+        // from 0 so the newly-dimmed set animates in. When going from no
+        // focus -> A, this does the same (0 -> 1).
+        self.start_dim_anim(1.0);
+    }
+
+    /// Restart the dim-progress tween from the CURRENT live value toward the
+    /// given target in [0.0, 1.0]. Uses the same duration for focus-on and
+    /// focus-off so the UX feels symmetrical.
+    fn start_dim_anim(&mut self, target: f32) {
+        self.dim_progress_start = self.dim_progress;
+        self.dim_progress_target = target.clamp(0.0, 1.0);
+        self.dim_anim_start_ms = Self::current_time_ms();
+        self.needs_render = true;
+    }
+
+    fn advance_dim_anim(&mut self, now_ms: f64) {
+        if (self.dim_progress - self.dim_progress_target).abs() < 0.001 {
+            self.dim_progress = self.dim_progress_target;
+            return;
+        }
+        let elapsed = (now_ms - self.dim_anim_start_ms).max(0.0);
+        let t = (elapsed / self.dim_anim_duration_ms.max(1.0))
+            .clamp(0.0, 1.0) as f32;
+        // Ease-out cubic — matches camera_anim's easing so both tweens feel like
+        // the same motion language.
+        let eased = 1.0 - (1.0 - t).powi(3);
+        self.dim_progress =
+            self.dim_progress_start + (self.dim_progress_target - self.dim_progress_start) * eased;
         self.needs_render = true;
     }
 
@@ -689,13 +751,43 @@ impl RenderEngine {
             return;
         }
 
-        let indices = self.neighbor_indices_of_selected();
-        if indices.is_empty() {
+        // Center the camera on the selected node. When the neighborhood has
+        // extent, frame the full 1-hop group; when the selection is isolated
+        // (0 neighbors) the AABB would collapse to a single node's bounding
+        // box, and the computed fit zoom for ONE 110x38 node on a 1268-wide
+        // viewport is ~5-10x — a jarring teleport into the node. In that case
+        // we preserve the current zoom and only pan to center the node.
+        let Some(focus_idx) = self.selected_idx else {
             return;
-        }
-        if let Some((center, zoom)) = self.compute_fit_viewport(padding_px, &indices) {
-            self.start_camera_anim(center, zoom, 400.0);
-        }
+        };
+        let indices = self.neighbor_indices_of_selected();
+        let has_neighbors = !indices.is_empty();
+        let group: Vec<usize> = if has_neighbors {
+            // Include the focus node itself so the frame is symmetric around it
+            // rather than dominated by its neighbors.
+            let mut g = indices;
+            if !g.contains(&focus_idx) {
+                g.push(focus_idx);
+            }
+            g
+        } else {
+            vec![focus_idx]
+        };
+
+        let Some((center, fit_zoom)) = self.compute_fit_viewport(padding_px, &group) else {
+            return;
+        };
+        // Isolated node → always hold current zoom so the user stays in
+        // spatial context. Otherwise clamp the fit zoom to a reasonable UX
+        // ceiling (~2x current) so even a small 2-node neighborhood doesn't
+        // pop to max_zoom.
+        let zoom = if has_neighbors {
+            let ceiling = (self.camera.zoom * 2.0).min(self.camera.max_zoom);
+            fit_zoom.min(ceiling)
+        } else {
+            self.camera.zoom
+        };
+        self.start_camera_anim(center, zoom, 400.0);
     }
 
     /// Compute the target center and zoom level needed to frame the given node indices
@@ -817,6 +909,39 @@ impl RenderEngine {
         if i < self.edge_subscribers.len() {
             self.edge_subscribers.remove(i);
         }
+    }
+
+    /// Debug: return current dim tween state so the host can confirm spotlight
+    /// is reaching the GPU. Returned object has { progress, target, start,
+    /// dimOpacity, selectedIdx, dimmedCount }. Cheap — used only by tests and
+    /// ad-hoc DevTools probes, not the render path.
+    pub fn debug_focus_state(&self) -> JsValue {
+        let dimmed_count = self.visual_flags.iter().filter(|&&v| v == 1).count();
+        let obj = js_sys::Object::new();
+        let _ = js_sys::Reflect::set(&obj, &"progress".into(), &JsValue::from(self.dim_progress as f64));
+        let _ = js_sys::Reflect::set(&obj, &"target".into(), &JsValue::from(self.dim_progress_target as f64));
+        let _ = js_sys::Reflect::set(&obj, &"start".into(), &JsValue::from(self.dim_progress_start as f64));
+        let _ = js_sys::Reflect::set(
+            &obj,
+            &"dimOpacity".into(),
+            &JsValue::from(self.theme.interaction.spotlight.dim_opacity as f64),
+        );
+        let _ = js_sys::Reflect::set(
+            &obj,
+            &"selectedIdx".into(),
+            &JsValue::from(self.selected_idx.map(|i| i as i32).unwrap_or(-1)),
+        );
+        let _ = js_sys::Reflect::set(
+            &obj,
+            &"dimmedCount".into(),
+            &JsValue::from(dimmed_count as u32),
+        );
+        let _ = js_sys::Reflect::set(
+            &obj,
+            &"nodeCount".into(),
+            &JsValue::from((self.positions.len() / 4) as u32),
+        );
+        obj.into()
     }
 }
 

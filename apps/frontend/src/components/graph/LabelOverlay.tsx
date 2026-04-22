@@ -102,18 +102,30 @@ export function LabelOverlay({
           ((typeStyle.halfHeight ?? theme.defaultNodeStyle.halfHeight) * 2) * zoom * dpr,
           0,
         );
-        if (nodeW < 14 * dpr || nodeH < 10 * dpr) continue;
+        // Lower thresholds so labels also render at fit zoom (774 nodes on a
+        // 1268-wide viewport compute to ~28x10 px per node — the prior 14x10
+        // threshold skipped every label at first paint). Below these limits
+        // the truncated label becomes unreadable and we'd just be drawing
+        // noise, so we still bail.
+        if (nodeW < 10 * dpr || nodeH < 5 * dpr) continue;
 
-        const padX = Math.min(7 * dpr, nodeW * 0.18);
-        const padY = Math.min(5 * dpr, nodeH * 0.22);
+        // Keep padding tiny in both axes. boxH is the tight constraint at fit
+        // zoom (node height ~8 px after grid × fit scaling), so we prefer
+        // more glyph room over a roomy border.
+        const padX = Math.min(3 * dpr, nodeW * 0.1);
+        const padY = Math.min(1 * dpr, nodeH * 0.1);
         const boxW = nodeW - 2 * padX;
         const boxH = nodeH - 2 * padY;
-        if (boxW < 8 * dpr || boxH < 6 * dpr) continue;
+        if (boxW < 6 * dpr || boxH < 4 * dpr) continue;
 
         const fontFamily = typeStyle.labelFont ?? "sans-serif";
         const fontWeight = typeStyle.labelWeight ?? 700;
+        // Minimum font floor of 5 px so labels still render at the fit zoom
+        // level (where boxH can be 5-7 px). Lower floor would degenerate into
+        // unreadable rasterization; higher floor re-introduces the "no labels
+        // at fit zoom" bug because the line-height wouldn't fit boxH.
         const baseFontPx = Math.min(
-          Math.max((typeStyle.labelSize ?? 11) * zoom * dpr, 7 * dpr),
+          Math.max((typeStyle.labelSize ?? 11) * zoom * dpr, 5 * dpr),
           22 * dpr,
         );
         const fitted = fitLabelInBox(
@@ -124,7 +136,7 @@ export function LabelOverlay({
           fontFamily,
           fontWeight,
           baseFontPx,
-          6 * dpr,
+          5 * dpr,
           dpr,
         );
         if (!fitted) continue;

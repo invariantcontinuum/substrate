@@ -23,6 +23,8 @@ pub struct NodeRenderer {
     instance_buffer: WebGlBuffer,
     u_vp: WebGlUniformLocation,
     u_time: WebGlUniformLocation,
+    u_dim_opacity: WebGlUniformLocation,
+    u_dim_progress: WebGlUniformLocation,
     instance_count: usize,
 }
 
@@ -109,6 +111,12 @@ impl NodeRenderer {
         let u_time = gl
             .get_uniform_location(&program, "u_time")
             .ok_or("Missing u_time uniform")?;
+        let u_dim_opacity = gl
+            .get_uniform_location(&program, "u_dim_opacity")
+            .ok_or("Missing u_dim_opacity uniform")?;
+        let u_dim_progress = gl
+            .get_uniform_location(&program, "u_dim_progress")
+            .ok_or("Missing u_dim_progress uniform")?;
 
         Ok(Self {
             program,
@@ -116,6 +124,8 @@ impl NodeRenderer {
             instance_buffer,
             u_vp,
             u_time,
+            u_dim_opacity,
+            u_dim_progress,
             instance_count: 0,
         })
     }
@@ -131,13 +141,28 @@ impl NodeRenderer {
     }
 
     /// Draw all uploaded node instances.
-    pub fn draw(&self, gl: &GL, vp_matrix: &[f32; 16], time: f32) {
+    ///
+    /// `dim_opacity` is the theme-sourced alpha for fully-dimmed non-neighbor
+    /// nodes (0.0 = invisible, 1.0 = no dim). `dim_progress` tweens the dim
+    /// application in [0.0, 1.0] for smooth focus transitions — the engine
+    /// drives it via a 250 ms ease so spotlight handoff between nodes fades
+    /// instead of hard-cutting.
+    pub fn draw(
+        &self,
+        gl: &GL,
+        vp_matrix: &[f32; 16],
+        time: f32,
+        dim_opacity: f32,
+        dim_progress: f32,
+    ) {
         if self.instance_count == 0 {
             return;
         }
         gl.use_program(Some(&self.program));
         gl.uniform_matrix4fv_with_f32_array(Some(&self.u_vp), false, vp_matrix);
         gl.uniform1f(Some(&self.u_time), time);
+        gl.uniform1f(Some(&self.u_dim_opacity), dim_opacity);
+        gl.uniform1f(Some(&self.u_dim_progress), dim_progress);
         gl.bind_vertex_array(Some(&self.vao));
         gl.draw_arrays_instanced(GL::TRIANGLES, 0, 6, self.instance_count as i32);
         gl.bind_vertex_array(None);
