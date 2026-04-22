@@ -34,16 +34,18 @@ export class RenderEngine {
         return ret;
     }
     /**
-     * Compute the AABB of current node positions and fit the camera to it.
+     * Compute the AABB of current node positions and snap the camera to it.
      * Called from JS after every `update_positions` + layout settlement.
+     * NOTE: this is a snap (immediate write), not animated — only `focus_fit`
+     * uses the animated camera tween.
      * @param {number} padding_px
      */
     fit(padding_px) {
         wasm.renderengine_fit(this.__wbg_ptr, padding_px);
     }
     /**
-     * Focus a node AND fit the camera to its 1-hop neighborhood.
-     * When `id` is `None`, clears focus and fits to all nodes.
+     * Focus a node AND animate the camera to frame its 1-hop neighborhood over 400 ms.
+     * When `id` is `None`, clears focus and animates to fit all nodes.
      * @param {string | null | undefined} id
      * @param {number} padding_px
      */
@@ -604,9 +606,17 @@ function __wbg_get_imports() {
             const ret = arg0.next();
             return ret;
         }, arguments); },
+        __wbg_now_2c44418ca0623664: function(arg0) {
+            const ret = arg0.now();
+            return ret;
+        },
         __wbg_now_88621c9c9a4f3ffc: function() {
             const ret = Date.now();
             return ret;
+        },
+        __wbg_performance_5ed3f6a3bbe36d0d: function(arg0) {
+            const ret = arg0.performance;
+            return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
         },
         __wbg_prototypesetcall_3e05eb9545565046: function(arg0, arg1, arg2) {
             Uint8Array.prototype.set.call(getArrayU8FromWasm0(arg0, arg1), arg2);

@@ -12,13 +12,15 @@ export class RenderEngine {
      */
     drain_worker_messages(): any;
     /**
-     * Compute the AABB of current node positions and fit the camera to it.
+     * Compute the AABB of current node positions and snap the camera to it.
      * Called from JS after every `update_positions` + layout settlement.
+     * NOTE: this is a snap (immediate write), not animated — only `focus_fit`
+     * uses the animated camera tween.
      */
     fit(padding_px: number): void;
     /**
-     * Focus a node AND fit the camera to its 1-hop neighborhood.
-     * When `id` is `None`, clears focus and fits to all nodes.
+     * Focus a node AND animate the camera to frame its 1-hop neighborhood over 400 ms.
+     * When `id` is `None`, clears focus and animates to fit all nodes.
      */
     focus_fit(id: string | null | undefined, padding_px: number): void;
     frame(timestamp: number): boolean;

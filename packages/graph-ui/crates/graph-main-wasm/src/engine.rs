@@ -540,24 +540,16 @@ impl RenderEngine {
 
     // --- T4: Camera fit / zoom / focus / recovery / frame subscription ---
 
-    /// Compute the AABB of current node positions and fit the camera to it.
+    /// Compute the AABB of current node positions and snap the camera to it.
     /// Called from JS after every `update_positions` + layout settlement.
+    /// NOTE: this is a snap (immediate write), not animated — only `focus_fit`
+    /// uses the animated camera tween.
     pub fn fit(&mut self, padding_px: f32) {
-        let mut min_x = f32::INFINITY;
-        let mut min_y = f32::INFINITY;
-        let mut max_x = f32::NEG_INFINITY;
-        let mut max_y = f32::NEG_INFINITY;
-        // Positions buffer is stride-4: [x, y, radius, type_idx].
-        for chunk in self.positions.chunks_exact(4) {
-            let (x, y, r) = (chunk[0], chunk[1], chunk[2]);
-            min_x = min_x.min(x - r);
-            min_y = min_y.min(y - r);
-            max_x = max_x.max(x + r);
-            max_y = max_y.max(y + r);
-        }
-        if min_x.is_finite() {
-            self.camera
-                .fit_to_bounds(min_x, min_y, max_x, max_y, padding_px);
+        let all: Vec<usize> = (0..self.positions.len() / 4).collect();
+        if let Some(((cx, cy), zoom)) = self.compute_fit_viewport(padding_px, &all) {
+            self.camera.x = cx;
+            self.camera.y = cy;
+            self.camera.zoom = zoom;
             self.update_min_zoom();
             self.needs_render = true;
         }
@@ -632,54 +624,82 @@ impl RenderEngine {
         self.needs_render = true;
     }
 
-    /// Focus a node AND fit the camera to its 1-hop neighborhood.
-    /// When `id` is `None`, clears focus and fits to all nodes.
+    /// Focus a node AND animate the camera to frame its 1-hop neighborhood over 400 ms.
+    /// When `id` is `None`, clears focus and animates to fit all nodes.
     pub fn focus_fit(&mut self, id: Option<String>, padding_px: f32) {
-        use crate::spotlight::{build_coord_index, neighborhood_indices};
-
         // Reuse set_focus to dim non-neighbors (already handles None for clear).
         self.set_focus(id.clone());
 
         if id.is_none() {
-            // Fit-to-all.
-            self.fit(padding_px);
+            // Fit-to-all, animated.
+            let all: Vec<usize> = (0..self.positions.len() / 4).collect();
+            if all.is_empty() {
+                return;
+            }
+            if let Some((center, zoom)) = self.compute_fit_viewport(padding_px, &all) {
+                self.start_camera_anim(center, zoom, 400.0);
+            }
             return;
         }
-        let id = id.unwrap();
-        let Some(focus_idx) = self.node_ids.iter().position(|n| n == &id) else {
+
+        let indices = self.neighbor_indices_of_selected();
+        if indices.is_empty() {
             return;
-        };
+        }
+        if let Some((center, zoom)) = self.compute_fit_viewport(padding_px, &indices) {
+            self.start_camera_anim(center, zoom, 400.0);
+        }
+    }
 
-        // Build coord->idx map and collect 1-hop neighborhood via spotlight helpers.
-        let coord_to_idx = build_coord_index(&self.positions);
-        let keep = neighborhood_indices(focus_idx, &self.edge_data, &coord_to_idx);
-
-        // Compute AABB of the focused set.
+    /// Compute the target center and zoom level needed to frame the given node indices
+    /// inside the current viewport (with `padding_px` inset on all sides).
+    /// Returns `None` when the AABB is degenerate (no valid positions in `indices`).
+    fn compute_fit_viewport(
+        &self,
+        padding_px: f32,
+        indices: &[usize],
+    ) -> Option<((f32, f32), f32)> {
         let mut min_x = f32::INFINITY;
         let mut min_y = f32::INFINITY;
         let mut max_x = f32::NEG_INFINITY;
         let mut max_y = f32::NEG_INFINITY;
-        for &idx in &keep {
-            let base = idx * 4;
-            if base + 1 >= self.positions.len() {
+        for &i in indices {
+            let off = i * 4;
+            if off + 2 >= self.positions.len() {
                 continue;
             }
-            let (x, y, r) = (
-                self.positions[base],
-                self.positions[base + 1],
-                self.positions[base + 2],
-            );
-            min_x = min_x.min(x - r);
-            min_y = min_y.min(y - r);
-            max_x = max_x.max(x + r);
-            max_y = max_y.max(y + r);
+            let x = self.positions[off];
+            let y = self.positions[off + 1];
+            let r = self.positions[off + 2];
+            if x - r < min_x { min_x = x - r; }
+            if x + r > max_x { max_x = x + r; }
+            if y - r < min_y { min_y = y - r; }
+            if y + r > max_y { max_y = y + r; }
         }
-        if min_x.is_finite() {
-            self.camera
-                .fit_to_bounds(min_x, min_y, max_x, max_y, padding_px);
-            self.update_min_zoom();
-            self.needs_render = true;
+        if !min_x.is_finite() {
+            return None;
         }
+        let cx = (min_x + max_x) * 0.5;
+        let cy = (min_y + max_y) * 0.5;
+        let graph_w = (max_x - min_x).max(f32::EPSILON);
+        let graph_h = (max_y - min_y).max(f32::EPSILON);
+        let scale_x = (self.camera.viewport_width() - 2.0 * padding_px).max(1.0) / graph_w;
+        let scale_y = (self.camera.viewport_height() - 2.0 * padding_px).max(1.0) / graph_h;
+        let zoom = scale_x
+            .min(scale_y)
+            .clamp(self.camera.min_zoom, self.camera.max_zoom);
+        Some(((cx, cy), zoom))
+    }
+
+    /// Collect all node indices in the 1-hop closed neighborhood of `self.selected_idx`.
+    /// Returns an empty vec if nothing is selected.
+    fn neighbor_indices_of_selected(&self) -> Vec<usize> {
+        let Some(focus_idx) = self.selected_idx else {
+            return Vec::new();
+        };
+        let coord_to_idx = crate::spotlight::build_coord_index(&self.positions);
+        let keep = crate::spotlight::neighborhood_indices(focus_idx, &self.edge_data, &coord_to_idx);
+        keep.into_iter().collect()
     }
 
     /// Recompute `camera.min_zoom` so the user cannot zoom out past the
