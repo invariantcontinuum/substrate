@@ -102,6 +102,7 @@ pub struct RenderEngine {
 
     // Animation
     start_time: f64,
+    camera_anim: Option<crate::camera_anim::CameraAnim>,
     buffers_dirty: bool,
     needs_render: bool,
 
@@ -157,6 +158,7 @@ impl RenderEngine {
             dragged_idx: None,
             pending_worker_messages: Vec::new(),
             start_time: 0.0,
+            camera_anim: None,
             buffers_dirty: true,
             needs_render: true,
             budget_overruns: 0,
@@ -426,6 +428,19 @@ impl RenderEngine {
     // --- Main render frame ---
 
     pub fn frame(&mut self, timestamp: f64) -> bool {
+        // --- Camera animation tick (runs before the early-return so every RAF
+        //     drives the tween even when nothing else requested a render). ---
+        if let Some(anim) = self.camera_anim {
+            let ((cx, cy), z, done) = anim.sample(timestamp);
+            self.camera.x = cx;
+            self.camera.y = cy;
+            self.camera.zoom = z.clamp(self.camera.min_zoom, self.camera.max_zoom);
+            if done {
+                self.camera_anim = None;
+            }
+            self.needs_render = true;
+        }
+
         // Subscribers (e.g. LabelOverlay) need vpMatrix updates even when the
         // scene is static so labels track pan/zoom. Always notify before any
         // early return so late subscribers are never starved.
@@ -497,6 +512,29 @@ impl RenderEngine {
     }
 
     pub fn request_render(&mut self) {
+        self.needs_render = true;
+    }
+
+    // --- Camera animation helpers ---
+
+    fn current_time_ms() -> f64 {
+        web_sys::window().unwrap().performance().unwrap().now()
+    }
+
+    pub(crate) fn start_camera_anim(
+        &mut self,
+        to_center: (f32, f32),
+        to_zoom: f32,
+        duration_ms: f64,
+    ) {
+        let from_center = (self.camera.x, self.camera.y);
+        let from_zoom = self.camera.zoom;
+        self.camera_anim = Some(crate::camera_anim::CameraAnim::new(
+            (from_center, from_zoom),
+            (to_center, to_zoom),
+            Self::current_time_ms(),
+            duration_ms,
+        ));
         self.needs_render = true;
     }
 
