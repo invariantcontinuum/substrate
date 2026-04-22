@@ -25,7 +25,7 @@ export interface Palette {
   nodeDefaultBorder: string;
   labelColor: string;
   labelHalo: string;
-  selection: string;
+  selection: string;    // focused-node border + focused-edge accent
   dimText: string;
   edgeDefault: string;
   edgeDefaultArrow: string;
@@ -43,7 +43,7 @@ export const DARK: Palette = {
   labelColor:        "#efe6dd",
   labelHalo:         "rgba(35, 31, 32, 0.85)",
   selection:         "#f3dfa2",
-  dimText:           "rgba(239, 230, 221, 0.7)",
+  dimText:           "rgba(239, 230, 221, 0.70)",
   edgeDefault:       "rgba(239, 230, 221, 0.22)",
   edgeDefaultArrow:  "rgba(239, 230, 221, 0.40)",
   hullFill:          "rgba(111, 181, 167, 0.08)",

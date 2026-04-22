@@ -29,6 +29,8 @@ describe("palette", () => {
     expect(DARK.nodeGlassFill).toMatch(/^rgba?\(/);
   });
 
-  const _p: Palette = LIGHT; // compile-time exhaustiveness
-  expect(_p).toBeDefined();
+  test("Palette type is satisfied by LIGHT at compile time", () => {
+    const _p: Palette = LIGHT;
+    expect(_p).toBeDefined();
+  });
 });
