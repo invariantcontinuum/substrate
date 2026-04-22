@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { GraphHandle } from "@invariantcontinuum/graph/react";
-import type { GraphTheme } from "./styleAdapter";
+import type { GraphTheme } from "./theme/types";
 
 export interface LabelOverlayProps {
   engineRef: React.RefObject<GraphHandle | null>;

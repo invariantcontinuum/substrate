@@ -12,7 +12,8 @@ import { SignalsOverlay } from "./SignalsOverlay";
 import { ViolationBadge } from "./ViolationBadge";
 import { DynamicLegend } from "./DynamicLegend";
 import { LabelOverlay } from "./LabelOverlay";
-import { buildGraphTheme, graphThemeToEngineJson } from "./styleAdapter";
+import { buildGraphTheme } from "./theme/buildTheme";
+import { graphThemeToEngineJson } from "./theme/toEngineTheme";
 
 /**
  * GraphCanvas — thin React wrapper around the graph-ui WASM+WebGL2 engine.
