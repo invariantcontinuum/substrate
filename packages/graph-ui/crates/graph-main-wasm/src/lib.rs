@@ -2,6 +2,7 @@ use wasm_bindgen::prelude::*;
 
 pub mod camera_anim;
 pub mod engine;
+pub mod pulse;
 pub mod spatial;
 pub mod spotlight;
 

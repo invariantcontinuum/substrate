@@ -10,6 +10,7 @@ use graph_render::nodes::{NODE_INSTANCE_FLOATS, NodeRenderer};
 use graph_render::text::TextRenderer;
 use graph_render::theme::{ThemeConfig, parse_hex_color, shape_index};
 
+use crate::pulse::PulseState;
 use crate::spatial::SpatialGrid;
 
 const DEFAULT_THEME_JSON: &str = include_str!("default_theme.json");
@@ -103,6 +104,7 @@ pub struct RenderEngine {
     // Animation
     start_time: f64,
     camera_anim: Option<crate::camera_anim::CameraAnim>,
+    pulse: PulseState,
     buffers_dirty: bool,
     needs_render: bool,
 
@@ -159,6 +161,7 @@ impl RenderEngine {
             pending_worker_messages: Vec::new(),
             start_time: 0.0,
             camera_anim: None,
+            pulse: PulseState::new(Self::current_time_ms()),
             buffers_dirty: true,
             needs_render: true,
             budget_overruns: 0,
@@ -217,6 +220,7 @@ impl RenderEngine {
             );
         }
         self.rebuild_hit_test_cache();
+        self.recompute_pulse();
         self.buffers_dirty = true;
         Ok(())
     }
@@ -283,6 +287,7 @@ impl RenderEngine {
             .map_err(|e| JsValue::from_str(&format!("{e}")))?;
         self.theme = theme;
         self.rebuild_hit_test_cache();
+        self.recompute_pulse();
         self.buffers_dirty = true;
         self.needs_render = true;
         Ok(())
@@ -482,6 +487,12 @@ impl RenderEngine {
         self.text_renderer.draw(&self.ctx.gl, &vp);
 
         self.needs_render = false;
+        // Keep the RAF loop alive every frame while pulse nodes are active so
+        // the border-width animation updates continuously.
+        if self.pulse.has_any() {
+            self.needs_render = true;
+            self.buffers_dirty = true;
+        }
         true
     }
 
@@ -811,6 +822,32 @@ impl RenderEngine {
         }
     }
 
+    /// Rebuild `pulse_indices` from `node_ids` order + theme byStatus.pulse map.
+    /// Must be called whenever `node_metadata` or `theme` changes.
+    fn recompute_pulse(&mut self) {
+        // Build a String→bool map from theme.nodes.by_status where pulse == true.
+        let status_pulse: std::collections::HashMap<String, bool> = self
+            .theme
+            .nodes
+            .by_status
+            .iter()
+            .filter(|(_, v)| v.pulse)
+            .map(|(k, _)| (k.clone(), true))
+            .collect();
+        // Collect statuses in node_ids order so pulse_indices align with i in rebuild_buffers.
+        let node_statuses: Vec<String> = self
+            .node_ids
+            .iter()
+            .map(|id| {
+                self.node_metadata
+                    .get(id)
+                    .map(|m| m.status.clone())
+                    .unwrap_or_else(|| "healthy".to_string())
+            })
+            .collect();
+        self.pulse.recompute(&node_statuses, &status_pulse);
+    }
+
     /// Rebuild the cached per-node half-dimensions used by `hit_test_node`.
     /// Called whenever node_metadata or the theme changes so the hot path
     /// (hover/click) does not need to resolve styles.
@@ -877,6 +914,7 @@ impl RenderEngine {
     fn rebuild_buffers(&mut self) {
         let gl = &self.ctx.gl;
         let node_count = self.positions.len() / 4;
+        let now_ms = Self::current_time_ms();
 
         // --- Node buffer ---
         let mut node_data = Vec::with_capacity(node_count * NODE_INSTANCE_FLOATS);
@@ -910,7 +948,8 @@ impl RenderEngine {
             let style = self.resolved_node_style(node_type, status);
             let mut flags: u32 = style.flags;
             let mut border_color = style.border_color;
-            let mut border_width = style.border_width;
+            let pulse_mult = self.pulse.border_multiplier(i, now_ms);
+            let mut border_width = style.border_width * pulse_mult;
             let mut half_w = style.half_w;
             let mut half_h = style.half_h;
 
