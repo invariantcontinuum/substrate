@@ -114,6 +114,11 @@ pub struct RenderEngine {
     // Per-frame JS subscribers (e.g., Canvas2D label overlay).
     // Invoked at the end of each `frame()` tick with `{positions, vpMatrix}`.
     frame_subscribers: Vec<js_sys::Function>,
+
+    // Edge-data JS subscribers (e.g., Canvas2D EdgeLabelsOverlay).
+    // Invoked synchronously alongside `notify_subscribers` each frame tick
+    // with `{edgeData: Float32Array, focusIdx: i32}`.
+    edge_subscribers: Vec<js_sys::Function>,
 }
 
 #[wasm_bindgen]
@@ -166,6 +171,7 @@ impl RenderEngine {
             needs_render: true,
             budget_overruns: 0,
             frame_subscribers: Vec::new(),
+            edge_subscribers: Vec::new(),
         })
     }
 
@@ -496,6 +502,32 @@ impl RenderEngine {
         true
     }
 
+    /// Dispatch edge data to all edge subscribers.
+    ///
+    /// SAFETY: `Float32Array::view` borrows from the WASM linear memory.
+    /// The backing `self.edge_data` Vec is not mutated while the view is live
+    /// (WASM is single-threaded; all callbacks execute synchronously and return
+    /// before Rust code resumes). This is the same zero-copy idiom used by
+    /// `notify_subscribers` for `positions`.
+    fn dispatch_edges_changed(&self) {
+        if self.edge_subscribers.is_empty() {
+            return;
+        }
+        let focus = self.selected_idx.map(|i| i as i32).unwrap_or(-1);
+        let obj = js_sys::Object::new();
+        let edge_f32 = if self.edge_data.is_empty() {
+            js_sys::Float32Array::new_with_length(0)
+        } else {
+            unsafe { js_sys::Float32Array::view(&self.edge_data) }
+        };
+        let _ = js_sys::Reflect::set(&obj, &"edgeData".into(), &edge_f32);
+        let _ = js_sys::Reflect::set(&obj, &"focusIdx".into(), &wasm_bindgen::JsValue::from(focus));
+        let obj_val: wasm_bindgen::JsValue = obj.into();
+        for cb in &self.edge_subscribers {
+            let _ = cb.call1(&wasm_bindgen::JsValue::NULL, &obj_val);
+        }
+    }
+
     /// Notify all frame subscribers with the current positions and VP matrix.
     ///
     /// SAFETY: `Float32Array::view` borrows from the WASM linear memory.
@@ -503,6 +535,10 @@ impl RenderEngine {
     /// callbacks run synchronously and return before we resume). This is a
     /// zero-copy path vs. the old `Float32Array::from` which allocates + copies.
     fn notify_subscribers(&self, vp: &[f32; 16]) {
+        // Always dispatch edge changes so EdgeLabelsOverlay tracks focus state
+        // even when no frame-subscribers are active.
+        self.dispatch_edges_changed();
+
         if self.frame_subscribers.is_empty() || self.positions.is_empty() {
             return;
         }
@@ -761,6 +797,26 @@ impl RenderEngine {
         // waiting for the next render frame that may never come.
         let vp = self.camera.view_projection_matrix();
         self.notify_subscribers(&vp);
+    }
+
+    /// Subscribe to edge-data updates (for the Canvas2D EdgeLabelsOverlay).
+    /// Callback invoked each frame with `{edgeData: Float32Array, focusIdx: number}`.
+    /// Returns a subscriber index that can be passed to `unsubscribe_edges` for cleanup.
+    pub fn subscribe_edges(&mut self, cb: js_sys::Function) -> u32 {
+        let idx = self.edge_subscribers.len() as u32;
+        self.edge_subscribers.push(cb);
+        // Fire an immediate synchronous dispatch so late-mounting overlays
+        // receive the current edge state without waiting for the next frame.
+        self.dispatch_edges_changed();
+        idx
+    }
+
+    /// Unsubscribe a previously-registered edge subscriber by its index.
+    pub fn unsubscribe_edges(&mut self, idx: u32) {
+        let i = idx as usize;
+        if i < self.edge_subscribers.len() {
+            self.edge_subscribers.remove(i);
+        }
     }
 }
 

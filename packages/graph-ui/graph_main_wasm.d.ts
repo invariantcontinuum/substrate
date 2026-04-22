@@ -87,10 +87,20 @@ export class RenderEngine {
     set_node_metadata(ids_js: any, types_js: any, statuses_js: any): void;
     set_theme(theme_js: any): void;
     /**
+     * Subscribe to edge-data updates (for the Canvas2D EdgeLabelsOverlay).
+     * Callback invoked each frame with `{edgeData: Float32Array, focusIdx: number}`.
+     * Returns a subscriber index that can be passed to `unsubscribe_edges` for cleanup.
+     */
+    subscribe_edges(cb: Function): number;
+    /**
      * Subscribe to per-frame position+camera updates (for the Canvas2D label overlay).
      * Callback invoked once per `frame()` tick with `{positions: Float32Array, vpMatrix: Float32Array}`.
      */
     subscribe_frame(cb: Function): void;
+    /**
+     * Unsubscribe a previously-registered edge subscriber by its index.
+     */
+    unsubscribe_edges(idx: number): void;
     update_edges(edge_data: Float32Array, edge_count: number): void;
     update_positions(positions: Float32Array, flags: Uint8Array): void;
     /**
@@ -131,7 +141,9 @@ export interface InitOutput {
     readonly renderengine_set_node_ids: (a: number, b: number, c: number) => void;
     readonly renderengine_set_node_metadata: (a: number, b: any, c: any, d: any) => [number, number];
     readonly renderengine_set_theme: (a: number, b: any) => [number, number];
+    readonly renderengine_subscribe_edges: (a: number, b: any) => number;
     readonly renderengine_subscribe_frame: (a: number, b: any) => void;
+    readonly renderengine_unsubscribe_edges: (a: number, b: number) => void;
     readonly renderengine_update_edges: (a: number, b: number, c: number, d: number) => void;
     readonly renderengine_update_positions: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly renderengine_zoom_in: (a: number) => void;

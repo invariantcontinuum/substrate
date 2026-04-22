@@ -249,12 +249,30 @@ export class RenderEngine {
         }
     }
     /**
+     * Subscribe to edge-data updates (for the Canvas2D EdgeLabelsOverlay).
+     * Callback invoked each frame with `{edgeData: Float32Array, focusIdx: number}`.
+     * Returns a subscriber index that can be passed to `unsubscribe_edges` for cleanup.
+     * @param {Function} cb
+     * @returns {number}
+     */
+    subscribe_edges(cb) {
+        const ret = wasm.renderengine_subscribe_edges(this.__wbg_ptr, cb);
+        return ret >>> 0;
+    }
+    /**
      * Subscribe to per-frame position+camera updates (for the Canvas2D label overlay).
      * Callback invoked once per `frame()` tick with `{positions: Float32Array, vpMatrix: Float32Array}`.
      * @param {Function} cb
      */
     subscribe_frame(cb) {
         wasm.renderengine_subscribe_frame(this.__wbg_ptr, cb);
+    }
+    /**
+     * Unsubscribe a previously-registered edge subscriber by its index.
+     * @param {number} idx
+     */
+    unsubscribe_edges(idx) {
+        wasm.renderengine_unsubscribe_edges(this.__wbg_ptr, idx);
     }
     /**
      * @param {Float32Array} edge_data
@@ -596,6 +614,10 @@ function __wbg_get_imports() {
         },
         __wbg_new_f3c9df4f38f3f798: function() {
             const ret = new Array();
+            return ret;
+        },
+        __wbg_new_with_length_26bffbe236bf73f9: function(arg0) {
+            const ret = new Float32Array(arg0 >>> 0);
             return ret;
         },
         __wbg_next_01132ed6134b8ef5: function(arg0) {

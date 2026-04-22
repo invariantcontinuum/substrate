@@ -48,6 +48,9 @@ export interface GraphHandle {
   subscribeFrame: (
     cb: (m: { positions: Float32Array; vpMatrix: Float32Array }) => void,
   ) => () => void;
+  subscribeEdges: (
+    cb: (e: { edgeData: Float32Array; focusIdx: number }) => void,
+  ) => () => void;
 }
 
 export const Graph = forwardRef<GraphHandle, GraphProps>(function Graph(
@@ -643,6 +646,16 @@ export const Graph = forwardRef<GraphHandle, GraphProps>(function Graph(
         // return a no-op disposer. If the component remounts while a new engine
         // is created, the subscriber list is rebuilt with the new engine.
         return () => {};
+      },
+      subscribeEdges: (cb) => {
+        if (!engineRef.current) return () => {};
+        // Copy edgeData into a detached JS-owned buffer before handing off so
+        // the overlay can safely retain it across frames without aliasing the
+        // WASM linear-memory view (which may be invalidated on the next tick).
+        const wrapped = (obj: { edgeData: Float32Array; focusIdx: number }) =>
+          cb({ edgeData: new Float32Array(obj.edgeData), focusIdx: obj.focusIdx });
+        const idx = engineRef.current.subscribe_edges(wrapped);
+        return () => engineRef.current?.unsubscribe_edges(idx);
       },
     }),
     [applySnapshot, requestRender],
