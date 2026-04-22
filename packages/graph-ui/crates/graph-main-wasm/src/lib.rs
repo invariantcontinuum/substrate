@@ -2,6 +2,7 @@ use wasm_bindgen::prelude::*;
 
 pub mod engine;
 pub mod spatial;
+pub mod spotlight;
 
 #[wasm_bindgen(start)]
 pub fn init() {

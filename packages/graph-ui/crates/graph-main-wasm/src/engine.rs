@@ -567,73 +567,29 @@ impl RenderEngine {
     /// current check. If additional bits are ever added to `visual_flags`, the
     /// renderer's `== 1` comparison must be upgraded to a `& 1` bit test.
     pub fn set_focus(&mut self, id: Option<String>) {
+        use crate::spotlight::{build_coord_index, neighborhood_indices, apply_dim_bits, clear_dim_bits};
+
         let Some(id) = id else {
             self.selected_idx = None;
-            for f in self.visual_flags.iter_mut() {
-                *f &= !1; // clear dim bit
-            }
+            clear_dim_bits(&mut self.visual_flags);
             self.buffers_dirty = true;
             self.needs_render = true;
             return;
         };
         let Some(focus_idx) = self.node_ids.iter().position(|n| n == &id) else {
             self.selected_idx = None;
-            for f in self.visual_flags.iter_mut() {
-                *f &= !1;
-            }
+            clear_dim_bits(&mut self.visual_flags);
             self.buffers_dirty = true;
             self.needs_render = true;
             return;
         };
         self.selected_idx = Some(focus_idx);
 
-        // Build a coordinate -> node index map from `positions` (stride-4).
-        // Key on the raw f32 bits (u32) so the match is bit-exact: the worker
-        // ships Float32Array bytes which round-trip byte-identical, making
-        // this lossless and collision-free at sub-pixel separation.
+        let coord_to_idx = build_coord_index(&self.positions);
+        let keep = neighborhood_indices(focus_idx, &self.edge_data, &coord_to_idx);
         let node_count = self.positions.len() / 4;
-        let mut coord_to_idx: std::collections::HashMap<(u32, u32), usize> =
-            std::collections::HashMap::with_capacity(node_count);
-        for i in 0..node_count {
-            let x = self.positions[i * 4].to_bits();
-            let y = self.positions[i * 4 + 1].to_bits();
-            coord_to_idx.insert((x, y), i);
-        }
+        apply_dim_bits(&mut self.visual_flags, node_count, &keep);
 
-        let mut keep: std::collections::HashSet<usize> = std::collections::HashSet::new();
-        keep.insert(focus_idx);
-
-        // edge_data stride-6: [sx, sy, tx, ty, type_idx, weight] in world coords.
-        for chunk in self.edge_data.chunks_exact(6) {
-            let sx = chunk[0].to_bits();
-            let sy = chunk[1].to_bits();
-            let tx = chunk[2].to_bits();
-            let ty = chunk[3].to_bits();
-            let s = coord_to_idx.get(&(sx, sy)).copied();
-            let t = coord_to_idx.get(&(tx, ty)).copied();
-            if s == Some(focus_idx) {
-                if let Some(ti) = t {
-                    keep.insert(ti);
-                }
-            }
-            if t == Some(focus_idx) {
-                if let Some(si) = s {
-                    keep.insert(si);
-                }
-            }
-        }
-
-        // Ensure visual_flags is sized to node_count before writing.
-        if self.visual_flags.len() < node_count {
-            self.visual_flags.resize(node_count, 0);
-        }
-        for (i, f) in self.visual_flags.iter_mut().enumerate() {
-            if keep.contains(&i) {
-                *f &= !1;
-            } else {
-                *f |= 1;
-            }
-        }
         self.buffers_dirty = true;
         self.needs_render = true;
     }
@@ -641,6 +597,8 @@ impl RenderEngine {
     /// Focus a node AND fit the camera to its 1-hop neighborhood.
     /// When `id` is `None`, clears focus and fits to all nodes.
     pub fn focus_fit(&mut self, id: Option<String>, padding_px: f32) {
+        use crate::spotlight::{build_coord_index, neighborhood_indices};
+
         // Reuse set_focus to dim non-neighbors (already handles None for clear).
         self.set_focus(id.clone());
 
@@ -654,32 +612,9 @@ impl RenderEngine {
             return;
         };
 
-        // Build coord->idx map (same scheme as set_focus).
-        use std::collections::HashMap;
-        let mut coord_to_idx: HashMap<(u32, u32), usize> = HashMap::new();
-        for (i, chunk) in self.positions.chunks_exact(4).enumerate() {
-            coord_to_idx.insert((chunk[0].to_bits(), chunk[1].to_bits()), i);
-        }
-
-        // Collect focused + 1-hop neighbor indices.
-        let mut keep: std::collections::HashSet<usize> = std::collections::HashSet::new();
-        keep.insert(focus_idx);
-        for chunk in self.edge_data.chunks_exact(6) {
-            let s = coord_to_idx
-                .get(&(chunk[0].to_bits(), chunk[1].to_bits()))
-                .copied();
-            let t = coord_to_idx
-                .get(&(chunk[2].to_bits(), chunk[3].to_bits()))
-                .copied();
-            if let (Some(s), Some(t)) = (s, t) {
-                if s == focus_idx {
-                    keep.insert(t);
-                }
-                if t == focus_idx {
-                    keep.insert(s);
-                }
-            }
-        }
+        // Build coord->idx map and collect 1-hop neighborhood via spotlight helpers.
+        let coord_to_idx = build_coord_index(&self.positions);
+        let keep = neighborhood_indices(focus_idx, &self.edge_data, &coord_to_idx);
 
         // Compute AABB of the focused set.
         let mut min_x = f32::INFINITY;
@@ -918,6 +853,8 @@ impl RenderEngine {
             let mut flags: u32 = style.flags;
             let mut border_color = style.border_color;
             let mut border_width = style.border_width;
+            let mut half_w = style.half_w;
+            let mut half_h = style.half_h;
 
             let is_hovered = self.hovered_idx == Some(i);
             let is_selected = self.selected_idx == Some(i);
@@ -926,12 +863,17 @@ impl RenderEngine {
             if is_hovered {
                 flags |= 2; // bit 1 = hovered
             }
-            // Selected: override border, set bit 2
+            // Selected: apply focus styling per §6 visual rules.
+            // - borderColor := theme.interaction.select.borderColor
+            // - borderWidth += 1.5 (additive over base style)
+            // - halfWidth *= 1.08, halfHeight *= 1.08
             if is_selected {
                 let sel_border = self.theme.interaction.select.border_color.clone();
                 let (br, bg, bb, ba) = parse_hex_color(&sel_border);
                 border_color = [br, bg, bb, ba];
-                border_width = self.theme.interaction.select.border_width;
+                border_width += 1.5;
+                half_w *= 1.08;
+                half_h *= 1.08;
                 flags |= 4; // bit 2 = selected
             }
 
@@ -944,8 +886,8 @@ impl RenderEngine {
             node_data.extend_from_slice(&[
                 cx,
                 cy,
-                style.half_w,
-                style.half_h,
+                half_w,
+                half_h,
                 style.color[0],
                 style.color[1],
                 style.color[2],
@@ -972,13 +914,13 @@ impl RenderEngine {
             .spotlight
             .dim_opacity
             .clamp(0.02, 1.0);
-        let mut coord_to_idx: std::collections::HashMap<(u32, u32), usize> =
-            std::collections::HashMap::new();
-        if spotlight_idx.is_some() {
-            for (i, chunk) in self.positions.chunks_exact(4).enumerate() {
-                coord_to_idx.insert((chunk[0].to_bits(), chunk[1].to_bits()), i);
-            }
-        }
+        // Build coord->idx map for edge focus checks using the spotlight helper.
+        // Only pay the allocation cost when a node is actually focused.
+        let coord_to_idx = if spotlight_idx.is_some() {
+            crate::spotlight::build_coord_index(&self.positions)
+        } else {
+            std::collections::HashMap::new()
+        };
         let edge_stride = 6;
         for i in 0..self.edge_count {
             let base = i * edge_stride;
@@ -1032,7 +974,8 @@ impl RenderEngine {
                 let t_idx = coord_to_idx.get(&(tx.to_bits(), ty.to_bits())).copied();
                 let is_focus_edge = s_idx == Some(focus_idx) || t_idx == Some(focus_idx);
                 if is_focus_edge {
-                    width = (ewidth * 1.35).max(ewidth + 0.25);
+                    // §6 visual rule: focus edges get width *= 1.8
+                    width = ewidth * 1.8;
                 } else {
                     width = (ewidth * 0.75).max(0.5);
                     alpha_scale = spotlight_dim_opacity;
