@@ -7,6 +7,7 @@ import { SignalsOverlay } from "./SignalsOverlay";
 import { ViolationBadge } from "./ViolationBadge";
 import { DynamicLegend } from "./DynamicLegend";
 import { LabelOverlay } from "./LabelOverlay";
+import { GridOverlay } from "./overlays/GridOverlay";
 import { Toolbar } from "./chrome/Toolbar";
 import { buildGraphTheme } from "./theme/buildTheme";
 import { graphThemeToEngineJson } from "./theme/toEngineTheme";
@@ -39,6 +40,7 @@ export function GraphCanvas() {
           data-spotlight-active={selectedNodeId ? "true" : "false"}
           style={{ position: "relative" }}
         >
+          <GridOverlay engineRef={engineRef} theme={graphTheme} ready={ready} />
           <Graph
             ref={engineRef}
             snapshot={snapshot}

@@ -710,17 +710,12 @@ html {
 }
 
 /* The canvas paints its own surface so the graph never disappears into the
- * surrounding app chrome. A faint grid of light lines sits under the
- * Cytoscape canvas — GraphCanvas.tsx listens to zoom/pan events and keeps
- * background-size and background-position in sync with the viewport so the
- * grid acts as a ruler when the user zooms in and out. */
+ * surrounding app chrome. The grid itself is drawn by `GridOverlay` (a
+ * Canvas2D sibling of the WebGL canvas) so that grid squares scale with
+ * zoom and translate with pan. The static CSS grid pattern was removed
+ * when the camera-synced overlay landed. */
 .graph-canvas-container {
   background-color: var(--graph-canvas-bg);
-  background-image:
-    linear-gradient(var(--graph-grid-line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--graph-grid-line) 1px, transparent 1px);
-  background-size: 50px 50px;
-  background-position: 0 0;
 }
 
 .graph-canvas-wrapper {
