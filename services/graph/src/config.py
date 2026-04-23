@@ -90,10 +90,44 @@ class _GraphSettings(BaseSettings):
     # asyncpg pool against a stuck AGE plan (e.g. missing index).
     graph_query_timeout_s: int = Field(default=60, alias="GRAPH_QUERY_TIMEOUT_SECONDS")
 
+    # ── Ask (RAG chat) ───────────────────────────────────────────────
+    # Top-K retrieval count per turn. Higher = more context for the LLM,
+    # longer prefill time. Retrieval scope is always the user-supplied
+    # sync_ids (the client passes the active sync set at turn time).
+    ask_top_k: int = 10
+    # Number of prior user+assistant turns to include in the prompt.
+    # Higher = better conversational continuity, larger prompt cost.
+    ask_history_turns: int = 6
+    # Total prompt char budget. Keep ≤ ~3× dense LLM CONTEXT_SIZE (set in
+    # ops/llm/lazy-lamacpp/config/models/dense.env). If the budget would
+    # be exceeded the pipeline drops the oldest prior turns first, then
+    # trims per-node context entries.
+    ask_total_budget_chars: int = 40_000
+    # Decode cap for answers. Pre-MVP 1–3 short paragraphs → ~800 tokens.
+    ask_max_tokens: int = 800
+    # Comma-separated retry scales on HTTP-400 context-window errors,
+    # same shape as summary_context_retry_scales.
+    ask_context_retry_scales: str = "1.0,0.5,0.25"
+    # System prompt for the ask pipeline. Changing this reshapes every
+    # future answer — keep short, task-focused, and format-strict.
+    ask_system_instruction: str = (
+        "You are answering questions about a codebase knowledge graph. "
+        "Use ONLY the node context provided below; if the answer is not "
+        "supported by that context, say so plainly. Respond as a single "
+        "JSON object: {\"answer\": \"<prose>\", \"cited_node_ids\": "
+        "[\"<id1>\", ...]}. Keep the answer to 1-3 short paragraphs. "
+        "Cite every node you actually used."
+    )
+
     @property
     def summary_retry_scales_tuple(self) -> tuple[float, ...]:
         """Parse the comma-separated env value into a tuple of floats."""
         parts = [p.strip() for p in self.summary_context_retry_scales.split(",") if p.strip()]
+        return tuple(float(p) for p in parts) or (1.0,)
+
+    @property
+    def ask_retry_scales_tuple(self) -> tuple[float, ...]:
+        parts = [p.strip() for p in self.ask_context_retry_scales.split(",") if p.strip()]
         return tuple(float(p) for p in parts) or (1.0,)
 
 
