@@ -8,11 +8,11 @@ import httpx
 import structlog
 
 from src.connectors.base import MaterializedTree, SourceConnector
+from src.config import settings
 
 logger = structlog.get_logger()
 
 GITHUB_API = "https://api.github.com"
-MAX_CONCURRENT_REQUESTS = 20
 
 
 # ---------- HTTP client ----------
@@ -24,8 +24,16 @@ async def get_client() -> httpx.AsyncClient:
     global _client
     if _client is None:
         _client = httpx.AsyncClient(
-            limits=httpx.Limits(max_connections=30, max_keepalive_connections=20),
-            timeout=httpx.Timeout(connect=5.0, read=30.0, write=10.0, pool=10.0),
+            limits=httpx.Limits(
+                max_connections=settings.github_api_max_connections,
+                max_keepalive_connections=settings.github_api_max_keepalive_connections,
+            ),
+            timeout=httpx.Timeout(
+                connect=settings.github_api_timeout_connect_s,
+                read=settings.github_api_timeout_read_s,
+                write=settings.github_api_timeout_write_s,
+                pool=settings.github_api_timeout_pool_s,
+            ),
         )
     return _client
 
@@ -35,18 +43,6 @@ async def close_client() -> None:
     if _client:
         await _client.aclose()
         _client = None
-
-
-# ---------- GitHub API tree fetch ----------
-
-async def fetch_repo_tree(owner: str, repo: str, token: str, branch: str = "master") -> list[dict]:
-    client = await get_client()
-    url = f"{GITHUB_API}/repos/{owner}/{repo}/git/trees/{branch}?recursive=1"
-    headers = {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"}
-    resp = await client.get(url, headers=headers)
-    resp.raise_for_status()
-    return resp.json().get("tree", [])
-
 
 async def fetch_repo_metadata(owner: str, repo: str, token: str) -> dict:
     """Fetch public metadata from the GitHub REST API. Returns an empty dict on failure."""
@@ -138,7 +134,6 @@ class GitHubConnector:
     async def materialize(self, source: dict, scratch_dir: str) -> MaterializedTree:
         owner = source["owner"]
         repo = source["name"]
-        from src.config import settings
         tmpdir = await _clone_repo(owner, repo, settings.github_token)
         try:
             # We intentionally don't pre-walk the tree here — sync.py walks

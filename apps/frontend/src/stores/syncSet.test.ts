@@ -60,4 +60,22 @@ describe("useSyncSetStore", () => {
     useSyncSetStore.getState().pruneInvalid(new Set(["a", "c"]));
     expect(useSyncSetStore.getState().syncIds).toEqual(["a", "c"]);
   });
+
+  it("initializeIfNeeded seeds the first active set from bootstrap ids", async () => {
+    await useSyncSetStore.getState().initializeIfNeeded(["a", "a", "b"]);
+    expect(useSyncSetStore.getState().syncIds).toEqual(["a", "b"]);
+    expect(useSyncSetStore.getState().hasInitialized).toBe(true);
+  });
+
+  it("initializeIfNeeded respects an explicitly empty initialized set", async () => {
+    useSyncSetStore.setState({ hasInitialized: true, syncIds: [] });
+    await useSyncSetStore.getState().initializeIfNeeded(["seed"]);
+    expect(useSyncSetStore.getState().syncIds).toEqual([]);
+  });
+
+  it("initializeIfNeeded can force-reseed after stale ids are pruned away", async () => {
+    useSyncSetStore.setState({ hasInitialized: true, syncIds: [] });
+    await useSyncSetStore.getState().initializeIfNeeded(["seed"], { force: true });
+    expect(useSyncSetStore.getState().syncIds).toEqual(["seed"]);
+  });
 });

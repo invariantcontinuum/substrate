@@ -35,22 +35,69 @@ export function DashboardLayout() {
   );
   useEffect(() => {
     if (!token || !userSub) return;
-    const { hydrateForUser, initializeIfNeeded, pruneInvalid } = useSyncSetStore.getState();
-    // Rehydrate per-user, per-device loaded snapshot context first so one
-    // browser can switch accounts without cross-user leakage.
-    hydrateForUser(userSub);
-    // 1. Always validate persisted ids against the server (catches purged/cleaned).
-    void apiFetch<{items: {id: string}[]}>(`/api/syncs?status=completed&limit=100`, token)
-      .then(({items}) => pruneInvalid(new Set(items.map((r) => r.id))))
-      .catch(() => { /* ignore */ })
-      // 2. After pruning, if the active set is empty, try to populate it from
-      // sources.last_sync_id. initializeIfNeeded is a no-op when ids exist.
-      .finally(() => {
-        if (useSyncSetStore.getState().syncIds.length === 0) {
-          void initializeIfNeeded();
-        }
-      });
-  }, [token, userSub]);
+    let cancelled = false;
+
+    void (async () => {
+      const { hydrateForUser, initializeIfNeeded, pruneInvalid } = useSyncSetStore.getState();
+      // Rehydrate per-user, per-device loaded snapshot context first so one
+      // browser can switch accounts without cross-user leakage.
+      hydrateForUser(userSub);
+      const hadPersistedIds = useSyncSetStore.getState().syncIds.length > 0;
+
+      let validSyncIds = new Set<string>();
+      try {
+        // Validate persisted ids against the server so purged/cleaned snapshots
+        // don't stay pinned in the active set forever.
+        const { items } = await apiFetch<{ items: { id: string }[] }>(
+          `/api/syncs?status=completed&limit=100`,
+          token,
+        );
+        if (cancelled) return;
+        validSyncIds = new Set(items.map((row) => row.id));
+        pruneInvalid(validSyncIds);
+      } catch {
+        // Ignore bootstrap validation failures; fallback seeding below uses
+        // source-owned last_sync_id values, which are already authoritative.
+      }
+
+      if (cancelled || useSyncSetStore.getState().syncIds.length > 0) return;
+
+      try {
+        const [userResp, sourceResp] = await Promise.all([
+          apiFetch<{ devices: { device_id: string; last_loaded_sync_ids: string[] }[] }>(
+            "/api/users/me",
+            token,
+          ),
+          apiFetch<{ items: { last_sync_id: string | null }[] }>(
+            "/api/sources?limit=100",
+            token,
+          ),
+        ]);
+        if (cancelled) return;
+
+        const sourceSeedIds = sourceResp.items
+          .map((source) => source.last_sync_id)
+          .filter((id): id is string => typeof id === "string" && id.length > 0);
+        const allowedSeedIds = new Set([...validSyncIds, ...sourceSeedIds]);
+        const deviceSeedIds =
+          userResp.devices.find((device) => device.device_id === deviceId)?.last_loaded_sync_ids
+            ?? [];
+        const preferredSeedIds = deviceSeedIds.filter((id) => allowedSeedIds.has(id));
+        const seedSyncIds = preferredSeedIds.length > 0
+          ? preferredSeedIds
+          : sourceSeedIds;
+
+        await initializeIfNeeded(seedSyncIds, { force: hadPersistedIds });
+      } catch {
+        if (cancelled) return;
+        await initializeIfNeeded([], { force: hadPersistedIds });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [token, userSub, deviceId]);
 
   useEffect(() => {
     if (!token || !userSub) return;

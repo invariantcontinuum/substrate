@@ -9,7 +9,6 @@ logger = structlog.get_logger()
 
 _running = False
 _loop_task: asyncio.Task | None = None
-POLL_INTERVAL_S = 30
 
 
 async def claim_due_schedules_once() -> None:
@@ -66,7 +65,7 @@ async def start_scheduler() -> None:
                 await _tick()
             except Exception as e:  # noqa: BLE001 — scheduler tick must not crash on per-iteration failures
                 logger.error("scheduler_error", error=str(e))
-            await asyncio.sleep(POLL_INTERVAL_S)
+            await asyncio.sleep(settings.scheduler_poll_interval_s)
 
     _loop_task = asyncio.create_task(_loop())
     logger.info("scheduler_started")

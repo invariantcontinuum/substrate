@@ -19,6 +19,10 @@ export interface PendingSwap {
   expiresAt: number;
 }
 
+interface InitializeOptions {
+  force?: boolean;
+}
+
 interface SyncSetState {
   deviceId: string;
   contextUserSub: string | null;
@@ -36,7 +40,7 @@ interface SyncSetState {
   undoSwap: () => void;
   pruneInvalid: (validSyncIds: Set<string>) => void;
   registerSourceMap: (m: Map<string, string>) => void;
-  initializeIfNeeded: () => Promise<void>;
+  initializeIfNeeded: (seedSyncIds?: string[], options?: InitializeOptions) => Promise<void>;
 }
 
 function persistContext(state: SyncSetState): void {
@@ -45,6 +49,10 @@ function persistContext(state: SyncSetState): void {
     syncIds: state.syncIds,
     hasInitialized: state.hasInitialized,
   });
+}
+
+function normalizeSyncIds(ids: readonly string[]): string[] {
+  return [...new Set(ids.filter((id): id is string => typeof id === "string" && id.length > 0))];
 }
 
 export const useSyncSetStore = create<SyncSetState>()((set, get) => ({
@@ -85,7 +93,7 @@ export const useSyncSetStore = create<SyncSetState>()((set, get) => ({
   },
 
   setActiveSet: (ids) => {
-    set({ syncIds: ids });
+    set({ syncIds: normalizeSyncIds(ids) });
     persistContext(get());
   },
 
@@ -129,9 +137,27 @@ export const useSyncSetStore = create<SyncSetState>()((set, get) => ({
 
   registerSourceMap: (m) => set({ sourceMap: m }),
 
-  initializeIfNeeded: async () => {
-    set({ hasInitialized: true });
+  initializeIfNeeded: async (seedSyncIds = [], options = {}) => {
+    const state = get();
+    if (state.syncIds.length > 0) {
+      if (!state.hasInitialized) {
+        set({ hasInitialized: true });
+        persistContext(get());
+      }
+      return;
+    }
+    if (state.hasInitialized && !options.force) return;
+    const nextSyncIds = normalizeSyncIds(seedSyncIds);
+    set({
+      syncIds: nextSyncIds,
+      hasInitialized: true,
+    });
+    logger.info("sync_context_initialized", {
+      userSub: state.contextUserSub,
+      deviceId: state.deviceId,
+      syncCount: nextSyncIds.length,
+      force: Boolean(options.force),
+    });
     persistContext(get());
   },
 }));
-

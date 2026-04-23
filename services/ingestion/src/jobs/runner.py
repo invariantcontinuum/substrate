@@ -2,6 +2,7 @@
 import asyncio
 import structlog
 from src import graph_writer
+from src.config import settings
 from src.jobs.sync import handle_sync
 from src.json_utils import json_object
 
@@ -10,11 +11,15 @@ logger = structlog.get_logger()
 _running = False
 _loop_task: asyncio.Task | None = None
 _in_flight: set[asyncio.Task] = set()
-POLL_INTERVAL_S = 2.0
-SHUTDOWN_TIMEOUT_S = 30.0
+_in_flight_sync_ids: set[str] = set()
 
 
-async def _fetch_pending() -> list[dict]:
+def _release_task(task: asyncio.Task, sync_id: str) -> None:
+    _in_flight.discard(task)
+    _in_flight_sync_ids.discard(sync_id)
+
+
+async def _fetch_pending(limit: int) -> list[dict]:
     pool = graph_writer.get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
@@ -24,7 +29,8 @@ async def _fetch_pending() -> list[dict]:
                JOIN sources s ON s.id = sr.source_id
                WHERE sr.status = 'pending'
                ORDER BY sr.created_at
-               LIMIT 5"""
+               LIMIT $1""",
+            limit,
         )
     return [dict(r) for r in rows]
 
@@ -36,19 +42,25 @@ async def start_runner() -> None:
     async def _loop():
         while _running:
             try:
-                pending = await _fetch_pending()
+                pending = await _fetch_pending(settings.runner_claim_batch_size)
                 for r in pending:
+                    sync_id = r["sync_id"]
+                    if sync_id in _in_flight_sync_ids:
+                        continue
                     source = {
                         "id": r["source_id"], "source_type": r["source_type"],
                         "owner": r["owner"], "name": r["name"], "url": r["url"],
                     }
                     config_snapshot = json_object(r["config_snapshot"])
-                    task = asyncio.create_task(handle_sync(r["sync_id"], source, config_snapshot))
+                    task = asyncio.create_task(handle_sync(sync_id, source, config_snapshot))
                     _in_flight.add(task)
-                    task.add_done_callback(_in_flight.discard)
+                    _in_flight_sync_ids.add(sync_id)
+                    task.add_done_callback(
+                        lambda done, sid=sync_id: _release_task(done, sid)
+                    )
             except Exception as e:  # noqa: BLE001 — runner poll loop must survive per-iteration failures
                 logger.error("runner_loop_error", error=str(e))
-            await asyncio.sleep(POLL_INTERVAL_S)
+            await asyncio.sleep(settings.runner_poll_interval_s)
 
     _loop_task = asyncio.create_task(_loop())
     logger.info("runner_started")
@@ -70,7 +82,7 @@ async def stop_runner() -> None:
         try:
             await asyncio.wait_for(
                 asyncio.gather(*_in_flight, return_exceptions=True),
-                timeout=SHUTDOWN_TIMEOUT_S,
+                timeout=settings.runner_shutdown_timeout_s,
             )
         except asyncio.TimeoutError:
             logger.warning("runner_in_flight_timeout", remaining=len(_in_flight))

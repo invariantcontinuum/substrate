@@ -7,16 +7,13 @@ from typing import Any
 import structlog
 from src.config import settings
 from src.connectors.base import MaterializedTree
-from src.connectors.github import CONNECTORS, _walk_local_tree, fetch_repo_metadata, fetch_commit_date
+from src.connectors.github import CONNECTORS, _walk_local_tree, fetch_commit_date, fetch_repo_metadata
 from src import graph_writer, sync_runs, sync_issues
 from src.chunker import chunk_file, file_summary_text
 from src.llm import embed_batch, EmbeddingDimError
 from substrate_graph_builder import build_graph
 
 logger = structlog.get_logger()
-
-EMBED_BATCH_SIZE = settings.embed_batch_size
-CANCELLATION_POLL_EVERY_N = 50
 
 
 class CancelledSync(Exception):
@@ -72,6 +69,44 @@ def _read_text_safe(filepath: str) -> str:
         return ""
 
 
+def _as_int(value: Any) -> int:
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, (int, float)):
+        return int(value)
+    return 0
+
+
+def _derive_progress(meta: dict[str, Any]) -> tuple[int, int]:
+    phase = str(meta.get("phase") or "")
+    files_total = _as_int(meta.get("files_total"))
+    files_embedded = _as_int(meta.get("files_embedded"))
+    chunks_total = _as_int(meta.get("chunks_total"))
+    chunks_embedded = _as_int(meta.get("chunks_embedded"))
+
+    if phase == "embedding_chunks":
+        return chunks_embedded, chunks_total
+    if phase == "embedding_summaries":
+        return files_embedded, files_total
+    if phase == "done":
+        if chunks_total > 0:
+            return chunks_total, chunks_total
+        return files_total, files_total
+    return 0, files_total
+
+
+async def _publish_progress(
+    sync_id: str,
+    meta: dict[str, Any],
+    *,
+    done: int | None = None,
+    total: int | None = None,
+) -> None:
+    if done is None or total is None:
+        done, total = _derive_progress(meta)
+    await sync_runs.update_sync_progress(sync_id, done, total, meta)
+
+
 async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None:
     """Run one sync to completion. The runner already created the sync_runs row."""
     source_id = source["id"]
@@ -99,7 +134,7 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
         "chunks_total": 0, "chunks_embedded": 0,
         "edges_found": 0, "nodes_by_type": {},
     }
-    await sync_runs.update_sync_progress(sync_id, 0, 0, meta)
+    await _publish_progress(sync_id, meta, done=0, total=0)
 
     tree: MaterializedTree | None = None
     last_commit_at: str | None = None
@@ -127,7 +162,7 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
         await _check_cancelled(sync_id)
 
         meta["phase"] = "discovering"
-        await sync_runs.update_sync_progress(sync_id, 0, 0, meta)
+        await _publish_progress(sync_id, meta, done=0, total=0)
 
         # Delegate discovery + import parsing to substrate_graph_builder.
         # build_graph emits file nodes (ids without '#') + symbol nodes
@@ -166,7 +201,7 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
         meta.update({"files_total": len(nodes), "files_parseable": len(parseable),
                      "nodes_by_type": type_counts, "edges_found": len(all_edges),
                      "files_parsed": len(parseable)})
-        await sync_runs.update_sync_progress(sync_id, 0, len(nodes), meta)
+        await _publish_progress(sync_id, meta, done=0, total=len(nodes))
         await _check_cancelled(sync_id)
 
         edge_count_by_source: dict[str, int] = {}
@@ -174,7 +209,7 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
             edge_count_by_source[edge.source_id] = edge_count_by_source.get(edge.source_id, 0) + 1
 
         meta["phase"] = "preparing"
-        await sync_runs.update_sync_progress(sync_id, 0, len(nodes), meta)
+        await _publish_progress(sync_id, meta, done=0, total=len(nodes))
 
         # The builder already read file contents once for tree-sitter
         # parsing; we re-read here so chunking / hashing / summary
@@ -201,7 +236,7 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
         meta["chunks_total"] = total_chunks
 
         meta["phase"] = "graphing"
-        await sync_runs.update_sync_progress(sync_id, 0, len(nodes), meta)
+        await _publish_progress(sync_id, meta, done=0, total=len(nodes))
 
         file_id_map: dict[str, str] = {}
         for fi_idx, fi in enumerate(file_info_list):
@@ -232,8 +267,8 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
                 await graph_writer.insert_chunks(file_db_id, sync_id, chunk_dicts)
 
             done = fi_idx + 1
-            if done % CANCELLATION_POLL_EVERY_N == 0 or done == len(file_info_list):
-                await sync_runs.update_sync_progress(sync_id, done, len(nodes), meta)
+            if done % settings.sync_cancellation_poll_every_n == 0 or done == len(file_info_list):
+                await _publish_progress(sync_id, meta, done=done, total=len(nodes))
                 await _check_cancelled(sync_id)
 
         age_nodes = [
@@ -316,11 +351,11 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
         meta["phase"] = "embedding_summaries"
         # Persist nodes_total / edges_total / new phase in one write so the
         # stats panel sees them before the first embedding batch lands.
-        await sync_runs.update_sync_progress(sync_id, len(nodes), len(nodes), meta)
+        await _publish_progress(sync_id, meta)
         summary_texts = [fi["summary"] for fi in file_info_list]
         try:
-            for batch_start in range(0, len(summary_texts), EMBED_BATCH_SIZE):
-                batch = summary_texts[batch_start:batch_start + EMBED_BATCH_SIZE]
+            for batch_start in range(0, len(summary_texts), settings.embed_batch_size):
+                batch = summary_texts[batch_start:batch_start + settings.embed_batch_size]
                 vectors = await embed_batch(batch)
                 for j, vec in enumerate(vectors):
                     if vec is None:
@@ -335,10 +370,11 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
                         await graph_writer.update_file_embedding(
                             maybe_file_db_id, vec, sync_id=sync_id
                         )
-                meta["files_embedded"] = min(batch_start + EMBED_BATCH_SIZE, len(summary_texts))
-                await sync_runs.update_sync_progress(
-                    sync_id, int(meta["files_embedded"]), len(nodes), meta
+                meta["files_embedded"] = min(
+                    batch_start + settings.embed_batch_size,
+                    len(summary_texts),
                 )
+                await _publish_progress(sync_id, meta)
                 await _check_cancelled(sync_id)
         except CancelledSync:
             raise
@@ -350,6 +386,7 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
                 f"Embedding server unreachable: {e}", {})
 
         meta["phase"] = "embedding_chunks"
+        await _publish_progress(sync_id, meta)
         all_chunk_texts: list[str] = []
         chunk_map: list[tuple[str, int]] = []
         for fi in file_info_list:
@@ -362,8 +399,8 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
 
         if all_chunk_texts:
             try:
-                for batch_start in range(0, len(all_chunk_texts), EMBED_BATCH_SIZE):
-                    batch = all_chunk_texts[batch_start:batch_start + EMBED_BATCH_SIZE]
+                for batch_start in range(0, len(all_chunk_texts), settings.embed_batch_size):
+                    batch = all_chunk_texts[batch_start:batch_start + settings.embed_batch_size]
                     vectors = await embed_batch(batch)
                     for j, vec in enumerate(vectors):
                         if vec is None:
@@ -372,10 +409,11 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
                         await graph_writer.update_chunk_embedding(
                             chunk_file_db_id, chunk_index, vec, sync_id=sync_id
                         )
-                    meta["chunks_embedded"] = min(batch_start + EMBED_BATCH_SIZE, len(all_chunk_texts))
-                    await sync_runs.update_sync_progress(
-                        sync_id, int(meta["files_embedded"]), len(nodes), meta
+                    meta["chunks_embedded"] = min(
+                        batch_start + settings.embed_batch_size,
+                        len(all_chunk_texts),
                     )
+                    await _publish_progress(sync_id, meta)
                     await _check_cancelled(sync_id)
             except CancelledSync:
                 raise
@@ -387,7 +425,7 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
                     f"Chunk embedding failed: {e}", {})
 
         meta["phase"] = "done"
-        await sync_runs.update_sync_progress(sync_id, len(nodes), len(nodes), meta)
+        await _publish_progress(sync_id, meta)
         sync_elapsed = time.monotonic() - sync_start
         stats = {
             "nodes": len(age_nodes), "edges": len(age_edges),
