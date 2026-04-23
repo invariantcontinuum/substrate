@@ -157,7 +157,9 @@ jobs:
 
       - name: Build release docs bundle
         run: |
-          mkdocs build -f docs/mkdocs.yml -d release-docs
+          cd docs
+          mkdocs build -f mkdocs.yml -d ../release-docs
+          cd ..
           tar -C release-docs -czf "substrate-docs-${RELEASE_VERSION}.tar.gz" .
 
       - name: Generate release notes

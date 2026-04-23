@@ -67,16 +67,16 @@ jobs:
         run: uv sync --frozen --dev
 
       - name: Gateway tests
-        run: cd services/gateway && uv run pytest
+        run: uv run pytest services/gateway/tests
 
       - name: Shared Python package tests
-        run: cd packages/substrate-common && uv run pytest
+        run: uv run pytest packages/substrate-common/tests
 
       - name: Graph builder tests
-        run: cd packages/substrate-graph-builder && uv run pytest
+        run: uv run pytest packages/substrate-graph-builder/tests
 
       - name: Ingestion sync-progress regression tests
-        run: cd services/ingestion && uv run pytest tests/test_sync_progress.py
+        run: uv run pytest services/ingestion/tests/test_sync_progress.py
 
   frontend-fast:
     runs-on: ubuntu-latest
@@ -91,8 +91,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
 
       - name: Enable pnpm
         run: |
@@ -123,4 +121,4 @@ jobs:
         run: pip install --no-cache-dir mkdocs mkdocs-material mkdocs-minify-plugin
 
       - name: Build docs site
-        run: mkdocs build -f docs/mkdocs.yml
+        run: cd docs && mkdocs build -f mkdocs.yml
