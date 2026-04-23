@@ -6,13 +6,12 @@ import json
 from typing import Any
 from uuid import UUID
 
-from src.graph.store import _pool
+from src.graph import store
 
 
 async def list_threads(user_sub: str, limit: int = 100) -> list[dict]:
-    if not _pool:
-        raise RuntimeError("Database not connected")
-    async with _pool.acquire() as conn:
+    pool = store.get_pool()
+    async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
             SELECT t.id::text AS id, t.title, t.created_at, t.updated_at,
@@ -30,9 +29,8 @@ async def list_threads(user_sub: str, limit: int = 100) -> list[dict]:
 
 
 async def create_thread(user_sub: str, title: str) -> dict:
-    if not _pool:
-        raise RuntimeError("Database not connected")
-    async with _pool.acquire() as conn:
+    pool = store.get_pool()
+    async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """
             INSERT INTO ask_threads (user_sub, title)
@@ -45,9 +43,8 @@ async def create_thread(user_sub: str, title: str) -> dict:
 
 
 async def rename_thread(user_sub: str, thread_id: UUID, title: str) -> dict | None:
-    if not _pool:
-        raise RuntimeError("Database not connected")
-    async with _pool.acquire() as conn:
+    pool = store.get_pool()
+    async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """
             UPDATE ask_threads SET title = $1, updated_at = now()
@@ -60,9 +57,8 @@ async def rename_thread(user_sub: str, thread_id: UUID, title: str) -> dict | No
 
 
 async def delete_thread(user_sub: str, thread_id: UUID) -> bool:
-    if not _pool:
-        raise RuntimeError("Database not connected")
-    async with _pool.acquire() as conn:
+    pool = store.get_pool()
+    async with pool.acquire() as conn:
         status = await conn.execute(
             "DELETE FROM ask_threads WHERE id = $1 AND user_sub = $2",
             thread_id, user_sub,
@@ -71,9 +67,8 @@ async def delete_thread(user_sub: str, thread_id: UUID) -> bool:
 
 
 async def get_thread(user_sub: str, thread_id: UUID) -> dict | None:
-    if not _pool:
-        raise RuntimeError("Database not connected")
-    async with _pool.acquire() as conn:
+    pool = store.get_pool()
+    async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """
             SELECT id::text AS id, title, created_at, updated_at
@@ -86,9 +81,8 @@ async def get_thread(user_sub: str, thread_id: UUID) -> dict | None:
 
 
 async def list_messages(thread_id: UUID) -> list[dict]:
-    if not _pool:
-        raise RuntimeError("Database not connected")
-    async with _pool.acquire() as conn:
+    pool = store.get_pool()
+    async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
             SELECT id::text AS id, role, content, citations, created_at
@@ -105,9 +99,8 @@ async def insert_message(
     *, thread_id: UUID, role: str, content: str,
     citations: list[dict[str, Any]], sync_ids: list[str],
 ) -> dict:
-    if not _pool:
-        raise RuntimeError("Database not connected")
-    async with _pool.acquire() as conn:
+    pool = store.get_pool()
+    async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """
             INSERT INTO ask_messages (thread_id, role, content, citations, sync_ids)
@@ -121,9 +114,8 @@ async def insert_message(
 
 
 async def touch_thread(thread_id: UUID, maybe_title: str | None = None) -> None:
-    if not _pool:
-        raise RuntimeError("Database not connected")
-    async with _pool.acquire() as conn:
+    pool = store.get_pool()
+    async with pool.acquire() as conn:
         if maybe_title is None:
             await conn.execute(
                 "UPDATE ask_threads SET updated_at = now() WHERE id = $1",
@@ -145,11 +137,10 @@ async def search_scoped(
     query_embedding: list[float], sync_ids: list[str], limit: int,
 ) -> list[dict]:
     """Vector search over file_embeddings filtered to the supplied sync_ids."""
-    if not _pool:
-        raise RuntimeError("Database not connected")
     if not sync_ids:
         return []
-    async with _pool.acquire() as conn:
+    pool = store.get_pool()
+    async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
             SELECT f.id::text AS id, f.file_path, f.name, f.type,
