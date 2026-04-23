@@ -161,6 +161,19 @@ export const GraphScene = forwardRef<GraphHandle, GraphSceneProps>(function Grap
         snapshot={snapshot}
         theme={engineTheme as Record<string, unknown>}
         onReady={onReady}
+        // THE spotlight wire. `focusIds` (computed by the host from
+        // `selectedNodeId + 1-hop neighbors`) flows to the worker's
+        // `set_spotlight` handler via this prop; the worker then flags every
+        // non-neighbor in the shared visual_flags buffer, and the shader
+        // reads flag bit 3 to dim those nodes to theme.interaction.spotlight
+        // .dimOpacity. Without this one prop, the whole legacy-Cytoscape
+        // "dim everything except the focus neighborhood" effect never fires —
+        // the worker keeps spotlight_ids empty, every node stays bright,
+        // and the selected node is indistinguishable from the rest of the
+        // grid. (The main engine's `set_focus` path does a separate,
+        // lighter-touch dim on the main-thread visual_flags, but it's the
+        // worker-thread path wired here that produces the heavy ghost dim.)
+        spotlightIds={focusIds ? Array.from(focusIds) : null}
         className="graph-canvas-webgl"
         style={{ width: "100%", height: "100%" }}
       />
