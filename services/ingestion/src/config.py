@@ -95,5 +95,26 @@ class _IngestionSettings(BaseSettings):
     retention_per_source_cap: int = 10
     retention_tick_interval_s: int = 3600
 
+    # ── Per-sync Leiden (spec §4.5) ──────────────────────────────────
+    # Fixed-default Leiden pass run at sync completion. Results land in
+    # sync_runs.stats.leiden for row-level display. These knobs intentionally
+    # do NOT feed the active-set carousel compute (spec "Two Leidens").
+    per_sync_leiden_enabled: bool = True
+    # Higher resolution → more, smaller communities. Typical 0.1–5. Trades
+    # modularity for granularity.
+    per_sync_leiden_resolution: float = 1.0
+    # Randomness during refinement. 0–0.1 is normal; 0 disables.
+    per_sync_leiden_beta: float = 0.01
+    # Leiden refinement passes. Higher = more stable partition, slower.
+    per_sync_leiden_iterations: int = 10
+    # Clusters below this size drop into the "Other" bucket on the row.
+    per_sync_leiden_min_cluster_size: int = 4
+    # Deterministic seed so row stats reproduce exactly across re-runs.
+    per_sync_leiden_seed: int = 42
+    # Hard cap on graspologic compute before we skip Leiden for this sync.
+    per_sync_leiden_timeout_s: int = 30
+    # Guard for the non-Leiden finalize_stats pass (counts + storage + issues).
+    finalize_stats_timeout_s: int = 15
+
 
 settings = load_settings("", _IngestionSettings)
