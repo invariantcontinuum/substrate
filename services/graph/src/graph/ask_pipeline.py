@@ -99,11 +99,11 @@ async def _call_dense_llm(messages: list[dict]) -> str:
             "model": settings.dense_llm_model,
             "messages": messages,
             "max_tokens": max_tokens,
-            "temperature": 0.2,
+            "temperature": settings.ask_temperature,
             "response_format": {"type": "json_object"},
         }
         try:
-            async with httpx.AsyncClient(timeout=110.0) as client:
+            async with httpx.AsyncClient(timeout=settings.ask_llm_timeout_s) as client:
                 resp = await client.post(
                     settings.dense_llm_url, headers=headers, json=payload,
                 )

@@ -108,6 +108,14 @@ class _GraphSettings(BaseSettings):
     # Comma-separated retry scales on HTTP-400 context-window errors,
     # same shape as summary_context_retry_scales.
     ask_context_retry_scales: str = "1.0,0.5,0.25"
+    # Sampling temperature for ask answers. Lower = more deterministic
+    # and grounded; higher = more varied phrasing. 0.2 matches the pre-MVP
+    # baseline for RAG-grounded answers.
+    ask_temperature: float = 0.2
+    # HTTP read timeout (seconds) for the dense LLM call from the pipeline.
+    # Must stay ≤ the gateway's long-LLM timeout (115s) so the gateway
+    # doesn't clip the request mid-flight.
+    ask_llm_timeout_s: float = 110.0
     # System prompt for the ask pipeline. Changing this reshapes every
     # future answer — keep short, task-focused, and format-strict.
     ask_system_instruction: str = (
