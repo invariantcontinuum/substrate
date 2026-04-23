@@ -1,4 +1,3 @@
 packages:
   - "apps/*"
   - "packages/substrate-web-common"
-  - "packages/graph-ui"
