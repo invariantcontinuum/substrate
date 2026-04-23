@@ -1,8 +1,8 @@
 import { useEffect, useRef } from "react";
-import type { GraphHandle } from "@invariantcontinuum/graph/react";
-import type { GraphTheme } from "../theme/types";
-import { screenZoom } from "./vpMath";
-import { useDprCanvas } from "./useDprCanvas";
+import type { GraphHandle } from "./Graph";
+import type { GraphTheme } from "./theme/types";
+import { screenZoom } from "./overlays/vpMath";
+import { useDprCanvas } from "./overlays/useDprCanvas";
 
 export interface GridOverlayProps {
   engineRef: React.RefObject<GraphHandle | null>;

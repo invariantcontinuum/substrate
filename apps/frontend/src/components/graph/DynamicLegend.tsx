@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useGraphStore } from "@/stores/graph";
 import { useThemeStore } from "@/stores/theme";
-import { buildGraphTheme } from "./theme/buildTheme";
+import { buildGraphTheme } from "@invariantcontinuum/graph/react";
 
 export function DynamicLegend() {
   const nodes = useGraphStore((s) => s.nodes);

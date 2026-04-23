@@ -1,31 +1,32 @@
 import { useCallback, useMemo } from "react";
-import { Graph } from "@invariantcontinuum/graph/react";
+import { GraphScene } from "@invariantcontinuum/graph/react";
 import { useGraphStore } from "@/stores/graph";
 import { useUIStore } from "@/stores/ui";
 import { useThemeStore } from "@/stores/theme";
 import { SignalsOverlay } from "./SignalsOverlay";
 import { ViolationBadge } from "./ViolationBadge";
 import { DynamicLegend } from "./DynamicLegend";
-import { LabelOverlay } from "./LabelOverlay";
-import { GridOverlay } from "./overlays/GridOverlay";
-import { EdgeLabelsOverlay } from "./overlays/EdgeLabelsOverlay";
-import { CompoundFramesOverlay } from "./overlays/CompoundFramesOverlay";
 import { Toolbar } from "./chrome/Toolbar";
-import { buildGraphTheme } from "./theme/buildTheme";
-import { graphThemeToEngineJson } from "./theme/toEngineTheme";
 import { useGraphEngine } from "./engine/useGraphEngine";
 import { useGraphSnapshot } from "./engine/useGraphSnapshot";
 import { useSelectionSync } from "./engine/useSelectionSync";
 import { useSources } from "@/hooks/useSources";
 
+/**
+ * App-side composition root: supplies the data (stores, sync sources, focus
+ * set) and drops it into <GraphScene> from the package. Every pixel on the
+ * graph canvas — nodes, edges, labels, grid, frames, spotlight — is owned by
+ * @invariantcontinuum/graph; this component is just plumbing.
+ */
 export function GraphCanvas() {
   const themeMode = useThemeStore((s) => s.theme);
-  const graphTheme = useMemo(() => buildGraphTheme(themeMode), [themeMode]);
-  const engineThemeJson = useMemo(() => graphThemeToEngineJson(graphTheme), [graphTheme]);
 
-  const { engineRef, ready, onReady, onPositionsReady, onStatsChange } = useGraphEngine(engineThemeJson);
+  // useGraphEngine still builds its own engine-theme JSON internally for the
+  // keyboard-shortcut effects (Ctrl+0 fit, Esc clear, etc.) — we only use
+  // its imperative methods here, not its theme output.
+  const { engineRef, onReady, onPositionsReady, onStatsChange } = useGraphEngine({});
   const { snapshot, nodeIds, labels, nodeTypeMap, nodeSourceIds } = useGraphSnapshot();
-  useSelectionSync(engineRef, ready);
+  useSelectionSync(engineRef, true);
 
   const { sources } = useSources();
   const sourceLabels = useMemo(
@@ -36,52 +37,46 @@ export function GraphCanvas() {
   const setSelectedNodeId = useGraphStore((s) => s.setSelectedNodeId);
   const selectedNodeId = useGraphStore((s) => s.selectedNodeId);
   const openModal = useUIStore((s) => s.openModal);
-  const onNodeClick = useCallback((node: { id: string }) => {
-    setSelectedNodeId(node.id);
-    openModal("nodeDetail");
-  }, [setSelectedNodeId, openModal]);
+  const onNodeClick = useCallback(
+    (node: { id: string }) => {
+      setSelectedNodeId(node.id);
+      openModal("nodeDetail");
+    },
+    [setSelectedNodeId, openModal],
+  );
+
+  // Spotlight 1-hop set: passed to GraphScene so LabelOverlay dims non-focus
+  // labels in sync with the WASM shader's node-fill dim. O(E) per selection.
+  const focusIds = useMemo<Set<string> | null>(() => {
+    if (!selectedNodeId) return null;
+    const set = new Set<string>([selectedNodeId]);
+    for (const e of snapshot.edges) {
+      if (e.source === selectedNodeId) set.add(e.target);
+      else if (e.target === selectedNodeId) set.add(e.source);
+    }
+    return set;
+  }, [selectedNodeId, snapshot.edges]);
 
   return (
     <div className="graph-canvas">
       <div className="graph-canvas-inner">
-        <div
+        <GraphScene
+          ref={engineRef}
+          themeMode={themeMode}
+          snapshot={snapshot}
+          layout="grid"
+          nodeIds={nodeIds}
+          labels={labels}
+          nodeTypes={nodeTypeMap}
+          nodeSourceIds={nodeSourceIds}
+          sourceLabels={sourceLabels}
+          focusIds={focusIds}
+          onNodeClick={onNodeClick}
+          onReady={onReady}
+          onStatsChange={onStatsChange}
+          onPositionsReady={onPositionsReady}
           className="graph-canvas-container"
-          data-spotlight-active={selectedNodeId ? "true" : "false"}
-          style={{ position: "relative" }}
-        >
-          <GridOverlay engineRef={engineRef} theme={graphTheme} ready={ready} />
-          <CompoundFramesOverlay
-            engineRef={engineRef}
-            theme={graphTheme}
-            ready={ready}
-            nodeIds={nodeIds}
-            nodeSourceIds={nodeSourceIds}
-            nodeTypes={nodeTypeMap}
-            sourceLabels={sourceLabels}
-          />
-          <Graph
-            ref={engineRef}
-            snapshot={snapshot}
-            theme={engineThemeJson as Record<string, unknown>}
-            layout="grid"
-            onNodeClick={onNodeClick}
-            onReady={onReady}
-            onStatsChange={onStatsChange}
-            onPositionsReady={onPositionsReady}
-            className="graph-canvas-webgl"
-            style={{ width: "100%", height: "100%" }}
-          />
-          <LabelOverlay
-            engineRef={engineRef}
-            theme={graphTheme}
-            nodeIds={nodeIds}
-            labels={labels}
-            nodeTypes={nodeTypeMap}
-            ready={ready}
-            minZoomToShowLabels={0.0}
-          />
-          <EdgeLabelsOverlay engineRef={engineRef} theme={graphTheme} ready={ready} />
-        </div>
+        />
       </div>
 
       <div className="graph-overlay-bottom-left"><SignalsOverlay /></div>

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import type { GraphHandle } from "@invariantcontinuum/graph/react";
+import type { GraphHandle } from "./Graph";
 import type { GraphTheme } from "./theme/types";
 import { fitLabelInBox } from "./overlays/labels/fitLabel";
 import { worldToScreen, screenZoom } from "./overlays/vpMath";
@@ -21,6 +21,15 @@ export interface LabelOverlayProps {
    *  engine ref's `subscribeFrame` is not yet wired up and subscribing will
    *  silently no-op, so we must gate the subscription on it. */
   ready: boolean;
+  /** When set, nodes NOT in this set are rendered with reduced label alpha so
+   *  they don't visually compete with the focused 1-hop neighborhood. The
+   *  WASM shader already dims the node fills via `u_dim_opacity` when the
+   *  engine has a focus, but the Canvas2D label overlay runs in a separate
+   *  paint pipe — without this hint, fully-dimmed nodes still have bright,
+   *  legible labels sitting on top, which makes the whole spotlight feature
+   *  read as "weak" compared to legacy Cytoscape. Pass `null` or empty set
+   *  to keep the pre-spotlight uniform brightness. */
+  focusIds?: Set<string> | null;
 }
 
 interface FrameState {
@@ -36,6 +45,7 @@ export function LabelOverlay({
   nodeTypes,
   minZoomToShowLabels = 0.04,
   ready,
+  focusIds,
 }: LabelOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const frameRef = useRef<FrameState>({ positions: null, vpMatrix: null });
@@ -146,6 +156,14 @@ export function LabelOverlay({
         ctx.rect(sx - nodeW * 0.5, sy - nodeH * 0.5, nodeW, nodeH);
         ctx.clip();
 
+        // Match the WASM shader's spotlight behaviour: when a focus is active
+        // and this node is not part of the 1-hop neighborhood, fade the label
+        // so it doesn't outshine the dimmed node underneath. `focusIds == null`
+        // means "no spotlight" → render at full brightness for everyone.
+        const isDimmed = focusIds != null && focusIds.size > 0 && !focusIds.has(id);
+        const labelAlpha = isDimmed ? 0.12 : 1.0;
+        ctx.globalAlpha = labelAlpha;
+
         ctx.font = `${fontWeight} ${fitted.fontPx}px ${fontFamily}`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
@@ -171,7 +189,7 @@ export function LabelOverlay({
     return () => {
       if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
     };
-  }, [nodeIds, labels, nodeTypes, theme, minZoomToShowLabels]);
+  }, [nodeIds, labels, nodeTypes, theme, minZoomToShowLabels, focusIds]);
 
   return (
     <canvas

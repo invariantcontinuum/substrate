@@ -10,18 +10,20 @@ export interface UseGraphEngineResult {
   onStatsChange: () => void;
 }
 
-export function useGraphEngine(engineThemeJson: unknown): UseGraphEngineResult {
+/**
+ * App-side engine hook: keyboard shortcuts + load lifecycle bookkeeping.
+ *
+ * Theme JSON propagation is owned by <GraphScene> from the package — this
+ * hook only exposes the imperative handle + the React callbacks the scene
+ * expects.
+ */
+export function useGraphEngine(_reserved: unknown = {}): UseGraphEngineResult {
+  void _reserved;
   const engineRef = useRef<GraphHandle | null>(null);
   const [ready, setReady] = useState(false);
 
   const finalizeLoad = useGraphStore((s) => s.finalizeLoad);
   const setSelectedNodeId = useGraphStore((s) => s.setSelectedNodeId);
-
-  // Push theme JSON into the engine whenever it changes.
-  useEffect(() => {
-    if (!ready) return;
-    engineRef.current?.setTheme(engineThemeJson);
-  }, [engineThemeJson, ready]);
 
   // Keyboard shortcuts — Ctrl+0 fit, Ctrl+=/Ctrl+- zoom, Esc clear selection.
   useEffect(() => {

@@ -1,8 +1,8 @@
 import { useEffect, useRef } from "react";
-import type { GraphHandle } from "@invariantcontinuum/graph/react";
-import type { GraphTheme } from "../theme/types";
-import { worldToScreen, bitKey } from "./vpMath";
-import { useDprCanvas } from "./useDprCanvas";
+import type { GraphHandle } from "./Graph";
+import type { GraphTheme } from "./theme/types";
+import { worldToScreen, bitKey } from "./overlays/vpMath";
+import { useDprCanvas } from "./overlays/useDprCanvas";
 
 // Matches ThemeConfig's edge byType index order. Keep in sync with the Rust side.
 const EDGE_TYPE_NAMES: Record<number, string> = {
