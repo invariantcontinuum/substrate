@@ -11,6 +11,7 @@ from substrate_common import (
     register_handlers,
 )
 
+from src.api.ask import router as ask_router
 from src.api.routes import router
 from src.api.schedules import router as schedules_router
 from src.api.sources import router as sources_router
@@ -45,6 +46,7 @@ app.include_router(router)
 app.include_router(sources_router)
 app.include_router(syncs_router)
 app.include_router(schedules_router)
+app.include_router(ask_router)
 
 
 @app.get("/health")
