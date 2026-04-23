@@ -1,5 +1,4 @@
 """Lifecycle helpers for sync_runs rows. Single source of truth for status transitions."""
-import json
 import asyncpg
 from src import graph_writer, events
 
@@ -16,19 +15,20 @@ async def clean_sync_impl(conn: asyncpg.Connection, sync_id: str) -> None:
     when called from the retention cron the status guard is embedded in the
     candidate query and this function is only called on terminal rows.
     """
-    status = await conn.fetchval("SELECT status FROM sync_runs WHERE id=$1::uuid", sync_id)
-    if status is None or status == "cleaned":
-        return
-    if status not in ("completed", "failed", "cancelled"):
-        # Non-terminal — skip silently when called from cron; route handler wraps
-        # this in an explicit status check and raises 409 before calling us.
-        return
-    await graph_writer.cleanup_partial(sync_id)
-    # Conditional update so a concurrent purge or another clean is a no-op.
-    await conn.execute(
-        "UPDATE sync_runs SET status='cleaned' WHERE id=$1::uuid AND status=$2",
-        sync_id, status,
-    )
+    async with conn.transaction():
+        status = await conn.fetchval("SELECT status FROM sync_runs WHERE id=$1::uuid", sync_id)
+        if status is None or status == "cleaned":
+            return
+        if status not in ("completed", "failed", "cancelled"):
+            # Non-terminal — skip silently when called from cron; route handler wraps
+            # this in an explicit status check and raises 409 before calling us.
+            return
+        await graph_writer.cleanup_partial(sync_id, conn=conn)
+        # Conditional update so a concurrent purge or another clean is a no-op.
+        await conn.execute(
+            "UPDATE sync_runs SET status='cleaned' WHERE id=$1::uuid AND status=$2",
+            sync_id, status,
+        )
 
 
 async def create_sync_run(source_id: str, config_snapshot: dict,
@@ -40,14 +40,21 @@ async def create_sync_run(source_id: str, config_snapshot: dict,
             """INSERT INTO sync_runs (source_id, status, config_snapshot, triggered_by, schedule_id)
                VALUES ($1::uuid, 'pending', $2::jsonb, $3, $4)
                RETURNING id::text""",
-            source_id, json.dumps(config_snapshot), triggered_by, schedule_id,
+            source_id, config_snapshot, triggered_by, schedule_id,
         )
 
 
-async def _get_source_id(conn: asyncpg.Connection, sync_id: str) -> str | None:
-    return await conn.fetchval(
-        "SELECT source_id::text FROM sync_runs WHERE id=$1::uuid", sync_id
+async def _get_sync_scope(conn: asyncpg.Connection, sync_id: str) -> tuple[str | None, str | None]:
+    row = await conn.fetchrow(
+        """SELECT sr.source_id::text AS source_id, s.user_sub
+           FROM sync_runs sr
+           JOIN sources s ON s.id = sr.source_id
+           WHERE sr.id = $1::uuid""",
+        sync_id,
     )
+    if not row:
+        return None, None
+    return row["source_id"], row["user_sub"]
 
 
 async def claim_sync_run(sync_id: str) -> bool:
@@ -59,10 +66,15 @@ async def claim_sync_run(sync_id: str) -> bool:
                WHERE id = $1::uuid AND status = 'pending'""",
             sync_id,
         )
-        source_id = await _get_source_id(conn, sync_id)
+        source_id, user_sub = await _get_sync_scope(conn, sync_id)
     claimed = result == "UPDATE 1"
     if claimed:
-        await events.publish_sync_lifecycle(sync_id, "running", source_id=source_id)
+        await events.publish_sync_lifecycle(
+            sync_id,
+            "running",
+            source_id=source_id,
+            user_sub=user_sub,
+        )
     return claimed
 
 
@@ -73,15 +85,22 @@ async def update_sync_progress(sync_id: str, done: int, total: int,
         if meta is not None:
             await conn.execute(
                 "UPDATE sync_runs SET progress_done=$2, progress_total=$3, progress_meta=$4::jsonb WHERE id=$1::uuid",
-                sync_id, done, total, json.dumps(meta),
+                sync_id, done, total, meta,
             )
         else:
             await conn.execute(
                 "UPDATE sync_runs SET progress_done=$2, progress_total=$3 WHERE id=$1::uuid",
                 sync_id, done, total,
             )
-        source_id = await _get_source_id(conn, sync_id)
-    await events.publish_sync_progress(sync_id, done, total, meta, source_id=source_id)
+        source_id, user_sub = await _get_sync_scope(conn, sync_id)
+    await events.publish_sync_progress(
+        sync_id,
+        done,
+        total,
+        meta,
+        source_id=source_id,
+        user_sub=user_sub,
+    )
 
 
 async def set_ref(sync_id: str, ref: str) -> None:
@@ -100,10 +119,15 @@ async def complete_sync_run(sync_id: str, stats: dict) -> None:
                    stats=$2::jsonb,
                    denied_file_count=COALESCE(($2::jsonb)->>'denied_file_count', '0')::int
                WHERE id=$1::uuid""",
-            sync_id, json.dumps(stats),
+            sync_id, stats,
         )
-        source_id = await _get_source_id(conn, sync_id)
-    await events.publish_sync_lifecycle(sync_id, "completed", source_id=source_id)
+        source_id, user_sub = await _get_sync_scope(conn, sync_id)
+    await events.publish_sync_lifecycle(
+        sync_id,
+        "completed",
+        source_id=source_id,
+        user_sub=user_sub,
+    )
 
 
 async def fail_sync_run(sync_id: str, message: str) -> None:
@@ -113,12 +137,17 @@ async def fail_sync_run(sync_id: str, message: str) -> None:
             "UPDATE sync_runs SET status='failed', completed_at=now() WHERE id=$1::uuid",
             sync_id,
         )
-        source_id = await _get_source_id(conn, sync_id)
+        source_id, user_sub = await _get_sync_scope(conn, sync_id)
     # Persist the failure reason as a structured issue so the UI can show it.
     from src import sync_issues
     await sync_issues.record_issue(
         sync_id, "error", "terminal", "sync_failed", message, {})
-    await events.publish_sync_lifecycle(sync_id, "failed", source_id=source_id)
+    await events.publish_sync_lifecycle(
+        sync_id,
+        "failed",
+        source_id=source_id,
+        user_sub=user_sub,
+    )
 
 
 async def cancel_sync_run(sync_id: str, message: str) -> None:
@@ -128,11 +157,16 @@ async def cancel_sync_run(sync_id: str, message: str) -> None:
             "UPDATE sync_runs SET status='cancelled', completed_at=now() WHERE id=$1::uuid",
             sync_id,
         )
-        source_id = await _get_source_id(conn, sync_id)
+        source_id, user_sub = await _get_sync_scope(conn, sync_id)
     from src import sync_issues
     await sync_issues.record_issue(
         sync_id, "info", "terminal", "sync_cancelled", message, {})
-    await events.publish_sync_lifecycle(sync_id, "cancelled", source_id=source_id)
+    await events.publish_sync_lifecycle(
+        sync_id,
+        "cancelled",
+        source_id=source_id,
+        user_sub=user_sub,
+    )
 
 
 async def check_sync_status(sync_id: str) -> str | None:
@@ -171,7 +205,7 @@ async def ensure_active_sync(
         ON CONFLICT (source_id) WHERE status IN ('pending', 'running') DO NOTHING
         RETURNING id::text
         """,
-        source_id, json.dumps(config_snapshot), triggered_by, schedule_id,
+        source_id, config_snapshot, triggered_by, schedule_id,
     )
     if row is not None:
         return row["id"], True
@@ -197,7 +231,7 @@ async def ensure_active_sync(
         ON CONFLICT (source_id) WHERE status IN ('pending', 'running') DO NOTHING
         RETURNING id::text
         """,
-        source_id, json.dumps(config_snapshot), triggered_by, schedule_id,
+        source_id, config_snapshot, triggered_by, schedule_id,
     )
     if row is not None:
         return row["id"], True

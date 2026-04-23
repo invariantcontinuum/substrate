@@ -19,6 +19,7 @@ export const renderengine_handle_pan_move: (a: number, b: number, c: number) => 
 export const renderengine_handle_pan_start: (a: number, b: number, c: number) => void;
 export const renderengine_handle_zoom: (a: number, b: number, c: number, d: number) => void;
 export const renderengine_needs_frame: (a: number) => number;
+export const renderengine_pan_to_node: (a: number, b: number, c: number) => void;
 export const renderengine_rehydrate: (a: number) => void;
 export const renderengine_request_render: (a: number) => void;
 export const renderengine_set_community_hulls: (a: number, b: number) => void;

@@ -4,6 +4,7 @@ import time
 import structlog
 import asyncpg
 from dataclasses import dataclass, field
+from urllib.parse import urlsplit
 
 from src.config import settings
 
@@ -132,7 +133,13 @@ async def connect() -> None:
         init=_init_connection,
         server_settings={"search_path": "ag_catalog,public"},
     )
-    logger.info("pg_pool_connected", dsn=settings.database_url)
+    parsed = urlsplit(settings.database_url)
+    logger.info(
+        "pg_pool_connected",
+        host=parsed.hostname,
+        port=parsed.port,
+        database=parsed.path.lstrip("/"),
+    )
 
 
 async def disconnect() -> None:
@@ -151,19 +158,35 @@ def get_pool() -> asyncpg.Pool:
     return _pool
 
 
-async def get_stats() -> dict:
+async def get_stats(user_sub: str | None = None) -> dict:
     if not _pool:
         raise RuntimeError("Database not connected")
 
     logger.info("stats_query_start")
 
     async with _pool.acquire() as conn:
-        type_rows = await conn.fetch(
-            "SELECT type, count(*) AS cnt FROM file_embeddings GROUP BY type"
-        )
+        if user_sub:
+            type_rows = await conn.fetch(
+                """SELECT fe.type, count(*) AS cnt
+                   FROM file_embeddings fe
+                   JOIN sources s ON s.id = fe.source_id
+                   WHERE s.user_sub = $1
+                   GROUP BY fe.type""",
+                user_sub,
+            )
+            total_nodes = await conn.fetchval(
+                """SELECT count(*)
+                   FROM file_embeddings fe
+                   JOIN sources s ON s.id = fe.source_id
+                   WHERE s.user_sub = $1""",
+                user_sub,
+            )
+        else:
+            type_rows = await conn.fetch(
+                "SELECT type, count(*) AS cnt FROM file_embeddings GROUP BY type"
+            )
+            total_nodes = await conn.fetchval("SELECT count(*) FROM file_embeddings")
         nodes_by_type = {r["type"]: r["cnt"] for r in type_rows}
-
-        total_nodes = await conn.fetchval("SELECT count(*) FROM file_embeddings")
 
         total_edges = 0
         try:
@@ -190,8 +213,13 @@ async def get_stats() -> dict:
     }
 
 
-async def search(query_embedding: list[float], limit: int = 10,
-                 type_filter: str = "", domain_filter: str = "") -> list[dict]:
+async def search(
+    query_embedding: list[float],
+    limit: int = 10,
+    type_filter: str = "",
+    domain_filter: str = "",
+    user_sub: str | None = None,
+) -> list[dict]:
     if not _pool:
         raise RuntimeError("Database not connected")
 
@@ -208,6 +236,11 @@ async def search(query_embedding: list[float], limit: int = 10,
     if domain_filter:
         conditions.append(f"f.domain = ${len(args) + 1}")
         args.append(domain_filter)
+    if user_sub:
+        conditions.append(
+            f"EXISTS (SELECT 1 FROM sources s WHERE s.id = f.source_id AND s.user_sub = ${len(args) + 1})"
+        )
+        args.append(user_sub)
 
     where = (" AND " + " AND ".join(conditions)) if conditions else ""
 
@@ -266,7 +299,7 @@ def _not_found() -> dict:
 
 
 async def _resolve_node_uuid(
-    conn, node_id: str, sync_id: str | None
+    conn, node_id: str, sync_id: str | None, user_sub: str | None = None
 ) -> tuple[str | None, str | None]:
     """Translate either a synthetic ``src_<uuid>:<path>`` id or a raw
     ``file_embeddings.id`` UUID into a ``(file_embeddings.id, sync_id)``
@@ -295,19 +328,24 @@ async def _resolve_node_uuid(
             resolved_sync = await conn.fetchval(
                 """SELECT fe.sync_id::text
                      FROM file_embeddings fe
+                     JOIN sources s ON s.id = fe.source_id
                      JOIN sync_runs sr ON sr.id = fe.sync_id
                     WHERE fe.source_id = $1::uuid AND fe.file_path = $2
+                      AND ($3::text IS NULL OR s.user_sub = $3)
                       AND sr.completed_at IS NOT NULL
                     ORDER BY sr.completed_at DESC, sr.id DESC
                     LIMIT 1""",
-                source_uuid, file_path,
+                source_uuid, file_path, user_sub,
             )
             if not resolved_sync:
                 return None, None
         fe_id = await conn.fetchval(
-            """SELECT id::text FROM file_embeddings
-                WHERE source_id=$1::uuid AND file_path=$2 AND sync_id=$3::uuid""",
-            source_uuid, file_path, resolved_sync,
+            """SELECT fe.id::text
+               FROM file_embeddings fe
+               JOIN sources s ON s.id = fe.source_id
+               WHERE fe.source_id=$1::uuid AND fe.file_path=$2 AND fe.sync_id=$3::uuid
+                 AND ($4::text IS NULL OR s.user_sub = $4)""",
+            source_uuid, file_path, resolved_sync, user_sub,
         )
         if not fe_id:
             return None, None
@@ -317,11 +355,26 @@ async def _resolve_node_uuid(
         fe_uuid = str(_uuid.UUID(node_id))
     except (ValueError, AttributeError, TypeError):
         return None, None
-    return fe_uuid, validated_sync
+    row = await conn.fetchrow(
+        """SELECT fe.id::text, fe.sync_id::text
+           FROM file_embeddings fe
+           JOIN sources s ON s.id = fe.source_id
+           WHERE fe.id = $1::uuid
+             AND ($2::uuid IS NULL OR fe.sync_id = $2::uuid)
+             AND ($3::text IS NULL OR s.user_sub = $3)
+           LIMIT 1""",
+        fe_uuid, validated_sync, user_sub,
+    )
+    if not row:
+        return None, None
+    return row["id"], row["sync_id"]
 
 
 async def ensure_node_summary(
-    node_id: str, sync_id: str | None = None, force: bool = False
+    node_id: str,
+    sync_id: str | None = None,
+    force: bool = False,
+    user_sub: str | None = None,
 ) -> dict:
     """Return a structured enriched summary for a file node.
 
@@ -342,7 +395,12 @@ async def ensure_node_summary(
     logger.info("summary_start", node_id=node_id, force=force)
 
     async with _pool.acquire() as conn:
-        fe_id, resolved_sync = await _resolve_node_uuid(conn, node_id, sync_id)
+        fe_id, resolved_sync = await _resolve_node_uuid(
+            conn,
+            node_id,
+            sync_id,
+            user_sub=user_sub,
+        )
         if fe_id is None:
             logger.info("summary_node_not_found", node_id=node_id)
             return _not_found()
@@ -392,5 +450,3 @@ async def ensure_node_summary(
     lock = _summary_locks.setdefault(fe_id, asyncio.Lock())
     async with lock:
         return await generate_enriched_summary(_pool, fe_id, resolved_sync)
-
-

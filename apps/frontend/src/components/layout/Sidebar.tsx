@@ -40,7 +40,13 @@ export function Sidebar() {
   const auth = useAuth();
   const initial = auth.user?.profile?.name?.[0]?.toUpperCase() ?? "U";
   const [hov, setHov] = useState<string | null>(null);
-  const loadedCount = useSyncSetStore((s) => s.syncIds.length);
+  const loadedSourceCount = useSyncSetStore((s) => {
+    const unique = new Set<string>();
+    for (const syncId of s.syncIds) {
+      unique.add(s.sourceMap.get(syncId) ?? `sync:${syncId}`);
+    }
+    return unique.size;
+  });
 
   const handleNav = (action: NavAction) => {
     if (action.kind === "modal") openModal(action.modal);
@@ -76,8 +82,8 @@ export function Sidebar() {
             >
               <span className="nav-icon-wrap">
                 <it.icon size={16} />
-                {it.label === "Sources" && loadedCount > 0 && (
-                  <span className="nav-badge">{loadedCount}</span>
+                {it.label === "Sources" && loadedSourceCount > 0 && (
+                  <span className="nav-badge">{loadedSourceCount}</span>
                 )}
               </span>
               <span>{it.label}</span>

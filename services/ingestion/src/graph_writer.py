@@ -1,6 +1,7 @@
 import time
 import asyncpg
 import structlog
+from substrate_common.db import create_pool
 from src.config import settings
 from src.llm import assert_embedding_dim
 
@@ -10,25 +11,6 @@ CHUNK_SIZE = settings.age_batch_size
 
 _pool: asyncpg.Pool | None = None
 
-async def _init_age(conn: asyncpg.Connection) -> None:
-    """Load the AGE shared library into each new pool connection.
-
-    We intentionally do NOT `SET search_path` here: asyncpg's pool runs
-    `RESET ALL` when releasing a connection back to the pool, which wipes
-    any SETs done in the init callback. The second query on that
-    connection then fails with `function cypher(unknown, unknown) does
-    not exist`. Instead we set search_path via `server_settings` on the
-    pool itself — that becomes the connection's startup default and
-    survives RESET ALL. LOAD is not a GUC so it persists for the
-    connection's lifetime once run here.
-    """
-    await conn.execute("LOAD 'age';")
-
-
-def _parse_url(url: str) -> str:
-    return url.replace("postgresql+asyncpg://", "postgresql://")
-
-
 def _escape_cypher(value: str) -> str:
     return value.replace("\\", "\\\\").replace("'", "\\'")
 
@@ -36,12 +18,10 @@ def _escape_cypher(value: str) -> str:
 async def connect(database_url: str) -> None:
     global _pool
     logger.info("graph_writer_connecting")
-    _pool = await asyncpg.create_pool(
-        _parse_url(database_url),
+    _pool = await create_pool(
+        database_url,
         min_size=2,
         max_size=10,
-        init=_init_age,
-        server_settings={"search_path": "ag_catalog,public"},
     )
     logger.info("graph_writer_connected")
 
@@ -269,7 +249,7 @@ async def _write_age_nodes_per_row(conn, chunk, sync_id_esc, source_id_esc):
     return failed
 
 
-async def cleanup_partial(sync_id: str) -> None:
+async def cleanup_partial(sync_id: str, *, conn: asyncpg.Connection | None = None) -> None:
     """Drop every row produced by a single sync_id across AGE + relational tables.
 
     Note: the MATCH is intentionally unlabeled, so every vertex carrying this
@@ -279,17 +259,27 @@ async def cleanup_partial(sync_id: str) -> None:
     if not _pool:
         raise RuntimeError("graph_writer not connected")
     sync_id_esc = _escape_cypher(sync_id)
-    async with _pool.acquire() as conn:
+    async def _cleanup_on_connection(c: asyncpg.Connection) -> None:
         try:
-            await conn.execute(
-                f"SELECT * FROM cypher('substrate', $$ "
-                f"MATCH (n) WHERE n.sync_id = '{sync_id_esc}' DETACH DELETE n "
-                f"$$) AS (v agtype)"
-            )
-        except Exception as e:  # noqa: BLE001 — per-row write failure counted, sync continues
+            # Keep AGE cleanup isolated in a savepoint so failures there do not
+            # poison the caller transaction (clean_sync_impl shares a tx boundary).
+            async with c.transaction():
+                await c.execute(
+                    f"SELECT * FROM cypher('substrate', $$ "
+                    f"MATCH (n) WHERE n.sync_id = '{sync_id_esc}' DETACH DELETE n "
+                    f"$$) AS (v agtype)"
+                )
+        except Exception as e:  # noqa: BLE001 — AGE cleanup failure should not block relational cleanup
             logger.warning("age_cleanup_failed", sync_id=sync_id, error=str(e))
         # content_chunks cascades on file_embeddings delete; deleting file_embeddings is enough.
-        await conn.execute("DELETE FROM file_embeddings WHERE sync_id = $1::uuid", sync_id)
+        await c.execute("DELETE FROM file_embeddings WHERE sync_id = $1::uuid", sync_id)
+
+    if conn is not None:
+        await _cleanup_on_connection(conn)
+        return
+
+    async with _pool.acquire() as local_conn:
+        await _cleanup_on_connection(local_conn)
 
 
 async def write_age_edges(edges: list[dict], sync_id: str, source_id: str) -> int:

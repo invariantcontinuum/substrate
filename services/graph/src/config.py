@@ -17,7 +17,7 @@ class _GraphSettings(BaseSettings):
     embedding_model: str = "embeddings"
     # Must match the pgvector column dim (migrations V4/V7/V8/V9/V10).
     # The startup guard fails fast on mismatch.
-    embedding_dim: int = 896
+    embedding_dim: int = 768
     # Query-side prefix paired with ingestion's document prefix. jina-
     # code-embeddings uses "search_query: "; override when swapping
     # models (EMBEDDING_QUERY_PREFIX=query:  for E5, empty for BGE, …).
@@ -89,6 +89,17 @@ class _GraphSettings(BaseSettings):
     # Wall-clock cap for merged-graph Cypher queries — protects the
     # asyncpg pool against a stuck AGE plan (e.g. missing index).
     graph_query_timeout_s: int = Field(default=60, alias="GRAPH_QUERY_TIMEOUT_SECONDS")
+
+    # ── SSE event retention ──────────────────────────────────────────
+    # Toggle periodic pruning of old rows from public.sse_events.
+    # Disable only for debugging; the table is append-only.
+    sse_retention_enabled: bool = True
+    # Keep SSE rows for this many hours before pruning.
+    sse_retention_hours: int = 24
+    # Prune cadence (seconds). Lower = fresher table, more delete work.
+    sse_retention_tick_s: int = 3600
+    # Max rows deleted per SQL round inside one prune pass.
+    sse_retention_batch_size: int = 5_000
 
     # ── Ask (RAG chat) ───────────────────────────────────────────────
     # Top-K retrieval count per turn. Higher = more context for the LLM,

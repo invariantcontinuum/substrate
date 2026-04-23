@@ -1,5 +1,4 @@
 """Per-sync issue recorder with hard cap to prevent table blowup on chatty failures."""
-import json
 from src import graph_writer
 
 ISSUE_CAP = 1000
@@ -18,7 +17,7 @@ async def record_issue(sync_id: str, level: str, phase: str, code: str | None,
                SELECT $1::uuid, $2, $3, $4, $5, $6::jsonb
                  FROM cap_check WHERE n < $7
                RETURNING 1""",
-            sync_id, level, phase, code, message, json.dumps(context or {}),
+            sync_id, level, phase, code, message, context or {},
             ISSUE_CAP,
         )
         if inserted is not None:

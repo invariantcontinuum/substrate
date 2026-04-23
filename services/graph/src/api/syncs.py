@@ -2,10 +2,12 @@
 import base64
 import binascii
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 
 from substrate_common import NotFoundError, ValidationError
 
+from src.api.auth import require_user_sub
+from src.api.json_fields import normalize_row_json_fields
 from src.graph import store
 
 router = APIRouter(prefix="/api/syncs")
@@ -26,36 +28,51 @@ def _decode_cursor(cur: str) -> tuple[str, str]:
 
 
 @router.get("")
-async def list_syncs(source_id: str | None = None, status: str | None = None,
-                     limit: int = Query(25, le=100), cursor: str | None = None):
+async def list_syncs(
+    source_id: str | None = None,
+    status: str | None = None,
+    limit: int = Query(25, le=100),
+    cursor: str | None = None,
+    user_sub: str = Depends(require_user_sub),
+):
     pool = store.get_pool()
-    where_parts: list[str] = []
-    args: list = [limit + 1]
+    where_parts: list[str] = ["s.user_sub = $1"]
+    args: list = [user_sub, limit + 1]
     if source_id:
-        where_parts.append(f"source_id = ${len(args)+1}::uuid")
+        where_parts.append(f"sr.source_id = ${len(args)+1}::uuid")
         args.append(source_id)
     if status:
-        where_parts.append(f"status = ${len(args)+1}")
+        where_parts.append(f"sr.status = ${len(args)+1}")
         args.append(status)
     if cursor:
         ts, sid = _decode_cursor(cursor)
         where_parts.append(
-            f"(coalesce(completed_at, created_at), id) < (${len(args)+1}::timestamptz, ${len(args)+2}::uuid)"
+            f"(coalesce(sr.completed_at, sr.created_at), sr.id) < (${len(args)+1}::timestamptz, ${len(args)+2}::uuid)"
         )
         args += [ts, sid]
     where = ("WHERE " + " AND ".join(where_parts)) if where_parts else ""
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            f"""SELECT id::text, source_id::text, status, ref,
-                       progress_done, progress_total, progress_meta,
-                       stats, schedule_id, triggered_by,
-                       started_at::text, completed_at::text, created_at::text
-                FROM sync_runs {where}
-                ORDER BY coalesce(completed_at, created_at) DESC, id DESC
-                LIMIT $1""",
+            f"""SELECT sr.id::text, sr.source_id::text, sr.status, sr.ref,
+                       sr.progress_done, sr.progress_total, sr.progress_meta,
+                       sr.stats, sr.schedule_id, sr.triggered_by,
+                       sr.started_at::text, sr.completed_at::text, sr.created_at::text
+                FROM sync_runs sr
+                JOIN sources s ON s.id = sr.source_id
+                {where}
+                ORDER BY coalesce(sr.completed_at, sr.created_at) DESC, sr.id DESC
+                LIMIT $2""",
             *args,
         )
-    items = [dict(r) for r in rows[:limit]]
+    items = [
+        normalize_row_json_fields(
+            r,
+            "config_snapshot",
+            "progress_meta",
+            "stats",
+        )
+        for r in rows[:limit]
+    ]
     next_cursor = (
         _encode_cursor(
             (rows[limit]["completed_at"] or rows[limit]["created_at"]),
@@ -66,26 +83,34 @@ async def list_syncs(source_id: str | None = None, status: str | None = None,
 
 
 @router.get("/{sync_id}")
-async def get_sync(sync_id: str):
+async def get_sync(sync_id: str, user_sub: str = Depends(require_user_sub)):
     pool = store.get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            """SELECT id::text, source_id::text, status, ref, config_snapshot,
-                      progress_done, progress_total, progress_meta, stats,
-                      schedule_id, triggered_by, started_at::text,
-                      completed_at::text, created_at::text
-               FROM sync_runs WHERE id=$1::uuid""", sync_id,
+            """SELECT sr.id::text, sr.source_id::text, sr.status, sr.ref, sr.config_snapshot,
+                      sr.progress_done, sr.progress_total, sr.progress_meta, sr.stats,
+                      sr.schedule_id, sr.triggered_by, sr.started_at::text,
+                      sr.completed_at::text, sr.created_at::text
+               FROM sync_runs sr
+               JOIN sources s ON s.id = sr.source_id
+               WHERE sr.id=$1::uuid AND s.user_sub = $2""",
+            sync_id, user_sub,
         )
     if not row:
         raise NotFoundError("sync not found")
-    return dict(row)
+    return normalize_row_json_fields(row, "config_snapshot", "progress_meta", "stats")
 
 
 @router.get("/{sync_id}/issues")
-async def list_issues(sync_id: str, level: str | None = None, phase: str | None = None):
+async def list_issues(
+    sync_id: str,
+    level: str | None = None,
+    phase: str | None = None,
+    user_sub: str = Depends(require_user_sub),
+):
     pool = store.get_pool()
-    where_parts: list[str] = ["sync_id=$1::uuid"]
-    args: list = [sync_id]
+    where_parts: list[str] = ["i.sync_id=$1::uuid", "s.user_sub = $2"]
+    args: list = [sync_id, user_sub]
     if level:
         where_parts.append(f"level=${len(args)+1}")
         args.append(level)
@@ -94,9 +119,12 @@ async def list_issues(sync_id: str, level: str | None = None, phase: str | None 
         args.append(phase)
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            f"""SELECT id, level, phase, code, message, context, occurred_at::text
-                FROM sync_issues WHERE {' AND '.join(where_parts)}
-                ORDER BY occurred_at DESC""",
+            f"""SELECT i.id, i.level, i.phase, i.code, i.message, i.context, i.occurred_at::text
+                FROM sync_issues i
+                JOIN sync_runs sr ON sr.id = i.sync_id
+                JOIN sources s ON s.id = sr.source_id
+                WHERE {' AND '.join(where_parts)}
+                ORDER BY i.occurred_at DESC""",
             *args,
         )
-    return [dict(r) for r in rows]
+    return [normalize_row_json_fields(r, "context") for r in rows]

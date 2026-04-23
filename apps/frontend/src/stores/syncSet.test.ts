@@ -3,7 +3,10 @@ import { useSyncSetStore } from "./syncSet";
 
 describe("useSyncSetStore", () => {
   beforeEach(() => {
+    const current = useSyncSetStore.getState();
     useSyncSetStore.setState({
+      deviceId: current.deviceId,
+      contextUserSub: null,
       syncIds: [], hasInitialized: false, pendingSwap: null, sourceMap: new Map(),
     });
   });

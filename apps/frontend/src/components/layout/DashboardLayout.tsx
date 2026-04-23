@@ -25,9 +25,20 @@ export function DashboardLayout() {
 
   const auth = useAuth();
   const token = auth.user?.access_token;
+  const deviceId = useSyncSetStore((s) => s.deviceId);
+  const syncIds = useSyncSetStore((s) => s.syncIds);
+  const userSub = (
+    (auth.user?.profile?.sub as string | undefined)
+    ?? (auth.user?.profile?.preferred_username as string | undefined)
+    ?? (auth.user?.profile?.email as string | undefined)
+    ?? null
+  );
   useEffect(() => {
-    if (!token) return;
-    const { initializeIfNeeded, pruneInvalid, syncIds } = useSyncSetStore.getState();
+    if (!token || !userSub) return;
+    const { hydrateForUser, initializeIfNeeded, pruneInvalid } = useSyncSetStore.getState();
+    // Rehydrate per-user, per-device loaded snapshot context first so one
+    // browser can switch accounts without cross-user leakage.
+    hydrateForUser(userSub);
     // 1. Always validate persisted ids against the server (catches purged/cleaned).
     void apiFetch<{items: {id: string}[]}>(`/api/syncs?status=completed&limit=100`, token)
       .then(({items}) => pruneInvalid(new Set(items.map((r) => r.id))))
@@ -39,8 +50,16 @@ export function DashboardLayout() {
           void initializeIfNeeded();
         }
       });
-    void syncIds; // referenced to satisfy linter; logic above reads from store snapshot
-  }, [token]);
+  }, [token, userSub]);
+
+  useEffect(() => {
+    if (!token || !userSub) return;
+    void apiFetch(`/api/users/me/devices/${encodeURIComponent(deviceId)}`, token, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ last_loaded_sync_ids: syncIds }),
+    }).catch(() => { /* ignore device-sync telemetry failures */ });
+  }, [token, userSub, deviceId, syncIds]);
 
   const sidebarOpen = useUIStore((s) => s.sidebarOpen);
   const setSidebarOpen = useUIStore((s) => s.setSidebarOpen);

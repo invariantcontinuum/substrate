@@ -49,10 +49,12 @@ async def publish_sync_lifecycle(
     ref: Optional[str] = None,
     triggered_by: Optional[str] = None,
     source_id: str | uuid.UUID | None = None,
+    user_sub: str | None = None,
 ) -> None:
     event = Event(
         type="sync_lifecycle",
         sync_id=uuid.UUID(str(sync_id)),
+        user_sub=user_sub,
         payload={"status": status, "ref": ref, "triggered_by": triggered_by},
     )
     if source_id is not None:
@@ -66,10 +68,12 @@ async def publish_sync_progress(
     progress_total: int,
     progress_meta: Optional[dict[str, Any]] = None,
     source_id: str | uuid.UUID | None = None,
+    user_sub: str | None = None,
 ) -> None:
     event = Event(
         type="sync_progress",
         sync_id=uuid.UUID(str(sync_id)),
+        user_sub=user_sub,
         payload={
             "progress_done": progress_done,
             "progress_total": progress_total,
@@ -85,11 +89,13 @@ async def publish_source_changed(
     source_id: str | uuid.UUID,
     reason: str,
     diff: Optional[dict[str, Any]] = None,
+    user_sub: str | None = None,
 ) -> None:
     await _safe_publish(
         Event(
             type="source_changed",
             source_id=uuid.UUID(str(source_id)),
+            user_sub=user_sub,
             payload={"reason": reason, "diff": diff or {}},
         )
     )
@@ -99,11 +105,13 @@ async def publish_snapshot_loaded(
     sync_id: str | uuid.UUID,
     node_count: int,
     edge_count: int,
+    user_sub: str | None = None,
 ) -> None:
     await _safe_publish(
         Event(
             type="snapshot_loaded",
             sync_id=uuid.UUID(str(sync_id)),
+            user_sub=user_sub,
             payload={"node_count": node_count, "edge_count": edge_count},
         )
     )

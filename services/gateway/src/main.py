@@ -114,6 +114,22 @@ def _extract_sub(claims: dict) -> str:
     raise UnauthorizedError("token missing sub/preferred_username/email")
 
 
+def _extract_user_headers(claims: dict) -> dict[str, str]:
+    headers: dict[str, str] = {"X-User-Sub": _extract_sub(claims)}
+    email = claims.get("email")
+    if isinstance(email, str) and email:
+        headers["X-User-Email"] = email
+    preferred = claims.get("preferred_username") or claims.get("name")
+    if isinstance(preferred, str) and preferred:
+        headers["X-User-Name"] = preferred
+    roles = ((claims.get("realm_access") or {}).get("roles") or [])
+    if isinstance(roles, list):
+        role_tokens = [str(r) for r in roles if isinstance(r, str) and r]
+        if role_tokens:
+            headers["X-User-Roles"] = ",".join(role_tokens)
+    return headers
+
+
 @app.api_route("/api/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
 async def proxy_api(request: Request, path: str):
     claims = await _authenticate(request)
@@ -122,13 +138,17 @@ async def proxy_api(request: Request, path: str):
         if _route_to_ingestion(request.method, request.url.path)
         else settings.graph_service_url
     )
-    return await proxy_request(request, upstream, extra_headers={"X-User-Sub": _extract_sub(claims)})
+    return await proxy_request(request, upstream, extra_headers=_extract_user_headers(claims))
 
 
 @app.api_route("/ingest/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
 async def proxy_ingest(request: Request, path: str):
     claims = await _authenticate(request)
-    return await proxy_request(request, settings.ingestion_service_url, extra_headers={"X-User-Sub": _extract_sub(claims)})
+    return await proxy_request(
+        request,
+        settings.ingestion_service_url,
+        extra_headers=_extract_user_headers(claims),
+    )
 
 
 @app.api_route(

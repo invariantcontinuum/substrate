@@ -40,6 +40,7 @@ class Event(BaseModel):
     type: str
     sync_id: _uuid.UUID | None = None
     source_id: _uuid.UUID | None = None
+    user_sub: str | None = None
     payload: dict[str, Any] = Field(default_factory=dict)
     emitted_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC)
@@ -70,14 +71,15 @@ class SseBus:
             await conn.execute(
                 """
                     INSERT INTO sse_events
-                        (id, type, sync_id, source_id, payload, emitted_at)
-                    VALUES ($1, $2, $3, $4, $5::jsonb, $6)
+                        (id, type, sync_id, source_id, user_sub, payload, emitted_at)
+                    VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7)
                     """,
                 event.id,
                 event.type,
                 event.sync_id,
                 event.source_id,
-                json.dumps(event.payload),
+                event.user_sub,
+                event.payload,
                 event.emitted_at,
             )
             await conn.execute(
@@ -89,6 +91,7 @@ class SseBus:
             type=event.type,
             sync_id=str(event.sync_id) if event.sync_id else None,
             source_id=str(event.source_id) if event.source_id else None,
+            user_sub=event.user_sub,
         )
         return event
 
@@ -102,9 +105,10 @@ class SseBus:
         filters = filters or {}
         sync_id = filters.get("sync_id")
         source_id = filters.get("source_id")
+        user_sub = filters.get("user_sub")
 
         # Replay any rows from sse_events since last seen
-        replay = await self._replay(since, sync_id, source_id)
+        replay = await self._replay(since, sync_id, source_id, user_sub)
 
         queue: asyncio.Queue[str | None] = asyncio.Queue(maxsize=queue_max)
 
@@ -123,6 +127,7 @@ class SseBus:
             "sse_subscriber_attached",
             sync_id=str(sync_id) if sync_id else None,
             source_id=str(source_id) if source_id else None,
+            user_sub=user_sub,
         )
 
         try:
@@ -141,6 +146,8 @@ class SseBus:
                     continue
                 if source_id is not None and fetched.source_id != source_id:
                     continue
+                if user_sub is not None and fetched.user_sub != user_sub:
+                    continue
                 yield fetched
         finally:
             try:
@@ -154,6 +161,7 @@ class SseBus:
         since: str | None,
         sync_id: _uuid.UUID | None,
         source_id: _uuid.UUID | None,
+        user_sub: str | None,
     ) -> list[Event]:
         clauses: list[str] = []
         args: list[Any] = []
@@ -166,8 +174,11 @@ class SseBus:
         if source_id is not None:
             args.append(source_id)
             clauses.append(f"source_id = ${len(args)}")
+        if user_sub is not None:
+            args.append(user_sub)
+            clauses.append(f"user_sub = ${len(args)}")
 
-        query = "SELECT id, type, sync_id, source_id, payload, emitted_at FROM sse_events"
+        query = "SELECT id, type, sync_id, source_id, user_sub, payload, emitted_at FROM sse_events"
         if clauses:
             query += " WHERE " + " AND ".join(clauses)
         query += " ORDER BY id ASC"
@@ -178,7 +189,7 @@ class SseBus:
 
     async def _fetch(self, conn: asyncpg.Connection, event_id: str) -> Event | None:
         row = await conn.fetchrow(
-            "SELECT id, type, sync_id, source_id, payload, emitted_at "
+            "SELECT id, type, sync_id, source_id, user_sub, payload, emitted_at "
             "FROM sse_events WHERE id = $1",
             event_id,
         )
@@ -196,6 +207,7 @@ def _row_to_event(row: asyncpg.Record) -> Event:
         type=row["type"],
         sync_id=row["sync_id"],
         source_id=row["source_id"],
+        user_sub=row["user_sub"],
         payload=payload or {},
         emitted_at=row["emitted_at"],
     )

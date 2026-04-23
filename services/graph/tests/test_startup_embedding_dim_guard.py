@@ -10,15 +10,15 @@ from src.startup import check_embedding_dim
 @pytest.mark.asyncio
 async def test_guard_passes_when_dim_matches():
     conn = AsyncMock()
-    conn.fetchrow.return_value = {"atttypmod": 896}  # pgvector: atttypmod == dim
-    await check_embedding_dim(conn, expected_dim=896)
+    conn.fetchrow.return_value = {"atttypmod": 768}  # pgvector: atttypmod == dim
+    await check_embedding_dim(conn, expected_dim=768)
 
 
 @pytest.mark.asyncio
 async def test_guard_raises_when_dim_mismatches():
     conn = AsyncMock()
-    conn.fetchrow.return_value = {"atttypmod": 896}  # 896-dim column
+    conn.fetchrow.return_value = {"atttypmod": 768}  # 768-dim column
     with pytest.raises(RuntimeError) as exc_info:
         await check_embedding_dim(conn, expected_dim=896)
     assert "896" in str(exc_info.value)
-    assert "896" in str(exc_info.value)
+    assert "768" in str(exc_info.value)

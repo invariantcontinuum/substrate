@@ -48,12 +48,38 @@ def _node_id(source_id: str, file_path: str) -> str:
     return f"src_{source_id}:{file_path}"
 
 
-async def get_merged_graph(sync_ids: list[str], projection: str = "full") -> dict:
+async def get_merged_graph(
+    sync_ids: list[str],
+    projection: str = "full",
+    user_sub: str | None = None,
+) -> dict:
     if not sync_ids:
         return {"nodes": [], "edges": [],
                 "meta": {"active_sync_ids": [], "node_count": 0, "edge_count": 0, "duration_ms": 0}}
     sync_ids = _validate_uuids(sync_ids)  # raises ValueError on bad input
     pool = store.get_pool()
+    if user_sub:
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                """SELECT sr.id::text
+                   FROM sync_runs sr
+                   JOIN sources s ON s.id = sr.source_id
+                   WHERE sr.id = ANY($1::uuid[]) AND s.user_sub = $2""",
+                sync_ids, user_sub,
+            )
+        allowed = {r["id"] for r in rows}
+        sync_ids = [sid for sid in sync_ids if sid in allowed]
+        if not sync_ids:
+            return {
+                "nodes": [],
+                "edges": [],
+                "meta": {
+                    "active_sync_ids": [],
+                    "node_count": 0,
+                    "edge_count": 0,
+                    "duration_ms": 0,
+                },
+            }
 
     start = time.monotonic()
 
@@ -222,7 +248,11 @@ async def _shape_minimal(conn, nodes: list[dict], edges: list[dict], sync_ids: l
     return minimal_nodes, minimal_edges
 
 
-async def get_node_detail(node_id: str, sync_id: str | None = None) -> dict:
+async def get_node_detail(
+    node_id: str,
+    sync_id: str | None = None,
+    user_sub: str | None = None,
+) -> dict:
     """node_id format: 'src_<source_id>:<file_path>'."""
     if not node_id.startswith("src_") or ":" not in node_id:
         return {}
@@ -245,11 +275,13 @@ async def get_node_detail(node_id: str, sync_id: str | None = None) -> dict:
             resolved_sync_id = await c.fetchval(
                 """SELECT fe.sync_id::text
                    FROM file_embeddings fe
+                   JOIN sources s ON s.id = fe.source_id
                    JOIN sync_runs sr ON sr.id = fe.sync_id
-                   WHERE fe.source_id = $1::uuid AND fe.file_path = $2
+                    WHERE fe.source_id = $1::uuid AND fe.file_path = $2
+                      AND ($3::text IS NULL OR s.user_sub = $3)
                    ORDER BY sr.completed_at DESC NULLS LAST
                    LIMIT 1""",
-                source_id, file_path,
+                source_id, file_path, user_sub,
             )
             if not resolved_sync_id:
                 return {}
@@ -257,9 +289,11 @@ async def get_node_detail(node_id: str, sync_id: str | None = None) -> dict:
             """SELECT id::text, file_path, name, type, domain, language,
                       status, description, size_bytes, line_count,
                       content_hash, created_at::text
-               FROM file_embeddings
-               WHERE source_id=$1::uuid AND file_path=$2 AND sync_id=$3::uuid""",
-            source_id, file_path, resolved_sync_id,
+               FROM file_embeddings fe
+               JOIN sources s ON s.id = fe.source_id
+               WHERE fe.source_id=$1::uuid AND fe.file_path=$2 AND fe.sync_id=$3::uuid
+                 AND ($4::text IS NULL OR s.user_sub = $4)""",
+            source_id, file_path, resolved_sync_id, user_sub,
         )
         if not node:
             return {}

@@ -1,12 +1,13 @@
 import base64
 import binascii
-import json
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
 from substrate_common import NotFoundError, ValidationError
 
+from src.api.auth import require_user_sub
+from src.api.json_fields import normalize_row_json_fields
 from src.graph import store
 
 router = APIRouter(prefix="/api/sources")
@@ -40,13 +41,17 @@ def _decode_cursor(cur: str) -> tuple[str, str]:
 
 
 @router.get("")
-async def list_sources(limit: int = Query(25, le=100), cursor: str | None = None):
+async def list_sources(
+    limit: int = Query(25, le=100),
+    cursor: str | None = None,
+    user_sub: str = Depends(require_user_sub),
+):
     pool = store.get_pool()
-    args: list = [limit + 1]
-    where = ""
+    args: list = [user_sub, limit + 1]
+    where = "WHERE user_sub = $1"
     if cursor:
         ts, sid = _decode_cursor(cursor)
-        where = "WHERE (updated_at, id) < ($2::timestamptz, $3::uuid)"
+        where += " AND (updated_at, id) < ($3::timestamptz, $4::uuid)"
         args += [ts, sid]
     async with pool.acquire() as conn:
         rows = await conn.fetch(
@@ -55,10 +60,10 @@ async def list_sources(limit: int = Query(25, le=100), cursor: str | None = None
                        updated_at::text
                 FROM sources {where}
                 ORDER BY updated_at DESC, id DESC
-                LIMIT $1""",
+                LIMIT $2""",
             *args,
         )
-    items = [dict(r) for r in rows[:limit]]
+    items = [normalize_row_json_fields(r, "config") for r in rows[:limit]]
     next_cursor = (
         _encode_cursor(rows[limit]["updated_at"], rows[limit]["id"])
         if len(rows) > limit else None
@@ -67,55 +72,55 @@ async def list_sources(limit: int = Query(25, le=100), cursor: str | None = None
 
 
 @router.post("")
-async def create_source(req: SourceCreate):
+async def create_source(req: SourceCreate, user_sub: str = Depends(require_user_sub)):
     pool = store.get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            """INSERT INTO sources (source_type, owner, name, url, config)
-               VALUES ($1, $2, $3, $4, $5::jsonb)
-               ON CONFLICT (source_type, owner, name) DO UPDATE
+            """INSERT INTO sources (user_sub, source_type, owner, name, url, config)
+               VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+               ON CONFLICT (user_sub, source_type, owner, name) DO UPDATE
                    SET url=EXCLUDED.url, config=EXCLUDED.config, updated_at=now()
                RETURNING id::text""",
-            req.source_type, req.owner, req.name, req.url, json.dumps(req.config),
+            user_sub, req.source_type, req.owner, req.name, req.url, req.config,
         )
     return {"id": row["id"]}
 
 
 @router.get("/{source_id}")
-async def get_source(source_id: str):
+async def get_source(source_id: str, user_sub: str = Depends(require_user_sub)):
     pool = store.get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """SELECT id::text, source_type, owner, name, url, default_branch,
                       config, enabled, last_sync_id::text, last_synced_at::text
-               FROM sources WHERE id=$1::uuid""",
-            source_id,
+               FROM sources WHERE id=$1::uuid AND user_sub = $2""",
+            source_id, user_sub,
         )
     if not row:
         raise NotFoundError("source not found")
-    return dict(row)
+    return normalize_row_json_fields(row, "config")
 
 
 @router.patch("/{source_id}")
-async def patch_source(source_id: str, req: SourcePatch):
+async def patch_source(source_id: str, req: SourcePatch, user_sub: str = Depends(require_user_sub)):
     if req.config is None and req.enabled is None:
         raise ValidationError("no fields to update")
     pool = store.get_pool()
     async with pool.acquire() as conn:
         if req.config is not None and req.enabled is not None:
             result = await conn.execute(
-                "UPDATE sources SET config=$2::jsonb, enabled=$3, updated_at=now() WHERE id=$1::uuid",
-                source_id, json.dumps(req.config), req.enabled,
+                "UPDATE sources SET config=$2::jsonb, enabled=$3, updated_at=now() WHERE id=$1::uuid AND user_sub = $4",
+                source_id, req.config, req.enabled, user_sub,
             )
         elif req.config is not None:
             result = await conn.execute(
-                "UPDATE sources SET config=$2::jsonb, updated_at=now() WHERE id=$1::uuid",
-                source_id, json.dumps(req.config),
+                "UPDATE sources SET config=$2::jsonb, updated_at=now() WHERE id=$1::uuid AND user_sub = $3",
+                source_id, req.config, user_sub,
             )
         else:
             result = await conn.execute(
-                "UPDATE sources SET enabled=$2, updated_at=now() WHERE id=$1::uuid",
-                source_id, req.enabled,
+                "UPDATE sources SET enabled=$2, updated_at=now() WHERE id=$1::uuid AND user_sub = $3",
+                source_id, req.enabled, user_sub,
             )
     if result != "UPDATE 1":
         raise NotFoundError("source not found")
@@ -123,10 +128,13 @@ async def patch_source(source_id: str, req: SourcePatch):
 
 
 @router.delete("/{source_id}")
-async def delete_source(source_id: str):
+async def delete_source(source_id: str, user_sub: str = Depends(require_user_sub)):
     pool = store.get_pool()
     async with pool.acquire() as conn:
-        result = await conn.execute("DELETE FROM sources WHERE id=$1::uuid", source_id)
+        result = await conn.execute(
+            "DELETE FROM sources WHERE id=$1::uuid AND user_sub = $2",
+            source_id, user_sub,
+        )
     if result != "DELETE 1":
         raise NotFoundError("source not found")
     return {"status": "deleted"}

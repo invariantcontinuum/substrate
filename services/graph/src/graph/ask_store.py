@@ -108,7 +108,7 @@ async def insert_message(
             RETURNING id::text AS id, role, content, citations, created_at
             """,
             thread_id, role, content,
-            json.dumps(citations), json.dumps(sync_ids),
+            citations, sync_ids,
         )
     return _row_to_message(row)
 

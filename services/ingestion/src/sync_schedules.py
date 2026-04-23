@@ -1,4 +1,3 @@
-import json
 from datetime import datetime, timedelta, timezone
 from src import graph_writer
 
@@ -16,51 +15,71 @@ async def list_schedules(source_id: str | None = None) -> list[dict]:
     return [dict(r) for r in rows]
 
 
-async def create_schedule(source_id: str, interval_minutes: int,
-                           config_overrides: dict) -> dict:
+async def create_schedule(
+    source_id: str,
+    interval_minutes: int,
+    config_overrides: dict,
+    user_sub: str,
+) -> dict | None:
     pool = graph_writer.get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """INSERT INTO sync_schedules (source_id, interval_minutes, config_overrides, next_run_at)
-               VALUES ($1::uuid, $2, $3::jsonb, now())
+               SELECT s.id, $2, $3::jsonb, now()
+               FROM sources s
+               WHERE s.id = $1::uuid AND s.user_sub = $4
                ON CONFLICT (source_id, interval_minutes) DO UPDATE
                    SET config_overrides=$3::jsonb, enabled=true
                RETURNING *""",
-            source_id, interval_minutes, json.dumps(config_overrides),
-        )
-    return dict(row)
-
-
-async def update_schedule(schedule_id: int, interval_minutes: int | None,
-                           enabled: bool | None,
-                           config_overrides: dict | None) -> dict | None:
-    pool = graph_writer.get_pool()
-    sets: list[str] = []
-    args: list = []
-    if interval_minutes is not None:
-        sets.append(f"interval_minutes=${len(args)+1}")
-        args.append(interval_minutes)
-    if enabled is not None:
-        sets.append(f"enabled=${len(args)+1}")
-        args.append(enabled)
-    if config_overrides is not None:
-        sets.append(f"config_overrides=${len(args)+1}::jsonb")
-        args.append(json.dumps(config_overrides))
-    if not sets:
-        return None
-    args.append(schedule_id)
-    async with pool.acquire() as conn:
-        row = await conn.fetchrow(
-            f"UPDATE sync_schedules SET {', '.join(sets)} WHERE id=${len(args)} RETURNING *",
-            *args,
+            source_id, interval_minutes, config_overrides, user_sub,
         )
     return dict(row) if row else None
 
 
-async def delete_schedule(schedule_id: int) -> None:
+async def update_schedule(schedule_id: int, interval_minutes: int | None,
+                           enabled: bool | None,
+                           config_overrides: dict | None,
+                           user_sub: str) -> dict | None:
+    pool = graph_writer.get_pool()
+    if interval_minutes is None and enabled is None and config_overrides is None:
+        return None
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            UPDATE sync_schedules sch
+            SET interval_minutes = COALESCE($1, sch.interval_minutes),
+                enabled = COALESCE($2, sch.enabled),
+                config_overrides = COALESCE($3::jsonb, sch.config_overrides)
+            FROM sources s
+            WHERE sch.source_id = s.id
+              AND sch.id = $4
+              AND s.user_sub = $5
+            RETURNING sch.*
+            """,
+            interval_minutes,
+            enabled,
+            config_overrides,
+            schedule_id,
+            user_sub,
+        )
+    return dict(row) if row else None
+
+
+async def delete_schedule(schedule_id: int, user_sub: str) -> bool:
     pool = graph_writer.get_pool()
     async with pool.acquire() as conn:
-        await conn.execute("DELETE FROM sync_schedules WHERE id=$1", schedule_id)
+        result = await conn.execute(
+            """
+            DELETE FROM sync_schedules sch
+            USING sources s
+            WHERE sch.source_id = s.id
+              AND sch.id = $1
+              AND s.user_sub = $2
+            """,
+            schedule_id,
+            user_sub,
+        )
+    return result == "DELETE 1"
 
 
 async def claim_due_schedules() -> list[dict]:

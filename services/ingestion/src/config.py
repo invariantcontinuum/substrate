@@ -15,9 +15,9 @@ class _IngestionSettings(BaseSettings):
     embedding_url: str = "http://host.docker.internal:8101/v1/embeddings"
     # lazy-lamacpp exposes the model by its systemd-unit name ("embeddings"),
     # not the underlying HF path. Dim must match the served model
-    # (jina-code-embeddings-0.5b → 896).
+    # (nomic-embed-text-v2-moe → 768).
     embedding_model: str = "embeddings"
-    embedding_dim: int = 896
+    embedding_dim: int = 768
     llm_api_key: str = "test"
 
     # Prefix scheme for clustering corpus vs query vectors. jina-code-

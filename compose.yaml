@@ -10,6 +10,8 @@ name: substrate
 networks:
   substrate_internal:
     driver: bridge
+  local-infra-network:
+    external: true
 
 volumes:
   pg_data:
@@ -90,7 +92,9 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    networks: [substrate_internal]
+    networks: [substrate_internal, local-infra-network]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
 
   gateway:

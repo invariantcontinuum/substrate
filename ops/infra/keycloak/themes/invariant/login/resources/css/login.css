@@ -714,6 +714,13 @@ a:hover,
   font-size: var(--text-base);
 }
 
+.invariant-login-social-icon-svg {
+  width: 1em;
+  height: 1em;
+  display: inline-block;
+  flex: 0 0 auto;
+}
+
 /* =============================================================
  * OTP / code inputs
  * ============================================================ */

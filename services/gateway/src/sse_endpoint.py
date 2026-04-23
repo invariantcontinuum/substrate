@@ -47,9 +47,15 @@ async def init_pool() -> None:
     """Called from gateway lifespan at startup."""
     global _pool
     _pool = await asyncpg.create_pool(
-        asyncpg_dsn(settings.database_url), min_size=1, max_size=4
+        asyncpg_dsn(settings.database_url),
+        min_size=settings.sse_pool_min_size,
+        max_size=settings.sse_pool_max_size,
     )
-    _log.info("sse_gateway_pool_ready")
+    _log.info(
+        "sse_gateway_pool_ready",
+        min_size=settings.sse_pool_min_size,
+        max_size=settings.sse_pool_max_size,
+    )
 
 
 async def close_pool() -> None:
@@ -98,6 +104,14 @@ def _token_seconds_remaining(claims: dict[str, Any]) -> int:
     return max(0, exp - int(time.time()))
 
 
+def _extract_sub(claims: dict[str, Any]) -> str:
+    for key in ("sub", "preferred_username", "email"):
+        value = claims.get(key)
+        if isinstance(value, str) and value:
+            return value
+    raise UnauthorizedError("token missing sub/preferred_username/email")
+
+
 @router.get("/api/events")
 async def events(
     request: Request,
@@ -108,8 +122,9 @@ async def events(
 ) -> EventSourceResponse:
     claims = await _authenticate(request, access_token)
     ttl = max(5, _token_seconds_remaining(claims) - 30)
+    user_sub = _extract_sub(claims)
 
-    filters: dict[str, Any] = {}
+    filters: dict[str, Any] = {"user_sub": user_sub}
     if sync_id is not None:
         filters["sync_id"] = sync_id
     if source_id is not None:

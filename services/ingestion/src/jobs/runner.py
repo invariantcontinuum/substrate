@@ -1,5 +1,6 @@
 """Polls sync_runs for pending rows and dispatches handle_sync."""
 import asyncio
+import json
 import structlog
 from src import graph_writer
 from src.jobs.sync import handle_sync
@@ -11,6 +12,19 @@ _loop_task: asyncio.Task | None = None
 _in_flight: set[asyncio.Task] = set()
 POLL_INTERVAL_S = 2.0
 SHUTDOWN_TIMEOUT_S = 30.0
+
+
+def _json_object(value: object) -> dict:
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+            if isinstance(parsed, dict):
+                return parsed
+        except json.JSONDecodeError:
+            return {}
+    return {}
 
 
 async def _fetch_pending() -> list[dict]:
@@ -41,7 +55,7 @@ async def start_runner() -> None:
                         "id": r["source_id"], "source_type": r["source_type"],
                         "owner": r["owner"], "name": r["name"], "url": r["url"],
                     }
-                    config_snapshot = r["config_snapshot"] if isinstance(r["config_snapshot"], dict) else {}
+                    config_snapshot = _json_object(r["config_snapshot"])
                     task = asyncio.create_task(handle_sync(r["sync_id"], source, config_snapshot))
                     _in_flight.add(task)
                     task.add_done_callback(_in_flight.discard)

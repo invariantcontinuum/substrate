@@ -1,6 +1,10 @@
 import { create } from "zustand";
-import { persist, createJSONStorage } from "zustand/middleware";
 import { logger } from "@/lib/logger";
+import {
+  getOrCreateDeviceId,
+  loadSyncContext,
+  saveSyncContext,
+} from "@/lib/userContextStorage";
 
 export interface SyncRunSummary {
   id: string;
@@ -16,12 +20,15 @@ export interface PendingSwap {
 }
 
 interface SyncSetState {
+  deviceId: string;
+  contextUserSub: string | null;
   syncIds: string[];
   hasInitialized: boolean;
   pendingSwap: PendingSwap | null;
   // Map<syncId, sourceId> — populated by useSyncs poller; not persisted.
   sourceMap: Map<string, string>;
 
+  hydrateForUser: (userSub: string) => void;
   load: (syncId: string) => void;
   unload: (syncId: string) => void;
   setActiveSet: (ids: string[]) => void;
@@ -32,70 +39,99 @@ interface SyncSetState {
   initializeIfNeeded: () => Promise<void>;
 }
 
-export const useSyncSetStore = create<SyncSetState>()(
-  persist(
-    (set, get) => ({
-      syncIds: [],
-      hasInitialized: false,
+function persistContext(state: SyncSetState): void {
+  if (!state.contextUserSub) return;
+  saveSyncContext(state.contextUserSub, state.deviceId, {
+    syncIds: state.syncIds,
+    hasInitialized: state.hasInitialized,
+  });
+}
+
+export const useSyncSetStore = create<SyncSetState>()((set, get) => ({
+  deviceId: getOrCreateDeviceId(),
+  contextUserSub: null,
+  syncIds: [],
+  hasInitialized: false,
+  pendingSwap: null,
+  sourceMap: new Map(),
+
+  hydrateForUser: (userSub) => {
+    const current = get();
+    if (current.contextUserSub === userSub) return;
+    const persisted = loadSyncContext(userSub, current.deviceId);
+    set({
+      contextUserSub: userSub,
+      syncIds: persisted.syncIds,
+      hasInitialized: persisted.hasInitialized,
       pendingSwap: null,
-      sourceMap: new Map(),
+    });
+    logger.info("sync_context_hydrated", {
+      userSub,
+      deviceId: current.deviceId,
+      syncCount: persisted.syncIds.length,
+    });
+  },
 
-      load: (syncId) => set((s) =>
-        s.syncIds.includes(syncId) ? {} : { syncIds: [...s.syncIds, syncId] }),
+  load: (syncId) => {
+    set((s) => (
+      s.syncIds.includes(syncId) ? {} : { syncIds: [...s.syncIds, syncId] }
+    ));
+    persistContext(get());
+  },
 
-      unload: (syncId) => set((s) => ({ syncIds: s.syncIds.filter((id) => id !== syncId) })),
+  unload: (syncId) => {
+    set((s) => ({ syncIds: s.syncIds.filter((id) => id !== syncId) }));
+    persistContext(get());
+  },
 
-      setActiveSet: (ids) => set({ syncIds: ids }),
+  setActiveSet: (ids) => {
+    set({ syncIds: ids });
+    persistContext(get());
+  },
 
-      onSyncCompleted: (run, sourceLabel) => {
-        const state = get();
-        const active = state.syncIds.find(
-          (id) => state.sourceMap.get(id) === run.source_id);
-        if (active) {
-          set({
-            syncIds: state.syncIds.map((id) => id === active ? run.id : id),
-            pendingSwap: {
-              newSyncId: run.id, replacedSyncId: active,
-              sourceLabel, expiresAt: Date.now() + 5000,
-            },
-          });
-          logger.debug("active_set_swap", { from: active, to: run.id });
-        } else {
-          logger.debug("active_set_new_source_not_loaded", { syncId: run.id });
-        }
-      },
+  onSyncCompleted: (run, sourceLabel) => {
+    const state = get();
+    const active = state.syncIds.find(
+      (id) => state.sourceMap.get(id) === run.source_id,
+    );
+    if (active) {
+      set({
+        syncIds: state.syncIds.map((id) => (id === active ? run.id : id)),
+        pendingSwap: {
+          newSyncId: run.id,
+          replacedSyncId: active,
+          sourceLabel,
+          expiresAt: Date.now() + 5000,
+        },
+      });
+      persistContext(get());
+      logger.debug("active_set_swap", { from: active, to: run.id });
+    } else {
+      logger.debug("active_set_new_source_not_loaded", { syncId: run.id });
+    }
+  },
 
-      undoSwap: () => {
-        const state = get();
-        if (!state.pendingSwap) return;
-        const { newSyncId, replacedSyncId } = state.pendingSwap;
-        set({
-          syncIds: state.syncIds.map((id) => id === newSyncId ? replacedSyncId : id),
-          pendingSwap: null,
-        });
-      },
+  undoSwap: () => {
+    const state = get();
+    if (!state.pendingSwap) return;
+    const { newSyncId, replacedSyncId } = state.pendingSwap;
+    set({
+      syncIds: state.syncIds.map((id) => (id === newSyncId ? replacedSyncId : id)),
+      pendingSwap: null,
+    });
+    persistContext(get());
+  },
 
-      pruneInvalid: (valid) => set((s) => ({
-        syncIds: s.syncIds.filter((id) => valid.has(id)),
-      })),
+  pruneInvalid: (valid) => {
+    set((s) => ({ syncIds: s.syncIds.filter((id) => valid.has(id)) }));
+    persistContext(get());
+  },
 
-      registerSourceMap: (m) => set({ sourceMap: m }),
+  registerSourceMap: (m) => set({ sourceMap: m }),
 
-      initializeIfNeeded: async () => {
-        // Intentionally does NOT auto-load any snapshots. Canvas preserves
-        // the last explicitly-loaded set from this browser/device via
-        // localStorage. If localStorage is empty (new browser/device/private
-        // window, or user cleared storage), the canvas stays empty — the
-        // user picks what to load from the Sources modal.
-        // pruneInvalid still runs from DashboardLayout to drop stale ids
-        // before this is called.
-        set({ hasInitialized: true });
-      },
-    }),
-    {
-      name: "substrate-sync-set",
-      storage: createJSONStorage(() => localStorage),
-      partialize: (s) => ({ syncIds: s.syncIds, hasInitialized: s.hasInitialized }),
-    },
-  ),
-);
+  initializeIfNeeded: async () => {
+    set({ hasInitialized: true });
+    persistContext(get());
+  },
+}));
+

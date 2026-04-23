@@ -1,9 +1,10 @@
 import httpx
 import structlog
-from fastapi import APIRouter, Query, Response
+from fastapi import APIRouter, Depends, Query, Response
 
 from substrate_common import NotFoundError, UpstreamError, ValidationError
 
+from src.api.auth import require_user_sub
 from src.config import settings
 from src.graph import store
 from src.graph.file_reconstruct import reconstruct_chunks
@@ -40,6 +41,7 @@ async def _embed_query(query: str) -> list[float]:
 async def get_graph(
     sync_ids: str = Query(..., description="Comma-separated active sync_ids"),
     projection: str = Query("minimal", description="minimal | full"),
+    user_sub: str = Depends(require_user_sub),
 ):
     if projection not in _VALID_PROJECTIONS:
         raise ValidationError("invalid_projection", details={"projection": projection})
@@ -49,7 +51,7 @@ async def get_graph(
         raise ValidationError("sync_ids required")
 
     try:
-        result = await get_merged_graph(ids, projection=projection)
+        result = await get_merged_graph(ids, projection=projection, user_sub=user_sub)
     except ValueError as e:
         raise ValidationError(str(e)) from e
     except GraphQueryTimeout as e:
@@ -65,12 +67,21 @@ async def get_graph(
 
 
 @router.get("/nodes/{node_id:path}/summary")
-async def get_node_summary(node_id: str, sync_id: str | None = None, force: bool = False):
-    return await ensure_node_summary(node_id, sync_id=sync_id, force=force)
+async def get_node_summary(
+    node_id: str,
+    sync_id: str | None = None,
+    force: bool = False,
+    user_sub: str = Depends(require_user_sub),
+):
+    return await ensure_node_summary(node_id, sync_id=sync_id, force=force, user_sub=user_sub)
 
 
 @router.get("/nodes/{node_id:path}/file")
-async def get_node_file(node_id: str, sync_id: str | None = None):
+async def get_node_file(
+    node_id: str,
+    sync_id: str | None = None,
+    user_sub: str = Depends(require_user_sub),
+):
     """Return the reconstructed source text for a file node.
 
     Accepts two id shapes:
@@ -104,13 +115,15 @@ async def get_node_file(node_id: str, sync_id: str | None = None):
                 """SELECT fe.id::text AS id, fe.file_path, fe.language, fe.line_count,
                           fe.size_bytes, fe.sync_id::text AS sync_id, fe.last_commit_sha
                      FROM file_embeddings fe
+                     JOIN sources s ON s.id = fe.source_id
                      JOIN sync_runs sr ON sr.id = fe.sync_id
                     WHERE fe.source_id = $1::uuid
                       AND fe.file_path = $2
                       AND ($3::uuid IS NULL OR fe.sync_id = $3::uuid)
+                      AND s.user_sub = $4
                     ORDER BY sr.completed_at DESC NULLS LAST, sr.id DESC
                     LIMIT 1""",
-                source_uuid, file_path, sync_uuid,
+                source_uuid, file_path, sync_uuid, user_sub,
             )
         else:
             try:
@@ -126,12 +139,14 @@ async def get_node_file(node_id: str, sync_id: str | None = None):
             row = await conn.fetchrow(
                 """SELECT id::text, file_path, language, line_count, size_bytes,
                           sync_id::text AS sync_id, last_commit_sha
-                     FROM file_embeddings
-                    WHERE id = $1::uuid
-                      AND ($2::uuid IS NULL OR sync_id = $2::uuid)
-                    ORDER BY created_at DESC
+                     FROM file_embeddings fe
+                     JOIN sources s ON s.id = fe.source_id
+                    WHERE fe.id = $1::uuid
+                      AND ($2::uuid IS NULL OR fe.sync_id = $2::uuid)
+                      AND s.user_sub = $3
+                    ORDER BY fe.created_at DESC
                     LIMIT 1""",
-                node_uuid, sync_uuid_direct,
+                node_uuid, sync_uuid_direct, user_sub,
             )
 
         if not row:
@@ -176,9 +191,14 @@ async def get_node_file(node_id: str, sync_id: str | None = None):
 
 
 @router.get("/nodes/{node_id:path}")
-async def get_node(node_id: str, response: Response, sync_id: str | None = None):
+async def get_node(
+    node_id: str,
+    response: Response,
+    sync_id: str | None = None,
+    user_sub: str = Depends(require_user_sub),
+):
     try:
-        data = await get_node_detail(node_id, sync_id=sync_id)
+        data = await get_node_detail(node_id, sync_id=sync_id, user_sub=user_sub)
     except GraphQueryTimeout as e:
         raise UpstreamError(
             "graph_query_timeout",
@@ -195,16 +215,21 @@ async def get_node(node_id: str, response: Response, sync_id: str | None = None)
 
 
 @router.get("/stats")
-async def graph_stats():
-    return await get_stats()
+async def graph_stats(user_sub: str = Depends(require_user_sub)):
+    return await get_stats(user_sub=user_sub)
 
 
 @router.get("/search")
-async def search_graph(q: str = "", type: str = "", limit: int = 10):
+async def search_graph(
+    q: str = "",
+    type: str = "",
+    limit: int = 10,
+    user_sub: str = Depends(require_user_sub),
+):
     if not q:
         return {"results": []}
     try:
         embedding = await _embed_query(q)
     except httpx.ConnectError:
         return {"results": []}
-    return {"results": await search(embedding, limit=limit, type_filter=type)}
+    return {"results": await search(embedding, limit=limit, type_filter=type, user_sub=user_sub)}

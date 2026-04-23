@@ -1,7 +1,8 @@
 from contextlib import asynccontextmanager
+import json
 
 import structlog
-from fastapi import FastAPI
+from fastapi import FastAPI, Header
 
 from substrate_common import (
     ConflictError,
@@ -29,6 +30,23 @@ from src.sync_runs import clean_sync_impl
 
 configure_logging(service=settings.service_name)
 logger = structlog.get_logger()
+
+
+def _json_object(value: object) -> dict:
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+            if isinstance(parsed, dict):
+                return parsed
+        except json.JSONDecodeError:
+            return {}
+    return {}
+
+
+def _require_sub(x_user_sub: str | None) -> str:
+    return x_user_sub or "dev"
 
 
 async def _reap_zombies() -> None:
@@ -91,20 +109,32 @@ async def health():
 
 
 @app.patch("/api/sources/{source_id}")
-async def update_source(source_id: str, patch: SourcePatch):
+async def update_source(
+    source_id: str,
+    patch: SourcePatch,
+    x_user_sub: str | None = Header(default=None, alias="X-User-Sub"),
+):
+    user_sub = _require_sub(x_user_sub)
     pool = graph_writer.get_pool()
-    return await update_source_impl(pool, source_id, patch)
+    return await update_source_impl(pool, source_id, patch, user_sub)
 
 
 # --- Syncs (write side) ---
 
 @app.post("/api/syncs", status_code=202)
-async def create_sync(req: SyncRequest):
+async def create_sync(
+    req: SyncRequest,
+    x_user_sub: str | None = Header(default=None, alias="X-User-Sub"),
+):
     from src.connectors.github import CONNECTORS
+    user_sub = _require_sub(x_user_sub)
     pool = graph_writer.get_pool()
     async with pool.acquire() as conn:
         src_row = await conn.fetchrow(
-            "SELECT source_type, config FROM sources WHERE id=$1::uuid", req.source_id)
+            "SELECT source_type, config FROM sources WHERE id=$1::uuid AND user_sub = $2",
+            req.source_id,
+            user_sub,
+        )
     if not src_row:
         raise NotFoundError("source not found")
     if src_row["source_type"] not in CONNECTORS:
@@ -112,7 +142,7 @@ async def create_sync(req: SyncRequest):
             f"no connector registered for source_type={src_row['source_type']}",
             details={"source_type": src_row["source_type"]},
         )
-    base = src_row["config"] if isinstance(src_row["config"], dict) else {}
+    base = _json_object(src_row["config"])
     snapshot = {**base, **req.config_overrides}
     pool = graph_writer.get_pool()
     async with pool.acquire() as conn:
@@ -136,18 +166,35 @@ async def create_sync(req: SyncRequest):
 
 
 @app.post("/api/syncs/{sync_id}/cancel")
-async def cancel_sync(sync_id: str):
+async def cancel_sync(
+    sync_id: str,
+    x_user_sub: str | None = Header(default=None, alias="X-User-Sub"),
+):
+    user_sub = _require_sub(x_user_sub)
     pool = graph_writer.get_pool()
     async with pool.acquire() as conn:
         result = await conn.execute(
-            """UPDATE sync_runs SET status='cancelled', completed_at=now()
-               WHERE id=$1::uuid AND status IN ('pending','running')""",
-            sync_id,
+            """UPDATE sync_runs sr
+               SET status='cancelled', completed_at=now()
+               WHERE sr.id=$1::uuid
+                 AND sr.status IN ('pending','running')
+                 AND EXISTS (
+                   SELECT 1 FROM sources s
+                   WHERE s.id = sr.source_id AND s.user_sub = $2
+                 )""",
+            sync_id, user_sub,
         )
     if result != "UPDATE 1":
         # Either the row doesn't exist OR it already terminated
         async with pool.acquire() as conn:
-            status = await conn.fetchval("SELECT status FROM sync_runs WHERE id=$1::uuid", sync_id)
+            status = await conn.fetchval(
+                """SELECT sr.status
+                   FROM sync_runs sr
+                   JOIN sources s ON s.id = sr.source_id
+                   WHERE sr.id=$1::uuid AND s.user_sub = $2""",
+                sync_id,
+                user_sub,
+            )
         if status is None:
             raise NotFoundError("sync_run not found")
         raise ConflictError(
@@ -161,15 +208,24 @@ async def cancel_sync(sync_id: str):
 
 
 @app.post("/api/syncs/{sync_id}/retry", status_code=202)
-async def retry_sync(sync_id: str):
+async def retry_sync(
+    sync_id: str,
+    x_user_sub: str | None = Header(default=None, alias="X-User-Sub"),
+):
+    user_sub = _require_sub(x_user_sub)
     pool = graph_writer.get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT source_id::text, config_snapshot FROM sync_runs WHERE id=$1::uuid", sync_id
+            """SELECT sr.source_id::text, sr.config_snapshot
+               FROM sync_runs sr
+               JOIN sources s ON s.id = sr.source_id
+               WHERE sr.id=$1::uuid AND s.user_sub = $2""",
+            sync_id,
+            user_sub,
         )
     if not row:
         raise NotFoundError("sync_run not found")
-    snapshot = row["config_snapshot"] if isinstance(row["config_snapshot"], dict) else {}
+    snapshot = _json_object(row["config_snapshot"])
     pool = graph_writer.get_pool()
     async with pool.acquire() as conn:
         new_id, created = await sync_runs.ensure_active_sync(
@@ -192,12 +248,23 @@ async def retry_sync(sync_id: str):
 
 
 @app.post("/api/syncs/{sync_id}/clean")
-async def clean_sync(sync_id: str):
+async def clean_sync(
+    sync_id: str,
+    x_user_sub: str | None = Header(default=None, alias="X-User-Sub"),
+):
+    user_sub = _require_sub(x_user_sub)
     pool = graph_writer.get_pool()
     # Atomic: clean only if the row is in a terminal state. Mid-flight syncs
     # cannot be cleaned (cancel them first, then clean).
     async with pool.acquire() as conn:
-        status = await conn.fetchval("SELECT status FROM sync_runs WHERE id=$1::uuid", sync_id)
+        status = await conn.fetchval(
+            """SELECT sr.status
+               FROM sync_runs sr
+               JOIN sources s ON s.id = sr.source_id
+               WHERE sr.id=$1::uuid AND s.user_sub = $2""",
+            sync_id,
+            user_sub,
+        )
     if status is None:
         raise NotFoundError("sync_run not found")
     if status not in ("completed", "failed", "cancelled"):
@@ -211,32 +278,84 @@ async def clean_sync(sync_id: str):
 
 
 @app.delete("/api/syncs/{sync_id}")
-async def purge_sync(sync_id: str):
+async def purge_sync(
+    sync_id: str,
+    x_user_sub: str | None = Header(default=None, alias="X-User-Sub"),
+):
     """Full purge: drop graph data + remove the sync_runs row."""
+    user_sub = _require_sub(x_user_sub)
+    async with graph_writer.get_pool().acquire() as conn:
+        owned = await conn.fetchval(
+            """SELECT 1
+               FROM sync_runs sr
+               JOIN sources s ON s.id = sr.source_id
+               WHERE sr.id = $1::uuid AND s.user_sub = $2""",
+            sync_id,
+            user_sub,
+        )
+    if not owned:
+        raise NotFoundError("sync_run not found")
     await graph_writer.cleanup_partial(sync_id)
     async with graph_writer.get_pool().acquire() as conn:
-        await conn.execute("DELETE FROM sync_runs WHERE id=$1::uuid", sync_id)
+        await conn.execute(
+            """
+            DELETE FROM sync_runs sr
+            USING sources s
+            WHERE sr.source_id = s.id
+              AND sr.id = $1::uuid
+              AND s.user_sub = $2
+            """,
+            sync_id,
+            user_sub,
+        )
     return {"status": "deleted"}
 
 
 # --- Schedules ---
 
 @app.post("/api/schedules")
-async def create_schedule(req: ScheduleRequest):
-    return await sync_schedules.create_schedule(
-        req.source_id, req.interval_minutes, req.config_overrides)
+async def create_schedule(
+    req: ScheduleRequest,
+    x_user_sub: str | None = Header(default=None, alias="X-User-Sub"),
+):
+    user_sub = _require_sub(x_user_sub)
+    row = await sync_schedules.create_schedule(
+        req.source_id,
+        req.interval_minutes,
+        req.config_overrides,
+        user_sub,
+    )
+    if not row:
+        raise NotFoundError("source not found")
+    return row
 
 
 @app.patch("/api/schedules/{schedule_id}")
-async def patch_schedule(schedule_id: int, req: ScheduleUpdateRequest):
+async def patch_schedule(
+    schedule_id: int,
+    req: ScheduleUpdateRequest,
+    x_user_sub: str | None = Header(default=None, alias="X-User-Sub"),
+):
+    user_sub = _require_sub(x_user_sub)
     out = await sync_schedules.update_schedule(
-        schedule_id, req.interval_minutes, req.enabled, req.config_overrides)
+        schedule_id,
+        req.interval_minutes,
+        req.enabled,
+        req.config_overrides,
+        user_sub,
+    )
     if not out:
         raise NotFoundError("schedule not found")
     return out
 
 
 @app.delete("/api/schedules/{schedule_id}")
-async def remove_schedule(schedule_id: int):
-    await sync_schedules.delete_schedule(schedule_id)
+async def remove_schedule(
+    schedule_id: int,
+    x_user_sub: str | None = Header(default=None, alias="X-User-Sub"),
+):
+    user_sub = _require_sub(x_user_sub)
+    deleted = await sync_schedules.delete_schedule(schedule_id, user_sub)
+    if not deleted:
+        raise NotFoundError("schedule not found")
     return {"status": "deleted"}

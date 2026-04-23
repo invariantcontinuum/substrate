@@ -2417,38 +2417,10 @@ html {
   overflow: auto;
 }
 
-/* ≤1023px (tablet): drop to 2 columns — sidebar + detail — and push the
- * "currently rendered" rail below as a full-width strip so the sidebar has
- * breathing room and the detail isn't squeezed to ~140 px. */
+/* ≤1023px (tablet/phone): collapse the desktop 3-column grid into 3 stacked
+ * rows in this exact order: currently-rendered rail, sources list, detail.
+ * This keeps sources usable on narrow displays with no horizontal squeeze. */
 @media (max-width: 1023px) {
-  .sources-settings-body {
-    grid-template-columns: minmax(180px, 220px) 1fr;
-    grid-template-rows: 1fr auto;
-    grid-template-areas:
-      "sidebar detail"
-      "rail rail";
-  }
-  .sources-sidebar { grid-area: sidebar; }
-  .sources-settings-detail { grid-area: detail; }
-  .currently-rendered-rail {
-    grid-area: rail;
-    flex-direction: row;
-    align-items: center;
-    max-height: 72px;
-    overflow-x: auto;
-    overflow-y: hidden;
-    flex-wrap: nowrap;
-  }
-  .currently-rendered-rail .currently-rendered-row {
-    flex-shrink: 0;
-    min-width: 180px;
-  }
-}
-
-/* ≤640px (phone): single-column layout. Sidebar stacks ABOVE detail; the
- * rail becomes a compact pill bar at the top of the body. This preserves
- * all functionality without horizontal scroll. */
-@media (max-width: 640px) {
   .sources-settings-body {
     grid-template-columns: 1fr;
     grid-template-rows: auto auto 1fr;
@@ -2459,17 +2431,31 @@ html {
     gap: var(--space-2);
     padding: 0 var(--space-2) var(--space-3);
   }
+  .sources-sidebar { grid-area: sidebar; }
+  .sources-settings-detail {
+    grid-area: detail;
+    min-height: 220px;
+  }
+  .currently-rendered-rail {
+    grid-area: rail;
+    flex-direction: row;
+    align-items: center;
+    max-height: 64px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    flex-wrap: nowrap;
+    padding: 6px;
+  }
   .sources-sidebar {
     max-height: 40vh;
     min-height: 180px;
   }
   .sources-sidebar-list {
-    /* Override the fixed modal-height calculation which assumes desktop. */
     max-height: none;
   }
-  .currently-rendered-rail {
-    max-height: 64px;
-    padding: 6px;
+  .currently-rendered-rail .currently-rendered-row {
+    flex-shrink: 0;
+    min-width: 180px;
   }
 }
 .sources-settings-empty {

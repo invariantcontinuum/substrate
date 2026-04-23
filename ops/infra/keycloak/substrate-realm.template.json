@@ -5,7 +5,7 @@
   "displayNameHtml": "<strong>Substrate</strong>",
   "loginTheme": "invariant",
   "sslRequired": "__SSL_REQUIRED__",
-  "registrationAllowed": false,
+  "registrationAllowed": __KEYCLOAK_REGISTRATION_ALLOWED__,
   "resetPasswordAllowed": true,
   "rememberMe": true,
   "loginWithEmailAllowed": true,

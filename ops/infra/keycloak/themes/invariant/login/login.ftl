@@ -103,7 +103,12 @@
                             <a data-once-link data-disabled-class="${properties.kcFormSocialAccountListButtonDisabledClass!}" id="social-${p.alias}"
                                     class="${properties.kcFormSocialAccountListButtonClass!} <#if social.providers?size gt 3>${properties.kcFormSocialAccountGridItem!}</#if>"
                                     type="button" href="${p.loginUrl}">
-                                <#if p.iconClasses?has_content>
+                                <#if p.alias == "github">
+                                    <svg class="invariant-login-social-icon-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                        <path fill="currentColor" d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.11.79-.25.79-.56v-2.02c-3.22.7-3.9-1.38-3.9-1.38-.53-1.32-1.29-1.67-1.29-1.67-1.06-.72.08-.71.08-.71 1.16.08 1.78 1.19 1.78 1.19 1.05 1.76 2.76 1.25 3.43.95.1-.75.41-1.25.75-1.54-2.57-.29-5.28-1.27-5.28-5.72 0-1.27.46-2.31 1.2-3.12-.12-.29-.52-1.48.11-3.08 0 0 .97-.31 3.18 1.19a11.2 11.2 0 0 1 5.79 0c2.2-1.5 3.17-1.19 3.17-1.19.64 1.6.24 2.79.12 3.08.75.81 1.2 1.85 1.2 3.12 0 4.46-2.71 5.42-5.3 5.7.42.36.79 1.05.79 2.14v3.17c0 .31.21.68.8.56A11.5 11.5 0 0 0 12 .5"/>
+                                    </svg>
+                                    <span class="${properties.kcFormSocialAccountNameClass!} kc-social-icon-text">${p.displayName!}</span>
+                                <#elseif p.iconClasses?has_content>
                                     <i class="${properties.kcCommonLogoIdP!} ${p.iconClasses!}" aria-hidden="true"></i>
                                     <span class="${properties.kcFormSocialAccountNameClass!} kc-social-icon-text">${p.displayName!}</span>
                                 <#else>

@@ -35,6 +35,10 @@ def main() -> None:
     admin_email = os.environ.get("KC_BOOTSTRAP_ADMIN_EMAIL", "admin@substrate.local")
     github_client_id = os.environ.get("GITHUB_OAUTH_APP_CLIENT_ID", "").strip()
     github_client_secret = os.environ.get("GITHUB_OAUTH_APP_CLIENT_SECRET", "").strip()
+    registration_allowed = (
+        os.environ.get("KEYCLOAK_REGISTRATION_ALLOWED", "true").strip().lower()
+        in {"1", "true", "yes", "on"}
+    )
 
     ssl_required = "external" if app_url.startswith("https://") else "none"
 
@@ -58,6 +62,7 @@ def main() -> None:
         "__GATEWAY_WEB_ORIGINS__": json.dumps(origins),
         "__GITHUB_OAUTH_APP_CLIENT_ID__": github_client_id,
         "__GITHUB_OAUTH_APP_CLIENT_SECRET__": github_client_secret,
+        "__KEYCLOAK_REGISTRATION_ALLOWED__": "true" if registration_allowed else "false",
     }
     for key, value in replacements.items():
         text = text.replace(key, value)

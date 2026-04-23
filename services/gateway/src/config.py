@@ -15,6 +15,10 @@ class _GatewaySettings(BaseSettings):
     graph_service_url: str = "http://graph:8082"
     ingestion_service_url: str = "http://ingestion:8081"
     database_url: str = "postgresql+asyncpg://substrate_graph:change-me@postgres:5432/substrate_graph"
+    # Gateway holds one LISTEN connection per active SSE client. Tune pool
+    # size with expected concurrent EventSource sessions.
+    sse_pool_min_size: int = 1
+    sse_pool_max_size: int = 64
 
     auth_disabled: bool = False
     cors_origins: list[str] = []

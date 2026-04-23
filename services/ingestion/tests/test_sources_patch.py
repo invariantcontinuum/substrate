@@ -35,8 +35,8 @@ async def seeded_source(graph_pool):
     source_id = str(uuid.uuid4())
     async with graph_pool.acquire() as conn:
         await conn.execute(
-            "INSERT INTO sources (id, name, url, config, enabled, source_type, owner) "
-            "VALUES ($1::uuid, 'test-label', 'https://example.com/x.git', $2::jsonb, true, 'github_repo', 'patch-test')",
+            "INSERT INTO sources (id, name, url, config, enabled, source_type, owner, user_sub) "
+            "VALUES ($1::uuid, 'test-label', 'https://example.com/x.git', $2::jsonb, true, 'github_repo', 'patch-test', 'dev')",
             source_id, json.dumps({"existing_key": "keep"}),
         )
     yield source_id
@@ -46,7 +46,7 @@ async def seeded_source(graph_pool):
 
 async def test_patch_label_only(graph_pool, seeded_source):
     patch = SourcePatch(label="renamed")
-    result = await update_source_impl(graph_pool, seeded_source, patch)
+    result = await update_source_impl(graph_pool, seeded_source, patch, "dev")
     assert result["name"] == "renamed"
 
 
@@ -56,7 +56,7 @@ async def test_patch_retention_merges_jsonb(graph_pool, seeded_source):
             retention=RetentionOverridesPatch(age_days=60, never_prune=False)
         )
     )
-    result = await update_source_impl(graph_pool, seeded_source, patch)
+    result = await update_source_impl(graph_pool, seeded_source, patch, "dev")
     assert result["config"]["retention"]["age_days"] == 60
     assert result["config"]["existing_key"] == "keep"
 
@@ -75,5 +75,5 @@ async def test_patch_rejects_non_positive_retention_ints(graph_pool, seeded_sour
 async def test_patch_unknown_source_returns_404(graph_pool):
     patch = SourcePatch(label="x")
     with pytest.raises(HTTPException) as exc_info:
-        await update_source_impl(graph_pool, "00000000-0000-0000-0000-000000000000", patch)
+        await update_source_impl(graph_pool, "00000000-0000-0000-0000-000000000000", patch, "dev")
     assert exc_info.value.status_code == 404

@@ -45,7 +45,7 @@ class SourcePatch(BaseModel):
 # Implementation — extracted so tests can call it without ASGI overhead
 # ---------------------------------------------------------------------------
 
-async def update_source_impl(pool, source_id: str, patch: SourcePatch) -> dict:
+async def update_source_impl(pool, source_id: str, patch: SourcePatch, user_sub: str) -> dict:
     """Apply *patch* to the sources row identified by *source_id*.
 
     Returns a dict shaped as the HTTP response body.
@@ -54,8 +54,11 @@ async def update_source_impl(pool, source_id: str, patch: SourcePatch) -> dict:
     async with pool.acquire() as conn:
         async with conn.transaction():
             row = await conn.fetchrow(
-                "SELECT id, name, url, config, enabled FROM sources WHERE id=$1::uuid FOR UPDATE",
-                source_id,
+                """SELECT id, name, url, config, enabled
+                   FROM sources
+                   WHERE id=$1::uuid AND user_sub = $2
+                   FOR UPDATE""",
+                source_id, user_sub,
             )
             if row is None:
                 raise HTTPException(404, f"source {source_id} not found")
@@ -81,16 +84,19 @@ async def update_source_impl(pool, source_id: str, patch: SourcePatch) -> dict:
                   name    = COALESCE($2, name),
                   enabled = COALESCE($3, enabled),
                   config  = $4::jsonb
-                WHERE id = $1::uuid
+                WHERE id = $1::uuid AND user_sub = $5
                 """,
                 source_id,
                 patch.label,
                 patch.enabled,
-                json.dumps(new_config),
+                new_config,
+                user_sub,
             )
             updated = await conn.fetchrow(
-                "SELECT id, name, url, config, enabled FROM sources WHERE id=$1::uuid",
-                source_id,
+                """SELECT id, name, url, config, enabled
+                   FROM sources
+                   WHERE id=$1::uuid AND user_sub = $2""",
+                source_id, user_sub,
             )
 
     return {

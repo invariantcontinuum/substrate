@@ -8,6 +8,14 @@ ISSUE_CAP = 1000
 pytestmark = pytest.mark.asyncio(loop_scope="session")
 
 
+def _json_object(value):
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        return json.loads(value)
+    return {}
+
+
 @pytest_asyncio.fixture(scope="session", autouse=True)
 async def setup(graph_pool):
     if graph_writer._pool is None:
@@ -27,7 +35,7 @@ async def test_record_issue_basic():
             "SELECT level, phase, code, context FROM sync_issues WHERE sync_id=$1::uuid", sid
         )
         assert row["level"] == "warning"
-        assert json.loads(row["context"])["batch"] == 7
+        assert _json_object(row["context"])["batch"] == 7
         await conn.execute("DELETE FROM sources WHERE id=$1::uuid", src_id)
 
 
@@ -47,6 +55,6 @@ async def test_issue_cap_emits_truncation_marker():
         )
         assert markers == 1
         stats_raw = await conn.fetchval("SELECT stats FROM sync_runs WHERE id=$1::uuid", sid)
-        stats = json.loads(stats_raw) if stats_raw else {}
+        stats = _json_object(stats_raw)
         assert stats.get("issues_suppressed", 0) >= 5
         await conn.execute("DELETE FROM sources WHERE id=$1::uuid", src_id)
