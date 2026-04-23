@@ -35,17 +35,26 @@ export interface Palette {
   edgeAccents: Record<EdgeType, EdgeAccent>;
 }
 
+// Dark palette — tuned to match the legacy Cytoscape look.
+// Legacy renders near-opaque cream rectangles (not transparent glass): direct
+// pixel sampling of the legacy canvas shows fill alpha ≈ 0.9. The previous
+// 0.14 alpha made our nodes bleed into the dark background and the shape
+// read as faint outlines instead of solid cards.
+// Edge alphas are lowered from the old 0.58 because our engine tessellates
+// every logical edge into 8 quadratic-bezier segments — at the old alpha the
+// overdraw between adjacent segments accumulated into a bright smear across
+// the graph. 0.16 × 8 ≈ the visual density of a single legacy edge line.
 export const DARK: Palette = {
   canvasBg:          "#101114",
   gridLine:          "rgba(239, 230, 221, 0.06)",
-  nodeGlassFill:     "rgba(239, 230, 221, 0.14)",
-  nodeDefaultBorder: "rgba(239, 230, 221, 0.32)",
-  labelColor:        "#efe6dd",
-  labelHalo:         "rgba(35, 31, 32, 0.85)",
+  nodeGlassFill:     "rgba(239, 230, 221, 0.92)",
+  nodeDefaultBorder: "rgba(35, 31, 32, 0.55)",
+  labelColor:        "#231f20",
+  labelHalo:         "rgba(239, 230, 221, 0.95)",
   selection:         "#f3dfa2",
   dimText:           "rgba(239, 230, 221, 0.70)",
-  edgeDefault:       "rgba(239, 230, 221, 0.22)",
-  edgeDefaultArrow:  "rgba(239, 230, 221, 0.40)",
+  edgeDefault:       "rgba(239, 230, 221, 0.10)",
+  edgeDefaultArrow:  "rgba(239, 230, 221, 0.26)",
   hullFill:          "rgba(111, 181, 167, 0.08)",
   hullStroke:        "rgba(111, 181, 167, 0.35)",
   typeBorders: {
@@ -58,12 +67,12 @@ export const DARK: Palette = {
     asset:    "#a19890",
   },
   edgeAccents: {
-    depends:    { line: "rgba(111, 181, 167, 0.58)", arrow: "rgba(111, 181, 167, 0.75)" },
-    depends_on: { line: "rgba(111, 181, 167, 0.58)", arrow: "rgba(111, 181, 167, 0.75)" },
-    violation:  { line: "#e6706b",                    arrow: "#e6706b" },
-    enforces:   { line: "rgba(216, 138, 115, 0.58)", arrow: "rgba(216, 138, 115, 0.75)" },
-    why:        { line: "rgba(243, 223, 162, 0.62)", arrow: "rgba(243, 223, 162, 0.78)" },
-    drift:      { line: "rgba(230, 112, 107, 0.40)", arrow: "rgba(230, 112, 107, 0.40)" },
+    depends:    { line: "rgba(111, 181, 167, 0.16)", arrow: "rgba(111, 181, 167, 0.55)" },
+    depends_on: { line: "rgba(111, 181, 167, 0.16)", arrow: "rgba(111, 181, 167, 0.55)" },
+    violation:  { line: "rgba(230, 112, 107, 0.45)", arrow: "#e6706b" },
+    enforces:   { line: "rgba(216, 138, 115, 0.18)", arrow: "rgba(216, 138, 115, 0.60)" },
+    why:        { line: "rgba(243, 223, 162, 0.20)", arrow: "rgba(243, 223, 162, 0.62)" },
+    drift:      { line: "rgba(230, 112, 107, 0.15)", arrow: "rgba(230, 112, 107, 0.40)" },
   },
 };
 

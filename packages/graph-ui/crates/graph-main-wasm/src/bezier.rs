@@ -3,8 +3,15 @@
 //! existing edge renderer accepts them unchanged and (future) dash shader
 //! will read the arc length to keep patterns continuous across segments.
 
-pub const DEFAULT_SEGMENTS: usize = 8;
-pub const DEFAULT_BEND_RATIO: f32 = 0.08;
+// Edge tessellation. Eight segments was set when bezier curves were deliberately
+// arced to visually separate parallel edges, but it caused an 8× alpha-overdraw
+// wherever edges cross — at fit zoom with ~3k edges across a dense graph that
+// produces a saturated white smear. Four segments with a gentler bend keeps
+// the soft-curve aesthetic while cutting the overdraw in half; combined with
+// the lowered edge alpha in the theme this brings us back to parity with the
+// legacy Cytoscape look where edges read as faint lines, not a glow.
+pub const DEFAULT_SEGMENTS: usize = 4;
+pub const DEFAULT_BEND_RATIO: f32 = 0.04;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Segment {

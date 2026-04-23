@@ -1129,6 +1129,7 @@ impl RenderEngine {
             let style = self.resolved_node_style(node_type, status);
             let mut flags: u32 = style.flags;
             let mut border_color = style.border_color;
+            let mut fill_color = style.color;
             let pulse_mult = self.pulse.border_multiplier(i, now_ms);
             let mut border_width = style.border_width * pulse_mult;
             let mut half_w = style.half_w;
@@ -1142,14 +1143,22 @@ impl RenderEngine {
                 flags |= 2; // bit 1 = hovered
             }
             // Selected: apply focus styling per §6 visual rules.
-            // - borderColor := theme.interaction.select.borderColor
-            // - borderWidth += 1.5 (additive over base style)
+            // - borderColor AND fill := theme.interaction.select.borderColor
+            // - borderWidth += 2.0 (additive over base style)
             // - halfWidth *= 1.08, halfHeight *= 1.08
+            // Cytoscape-legacy parity: the selected node is FILLED with the
+            // selection color (tinted teal/gold), not just a thicker border.
+            // Without filling, a highlighted node in a dense grid reads as
+            // "one of many" when the border color is similar to the type
+            // border; the filled tint makes it instantly recognisable.
             if is_selected {
                 let sel_border = self.theme.interaction.select.border_color.clone();
                 let (br, bg, bb, ba) = parse_hex_color(&sel_border);
                 border_color = [br, bg, bb, ba];
-                border_width += 1.5;
+                // Fill at 78% of the selection color's alpha so the label
+                // (dark brown in dark-theme) still reads against it.
+                fill_color = [br, bg, bb, (ba * 0.78).clamp(0.0, 1.0)];
+                border_width += 2.0;
                 half_w *= 1.08;
                 half_h *= 1.08;
                 flags |= 4; // bit 2 = selected
@@ -1166,10 +1175,10 @@ impl RenderEngine {
                 cy,
                 half_w,
                 half_h,
-                style.color[0],
-                style.color[1],
-                style.color[2],
-                style.color[3],
+                fill_color[0],
+                fill_color[1],
+                fill_color[2],
+                fill_color[3],
                 border_color[0],
                 border_color[1],
                 border_color[2],
@@ -1252,21 +1261,36 @@ impl RenderEngine {
 
             let mut rendered_width = ewidth;
             let mut alpha_scale = 1.0f32;
+            // `focus_color_override` flips edges under spotlight to use the
+            // theme's selection color so they radiate visibly from the focused
+            // node — Cytoscape-parity. Non-focus edges stay their per-type
+            // color (dimmed). Without this override focus edges just got
+            // wider but kept the already-faint per-type color, and in dense
+            // graphs the fan-out pattern failed to emerge.
+            let mut focus_color_override: Option<String> = None;
             if let Some(focus_idx) = spotlight_idx {
                 let s_idx = coord_to_idx.get(&(sx.to_bits(), sy.to_bits())).copied();
                 let t_idx = coord_to_idx.get(&(tx.to_bits(), ty.to_bits())).copied();
                 let is_focus_edge = s_idx == Some(focus_idx) || t_idx == Some(focus_idx);
                 if is_focus_edge {
-                    // §6 visual rule: focus edges get width *= 1.8
-                    rendered_width = ewidth * 1.8;
+                    // §6 visual rule: focus edges get width *= 2.2 and use the
+                    // theme's selection color at near-full alpha — this is
+                    // what makes the radial fan of highlights read clearly.
+                    rendered_width = ewidth * 2.2;
+                    focus_color_override =
+                        Some(self.theme.interaction.select.border_color.clone());
                 } else {
                     rendered_width = (ewidth * 0.75).max(0.5);
                     alpha_scale = spotlight_dim_opacity;
                 }
             }
 
-            let (er, eg, eb, ea0) = parse_hex_color(&ecolor);
-            let ea = (ea0 * alpha_scale).clamp(0.0, 1.0);
+            let resolved_color = focus_color_override.as_deref().unwrap_or(&ecolor);
+            let (er, eg, eb, ea0) = parse_hex_color(resolved_color);
+            // Focus edges: force high alpha so the selection tint isn't scaled
+            // down by the per-type color's translucency.
+            let base_alpha = if focus_color_override.is_some() { 0.95 } else { ea0 };
+            let ea = (base_alpha * alpha_scale).clamp(0.0, 1.0);
 
             // Tessellate the logical edge into DEFAULT_SEGMENTS quadratic-bezier
             // sub-segments and emit one GPU instance per sub-segment.
