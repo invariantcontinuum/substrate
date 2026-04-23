@@ -368,15 +368,21 @@ impl RenderEngine {
         self.is_panning = false;
     }
 
-    pub fn handle_zoom(&mut self, delta: f32, _x: f32, _y: f32) {
-        let factor = if delta > 0.0 { 0.96 } else { 1.04 };
-        // Zoom anchored to viewport center so the graph stays centered
-        // during wheel / pinch gestures. Pointer-relative zoom causes the
-        // graph to drift off-screen with repeated zooms, which is the
-        // stereotypical UX complaint this addresses.
-        let cx = self.camera.viewport_width() * 0.5;
-        let cy = self.camera.viewport_height() * 0.5;
-        self.camera.zoom_at(factor, cx, cy);
+    pub fn handle_zoom(&mut self, delta: f32, x: f32, y: f32) {
+        // Pointer-anchored zoom (Cytoscape-style): the world point under the
+        // cursor stays pinned while zoom changes. Users who wheel-zoom
+        // towards a target expect the target to grow, not slide to the
+        // corner. The earlier viewport-center anchor fought that intuition.
+        // Clamp pointer to the viewport rect so off-canvas scroll events
+        // don't pick a wild anchor.
+        let vw = self.camera.viewport_width();
+        let vh = self.camera.viewport_height();
+        let anchor_x = x.clamp(0.0, vw.max(1.0));
+        let anchor_y = y.clamp(0.0, vh.max(1.0));
+        // Slightly stronger factor per tick (was 1.04) so wheel feels crisp
+        // without being jumpy; still much gentler than typical browser zoom.
+        let factor = if delta > 0.0 { 0.92 } else { 1.08 };
+        self.camera.zoom_at(factor, anchor_x, anchor_y);
         self.needs_render = true;
     }
 
@@ -746,7 +752,7 @@ impl RenderEngine {
                 return;
             }
             if let Some((center, zoom)) = self.compute_fit_viewport(padding_px, &all) {
-                self.start_camera_anim(center, zoom, 400.0);
+                self.start_camera_anim(center, zoom, 260.0);
             }
             return;
         }
@@ -787,7 +793,11 @@ impl RenderEngine {
         } else {
             self.camera.zoom
         };
-        self.start_camera_anim(center, zoom, 400.0);
+        // 260 ms — snappier than the old 400 ms; still long enough that the
+        // user perceives motion rather than a hard cut, but short enough
+        // that tapping through 3-4 neighbors in sequence doesn't feel like
+        // waiting on a staircase of easings.
+        self.start_camera_anim(center, zoom, 260.0);
     }
 
     /// Compute the target center and zoom level needed to frame the given node indices

@@ -667,6 +667,35 @@ html {
     padding: var(--space-2);
     padding-bottom: var(--space-3);
     gap: var(--space-2);
+    /* Stack vertically so the mobile search row sits above the canvas
+     * instead of competing for horizontal space with it. */
+    flex-direction: column;
+  }
+}
+
+/* Mobile-only search bar that appears between the top-nav pill and the
+ * graph canvas. At desktop sizes the top-nav search covers this role so we
+ * hide the extra row. At ≤640px the top-nav drops its center slot entirely
+ * (see `.top-nav-center { display: none }`), and this row becomes the
+ * primary search entry point — no more needing to open a separate search
+ * modal just to spotlight a node. */
+.graph-mobile-search {
+  display: none;
+}
+@media (max-width: 640px) {
+  .graph-mobile-search {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 0 var(--space-1);
+    margin-bottom: var(--space-1);
+    flex-shrink: 0;
+  }
+  /* Make the search input fill the row; same 36px pill treatment as
+   * top-nav-search but full-width. */
+  .graph-mobile-search > * {
+    flex: 1;
+    min-width: 0;
   }
 }
 
@@ -846,6 +875,25 @@ html {
     width: calc(100% - var(--space-6));
     max-width: 360px;
     z-index: var(--z-overlay-panel);
+  }
+}
+
+/* Phone: convert the detail panel into a bottom sheet so it never covers
+ * the graph canvas above it. Fixed to the bottom of the viewport, fills
+ * the width, capped at 55vh height so the user always sees the selected
+ * node on the graph above the sheet. Scrolls internally. */
+@media (max-width: 640px) {
+  .node-detail-panel {
+    top: auto;
+    right: 0;
+    left: 0;
+    bottom: calc(64px + env(safe-area-inset-bottom));
+    width: 100%;
+    max-width: none;
+    max-height: 55vh;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    border-bottom: 0;
+    box-shadow: 0 -12px 32px rgba(0, 0, 0, 0.45);
   }
 }
 
@@ -2267,6 +2315,52 @@ html {
     bottom: calc(var(--space-4) + env(safe-area-inset-bottom));
     transform: none;
     flex-direction: row;
+  }
+}
+
+/* Phone (≤640px): toolbar becomes a compact horizontal pill at the top-right
+ * of the canvas so it doesn't compete with the bottom-sheet detail panel for
+ * vertical space. Legend shrinks, moves above the sheet, and hides the
+ * "count" column to save horizontal room. */
+@media (max-width: 640px) {
+  .graph-toolbar {
+    top: var(--space-2);
+    right: var(--space-2);
+    bottom: auto;
+    left: auto;
+    flex-direction: row;
+    padding: 3px;
+    gap: 2px;
+  }
+  .graph-toolbar button {
+    width: 28px;
+    height: 28px;
+  }
+  /* The legend lives above the bottom sheet so it never hides behind the
+   * detail panel. 55vh sheet + 8px gap + 64px nav = plenty of room to
+   * stack the legend right above the sheet. */
+  .graph-overlay-bottom-right {
+    bottom: calc(55vh + 64px + env(safe-area-inset-bottom) + var(--space-2));
+    max-width: min(60vw, 200px);
+  }
+  .graph-overlay-bottom-left {
+    bottom: calc(55vh + 64px + env(safe-area-inset-bottom) + var(--space-2));
+  }
+  /* When no node is selected, there's no bottom sheet — reclaim the space
+   * so overlays sit at the normal bottom of the canvas. The React layer
+   * toggles `data-spotlight-active` on `.graph-canvas-container` from the
+   * `selectedNodeId` value, so we key the tight packing on the *absence*
+   * of that attribute. */
+  .graph-canvas-container[data-spotlight-active="false"] ~ .graph-overlay-bottom-right,
+  .graph-canvas-container[data-spotlight-active="false"] ~ .graph-overlay-bottom-left {
+    bottom: calc(64px + env(safe-area-inset-bottom) + var(--space-2));
+  }
+  .dynamic-legend {
+    padding: 4px 6px;
+    font-size: var(--text-xs);
+  }
+  .dynamic-legend-count {
+    display: none;
   }
 }
 

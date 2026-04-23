@@ -24,6 +24,10 @@ export interface GraphProps {
   layout?: LayoutType;
   filter?: GraphFilter | null;
   onNodeClick?: (node: NodeData) => void;
+  /** Fires when the user clicks on empty canvas (no node hit). Hosts can use
+   *  this to clear a spotlight selection without the user having to hit Esc
+   *  — legacy Cytoscape behavior. */
+  onBackgroundClick?: () => void;
   onNodeHover?: (node: NodeData | null) => void;
   onLegendChange?: (legend: LegendSummary) => void;
   onStatsChange?: (stats: GraphStats) => void;
@@ -62,6 +66,7 @@ export const Graph = forwardRef<GraphHandle, GraphProps>(function Graph(
     layout = "force",
     filter,
     onNodeClick,
+    onBackgroundClick,
     onNodeHover,
     onLegendChange,
     onStatsChange,
@@ -80,12 +85,12 @@ export const Graph = forwardRef<GraphHandle, GraphProps>(function Graph(
   const workerRef = useRef<Worker | null>(null);
   const rafRef = useRef<number>(0);
   const convergedRef = useRef(false);
-  const callbacksRef = useRef({ onNodeClick, onNodeHover, onStatsChange, onLegendChange, onPositionsReady });
+  const callbacksRef = useRef({ onNodeClick, onBackgroundClick, onNodeHover, onStatsChange, onLegendChange, onPositionsReady });
   const draggingNodeRef = useRef<string | null>(null);
   const pendingFitRef = useRef(false);
   const [ready, setReady] = useState(false);
 
-  callbacksRef.current = { onNodeClick, onNodeHover, onStatsChange, onLegendChange, onPositionsReady };
+  callbacksRef.current = { onNodeClick, onBackgroundClick, onNodeHover, onStatsChange, onLegendChange, onPositionsReady };
 
   /* Restart the RAF render loop. Called after every camera-mutating
    * interaction (zoom/pan/fit/drag) because the loop exits when
@@ -576,6 +581,12 @@ export const Graph = forwardRef<GraphHandle, GraphProps>(function Graph(
       const clickedId = engineRef.current?.handle_click(local.x, local.y);
       if (clickedId) {
         callbacksRef.current.onNodeClick?.({ id: clickedId } as NodeData);
+      } else {
+        // Clicking empty canvas clears spotlight — Cytoscape parity. Hosts
+        // that wire `onBackgroundClick` to `setSelectedNodeId(null)` get the
+        // full escape-without-keyboard behavior users expect on touch
+        // devices where there is no Esc key.
+        callbacksRef.current.onBackgroundClick?.();
       }
       requestRender();
     };

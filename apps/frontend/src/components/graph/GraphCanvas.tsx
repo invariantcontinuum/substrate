@@ -37,6 +37,7 @@ export function GraphCanvas() {
   const setSelectedNodeId = useGraphStore((s) => s.setSelectedNodeId);
   const selectedNodeId = useGraphStore((s) => s.selectedNodeId);
   const openModal = useUIStore((s) => s.openModal);
+  const closeModal = useUIStore((s) => s.closeModal);
   const onNodeClick = useCallback(
     (node: { id: string }) => {
       setSelectedNodeId(node.id);
@@ -44,6 +45,12 @@ export function GraphCanvas() {
     },
     [setSelectedNodeId, openModal],
   );
+  // Background click clears spotlight — Cytoscape-style. Dismissing the
+  // detail panel too avoids a dangling panel with no graph selection.
+  const onBackgroundClick = useCallback(() => {
+    setSelectedNodeId(null);
+    closeModal();
+  }, [setSelectedNodeId, closeModal]);
 
   // Spotlight 1-hop set: passed to GraphScene so LabelOverlay dims non-focus
   // labels in sync with the WASM shader's node-fill dim. O(E) per selection.
@@ -72,6 +79,7 @@ export function GraphCanvas() {
           sourceLabels={sourceLabels}
           focusIds={focusIds}
           onNodeClick={onNodeClick}
+          onBackgroundClick={onBackgroundClick}
           onReady={onReady}
           onStatsChange={onStatsChange}
           onPositionsReady={onPositionsReady}

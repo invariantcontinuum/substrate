@@ -159,11 +159,11 @@ export class RenderEngine {
     }
     /**
      * @param {number} delta
-     * @param {number} _x
-     * @param {number} _y
+     * @param {number} x
+     * @param {number} y
      */
-    handle_zoom(delta, _x, _y) {
-        wasm.renderengine_handle_zoom(this.__wbg_ptr, delta, _x, _y);
+    handle_zoom(delta, x, y) {
+        wasm.renderengine_handle_zoom(this.__wbg_ptr, delta, x, y);
     }
     /**
      * @returns {boolean}
