@@ -80,12 +80,17 @@ async def proxy_request(
     is_idempotent = request.method.upper() in _IDEMPOTENT_METHODS
     attempts = 3 if is_idempotent else 1
 
-    # Summary endpoints run local dense LLM calls that routinely take
-    # 30-90s; override the default 60s read timeout for them.
-    is_summary = request.url.path.endswith("/summary")
+    # Summary endpoints and Ask turn endpoints both call the local dense
+    # LLM, which routinely takes 30-90s; grant them a 115s read timeout
+    # instead of the default 60s.
+    path = request.url.path
+    is_long_llm_call = (
+        path.endswith("/summary")
+        or (path.startswith("/api/ask/threads/") and path.endswith("/messages"))
+    )
     per_request_timeout = (
         httpx.Timeout(connect=5.0, read=115.0, write=10.0, pool=10.0)
-        if is_summary
+        if is_long_llm_call
         else None
     )
 
