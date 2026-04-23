@@ -16,12 +16,13 @@ WORKDIR /workspace
 
 # Workspace root + shared package (for uv workspace resolution)
 COPY pyproject.toml /workspace/pyproject.toml
+COPY uv.lock /workspace/uv.lock
 COPY packages/substrate-common /workspace/packages/substrate-common
 
 COPY services/graph/pyproject.toml /workspace/services/graph/pyproject.toml
 
 WORKDIR /workspace/services/graph
-RUN uv sync --no-dev
+RUN uv sync --frozen --no-dev
 
 COPY services/graph/migrations /workspace/services/graph/migrations
 COPY services/graph/src /workspace/services/graph/src

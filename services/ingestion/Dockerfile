@@ -10,6 +10,7 @@ WORKDIR /workspace
 
 # Workspace root + shared packages (for uv workspace resolution)
 COPY pyproject.toml /workspace/pyproject.toml
+COPY uv.lock /workspace/uv.lock
 COPY packages/substrate-common /workspace/packages/substrate-common
 COPY packages/substrate-graph-builder /workspace/packages/substrate-graph-builder
 
@@ -17,7 +18,7 @@ COPY packages/substrate-graph-builder /workspace/packages/substrate-graph-builde
 COPY services/ingestion/pyproject.toml /workspace/services/ingestion/pyproject.toml
 
 WORKDIR /workspace/services/ingestion
-RUN uv sync --no-dev
+RUN uv sync --frozen --no-dev
 
 # Service source + entrypoint
 COPY services/ingestion/src /workspace/services/ingestion/src
