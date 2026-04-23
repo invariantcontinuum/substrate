@@ -103,10 +103,14 @@ async def _run(sync_id: str) -> None:
 
     # hierarchical_leiden returns a log of HierarchicalCluster entries; level 0
     # is the result of the flat Leiden run. We only consume level 0 here.
+    # graspologic exposes extra passes as `extra_forced_iterations` (additional
+    # passes beyond its own convergence). Map our env-driven `iterations` knob to
+    # it so the setting actually has effect.
     partitions = hierarchical_leiden(
         g,
         resolution=settings.per_sync_leiden_resolution,
         randomness=settings.per_sync_leiden_beta,
+        extra_forced_iterations=max(0, settings.per_sync_leiden_iterations - 1),
         random_seed=settings.per_sync_leiden_seed,
         use_modularity=True,
     )
