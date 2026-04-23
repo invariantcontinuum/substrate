@@ -635,6 +635,27 @@ impl RenderEngine {
         }
     }
 
+    /// Pan the camera to center on the node with id `id`, preserving the
+    /// current zoom level. This is the default click behaviour — a legacy
+    /// Cytoscape `cy.center(node)` equivalent: the clicked node smoothly
+    /// slides into the middle of the viewport so the user doesn't lose
+    /// it in a 10 000-node grid. Zoom is deliberately NOT touched so the
+    /// user's spatial context is preserved across sequential clicks.
+    pub fn pan_to_node(&mut self, id: String) {
+        let Some(idx) = self.node_ids.iter().position(|n| n == &id) else {
+            return;
+        };
+        let off = idx * 4;
+        if off + 1 >= self.positions.len() {
+            return;
+        }
+        let cx = self.positions[off];
+        let cy = self.positions[off + 1];
+        // 220 ms is fast enough that sequential clicks don't staircase but
+        // slow enough that the eye can track the target across the canvas.
+        self.start_camera_anim((cx, cy), self.camera.zoom, 220.0);
+    }
+
     /// Multiplicative zoom around screen center.
     pub fn zoom_in(&mut self) {
         let cx = self.camera.viewport_width() * 0.5;

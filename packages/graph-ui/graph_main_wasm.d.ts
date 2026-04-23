@@ -55,6 +55,15 @@ export class RenderEngine {
     handle_zoom(delta: number, x: number, y: number): void;
     needs_frame(): boolean;
     /**
+     * Pan the camera to center on the node with id `id`, preserving the
+     * current zoom level. This is the default click behaviour — a legacy
+     * Cytoscape `cy.center(node)` equivalent: the clicked node smoothly
+     * slides into the middle of the viewport so the user doesn't lose
+     * it in a 10 000-node grid. Zoom is deliberately NOT touched so the
+     * user's spatial context is preserved across sequential clicks.
+     */
+    pan_to_node(id: string): void;
+    /**
      * Re-upload GPU buffers after a WebGL context loss → restore sequence.
      */
     rehydrate(): void;
@@ -141,6 +150,7 @@ export interface InitOutput {
     readonly renderengine_handle_pan_start: (a: number, b: number, c: number) => void;
     readonly renderengine_handle_zoom: (a: number, b: number, c: number, d: number) => void;
     readonly renderengine_needs_frame: (a: number) => number;
+    readonly renderengine_pan_to_node: (a: number, b: number, c: number) => void;
     readonly renderengine_rehydrate: (a: number) => void;
     readonly renderengine_request_render: (a: number) => void;
     readonly renderengine_set_community_hulls: (a: number, b: number) => void;

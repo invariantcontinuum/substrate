@@ -48,6 +48,9 @@ export interface GraphHandle {
   setTheme: (theme: unknown) => void;
   setData: (snapshot: GraphSnapshot) => void;
   selectNode: (id: string | null) => void;
+  /** Pan-only tween to center the camera on `id` without changing zoom.
+   *  Used by canvas clicks (Cytoscape `cy.center(node)` parity). */
+  panToNode: (id: string) => void;
   focusFit: (id: string | null, padding?: number) => void;
   subscribeFrame: (
     cb: (m: { positions: Float32Array; vpMatrix: Float32Array }) => void,
@@ -635,6 +638,10 @@ export const Graph = forwardRef<GraphHandle, GraphProps>(function Graph(
       setData: (nextSnapshot) => applySnapshot(nextSnapshot),
       selectNode: (id) => {
         engineRef.current?.set_focus(id ?? undefined);
+        requestRender();
+      },
+      panToNode: (id) => {
+        engineRef.current?.pan_to_node(id);
         requestRender();
       },
       focusFit: (id, padding = 80) => {

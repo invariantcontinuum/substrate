@@ -4,14 +4,16 @@ import { useGraphStore } from "@/stores/graph";
 
 /**
  * Mirrors `selectedNodeId` from the Zustand store onto the engine's spotlight
- * state WITHOUT moving the camera. The rule we follow is Cytoscape-parity:
- * clicks on a node spotlight it in place; the camera only moves when the
- * user explicitly asks for it via Fit, Zoom, or the search / neighbor
- * buttons — each of those call sites invokes `engineRef.current.focusFit`
- * itself. The prior implementation here re-called `focusFit` on every
- * selection change, which meant every canvas click triggered a pan+zoom
- * tween that the user never asked for; sequential neighbor-clicks produced
- * a disorienting staircase of zoom changes.
+ * + camera state using the Cytoscape `cy.center(node)` convention:
+ *   - Click a node → spotlight AND pan-only (zoom preserved). The selected
+ *     node slides into the viewport center so it's trivially findable in a
+ *     10 000-node graph.
+ *   - `focusFit` (aggressive zoom-to-neighborhood) is reserved for search
+ *     picks, which are the only path where the user is likely navigating
+ *     to a node far outside the current viewport — those call sites invoke
+ *     `engineRef.current.focusFit` directly.
+ *   - Clearing the selection (null) clears the spotlight but leaves the
+ *     camera where the user left it.
  */
 export function useSelectionSync(
   engineRef: React.RefObject<GraphHandle | null>,
@@ -21,5 +23,8 @@ export function useSelectionSync(
   useEffect(() => {
     if (!ready) return;
     engineRef.current?.selectNode(selectedNodeId);
+    if (selectedNodeId) {
+      engineRef.current?.panToNode(selectedNodeId);
+    }
   }, [selectedNodeId, ready, engineRef]);
 }

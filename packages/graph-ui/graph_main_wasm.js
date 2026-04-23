@@ -173,6 +173,20 @@ export class RenderEngine {
         return ret !== 0;
     }
     /**
+     * Pan the camera to center on the node with id `id`, preserving the
+     * current zoom level. This is the default click behaviour — a legacy
+     * Cytoscape `cy.center(node)` equivalent: the clicked node smoothly
+     * slides into the middle of the viewport so the user doesn't lose
+     * it in a 10 000-node grid. Zoom is deliberately NOT touched so the
+     * user's spatial context is preserved across sequential clicks.
+     * @param {string} id
+     */
+    pan_to_node(id) {
+        const ptr0 = passStringToWasm0(id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.renderengine_pan_to_node(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
      * Re-upload GPU buffers after a WebGL context loss → restore sequence.
      */
     rehydrate() {

@@ -156,13 +156,16 @@ export function LabelOverlay({
         ctx.rect(sx - nodeW * 0.5, sy - nodeH * 0.5, nodeW, nodeH);
         ctx.clip();
 
-        // Match the WASM shader's spotlight behaviour: when a focus is active
-        // and this node is not part of the 1-hop neighborhood, fade the label
-        // so it doesn't outshine the dimmed node underneath. `focusIds == null`
-        // means "no spotlight" → render at full brightness for everyone.
-        const isDimmed = focusIds != null && focusIds.size > 0 && !focusIds.has(id);
-        const labelAlpha = isDimmed ? 0.12 : 1.0;
-        ctx.globalAlpha = labelAlpha;
+        // Labels stay visible for every node at all times — matches legacy
+        // Cytoscape behaviour. The WASM shader dims non-focus node FILLS
+        // under spotlight, but labels are the information layer: users
+        // need them legible when scanning "where is the neighbor I care
+        // about?" across a dense grid. The previous 0.12-alpha dim on
+        // non-focus labels made the 1-hop neighborhood unreadable at any
+        // zoom level where focus-fit didn't re-frame (i.e. every click).
+        // `focusIds` is still accepted so callers can opt in to per-focus
+        // label styling in the future.
+        void focusIds;
 
         ctx.font = `${fontWeight} ${fitted.fontPx}px ${fontFamily}`;
         ctx.textAlign = "center";
