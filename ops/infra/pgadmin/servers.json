@@ -3,7 +3,7 @@
     "1": {
       "Name": "substrate_graph",
       "Group": "substrate",
-      "Host": "postgres",
+      "Host": "substrate-postgres",
       "Port": 5432,
       "MaintenanceDB": "substrate_graph",
       "Username": "substrate_graph",
@@ -13,7 +13,7 @@
     "2": {
       "Name": "keycloak",
       "Group": "substrate",
-      "Host": "postgres",
+      "Host": "substrate-postgres",
       "Port": 5432,
       "MaintenanceDB": "keycloak",
       "Username": "keycloak",
@@ -23,7 +23,7 @@
     "3": {
       "Name": "postgres (superuser)",
       "Group": "substrate",
-      "Host": "postgres",
+      "Host": "substrate-postgres",
       "Port": 5432,
       "MaintenanceDB": "postgres",
       "Username": "postgres",
