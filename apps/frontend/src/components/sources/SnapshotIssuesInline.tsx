@@ -41,6 +41,7 @@ export function SnapshotIssuesInline({ run }: Props) {
   const chunksTotal    = stats.chunks          ?? meta?.chunks_total    ?? null;
   const chunksEmbedded = stats.chunks_embedded ?? meta?.chunks_embedded ?? null;
   const nodesByType    = meta?.nodes_by_type   ?? null;
+  const deniedFiles    = stats.denied_file_count ?? null;
 
   const isRunning = run.status === "running";
 
@@ -97,6 +98,9 @@ export function SnapshotIssuesInline({ run }: Props) {
             }
           />
           <StatRow label="Files embedded" value={formatCount(filesEmbedded)} />
+          {deniedFiles !== null && (
+            <StatRow label="Denied files" value={formatCount(deniedFiles)} />
+          )}
           {nodesByTypeSummary && (
             <StatRow label="Nodes by type" value={nodesByTypeSummary} />
           )}

@@ -113,17 +113,23 @@ async def insert_file(
         return row["id"]
 
 
-async def update_source_meta(source_id: str, meta: dict) -> None:
-    """Merge metadata into an existing source row."""
+async def update_source_meta(source_id: str, meta: dict, default_branch: str | None = None) -> None:
+    """Merge metadata into an existing source row.
+
+    When *default_branch* is provided and non-empty it also overwrites the
+    column so the sources page and downstream consumers see the canonical
+    branch name without reaching into the JSONB blob.
+    """
     if not _pool:
         raise RuntimeError("graph_writer not connected")
     async with _pool.acquire() as conn:
         await conn.execute(
             """UPDATE sources
                SET meta = COALESCE(meta, '{}'::jsonb) || $2::jsonb,
+                   default_branch = COALESCE(NULLIF($3, ''), default_branch),
                    updated_at = now()
                WHERE id = $1::uuid""",
-            source_id, meta,
+            source_id, meta, default_branch,
         )
 
 

@@ -113,7 +113,10 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
                         source["owner"], source["name"], settings.github_token
                     )
                     if repo_meta:
-                        await graph_writer.update_source_meta(source_id, repo_meta)
+                        await graph_writer.update_source_meta(
+                            source_id, repo_meta,
+                            default_branch=repo_meta.get("default_branch"),
+                        )
                     commit_date = await fetch_commit_date(
                         source["owner"], source["name"], tree.ref, settings.github_token
                     )

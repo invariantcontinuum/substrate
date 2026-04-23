@@ -1,6 +1,4 @@
 from contextlib import asynccontextmanager
-import json
-
 import structlog
 from fastapi import FastAPI, Header
 
@@ -25,24 +23,12 @@ from src.scheduler import (
     stop_scheduler,
 )
 from substrate_common.schema import ScheduleRequest, ScheduleUpdateRequest, SyncRequest
+from src.json_utils import json_object
 from src.sources_patch import SourcePatch, update_source_impl
 from src.sync_runs import clean_sync_impl
 
 configure_logging(service=settings.service_name)
 logger = structlog.get_logger()
-
-
-def _json_object(value: object) -> dict:
-    if isinstance(value, dict):
-        return value
-    if isinstance(value, str):
-        try:
-            parsed = json.loads(value)
-            if isinstance(parsed, dict):
-                return parsed
-        except json.JSONDecodeError:
-            return {}
-    return {}
 
 
 def _require_sub(x_user_sub: str | None) -> str:
@@ -142,7 +128,7 @@ async def create_sync(
             f"no connector registered for source_type={src_row['source_type']}",
             details={"source_type": src_row["source_type"]},
         )
-    base = _json_object(src_row["config"])
+    base = json_object(src_row["config"])
     snapshot = {**base, **req.config_overrides}
     pool = graph_writer.get_pool()
     async with pool.acquire() as conn:
@@ -225,7 +211,7 @@ async def retry_sync(
         )
     if not row:
         raise NotFoundError("sync_run not found")
-    snapshot = _json_object(row["config_snapshot"])
+    snapshot = json_object(row["config_snapshot"])
     pool = graph_writer.get_pool()
     async with pool.acquire() as conn:
         new_id, created = await sync_runs.ensure_active_sync(

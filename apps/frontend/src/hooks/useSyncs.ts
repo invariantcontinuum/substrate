@@ -48,6 +48,7 @@ export interface SyncRunStats {
   chunks?: number;
   chunks_embedded?: number;
   duration_ms?: number;
+  denied_file_count?: number;
 }
 
 // Matches the `meta` dict populated by services/ingestion/src/jobs/sync.py

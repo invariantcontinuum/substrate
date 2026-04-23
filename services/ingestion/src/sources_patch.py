@@ -12,11 +12,12 @@ Business rules
 """
 from __future__ import annotations
 
-import json
 from typing import Annotated
 
 from fastapi import HTTPException
 from pydantic import BaseModel, ConfigDict, Field
+
+from src.json_utils import coerce_jsonb
 
 
 # ---------------------------------------------------------------------------
@@ -63,9 +64,7 @@ async def update_source_impl(pool, source_id: str, patch: SourcePatch, user_sub:
             if row is None:
                 raise HTTPException(404, f"source {source_id} not found")
 
-            current_config = row["config"] or {}
-            if isinstance(current_config, str):
-                current_config = json.loads(current_config)
+            current_config = coerce_jsonb(row["config"] or {})
 
             new_config = dict(current_config)
             if patch.config is not None:
@@ -104,9 +103,5 @@ async def update_source_impl(pool, source_id: str, patch: SourcePatch, user_sub:
         "name": updated["name"],
         "url": updated["url"],
         "enabled": updated["enabled"],
-        "config": (
-            updated["config"]
-            if isinstance(updated["config"], dict)
-            else json.loads(updated["config"] or "{}")
-        ),
+        "config": coerce_jsonb(updated["config"]),
     }

@@ -1,7 +1,7 @@
 import asyncio
-import json
 import structlog
 from src import graph_writer, sync_schedules
+from src.json_utils import json_dict
 from src.sync_runs import ensure_active_sync, clean_sync_impl
 from src.config import settings
 
@@ -30,11 +30,11 @@ async def claim_due_schedules_once() -> None:
         raw_overrides = sched.get("config_overrides") or {}
         # asyncpg decodes JSONB to dict by default; the str branch guards
         # against a misconfigured codec returning the raw string.
-        config_overrides = raw_overrides if isinstance(raw_overrides, dict) else json.loads(raw_overrides or "{}")
+        config_overrides = json_dict(raw_overrides)
         async with pool.acquire() as conn:
             row = await conn.fetchrow("SELECT config FROM sources WHERE id=$1::uuid", source_id)
             raw_config = (row["config"] if row else None) or {}
-            base_config = raw_config if isinstance(raw_config, dict) else json.loads(raw_config or "{}")
+            base_config = json_dict(raw_config)
             merged = {**base_config, **config_overrides}
             sync_id, created = await ensure_active_sync(
                 conn,

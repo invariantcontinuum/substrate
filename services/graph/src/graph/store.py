@@ -1,9 +1,9 @@
 import asyncio
 import json
 import time
+
 import structlog
 import asyncpg
-from dataclasses import dataclass, field
 from urllib.parse import urlsplit
 
 from src.config import settings
@@ -25,69 +25,6 @@ _summary_locks: dict[str, asyncio.Lock] = {}
 # which becomes the connection's startup default and survives RESET ALL.
 # LOAD is not a GUC so it persists for the connection's lifetime once run
 # in the init callback.
-
-
-@dataclass
-class GraphNode:
-    id: str
-    name: str
-    type: str
-    domain: str = ""
-    status: str = "healthy"
-    source: str = "github"
-    meta: dict = field(default_factory=dict)
-    first_seen: str = ""
-    last_seen: str = ""
-
-
-@dataclass
-class GraphEdge:
-    id: str
-    source: str
-    target: str
-    type: str = "depends"
-    label: str = ""
-    weight: float = 1.0
-
-
-@dataclass
-class GraphSnapshot:
-    nodes: list[GraphNode]
-    edges: list[GraphEdge]
-    meta: dict = field(default_factory=dict)
-
-
-def nodes_to_cytoscape(nodes: list[GraphNode]) -> list[dict]:
-    return [
-        {
-            "data": {
-                "id": n.id,
-                "name": n.name,
-                "type": n.type,
-                "domain": n.domain,
-                "status": n.status,
-                "source": n.source,
-                "meta": n.meta,
-            }
-        }
-        for n in nodes
-    ]
-
-
-def edges_to_cytoscape(edges: list[GraphEdge]) -> list[dict]:
-    return [
-        {
-            "data": {
-                "id": e.id,
-                "source": e.source,
-                "target": e.target,
-                "type": e.type,
-                "label": e.label,
-                "weight": e.weight,
-            }
-        }
-        for e in edges
-    ]
 
 
 async def _init_age(conn: asyncpg.Connection) -> None:

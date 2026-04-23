@@ -11,6 +11,7 @@ export interface Source {
   url: string;
   default_branch: string;
   config: Record<string, unknown>;
+  meta: Record<string, unknown>;
   enabled: boolean;
   last_sync_id: string | null;
   last_synced_at: string | null;
