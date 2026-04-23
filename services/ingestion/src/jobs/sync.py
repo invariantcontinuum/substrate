@@ -10,6 +10,8 @@ from src.connectors.base import MaterializedTree
 from src.connectors.github import CONNECTORS, _walk_local_tree, fetch_commit_date, fetch_repo_metadata
 from src import graph_writer, sync_runs, sync_issues
 from src.chunker import chunk_file, file_summary_text
+from src.jobs.finalize_stats import finalize_stats
+from src.jobs.per_sync_leiden import per_sync_leiden
 from src.llm import embed_batch, EmbeddingDimError
 from substrate_graph_builder import build_graph
 
@@ -423,6 +425,29 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
                 await sync_issues.record_issue(
                     sync_id, "warning", "embedding_chunks", "embedding_unavailable",
                     f"Chunk embedding failed: {e}", {})
+
+        # Populate sync_runs.stats with counts/storage/timing/issues + per-sync
+        # Leiden summary before the row flips to 'completed'. Both are non-failing:
+        # on error they record a warning issue and leave the row usable with
+        # stats.schema_version = 0 (UI handles the fallback). Spec §4.1.
+        # Phase updates route through the existing _publish_progress path so the
+        # SourcesPage UI sees "Finalising stats" and "Computing communities"
+        # labels via the same SSE progress events as earlier phases.
+        meta["phase"] = "finalizing_stats"
+        try:
+            await _publish_progress(sync_id, meta)
+        except Exception as e:  # noqa: BLE001 — phase update is best-effort
+            logger.warning("phase_update_failed",
+                           sync_id=sync_id, phase="finalizing_stats", error=str(e))
+        await finalize_stats(sync_id)
+
+        meta["phase"] = "computing_communities"
+        try:
+            await _publish_progress(sync_id, meta)
+        except Exception as e:  # noqa: BLE001 — phase update is best-effort
+            logger.warning("phase_update_failed",
+                           sync_id=sync_id, phase="computing_communities", error=str(e))
+        await per_sync_leiden(sync_id)
 
         meta["phase"] = "done"
         await _publish_progress(sync_id, meta)

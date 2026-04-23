@@ -1,4 +1,6 @@
 """Lifecycle helpers for sync_runs rows. Single source of truth for status transitions."""
+import json
+
 import asyncpg
 from src import graph_writer, events
 
@@ -112,6 +114,21 @@ async def set_ref(sync_id: str, ref: str) -> None:
 async def complete_sync_run(sync_id: str, stats: dict) -> None:
     pool = graph_writer.get_pool()
     async with pool.acquire() as conn:
+        # finalize_stats + per_sync_leiden populate stats.counts / stats.leiden
+        # before this flip (spec §4.1). Overwriting with the legacy stats dict
+        # would drop those keys, so read-modify-write merge top-level keys.
+        # The pool loads AGE with search_path=ag_catalog,public; the jsonb ||
+        # operator resolves to AGE's agtype concat (array-producing), not
+        # pg_catalog's object-merge — so Python-side merge is the safe path,
+        # matching the pattern in finalize_stats._compute_and_write.
+        existing = await conn.fetchval(
+            "SELECT stats FROM sync_runs WHERE id = $1::uuid", sync_id,
+        )
+        if isinstance(existing, str):
+            existing = json.loads(existing)
+        if not isinstance(existing, dict):
+            existing = {}
+        merged = {**existing, **stats}
         await conn.execute(
             """UPDATE sync_runs
                SET status='completed',
@@ -119,7 +136,7 @@ async def complete_sync_run(sync_id: str, stats: dict) -> None:
                    stats=$2::jsonb,
                    denied_file_count=COALESCE(($2::jsonb)->>'denied_file_count', '0')::int
                WHERE id=$1::uuid""",
-            sync_id, stats,
+            sync_id, merged,
         )
         source_id, user_sub = await _get_sync_scope(conn, sync_id)
     await events.publish_sync_lifecycle(
