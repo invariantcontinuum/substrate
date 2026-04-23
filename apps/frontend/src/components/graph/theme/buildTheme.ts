@@ -88,11 +88,11 @@ export function buildGraphTheme(mode: "light" | "dark"): GraphTheme {
       : "rgba(28, 85, 78, 0.16)",
     hullFill: p.hullFill,
     hullStroke: p.hullStroke,
-    // Stronger dim: non-neighbor nodes drop to 0.18 alpha (was 0.28). That
-    // amount is enough for the 1-hop neighborhood to visibly dominate over
-    // 750+ background nodes without turning them invisible — the user still
-    // sees the overall shape of the graph while the spotlight reads clearly.
-    dimOpacity: 0.18,
+    // Aggressive dim to match legacy Cytoscape: non-neighbors fall to 0.08
+    // alpha so the 1-hop neighborhood strongly dominates. The graph's overall
+    // shape is still legible (dimmed nodes read as a pale ghost layer), but
+    // the focus group is unmistakably the subject.
+    dimOpacity: 0.08,
     labelHalo: p.labelHalo,
     dimText: p.dimText,
     nodeTypes,
