@@ -353,3 +353,30 @@ async def get_node_detail(
                 timeout_s=settings.graph_query_timeout_s,
                 context={"node_id": node_id, "sync_id": sync_id},
             )
+
+
+async def merged_edges(sync_ids: list[str]):
+    """Async generator yielding (src_file_id, dst_file_id) string pairs for the
+    active merged graph. Used by graph/community.py to build the adjacency
+    matrix for active-set Leiden (spec §5.2). Does not deduplicate — callers
+    use networkx's own dedup via Graph.add_edges_from. Streams row-by-row
+    so very large active sets don't buffer the entire edge list in memory.
+    """
+    if not sync_ids:
+        return
+    sync_ids = _validate_uuids(sync_ids)
+    pool = store.get_pool()
+    sync_id_list = ",".join(f"'{s}'" for s in sync_ids)
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            f"""SELECT * FROM cypher('substrate', $$
+                MATCH (a:File)-[r]->(b:File)
+                WHERE r.sync_id IN [{sync_id_list}]
+                RETURN a.file_id, b.file_id
+            $$) AS (src agtype, tgt agtype)"""
+        )
+    for r in rows:
+        s = json.loads(str(r["src"]))
+        t = json.loads(str(r["tgt"]))
+        if isinstance(s, str) and isinstance(t, str):
+            yield s, t
