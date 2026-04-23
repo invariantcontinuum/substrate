@@ -121,9 +121,11 @@ async def _call_dense_llm(messages: list[dict]) -> str:
         except httpx.HTTPError as exc:
             last_exc = exc
             logger.warning("ask_llm_call_failed", scale=scale, error=str(exc))
-    if last_text is not None:
+    if last_text:
         return last_text
-    raise RuntimeError(f"ask_llm_all_retries_failed: {last_exc}")
+    if last_text == "":
+        raise RuntimeError("ask_llm_empty_response") from last_exc
+    raise RuntimeError(f"ask_llm_all_retries_failed: {last_exc}") from last_exc
 
 
 def _parse_response(raw: str) -> tuple[str, list[str]]:
