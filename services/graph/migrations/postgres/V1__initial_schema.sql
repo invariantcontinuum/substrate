@@ -97,7 +97,7 @@ CREATE TABLE sync_schedules (
 
 -- ---------------------------------------------------------------------------
 -- file_embeddings
--- Final embedding dimension: 896 (jina-code-embeddings-0.5b, per V10).
+-- Final embedding dimension: 768 (nomic-embed-text-v2-moe, per lazy-lamacpp).
 -- The startup dim guard (src.startup.check_embedding_dim) fail-fasts
 -- if the configured embeddings model emits a different dimension.
 -- ---------------------------------------------------------------------------
@@ -117,7 +117,7 @@ CREATE TABLE file_embeddings (
     exports                  TEXT[] DEFAULT '{}',
     imports_count            INT DEFAULT 0,
     status                   TEXT DEFAULT 'healthy',
-    embedding                vector(896),
+    embedding                vector(768),
     content_hash             CHAR(64),
     last_commit_sha          TEXT DEFAULT '',
     last_commit_at           TIMESTAMPTZ,
@@ -135,7 +135,7 @@ CREATE INDEX idx_file_embeddings_desc_gen
 -- ---------------------------------------------------------------------------
 -- content_chunks
 -- Populated by the AST/semantic chunker (substrate-graph-builder.chunker)
--- on each sync run. Embeddings use the same 896-dim model as file_embeddings.
+-- on each sync run. Embeddings use the same 768-dim model as file_embeddings.
 -- ---------------------------------------------------------------------------
 CREATE TABLE content_chunks (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -149,7 +149,7 @@ CREATE TABLE content_chunks (
     language    TEXT DEFAULT '',
     chunk_type  TEXT DEFAULT 'block',
     symbols     TEXT[] DEFAULT '{}',
-    embedding   vector(896),
+    embedding   vector(768),
     created_at  TIMESTAMPTZ DEFAULT now(),
     UNIQUE (file_id, chunk_index)
 );
