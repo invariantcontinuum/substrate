@@ -7,7 +7,7 @@ from typing import Any
 import structlog
 from src.config import settings
 from src.connectors.base import MaterializedTree
-from src.connectors.github import CONNECTORS, _walk_local_tree
+from src.connectors.github import CONNECTORS, _walk_local_tree, fetch_repo_metadata, fetch_commit_date
 from src import graph_writer, sync_runs, sync_issues
 from src.chunker import chunk_file, file_summary_text
 from src.llm import embed_batch, EmbeddingDimError
@@ -102,10 +102,25 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
     await sync_runs.update_sync_progress(sync_id, 0, 0, meta)
 
     tree: MaterializedTree | None = None
+    last_commit_at: str | None = None
     try:
         tree = await connector.materialize(source, scratch_dir="/tmp")
         if tree.ref:
             await sync_runs.set_ref(sync_id, tree.ref)
+            if source_type == "github_repo":
+                try:
+                    repo_meta = await fetch_repo_metadata(
+                        source["owner"], source["name"], settings.github_token
+                    )
+                    if repo_meta:
+                        await graph_writer.update_source_meta(source_id, repo_meta)
+                    commit_date = await fetch_commit_date(
+                        source["owner"], source["name"], tree.ref, settings.github_token
+                    )
+                    if commit_date:
+                        last_commit_at = commit_date
+                except Exception:
+                    pass
         await _check_cancelled(sync_id)
 
         meta["phase"] = "discovering"
@@ -129,6 +144,11 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
         # Variables kept for back-compat with later code that references them:
         nodes = file_nodes
         all_edges = depends_edges
+        exports_by_file: dict[str, list[str]] = {}
+        for n in symbol_nodes:
+            fp = n.meta.get("file_path", "")
+            if fp:
+                exports_by_file.setdefault(fp, []).append(n.name)
         type_counts: dict[str, int] = {}
         for n in nodes:
             type_counts[n.type] = type_counts.get(n.type, 0) + 1
@@ -190,6 +210,9 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
                 size_bytes=fi["size_bytes"], line_count=fi["line_count"],
                 imports_count=fi["imports_count"],
                 content_hash=fi["content_hash"],
+                exports=exports_by_file.get(node.id),
+                last_commit_sha=tree.ref or None,
+                last_commit_at=last_commit_at,
             )
             file_id_map[node.id] = file_db_id
 

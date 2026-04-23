@@ -48,6 +48,46 @@ async def fetch_repo_tree(owner: str, repo: str, token: str, branch: str = "mast
     return resp.json().get("tree", [])
 
 
+async def fetch_repo_metadata(owner: str, repo: str, token: str) -> dict:
+    """Fetch public metadata from the GitHub REST API. Returns an empty dict on failure."""
+    client = await get_client()
+    url = f"{GITHUB_API}/repos/{owner}/{repo}"
+    headers = {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"}
+    try:
+        resp = await client.get(url, headers=headers)
+        resp.raise_for_status()
+        data = resp.json()
+        return {
+            "description": data.get("description") or "",
+            "stars": data.get("stargazers_count") or 0,
+            "forks": data.get("forks_count") or 0,
+            "open_issues": data.get("open_issues_count") or 0,
+            "language": data.get("language") or "",
+            "topics": data.get("topics", []),
+            "license": (data.get("license") or {}).get("name") or "",
+            "default_branch": data.get("default_branch") or "",
+            "created_at": data.get("created_at") or "",
+            "updated_at": data.get("updated_at") or "",
+            "pushed_at": data.get("pushed_at") or "",
+        }
+    except Exception:
+        return {}
+
+
+async def fetch_commit_date(owner: str, repo: str, ref: str, token: str) -> str | None:
+    """Fetch the committer date for a given ref. Returns None on failure."""
+    client = await get_client()
+    url = f"{GITHUB_API}/repos/{owner}/{repo}/commits/{ref}"
+    headers = {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"}
+    try:
+        resp = await client.get(url, headers=headers)
+        resp.raise_for_status()
+        data = resp.json()
+        return data.get("commit", {}).get("committer", {}).get("date")
+    except Exception:
+        return None
+
+
 # ---------- Clone-based sync ----------
 
 async def _clone_repo(owner: str, repo: str, token: str) -> str:

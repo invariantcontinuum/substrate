@@ -102,6 +102,7 @@ export function NodeDetailPanel() {
   const fileQuery = useQuery<{
     file_path: string; language: string; line_count?: number | null;
     size_bytes?: number | null; sync_id: string; last_commit_sha: string;
+    last_commit_at: string; exports: string[];
     chunk_count: number; content: string; truncated: boolean;
   }>({
     queryKey: ["node-file", selectedNodeId, selectedSnapshotId],
@@ -469,6 +470,16 @@ export function NodeDetailPanel() {
                 <span>{formatBytes(fileQuery.data.size_bytes)}</span>
               )}
               <span>{fileQuery.data.chunk_count} chunks</span>
+              {fileQuery.data.last_commit_sha && (
+                <span title={fileQuery.data.last_commit_at || undefined}>
+                  {fileQuery.data.last_commit_sha.slice(0, 7)}
+                </span>
+              )}
+              {fileQuery.data.exports && fileQuery.data.exports.length > 0 && (
+                <span title={fileQuery.data.exports.join("\n")}>
+                  {fileQuery.data.exports.length} export{fileQuery.data.exports.length === 1 ? "" : "s"}
+                </span>
+              )}
               {fileQuery.data.truncated && <span className="node-file-truncated">truncated at 5 MB</span>}
               <button
                 type="button"

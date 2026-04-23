@@ -56,14 +56,14 @@ async def list_sources(
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             f"""SELECT id::text, source_type, owner, name, url, default_branch,
-                       config, enabled, last_sync_id::text, last_synced_at::text,
+                       config, meta, enabled, last_sync_id::text, last_synced_at::text,
                        updated_at::text
                 FROM sources {where}
                 ORDER BY updated_at DESC, id DESC
                 LIMIT $2""",
             *args,
         )
-    items = [normalize_row_json_fields(r, "config") for r in rows[:limit]]
+    items = [normalize_row_json_fields(r, "config", "meta") for r in rows[:limit]]
     next_cursor = (
         _encode_cursor(rows[limit]["updated_at"], rows[limit]["id"])
         if len(rows) > limit else None
@@ -92,13 +92,13 @@ async def get_source(source_id: str, user_sub: str = Depends(require_user_sub)):
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """SELECT id::text, source_type, owner, name, url, default_branch,
-                      config, enabled, last_sync_id::text, last_synced_at::text
+                      config, meta, enabled, last_sync_id::text, last_synced_at::text
                FROM sources WHERE id=$1::uuid AND user_sub = $2""",
             source_id, user_sub,
         )
     if not row:
         raise NotFoundError("source not found")
-    return normalize_row_json_fields(row, "config")
+    return normalize_row_json_fields(row, "config", "meta")
 
 
 @router.patch("/{source_id}")

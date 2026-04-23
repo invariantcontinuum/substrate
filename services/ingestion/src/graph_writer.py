@@ -42,20 +42,26 @@ async def disconnect() -> None:
         logger.info("graph_writer_disconnected")
 
 
-async def ensure_source(source_type: str, owner: str, name: str, url: str) -> str:
+async def ensure_source(
+    source_type: str, owner: str, name: str, url: str,
+    meta: dict | None = None,
+    user_sub: str = "dev",
+) -> str:
     """Insert source if not present; return its id."""
     if not _pool:
         raise RuntimeError("graph_writer not connected")
     async with _pool.acquire() as conn:
         row = await conn.fetchrow(
             """
-            INSERT INTO sources (source_type, owner, name, url)
-            VALUES ($1, $2, $3, $4)
-            ON CONFLICT (source_type, owner, name) DO UPDATE
-                SET url = EXCLUDED.url, updated_at = now()
+            INSERT INTO sources (source_type, owner, name, url, meta, user_sub)
+            VALUES ($1, $2, $3, $4, $5::jsonb, $6)
+            ON CONFLICT (user_sub, source_type, owner, name) DO UPDATE
+                SET url = EXCLUDED.url,
+                    meta = EXCLUDED.meta,
+                    updated_at = now()
             RETURNING id::text
             """,
-            source_type, owner, name, url,
+            source_type, owner, name, url, meta or {}, user_sub,
         )
         return row["id"]
 
@@ -65,6 +71,9 @@ async def insert_file(
     domain: str, language: str, size_bytes: int, line_count: int,
     imports_count: int, content_hash: str | None = None,
     embedding: list[float] | None = None,
+    exports: list[str] | None = None,
+    last_commit_sha: str | None = None,
+    last_commit_at: str | None = None,
 ) -> str:
     """Insert one file row tagged with sync_id; immutable per-snapshot."""
     if not _pool:
@@ -76,26 +85,46 @@ async def insert_file(
                 """
                 INSERT INTO file_embeddings
                     (sync_id, source_id, file_path, name, type, domain, language,
-                     size_bytes, line_count, imports_count, embedding, content_hash)
-                VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11::vector, $12)
+                     size_bytes, line_count, imports_count, embedding, content_hash,
+                     exports, last_commit_sha, last_commit_at)
+                VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11::vector,
+                        $12, $13, $14, $15::timestamptz)
                 RETURNING id::text
                 """,
                 sync_id, source_id, file_path, name, file_type, domain, language,
                 size_bytes, line_count, imports_count, str(embedding), content_hash,
+                exports or [], last_commit_sha, last_commit_at,
             )
         else:
             row = await conn.fetchrow(
                 """
                 INSERT INTO file_embeddings
                     (sync_id, source_id, file_path, name, type, domain, language,
-                     size_bytes, line_count, imports_count, content_hash)
-                VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                     size_bytes, line_count, imports_count, content_hash,
+                     exports, last_commit_sha, last_commit_at)
+                VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11,
+                        $12, $13, $14::timestamptz)
                 RETURNING id::text
                 """,
                 sync_id, source_id, file_path, name, file_type, domain, language,
                 size_bytes, line_count, imports_count, content_hash,
+                exports or [], last_commit_sha, last_commit_at,
             )
         return row["id"]
+
+
+async def update_source_meta(source_id: str, meta: dict) -> None:
+    """Merge metadata into an existing source row."""
+    if not _pool:
+        raise RuntimeError("graph_writer not connected")
+    async with _pool.acquire() as conn:
+        await conn.execute(
+            """UPDATE sources
+               SET meta = COALESCE(meta, '{}'::jsonb) || $2::jsonb,
+                   updated_at = now()
+               WHERE id = $1::uuid""",
+            source_id, meta,
+        )
 
 
 async def update_file_embedding(file_id: str, embedding: list[float], sync_id: str = "") -> None:

@@ -126,6 +126,11 @@ export function SnapshotIssuesInline({ run }: Props) {
                   {issue.phase}{issue.code ? ` · ${issue.code}` : ""}
                 </span>
                 <div className="msg">{issue.message}</div>
+                {issue.context && Object.keys(issue.context).length > 0 && (
+                  <pre className="sync-issue-context">
+                    {JSON.stringify(issue.context, null, 2)}
+                  </pre>
+                )}
               </li>
             ))}
           </ul>

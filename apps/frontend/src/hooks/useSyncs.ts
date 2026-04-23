@@ -88,6 +88,7 @@ export interface SyncRun {
   progress_total: number;
   progress_meta: SyncProgressMeta | null;
   stats: SyncRunStats | null;
+  schedule_id: number | null;
   triggered_by: string | null;
   started_at: string | null;
   completed_at: string | null;

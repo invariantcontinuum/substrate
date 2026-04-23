@@ -113,7 +113,8 @@ async def get_node_file(
                     raise NotFoundError("node_not_found")
             row = await conn.fetchrow(
                 """SELECT fe.id::text AS id, fe.file_path, fe.language, fe.line_count,
-                          fe.size_bytes, fe.sync_id::text AS sync_id, fe.last_commit_sha
+                          fe.size_bytes, fe.sync_id::text AS sync_id, fe.last_commit_sha,
+                          fe.last_commit_at::text, fe.exports
                      FROM file_embeddings fe
                      JOIN sources s ON s.id = fe.source_id
                      JOIN sync_runs sr ON sr.id = fe.sync_id
@@ -138,7 +139,8 @@ async def get_node_file(
                     raise NotFoundError("node_not_found")
             row = await conn.fetchrow(
                 """SELECT id::text, file_path, language, line_count, size_bytes,
-                          sync_id::text AS sync_id, last_commit_sha
+                          sync_id::text AS sync_id, last_commit_sha,
+                          last_commit_at::text, exports
                      FROM file_embeddings fe
                      JOIN sources s ON s.id = fe.source_id
                     WHERE fe.id = $1::uuid
@@ -167,6 +169,8 @@ async def get_node_file(
         "size_bytes": row["size_bytes"],
         "sync_id": row["sync_id"],
         "last_commit_sha": row["last_commit_sha"] or "",
+        "last_commit_at": row["last_commit_at"] or "",
+        "exports": row["exports"] or [],
     }
 
     if not chunk_rows:
