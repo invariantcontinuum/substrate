@@ -8,6 +8,7 @@ import { MobileNav } from "./MobileNav";
 import { ModalRoot } from "@/components/modals/ModalRoot";
 import { SwapToast } from "@/components/SwapToast";
 import { SourcesSettings } from "@/components/sources/SourcesSettings";
+import { AskPage } from "@/pages/AskPage";
 import { useUIStore } from "@/stores/ui";
 import { useResponsive } from "@/hooks/useResponsive";
 import { useSyncs } from "@/hooks/useSyncs";
@@ -70,6 +71,9 @@ export function DashboardLayout() {
           </div>
           <div className={`view-root${activeView === "sources" ? "" : " is-hidden"}`}>
             <SourcesSettings />
+          </div>
+          <div className={`view-root${activeView === "ask" ? "" : " is-hidden"}`}>
+            <AskPage />
           </div>
         </main>
       </div>

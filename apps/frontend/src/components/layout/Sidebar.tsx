@@ -1,6 +1,6 @@
 import { useState } from "react";
 import {
-  GitBranch, Plug, Search, Shield,
+  GitBranch, Plug, MessageCircle, Shield,
   FileText, Activity, Terminal,
   ChevronLeft,
 } from "lucide-react";
@@ -12,9 +12,9 @@ import { useSyncSetStore } from "@/stores/syncSet";
 // user account modal. The account button at the footer of the rail is
 // the single entry point to both.
 // "sources" is now a full-page view (activeView toggle), not a modal.
-const IMPLEMENTED = new Set(["sources", "enrichment", "search", "user"]);
+const IMPLEMENTED = new Set(["sources", "enrichment", "ask", "user"]);
 
-type NavAction = { kind: "modal"; modal: ModalName } | { kind: "view"; view: "graph" | "sources" } | { kind: "navigate" };
+type NavAction = { kind: "modal"; modal: ModalName } | { kind: "view"; view: "graph" | "sources" | "ask" } | { kind: "navigate" };
 
 interface NavItem {
   icon: typeof GitBranch;
@@ -26,7 +26,7 @@ interface NavItem {
 const items: NavItem[] = [
   { icon: GitBranch, label: "Graph",      action: { kind: "view", view: "graph" }, active: true },
   { icon: Plug,      label: "Sources",    action: { kind: "view",  view: "sources" } },
-  { icon: Search,    label: "Search",     action: { kind: "modal", modal: "search" } },
+  { icon: MessageCircle, label: "Ask",    action: { kind: "view", view: "ask" } },
   { icon: Shield,    label: "Policies",   action: { kind: "modal", modal: "policies" } },
   { icon: FileText,  label: "ADRs",       action: { kind: "modal", modal: "adrs" } },
   { icon: Activity,  label: "Drift",      action: { kind: "modal", modal: "drift" } },

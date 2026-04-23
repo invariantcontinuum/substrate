@@ -1,4 +1,4 @@
-import { GitBranch, Plug, Search, User } from "lucide-react";
+import { GitBranch, Plug, MessageCircle, User } from "lucide-react";
 import { useUIStore, type ModalName } from "@/stores/ui";
 
 // Settings live inside the Account modal as a tab — no dedicated
@@ -6,12 +6,12 @@ import { useUIStore, type ModalName } from "@/stores/ui";
 // "sources" is now a full-page view toggled via activeView, not a modal.
 type MobileNavAction =
   | { kind: "modal"; modal: ModalName }
-  | { kind: "view"; view: "graph" | "sources" };
+  | { kind: "view"; view: "graph" | "sources" | "ask" };
 
 const items: { icon: typeof GitBranch; label: string; action: MobileNavAction }[] = [
   { icon: GitBranch, label: "Graph",   action: { kind: "view",  view: "graph" } },
   { icon: Plug,      label: "Sources", action: { kind: "view",  view: "sources" } },
-  { icon: Search,    label: "Search",  action: { kind: "modal", modal: "search" } },
+  { icon: MessageCircle, label: "Ask", action: { kind: "view",  view: "ask" } },
   { icon: User,      label: "Account", action: { kind: "modal", modal: "user" } },
 ];
 
