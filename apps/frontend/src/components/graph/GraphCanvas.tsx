@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { GraphScene } from "@invariantcontinuum/graph/react";
 import { useGraphStore } from "@/stores/graph";
 import { useUIStore } from "@/stores/ui";
@@ -51,6 +51,20 @@ export function GraphCanvas() {
     setSelectedNodeId(null);
     closeModal();
   }, [setSelectedNodeId, closeModal]);
+
+  // Listen for explicit camera-move requests from the detail panel's
+  // neighbor buttons. They dispatch a `graph:focus-fit` CustomEvent so they
+  // don't need to thread `engineRef` down through props. Canvas clicks keep
+  // the camera still (Cytoscape parity — see `useSelectionSync`); only
+  // search picks and neighbor-panel clicks actively navigate the camera.
+  useEffect(() => {
+    const onFocusFit = (e: Event) => {
+      const id = (e as CustomEvent<{ id?: string }>).detail?.id;
+      if (id) engineRef.current?.focusFit(id, 80);
+    };
+    window.addEventListener("graph:focus-fit", onFocusFit);
+    return () => window.removeEventListener("graph:focus-fit", onFocusFit);
+  }, [engineRef]);
 
   // Spotlight 1-hop set: passed to GraphScene so LabelOverlay dims non-focus
   // labels in sync with the WASM shader's node-fill dim. O(E) per selection.

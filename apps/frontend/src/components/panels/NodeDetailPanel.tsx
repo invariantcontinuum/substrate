@@ -405,7 +405,20 @@ export function NodeDetailPanel() {
                       <button
                         type="button"
                         className="node-detail-neighbor-btn"
-                        onClick={() => setSelectedNodeId(nb.id)}
+                        onClick={() => {
+                          setSelectedNodeId(nb.id);
+                          // Ask the graph canvas to pan+fit onto the new
+                          // neighbor. `useSelectionSync` itself no longer
+                          // moves the camera (Cytoscape parity), so we
+                          // opt in here via a lightweight CustomEvent
+                          // bridge instead of threading `engineRef` down
+                          // through the detail panel.
+                          window.dispatchEvent(
+                            new CustomEvent("graph:focus-fit", {
+                              detail: { id: nb.id },
+                            }),
+                          );
+                        }}
                         title={`${nb.type} — ${displayName}`}>
                         <span className="node-detail-neighbor-type" aria-label={nb.type}>
                           {relSymbol(nb.type)}

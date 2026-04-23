@@ -3,7 +3,6 @@ import { Graph, type GraphHandle, type GraphProps } from "./Graph";
 import { GridOverlay } from "./GridOverlay";
 import { CompoundFramesOverlay } from "./CompoundFramesOverlay";
 import { LabelOverlay } from "./LabelOverlay";
-import { EdgeLabelsOverlay } from "./EdgeLabelsOverlay";
 import { buildGraphTheme } from "./theme/buildTheme";
 import { graphThemeToEngineJson } from "./theme/toEngineTheme";
 import type { GraphTheme } from "./theme/types";
@@ -175,7 +174,11 @@ export const GraphScene = forwardRef<GraphHandle, GraphSceneProps>(function Grap
         minZoomToShowLabels={0.0}
         focusIds={focusIds}
       />
-      <EdgeLabelsOverlay engineRef={engineRef} theme={graphTheme} ready={ready} />
+      {/* EdgeLabelsOverlay intentionally omitted — the "depends" type pills
+       *  clutter the focus view without adding information the user can't
+       *  infer from the neighbor panel. Legacy Cytoscape never rendered per-
+       *  edge labels in the spotlighted state. The component is still exported
+       *  from the package for apps that genuinely want it. */}
       {chrome}
     </div>
   );
