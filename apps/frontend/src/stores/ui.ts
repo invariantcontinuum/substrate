@@ -2,7 +2,6 @@ import { create } from "zustand";
 
 export type ModalName =
   | "enrichment"
-  | "search"
   // Settings are integrated as a tab inside the `user` modal, not a
   // separate top-level modal.
   | "user"
@@ -24,8 +23,8 @@ interface UIState {
   setDefaultRepoUrl: (url: string | null) => void;
   sourcesPageTarget: { sourceId: string; expandSyncId: string | null } | null;
   setSourcesPageTarget: (target: { sourceId: string; expandSyncId: string | null } | null) => void;
-  activeView: "graph" | "sources";
-  setActiveView: (v: "graph" | "sources") => void;
+  activeView: "graph" | "sources" | "ask";
+  setActiveView: (v: "graph" | "sources" | "ask") => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
