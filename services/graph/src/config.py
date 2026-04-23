@@ -149,5 +149,30 @@ class _GraphSettings(BaseSettings):
         parts = [p.strip() for p in self.ask_context_retry_scales.split(",") if p.strip()]
         return tuple(float(p) for p in parts) or (1.0,)
 
+    # ── Active-set Leiden (spec §5.6) ────────────────────────────────
+    # On-demand community detection over the active sync set, cached in
+    # leiden_cache. Distinct from ingestion's per-sync Leiden: these knobs
+    # are user-tunable (Sources · Config tab). Changing them here changes
+    # only the defaults; the user's prefs override at request time.
+    active_set_leiden_enabled: bool = True
+    # Max seconds before graspologic is cancelled. Benchmark on host before
+    # raising — Xeon E-2126G / 20k nodes currently ~5s.
+    active_set_leiden_timeout_s: int = 15
+    # LLM-generated community labels. Requires dense LLM on host (lazy-lamacpp).
+    # Disabling is safe: labels fall back to "Community N".
+    active_set_leiden_labeling_enabled: bool = True
+    # Model name at the dense LLM endpoint. Depends on ops/llm/lazy-lamacpp.
+    active_set_leiden_label_model: str = "dense"
+
+    # ── Leiden cache lifecycle (spec §5.4) ──────────────────────────
+    # Cache TTL. Longer = more hits after restarts; too long = stale rows
+    # lingering past their sync-set invalidation.
+    leiden_cache_ttl_hours: int = 24
+    # Sweep interval for expired rows. Bounded delete (LIMIT 500) per sweep
+    # to avoid long locks on large caches.
+    leiden_cache_sweep_interval_s: int = 900
+    # LRU cap per user. Heavy knob-tweaking still evicts.
+    leiden_cache_max_rows_per_user: int = 20
+
 
 settings = load_settings("", _GraphSettings)
