@@ -268,6 +268,17 @@ html {
     box-shadow var(--dur-fast) var(--ease-out);
 }
 
+/* ≤900px: shrink the search pill so brand + stats have room without wrap.
+ * ≤640px: even tighter; padding compresses and the pill stops dominating
+ * the top nav on phones. */
+@media (max-width: 900px) {
+  .top-nav-search { width: min(300px, 50vw); }
+}
+@media (max-width: 640px) {
+  .top-nav-search { width: min(200px, 44vw); padding: 0 var(--space-2); }
+  .top-nav-search-wrap { max-width: 100%; }
+}
+
 .top-nav-search:focus-within {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--focus-ring);
@@ -739,12 +750,17 @@ html {
 }
 
 /* The canvas paints its own surface so the graph never disappears into the
- * surrounding app chrome. The grid itself is drawn by `GridOverlay` (a
- * Canvas2D sibling of the WebGL canvas) so that grid squares scale with
- * zoom and translate with pan. The static CSS grid pattern was removed
- * when the camera-synced overlay landed. */
+ * surrounding app chrome. A faint grid of light lines sits under the
+ * Cytoscape canvas — GraphCanvas.tsx listens to zoom/pan events and keeps
+ * background-size and background-position in sync with the viewport so the
+ * grid acts as a ruler when the user zooms in and out. */
 .graph-canvas-container {
   background-color: var(--graph-canvas-bg);
+  background-image:
+    linear-gradient(var(--graph-grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--graph-grid-line) 1px, transparent 1px);
+  background-size: 50px 50px;
+  background-position: 0 0;
 }
 
 .graph-canvas-wrapper {

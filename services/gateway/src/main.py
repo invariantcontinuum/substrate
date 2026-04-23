@@ -100,6 +100,20 @@ def _route_to_ingestion(method: str, path: str) -> bool:
     return False
 
 
+def _extract_sub(claims: dict) -> str:
+    # Keycloak access tokens always carry `sub`. Other federated tokens
+    # (GitHub broker, service-account exchanges, stale sessions) may not —
+    # crashing with KeyError would 500 the whole gateway for something
+    # that is really an auth failure. Fall back to preferred_username /
+    # email, and raise a clean 401 if none of those are present.
+    for key in ("sub", "preferred_username", "email"):
+        value = claims.get(key)
+        if isinstance(value, str) and value:
+            return value
+    logger.warning("token_missing_sub", claim_keys=sorted(claims.keys()))
+    raise UnauthorizedError("token missing sub/preferred_username/email")
+
+
 @app.api_route("/api/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
 async def proxy_api(request: Request, path: str):
     claims = await _authenticate(request)
@@ -108,13 +122,13 @@ async def proxy_api(request: Request, path: str):
         if _route_to_ingestion(request.method, request.url.path)
         else settings.graph_service_url
     )
-    return await proxy_request(request, upstream, extra_headers={"X-User-Sub": claims["sub"]})
+    return await proxy_request(request, upstream, extra_headers={"X-User-Sub": _extract_sub(claims)})
 
 
 @app.api_route("/ingest/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
 async def proxy_ingest(request: Request, path: str):
     claims = await _authenticate(request)
-    return await proxy_request(request, settings.ingestion_service_url, extra_headers={"X-User-Sub": claims["sub"]})
+    return await proxy_request(request, settings.ingestion_service_url, extra_headers={"X-User-Sub": _extract_sub(claims)})
 
 
 @app.api_route(
