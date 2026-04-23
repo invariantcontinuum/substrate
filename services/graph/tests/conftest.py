@@ -18,7 +18,7 @@ def _dsn() -> str:
     return url.replace("postgresql+asyncpg://", "postgresql://")
 
 
-@pytest_asyncio.fixture(scope="session")
+@pytest_asyncio.fixture(scope="session", loop_scope="session")
 async def db_pool():
     pool = await asyncpg.create_pool(
         _dsn(),
@@ -31,7 +31,7 @@ async def db_pool():
     await pool.close()
 
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(loop_scope="session")
 async def db(db_pool):
     """Per-test transaction that rolls back at teardown."""
     async with db_pool.acquire() as conn:
