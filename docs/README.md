@@ -95,17 +95,19 @@ mkdocs build --site-dir ../../site
 
 ## Deployment
 
-### Automatic Deployment
+Substrate docs are not published via GitHub Pages. They are built into the `substrate-docs` container and published on host port `8190`, which `home-stack` proxies as `docs.invariantcontinuum.io`.
 
-Documentation is automatically deployed to GitHub Pages when:
-- Changes are pushed to `main` branch
-- Changes affect files in `frontend/docs/` or `.github/workflows/deploy-docs.yml`
+The repo also ships GitHub Actions workflows that interact with docs and delivery:
 
-### Manual Deployment
+- `ci.yml` builds the docs site as part of the fast validation pipeline on `main` and `v*`.
+- `publish-snapshot.yml` publishes the `substrate-docs` image to GHCR with the active `X.Y.Z-SNAPSHOT` version on `main`.
+- `release.yml` builds a docs tarball, publishes the `substrate-docs:X.Y.Z` image, and attaches the bundle to the `vX.Y.Z` GitHub Release.
+- `deploy-prod.yml` recreates the full prod stack, including `substrate-docs`, via `scripts/deploy-prod.sh`.
+
+Manual docs verification remains:
 
 ```bash
-# Build and deploy to GitHub Pages
-mkdocs gh-deploy
+mkdocs build -f docs/mkdocs.yml
 ```
 
 ## Writing Documentation

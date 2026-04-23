@@ -41,13 +41,23 @@ cp .env.prod.example .env.prod
 make up MODE=prod
 ```
 
-TLS and hostname routing come from [home-stack](../../../home-stack)'s nginx-proxy-manager, which auto-provisions:
+TLS and hostname routing come from the sibling `home-stack` repo's nginx-proxy-manager, which auto-provisions:
 
 - `app.<domain>` → `host.docker.internal:3535`
 - `auth.<domain>` → `host.docker.internal:8080`
 - `pgadmin.<domain>` → `host.docker.internal:5050`
 
 Substrate publishes the same ports in both modes — NPM reaches them across the host bridge.
+
+### Recreate all prod containers
+
+If you need to delete and recreate the full Substrate runtime in prod without touching `.env.prod`, run:
+
+```bash
+ENV_FILE=.env.prod docker compose --env-file .env.prod down --remove-orphans
+ENV_FILE=.env.prod docker compose --env-file .env.prod up -d --build --force-recreate
+make doctor MODE=prod
+```
 
 ## What `make up` does
 
@@ -81,6 +91,42 @@ Every target accepts `MODE=local` (default) or `MODE=prod`.
 | `make check-contracts` | Diff pydantic vs zod JSON schemas. |
 
 LLM models have their own Makefile under `ops/llm/lazy-lamacpp/` — `make start MODEL=<name>`, `make stop MODEL=<name>`, `make status-all`.
+
+## GitHub Actions
+
+Substrate now ships with repo-native GitHub Actions under `.github/workflows/`:
+
+| Workflow | Trigger | What it does |
+|---|---|---|
+| `ci.yml` | Push to `main` and `v*`, manual dispatch | Runs version alignment checks, compose-config validation, the stable Python test subset, targeted frontend checks, and a docs build. |
+| `publish-snapshot.yml` | Push to `main`, manual dispatch | Publishes all repo-built container images to GHCR with the current `X.Y.Z-SNAPSHOT` tag. |
+| `release.yml` | Push to `v*`, manual dispatch | Publishes `X.Y.Z` GHCR images and creates or updates the matching GitHub Release with generated release notes. |
+| `deploy-prod.yml` | Manual dispatch | SSHes to the prod host and executes `scripts/deploy-prod.sh` against `.env.prod`. |
+
+### Release flow
+
+`main` publishes snapshot images using the root `package.json` version plus `-SNAPSHOT`, for example `0.1.0-SNAPSHOT`.
+
+For a release, cut a branch named `vX.Y.Z` from a commit whose root `package.json` version is already `X.Y.Z`, then push that branch:
+
+```bash
+git checkout -b v0.1.0
+git push origin v0.1.0
+```
+
+That branch push triggers `release.yml`.
+
+### Deploy flow
+
+Run `deploy-prod.yml` from GitHub Actions and supply the `ref` you want on the prod host. The workflow expects these repo settings:
+
+- Secret: `PROD_SSH_HOST`
+- Secret: `PROD_SSH_USER`
+- Secret: `PROD_SSH_PRIVATE_KEY`
+- Variable: `PROD_SSH_PORT`
+- Variable: `PROD_DEPLOY_PATH`
+
+The remote checkout must already have `.env.prod` present on disk.
 
 ## Realtime transport
 

@@ -1,0 +1,37 @@
+name: deploy-prod
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch, tag, or commit to deploy on the prod host
+        required: false
+        default: main
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy Substrate on the prod host
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.PROD_SSH_HOST }}
+          username: ${{ secrets.PROD_SSH_USER }}
+          key: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+          port: ${{ vars.PROD_SSH_PORT }}
+          command_timeout: 60m
+          script_stop: true
+          script: |
+            export DEPLOY_PATH='${{ vars.PROD_DEPLOY_PATH }}'
+            export DEPLOY_REF='${{ inputs.ref }}'
+            export ENV_FILE='.env.prod'
+            cd "$DEPLOY_PATH"
+            ./scripts/deploy-prod.sh

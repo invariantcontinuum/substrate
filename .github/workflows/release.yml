@@ -1,0 +1,219 @@
+name: release
+
+on:
+  push:
+    branches:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Release branch or tag name (must match vX.Y.Z)
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: release-${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  versioning:
+    runs-on: ubuntu-latest
+    outputs:
+      ref_name: ${{ steps.version.outputs.ref_name }}
+      base_version: ${{ steps.version.outputs.base_version }}
+      version: ${{ steps.version.outputs.version }}
+      release_tag: ${{ steps.version.outputs.release_tag }}
+      short_sha: ${{ steps.version.outputs.short_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.ref }}
+          fetch-depth: 0
+
+      - name: Check repo version alignment
+        run: python3 scripts/check-version-alignment.py
+
+      - name: Resolve release version
+        id: version
+        run: bash scripts/resolve-version.sh "${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.ref_name }}" >>"$GITHUB_OUTPUT"
+
+      - name: Validate release ref
+        run: |
+          if [ "${{ steps.version.outputs.is_release }}" != "true" ]; then
+            echo "release workflow requires a vX.Y.Z ref" >&2
+            exit 1
+          fi
+          if [ "${{ steps.version.outputs.version }}" != "${{ steps.version.outputs.base_version }}" ]; then
+            echo "release ref ${{ steps.version.outputs.ref_name }} must match package.json version ${{ steps.version.outputs.base_version }}" >&2
+            exit 1
+          fi
+
+  publish-images:
+    runs-on: ubuntu-latest
+    needs: versioning
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: substrate-postgres
+            file: ops/infra/postgres/Dockerfile
+          - image: substrate-gateway
+            file: services/gateway/Dockerfile
+          - image: substrate-ingestion
+            file: services/ingestion/Dockerfile
+          - image: substrate-graph
+            file: services/graph/Dockerfile
+          - image: substrate-frontend
+            file: apps/frontend/Dockerfile
+            frontend: true
+          - image: substrate-docs
+            file: docs/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.ref }}
+          fetch-depth: 0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Compute image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}
+          tags: |
+            type=raw,value=${{ needs.versioning.outputs.version }}
+            type=sha,prefix=sha-
+          labels: |
+            org.opencontainers.image.version=${{ needs.versioning.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+
+      - name: Build and push image
+        if: matrix.frontend != true
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.file }}
+          push: true
+          platforms: linux/amd64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,scope=${{ matrix.image }},mode=max
+
+      - name: Build and push frontend image
+        if: matrix.frontend == true
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.file }}
+          push: true
+          platforms: linux/amd64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VITE_KEYCLOAK_URL=https://auth.example.invalid
+            VITE_KEYCLOAK_REALM=substrate
+            VITE_KEYCLOAK_CLIENT_ID=substrate-frontend
+          secrets: |
+            github_token=${{ github.token }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,scope=${{ matrix.image }},mode=max
+
+  github-release:
+    runs-on: ubuntu-latest
+    needs:
+      - versioning
+      - publish-images
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ needs.versioning.outputs.release_tag }}
+      RELEASE_VERSION: ${{ needs.versioning.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.ref }}
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install MkDocs toolchain
+        run: pip install --no-cache-dir mkdocs mkdocs-material mkdocs-minify-plugin
+
+      - name: Build release docs bundle
+        run: |
+          mkdocs build -f docs/mkdocs.yml -d release-docs
+          tar -C release-docs -czf "substrate-docs-${RELEASE_VERSION}.tar.gz" .
+
+      - name: Generate release notes
+        run: |
+          gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
+            -f tag_name="${RELEASE_TAG}" \
+            -f target_commitish="${GITHUB_SHA}" \
+            > generated-notes.json
+          AUTO_NOTES="$(python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          print(json.loads(Path("generated-notes.json").read_text())["body"].strip())
+          PY
+          )"
+          cat > release-notes.md <<EOF
+          ## Published images
+
+          - \`ghcr.io/${GITHUB_REPOSITORY_OWNER}/substrate-postgres:${RELEASE_VERSION}\`
+          - \`ghcr.io/${GITHUB_REPOSITORY_OWNER}/substrate-gateway:${RELEASE_VERSION}\`
+          - \`ghcr.io/${GITHUB_REPOSITORY_OWNER}/substrate-ingestion:${RELEASE_VERSION}\`
+          - \`ghcr.io/${GITHUB_REPOSITORY_OWNER}/substrate-graph:${RELEASE_VERSION}\`
+          - \`ghcr.io/${GITHUB_REPOSITORY_OWNER}/substrate-frontend:${RELEASE_VERSION}\`
+          - \`ghcr.io/${GITHUB_REPOSITORY_OWNER}/substrate-docs:${RELEASE_VERSION}\`
+
+          ## Release artifacts
+
+          - \`substrate-docs-${RELEASE_VERSION}.tar.gz\`
+          - \`compose.yaml\`
+          - \`README.md\`
+          - \`.env.local.example\`
+          - \`.env.prod.example\`
+
+          ${AUTO_NOTES}
+          EOF
+        env:
+          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+          RELEASE_VERSION: ${{ needs.versioning.outputs.version }}
+
+      - name: Create or update GitHub release
+        run: |
+          files=(
+            "substrate-docs-${RELEASE_VERSION}.tar.gz"
+            "compose.yaml"
+            "README.md"
+            ".env.local.example"
+            ".env.prod.example"
+          )
+          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            gh release edit "${RELEASE_TAG}" \
+              --title "Substrate ${RELEASE_TAG}" \
+              --notes-file release-notes.md
+            gh release upload "${RELEASE_TAG}" "${files[@]}" --clobber
+          else
+            gh release create "${RELEASE_TAG}" "${files[@]}" \
+              --target "${GITHUB_SHA}" \
+              --title "Substrate ${RELEASE_TAG}" \
+              --notes-file release-notes.md
+          fi

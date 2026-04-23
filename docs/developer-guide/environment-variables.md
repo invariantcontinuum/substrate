@@ -1,152 +1,232 @@
 # Environment Variables
 
-Complete reference of all environment variables used across Substrate services.
+Substrate does **not** use per-service `.env` files. The committed source of truth is the pair of root templates:
+
+- `.env.local.example`
+- `.env.prod.example`
+
+At runtime the stack reads one user-owned env file:
+
+- `.env.local` for `MODE=local`
+- `.env.prod` for `MODE=prod`
+
+`compose.yaml`, `scripts/configure.sh`, and the service settings classes all depend on that root env-file model. If a key is tunable in service code, it must exist in both committed templates.
 
 ---
 
-## Gateway Service
+## Runtime env files
 
-| Variable | Default | Required | Description |
-|----------|---------|----------|-------------|
-| `KEYCLOAK_URL` | `http://local-keycloak:8080` | Yes | Base URL of the Keycloak server |
-| `KEYCLOAK_REALM` | `substrate` | Yes | Keycloak realm name |
-| `KEYCLOAK_ISSUER` | `""` | No | Override the expected JWT issuer |
-| `GRAPH_SERVICE_URL` | `http://substrate-graph:8082` | Yes | Upstream graph service URL |
-| `INGESTION_SERVICE_URL` | `http://substrate-ingestion:8081` | Yes | Upstream ingestion service URL |
-| `REDIS_URL` | `redis://local-redis:6379` | No | **Currently unused** in source code |
+| File | Committed | Purpose |
+|---|---|---|
+| `.env.local.example` | Yes | Localhost/dev template |
+| `.env.prod.example` | Yes | Production template |
+| `.env.local` | No | User-owned local values |
+| `.env.prod` | No | User-owned prod values |
 
----
-
-## Graph Service
-
-| Variable | Default | Required | Description |
-|----------|---------|----------|-------------|
-| `FLYWAY_URL` | — | Yes* | JDBC URL for Flyway migrations |
-| `FLYWAY_USER` | — | Yes* | Flyway migration user |
-| `FLYWAY_PASSWORD` | — | Yes* | Flyway migration password |
-| `DATABASE_URL` | `postgresql+asyncpg://substrate_graph:changeme@local-postgres:5432/substrate_graph` | Yes | PostgreSQL connection string |
-| `EMBEDDING_URL` | `http://localhost:8101/v1/embeddings` | Yes | Local embedding model endpoint |
-| `EMBEDDING_MODEL` | `embeddinggemma-300M-Q8_0.gguf` | No | Model name passed to embedding service |
-| `DENSE_LLM_URL` | `http://localhost:8102/v1/chat/completions` | Yes | Local chat/completion endpoint |
-| `DENSE_LLM_MODEL` | `qwen2.5-7b-instruct` | No | Model name for summaries |
-| `SUMMARY_MAX_TOKENS` | `160` | No | Max tokens for LLM summary output |
-| `SUMMARY_CHUNK_SAMPLE_CHARS` | `4000` | No | Characters of chunk content to feed LLM |
-| `APP_PORT` | `8082` | No | FastAPI listen port |
-| `LOG_LEVEL` | `INFO` | No | Logging level |
-
----
-
-## Ingestion Service
-
-| Variable | Default | Required | Description |
-|----------|---------|----------|-------------|
-| `FLYWAY_URL` | — | Yes* | JDBC URL for Flyway migrations |
-| `FLYWAY_USER` | — | Yes* | Flyway migration user |
-| `FLYWAY_PASSWORD` | — | Yes* | Flyway migration password |
-| `DATABASE_URL` | `postgresql+asyncpg://substrate_ingestion:changeme@local-postgres:5432/substrate_ingestion` | Yes | Internal ingestion database |
-| `GRAPH_DATABASE_URL` | `postgresql+asyncpg://substrate_graph:changeme@local-postgres:5432/substrate_graph` | Yes | Shared graph database (AGE + relational) |
-| `GITHUB_TOKEN` | `""` | Yes* | PAT for GitHub API and clone authentication |
-| `APP_PORT` | `8081` | No | FastAPI listen port |
-| `EMBEDDING_URL` | `http://localhost:8101/v1/embeddings` | Yes | Local llama-cpp embeddings endpoint |
-| `EMBEDDING_MODEL` | `Qwen3-Embedding-0.6B-Q8_0.gguf` | No | Documentation/logging name only |
-| `EMBEDDING_DIM` | `1024` | Yes | Must match the served model dimensions |
-| `CHUNK_SIZE` | `512` | No | Target tokens per chunk |
-| `CHUNK_OVERLAP` | `64` | No | Tokens to overlap between chunks |
-| `LOG_LEVEL` | `INFO` | No | Logging level |
-
-*Required if using the GitHub connector.
-
----
-
-## Frontend
-
-All frontend env vars are prefixed with `VITE_` and must be set at build time.
-
-| Variable | Default | Required | Description |
-|----------|---------|----------|-------------|
-| `VITE_KEYCLOAK_URL` | `https://auth.invariantcontinuum.io` | Yes | Keycloak base URL |
-| `VITE_KEYCLOAK_REALM` | `substrate` | Yes | Keycloak realm |
-| `VITE_KEYCLOAK_CLIENT_ID` | `substrate-frontend` | Yes | OIDC client ID |
-| `VITE_API_URL` | — | No | API base URL override (rarely needed) |
-| `VITE_WS_URL` | Derived from window location | No | WebSocket URL override |
-
-### Vite Dev Server Proxy
-
-During development, Vite proxies these paths to the Gateway:
-
-```typescript
-// vite.config.ts
-server: {
-  proxy: {
-    '/api': 'http://localhost:8080',
-    '/ingest': 'http://localhost:8080',
-    '/auth': 'http://localhost:8080',
-    '/ws': {
-      target: 'ws://localhost:8080',
-      ws: true
-    }
-  }
-}
-```
-
----
-
-## Infrastructure (home-stack)
-
-These are typically managed in `~/github/danycrafts/home-stack/.env`:
-
-| Variable | Purpose |
-|----------|---------|
-| `POSTGRES_PASSWORD` | PostgreSQL superuser password |
-| `KEYCLOAK_ADMIN_PASSWORD` | Keycloak admin password |
-| `KEYCLOAK_CLIENT_SECRET` | Gateway client secret (if configured) |
-
----
-
-## lazy-lamacpp (LLM Stack)
-
-These are typically managed in `~/github/lazy-lamacpp/.env`:
-
-| Variable | Purpose |
-|----------|---------|
-| `MODEL_PATH` | Base directory for GGUF models |
-| `EMBEDDING_MODEL` | Model file for port 8101 |
-| `DENSE_MODEL` | Model file for port 8102 |
-
----
-
-## Example .env Files
-
-### Gateway `.env`
+The active file is selected by `MODE`:
 
 ```bash
-KEYCLOAK_URL=http://local-keycloak:8080
-KEYCLOAK_REALM=substrate
-GRAPH_SERVICE_URL=http://substrate-graph:8082
-INGESTION_SERVICE_URL=http://substrate-ingestion:8081
+make up              # uses .env.local
+make up MODE=prod    # uses .env.prod
 ```
 
-### Graph Service `.env`
+---
 
-```bash
-DATABASE_URL=postgresql+asyncpg://substrate_graph:changeme@local-postgres:5432/substrate_graph
-EMBEDDING_URL=http://localhost:8101/v1/embeddings
-DENSE_LLM_URL=http://localhost:8102/v1/chat/completions
-```
+## Mode-specific URL block
 
-### Ingestion Service `.env`
+These are the keys that change between local and prod:
 
-```bash
-DATABASE_URL=postgresql+asyncpg://substrate_ingestion:changeme@local-postgres:5432/substrate_ingestion
-GRAPH_DATABASE_URL=postgresql+asyncpg://substrate_graph:changeme@local-postgres:5432/substrate_graph
-GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx
-EMBEDDING_URL=http://localhost:8101/v1/embeddings
-```
+| Key | Local | Prod |
+|---|---|---|
+| `APP_URL` | `http://localhost:3535` | `https://app.<domain>` |
+| `VITE_KEYCLOAK_URL` | `http://localhost:8080` | `https://auth.<domain>` |
+| `KEYCLOAK_ISSUER` | `http://localhost:8080/realms/substrate` | `https://auth.<domain>/realms/substrate` |
+| `KC_HOSTNAME` | `http://localhost:8080` | `https://auth.<domain>` |
+| `KC_HOSTNAME_STRICT` | `false` | `true` |
+| `KC_START_COMMAND` | `start-dev` | `start` |
+| `CORS_ORIGINS` | localhost origins | app origin only |
 
-### Frontend `.env`
+Substrate publishes the same host ports in both modes. In prod, the sibling `home-stack` repo terminates TLS and proxies those host ports.
 
-```bash
-VITE_KEYCLOAK_URL=https://auth.invariantcontinuum.io
-VITE_KEYCLOAK_REALM=substrate
-VITE_KEYCLOAK_CLIENT_ID=substrate-frontend
-```
+---
+
+## Shared platform settings
+
+These keys apply in both modes:
+
+### Core platform
+
+- `KEYCLOAK_REALM`
+- `SERVICE_LOG_PRETTY`
+- `AUTH_DISABLED`
+
+### Postgres
+
+- `POSTGRES_VERSION`
+- `POSTGRES_SUPERUSER`
+- `POSTGRES_SUPERUSER_PASSWORD`
+- `GRAPH_DB_USER`
+- `GRAPH_DB_PASSWORD`
+- `GRAPH_DB_NAME`
+
+### Keycloak
+
+- `KC_DB_USER`
+- `KC_DB_PASSWORD`
+- `KC_DB_NAME`
+- `KC_BOOTSTRAP_ADMIN_USERNAME`
+- `KC_BOOTSTRAP_ADMIN_PASSWORD`
+- `KEYCLOAK_REGISTRATION_ALLOWED`
+- `KC_GATEWAY_CLIENT_SECRET`
+- `GITHUB_OAUTH_APP_CLIENT_ID`
+- `GITHUB_OAUTH_APP_CLIENT_SECRET`
+
+### pgAdmin
+
+- `PGADMIN_DEFAULT_EMAIL`
+- `PGADMIN_DEFAULT_PASSWORD`
+
+---
+
+## LLM and retrieval settings
+
+These settings drive the host-local lazy-lamacpp endpoints and the graph/ask pipelines.
+
+### Embeddings
+
+- `EMBEDDING_URL`
+- `EMBEDDING_MODEL`
+- `EMBEDDING_DIM`
+- `EMBEDDING_DOCUMENT_PREFIX`
+- `EMBEDDING_QUERY_PREFIX`
+- `EMBEDDING_MAX_INPUT_CHARS`
+- `EMBED_BATCH_SIZE`
+- `EMBEDDING_HTTP_TIMEOUT_CONNECT_S`
+- `EMBEDDING_HTTP_TIMEOUT_READ_S`
+- `EMBEDDING_HTTP_TIMEOUT_WRITE_S`
+- `EMBEDDING_HTTP_TIMEOUT_POOL_S`
+
+### Dense LLM / summaries / ask
+
+- `DENSE_LLM_URL`
+- `DENSE_LLM_MODEL`
+- `LLM_API_KEY`
+- `SUMMARY_MAX_TOKENS`
+- `SUMMARY_TOTAL_BUDGET_CHARS`
+- `SUMMARY_EDGE_NEIGHBORS`
+- `SUMMARY_NEIGHBOR_CHARS`
+- `SUMMARY_FILE_BUDGET_RATIO`
+- `SUMMARY_NEIGHBOR_BUDGET_RATIO`
+- `SUMMARY_CONTEXT_RETRY_SCALES`
+- `SUMMARY_INSTRUCTION`
+- `ASK_TOP_K`
+- `ASK_HISTORY_TURNS`
+- `ASK_TOTAL_BUDGET_CHARS`
+- `ASK_MAX_TOKENS`
+- `ASK_CONTEXT_RETRY_SCALES`
+- `ASK_TEMPERATURE`
+- `ASK_LLM_TIMEOUT_S`
+- `ASK_SYSTEM_INSTRUCTION`
+- `FILE_RECONSTRUCT_MAX_BYTES`
+
+`SUMMARY_*`, `ASK_*`, `EMBEDDING_MAX_INPUT_CHARS`, and `CHUNK_SIZE` should stay aligned with the relevant lazy-lamacpp `CONTEXT_SIZE`.
+
+---
+
+## Ingestion tuning
+
+These settings shape chunking, embedding throughput, sync-runner cadence, GitHub API behaviour, and retention:
+
+- `CHUNK_SIZE`
+- `CHUNK_OVERLAP`
+- `FILE_SUMMARY_PREVIEW_LINES`
+- `AGE_BATCH_SIZE`
+- `RUNNER_POLL_INTERVAL_S`
+- `RUNNER_CLAIM_BATCH_SIZE`
+- `RUNNER_SHUTDOWN_TIMEOUT_S`
+- `SYNC_CANCELLATION_POLL_EVERY_N`
+- `SCHEDULER_POLL_INTERVAL_S`
+- `GITHUB_API_MAX_CONNECTIONS`
+- `GITHUB_API_MAX_KEEPALIVE_CONNECTIONS`
+- `GITHUB_API_TIMEOUT_CONNECT_S`
+- `GITHUB_API_TIMEOUT_READ_S`
+- `GITHUB_API_TIMEOUT_WRITE_S`
+- `GITHUB_API_TIMEOUT_POOL_S`
+- `RETENTION_ENABLED`
+- `RETENTION_AGE_DAYS`
+- `RETENTION_PER_SOURCE_CAP`
+- `RETENTION_TICK_INTERVAL_S`
+
+---
+
+## Graph / SSE settings
+
+These keys shape graph read behaviour and gateway/graph SSE retention:
+
+- `GRAPH_QUERY_TIMEOUT_SECONDS`
+- `SSE_POOL_MIN_SIZE`
+- `SSE_POOL_MAX_SIZE`
+- `SSE_RETENTION_ENABLED`
+- `SSE_RETENTION_HOURS`
+- `SSE_RETENTION_TICK_S`
+- `SSE_RETENTION_BATCH_SIZE`
+
+---
+
+## What does not exist anymore
+
+These older concepts are stale and should not be reintroduced into docs or config:
+
+- No per-service `.env.example` files
+- No `REDIS_URL`
+- No WebSocket runtime transport
+- No separate `substrate_ingestion` database
+- No frontend `VITE_WS_URL`
+
+Realtime is SSE only, and the single relational boundary is `substrate_graph`.
+
+---
+
+## GitHub Actions configuration
+
+The repo now includes GitHub Actions for CI, snapshot GHCR publishing, release-branch publishing, and prod deployment.
+
+### Version source
+
+The root `package.json` version is the release source of truth:
+
+- `main` publishes `X.Y.Z-SNAPSHOT` images to GHCR.
+- release branches must be named `vX.Y.Z`.
+- the release branch version and root `package.json` version must match exactly.
+
+### Required repository secrets
+
+- `PROD_SSH_HOST`
+- `PROD_SSH_USER`
+- `PROD_SSH_PRIVATE_KEY`
+
+### Required repository variables
+
+- `PROD_SSH_PORT`
+- `PROD_DEPLOY_PATH`
+
+`deploy-prod.yml` uses those settings to SSH into the prod host and run `scripts/deploy-prod.sh`. The remote checkout must already exist, and `.env.prod` must already be present on disk there.
+
+### Published GHCR images
+
+- `ghcr.io/invariantcontinuum/substrate-postgres`
+- `ghcr.io/invariantcontinuum/substrate-gateway`
+- `ghcr.io/invariantcontinuum/substrate-ingestion`
+- `ghcr.io/invariantcontinuum/substrate-graph`
+- `ghcr.io/invariantcontinuum/substrate-frontend`
+- `ghcr.io/invariantcontinuum/substrate-docs`
+
+### Release inputs
+
+`release.yml` creates or updates a GitHub Release for a `vX.Y.Z` branch or manual `vX.Y.Z` ref and attaches:
+
+- a built docs tarball
+- `compose.yaml`
+- `README.md`
+- `.env.local.example`
+- `.env.prod.example`

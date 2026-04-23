@@ -1,6 +1,5 @@
+# syntax=docker/dockerfile:1.7
 FROM node:22-alpine AS build
-
-ARG GITHUB_TOKEN=""
 # Vite bakes these at build time. Compose passes them via build args from
 # .env (see compose.yaml frontend.build.args). No defaults on purpose —
 # an unbranded build would leak dev URLs into a prod bundle.
@@ -17,8 +16,11 @@ WORKDIR /workspace
 
 RUN corepack enable && corepack prepare pnpm@10 --activate
 
-RUN npm config set @invariantcontinuum:registry https://npm.pkg.github.com/ \
-    && npm config set //npm.pkg.github.com/:_authToken "$GITHUB_TOKEN"
+RUN --mount=type=secret,id=github_token,required=false sh -euxc '\
+    npm config set @invariantcontinuum:registry https://npm.pkg.github.com/; \
+    if [ -f /run/secrets/github_token ]; then \
+      npm config set //npm.pkg.github.com/:_authToken "$(cat /run/secrets/github_token)"; \
+    fi'
 
 COPY pnpm-workspace.yaml /workspace/pnpm-workspace.yaml
 COPY package.json /workspace/package.json

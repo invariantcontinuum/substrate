@@ -1,6 +1,6 @@
 # Deployment
 
-Substrate is self-hosted. One repo, one `compose.yaml`, two env templates. Dev runs on localhost; prod rides behind the home-stack nginx-proxy-manager (NPM) for TLS and hostname routing.
+Substrate is self-hosted. One repo, one `compose.yaml`, two env templates. Dev runs on localhost; prod rides behind the sibling `home-stack` repo's nginx-proxy-manager (NPM) for TLS and hostname routing.
 
 ---
 
@@ -13,8 +13,20 @@ Substrate is self-hosted. One repo, one `compose.yaml`, two env templates. Dev r
 
 ### Prod (`MODE=prod`)
 - Same compose file. `make up MODE=prod` reads `.env.prod`.
-- Ports are still published on the host (3535, 8080, 5050). [home-stack](../../../home-stack)'s NPM proxies `app.<domain>`, `auth.<domain>`, and `pgadmin.<domain>` to those ports via `host.docker.internal` and terminates TLS with Let's Encrypt.
+- Ports are still published on the host (3535, 8080, 5050). The sibling `home-stack` repo's NPM proxies `app.<domain>`, `auth.<domain>`, and `pgadmin.<domain>` to those ports via `host.docker.internal` and terminates TLS with Let's Encrypt.
 - Substrate itself does not bundle any reverse proxy or TLS terminator.
+
+### Explicit prod recreation
+
+When the goal is to replace every running Substrate container without deleting `.env.prod` or the named volumes, use:
+
+```bash
+ENV_FILE=.env.prod docker compose --env-file .env.prod down --remove-orphans
+ENV_FILE=.env.prod docker compose --env-file .env.prod up -d --build --force-recreate
+make doctor MODE=prod
+```
+
+This is the same runtime path used by the manual deploy workflow and by `scripts/deploy-prod.sh`.
 
 ---
 
@@ -38,6 +50,8 @@ make doctor             # 15/15 PASS when green
 
 Prod uses the same sequence with `make up MODE=prod` after populating `.env.prod` from `.env.prod.example`.
 
+For a forced full refresh of prod containers, prefer the explicit recreation commands above so the intent is unambiguous.
+
 ---
 
 ## Env file layout
@@ -50,6 +64,8 @@ Prod uses the same sequence with `make up MODE=prod` after populating `.env.prod
 | `.env.prod` | No (gitignored) | User-owned prod values. Must persist across sessions. |
 
 Per-service `.env.example` files do **not** exist. The two root-level templates are the single source of truth.
+
+`.env.prod` is expected to persist on the deployment host. The deploy workflow recreates containers against it; it does not regenerate the file.
 
 The Makefile passes the active file via `--env-file` and exports `ENV_FILE` so `compose.yaml` can resolve `env_file: ["${ENV_FILE:-.env.local}"]` for each service. Every target accepts `MODE=local|prod`.
 
@@ -218,6 +234,59 @@ Current migration set includes:
 - `V6__sse_events.sql` — SSE replay table backing `GET /api/events`
 - `V4/V7/V8/V9/V10__embedding_dim_*.sql` — embedding column migrations across model swaps (currently `vector(896)` after V10)
 - `V11__drop_content_chunks.sql` — drops all chunks so the new AST/semantic chunker repopulates
+
+---
+
+## GitHub Actions delivery path
+
+The repo now owns four GitHub Actions workflows:
+
+### `ci.yml`
+
+- Trigger: push to `main` and `v*`, manual dispatch
+- Purpose: validate version alignment, compose config, run the stable Python test subset, run targeted frontend checks, and build docs
+- Scope: intentionally narrower than `make lint && make test` while the repo still contains known failing legacy checks outside the active green subset
+
+### `publish-snapshot.yml`
+
+- Trigger: push to `main`, manual dispatch
+- Purpose: publish every repo-owned image to GHCR with the current `X.Y.Z-SNAPSHOT` version from the root `package.json`
+- Images:
+  - `ghcr.io/invariantcontinuum/substrate-postgres`
+  - `ghcr.io/invariantcontinuum/substrate-gateway`
+  - `ghcr.io/invariantcontinuum/substrate-ingestion`
+  - `ghcr.io/invariantcontinuum/substrate-graph`
+  - `ghcr.io/invariantcontinuum/substrate-frontend`
+  - `ghcr.io/invariantcontinuum/substrate-docs`
+
+### `release.yml`
+
+- Trigger: push to release branches matching `v*`, manual dispatch with a `vX.Y.Z` ref
+- Purpose: publish the release-tagged GHCR images and create or update a GitHub Release with generated notes
+- Release contract:
+  - the branch name must match `vX.Y.Z`
+  - the root `package.json` version must be `X.Y.Z`
+  - the workflow publishes images tagged `X.Y.Z` and creates or updates release tag `vX.Y.Z`
+- Artifacts: docs tarball plus `compose.yaml`, `README.md`, `.env.local.example`, `.env.prod.example`
+
+### `deploy-prod.yml`
+
+- Trigger: manual `workflow_dispatch`
+- Purpose: SSH to the prod host and run `scripts/deploy-prod.sh`
+- Remote expectations:
+  - the host already has a `substrate` checkout
+  - `.env.prod` already exists and stays local-only
+  - Docker / Compose and the host LLM stack are already installed
+
+### Required GitHub repository settings
+
+`deploy-prod.yml` expects:
+
+- Secret: `PROD_SSH_HOST`
+- Secret: `PROD_SSH_USER`
+- Secret: `PROD_SSH_PRIVATE_KEY`
+- Variable: `PROD_SSH_PORT`
+- Variable: `PROD_DEPLOY_PATH`
 
 ---
 

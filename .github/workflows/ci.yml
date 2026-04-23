@@ -1,0 +1,126 @@
+name: ci
+
+on:
+  push:
+    branches:
+      - main
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  versioning:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check repo version alignment
+        run: python3 scripts/check-version-alignment.py
+
+      - name: Validate release branch naming
+        if: startsWith(github.ref_name, 'v')
+        run: |
+          eval "$(bash scripts/resolve-version.sh "${GITHUB_REF_NAME}")"
+          if [ "$IS_RELEASE" != "true" ]; then
+            echo "release refs must use vX.Y.Z" >&2
+            exit 1
+          fi
+          if [ "$VERSION" != "$BASE_VERSION" ]; then
+            echo "release branch ${REF_NAME} must match package.json version ${BASE_VERSION}" >&2
+            exit 1
+          fi
+
+  compose-config:
+    runs-on: ubuntu-latest
+    needs: versioning
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Materialize env files from committed templates
+        run: |
+          cp .env.local.example .env.local
+          cp .env.prod.example .env.prod
+
+      - name: Validate local compose config
+        run: ENV_FILE=.env.local docker compose --env-file .env.local -f compose.yaml config >/dev/null
+
+      - name: Validate prod compose config
+        run: ENV_FILE=.env.prod docker compose --env-file .env.prod -f compose.yaml config >/dev/null
+
+  python-fast:
+    runs-on: ubuntu-latest
+    needs: versioning
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          python-version: "3.13"
+
+      - name: Sync workspace dependencies
+        run: uv sync --frozen --dev
+
+      - name: Gateway tests
+        run: cd services/gateway && uv run pytest
+
+      - name: Shared Python package tests
+        run: cd packages/substrate-common && uv run pytest
+
+      - name: Graph builder tests
+        run: cd packages/substrate-graph-builder && uv run pytest
+
+      - name: Ingestion sync-progress regression tests
+        run: cd services/ingestion && uv run pytest tests/test_sync_progress.py
+
+  frontend-fast:
+    runs-on: ubuntu-latest
+    needs: versioning
+    env:
+      VITE_KEYCLOAK_URL: https://auth.example.invalid
+      VITE_KEYCLOAK_REALM: substrate
+      VITE_KEYCLOAK_CLIENT_ID: substrate-frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10 --activate
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Frontend typecheck, targeted tests, and production build
+        run: |
+          cd apps/frontend
+          pnpm exec tsc -b --noEmit
+          pnpm exec vitest run src/stores/syncSet.test.ts
+          pnpm build
+
+  docs-build:
+    runs-on: ubuntu-latest
+    needs: versioning
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install MkDocs toolchain
+        run: pip install --no-cache-dir mkdocs mkdocs-material mkdocs-minify-plugin
+
+      - name: Build docs site
+        run: mkdocs build -f docs/mkdocs.yml

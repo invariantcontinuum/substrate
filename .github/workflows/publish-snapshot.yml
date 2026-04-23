@@ -1,0 +1,113 @@
+name: publish-snapshot
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Git ref to publish as the current snapshot
+        required: false
+        default: main
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: publish-snapshot-${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: substrate-postgres
+            file: ops/infra/postgres/Dockerfile
+          - image: substrate-gateway
+            file: services/gateway/Dockerfile
+          - image: substrate-ingestion
+            file: services/ingestion/Dockerfile
+          - image: substrate-graph
+            file: services/graph/Dockerfile
+          - image: substrate-frontend
+            file: apps/frontend/Dockerfile
+            frontend: true
+          - image: substrate-docs
+            file: docs/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.ref }}
+          fetch-depth: 0
+
+      - name: Resolve snapshot version
+        id: version
+        run: bash scripts/resolve-version.sh "${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.ref_name }}" >>"$GITHUB_OUTPUT"
+
+      - name: Validate snapshot ref
+        run: |
+          if [ "${{ steps.version.outputs.is_release }}" = "true" ]; then
+            echo "publish-snapshot is only for snapshot refs" >&2
+            exit 1
+          fi
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Compute image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}
+          tags: |
+            type=raw,value=${{ steps.version.outputs.image_tag }}
+            type=sha,prefix=sha-
+          labels: |
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+
+      - name: Build and push image
+        if: matrix.frontend != true
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.file }}
+          push: true
+          platforms: linux/amd64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,scope=${{ matrix.image }},mode=max
+
+      - name: Build and push frontend image
+        if: matrix.frontend == true
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.file }}
+          push: true
+          platforms: linux/amd64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VITE_KEYCLOAK_URL=https://auth.example.invalid
+            VITE_KEYCLOAK_REALM=substrate
+            VITE_KEYCLOAK_CLIENT_ID=substrate-frontend
+          secrets: |
+            github_token=${{ github.token }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,scope=${{ matrix.image }},mode=max
