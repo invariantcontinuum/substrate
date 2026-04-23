@@ -205,3 +205,37 @@ CREATE INDEX ix_substrate_symbol_properties
 
 ANALYZE substrate."File";
 ANALYZE substrate."Symbol";
+
+-- Reset search_path for the remaining statements so the ask_* tables below
+-- land in `public` rather than `ag_catalog` (the LOAD 'age' block above set
+-- search_path = ag_catalog, public, which persists for the transaction).
+SET LOCAL search_path = public;
+
+-- ---------------------------------------------------------------------------
+-- ask_threads — one row per ChatGPT-style conversation.
+-- ---------------------------------------------------------------------------
+CREATE TABLE ask_threads (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_sub    TEXT NOT NULL,
+    title       TEXT NOT NULL DEFAULT 'New thread',
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX ask_threads_user_updated ON ask_threads(user_sub, updated_at DESC);
+
+-- ---------------------------------------------------------------------------
+-- ask_messages — user + assistant turns per thread. FK cascade on thread
+-- delete. `citations` is hydrated {node_id,name,type} objects so the client
+-- can render chips without a second round-trip. `sync_ids` snapshots the
+-- active sync set at turn time so a reload renders the same retrieval scope.
+-- ---------------------------------------------------------------------------
+CREATE TABLE ask_messages (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    thread_id   UUID NOT NULL REFERENCES ask_threads(id) ON DELETE CASCADE,
+    role        TEXT NOT NULL CHECK (role IN ('user','assistant')),
+    content     TEXT NOT NULL,
+    citations   JSONB NOT NULL DEFAULT '[]',
+    sync_ids    JSONB NOT NULL DEFAULT '[]',
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX ask_messages_thread_created ON ask_messages(thread_id, created_at);
