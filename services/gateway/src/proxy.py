@@ -59,7 +59,11 @@ _SERVER_SET = {"date", "server", "content-length", "content-encoding"}
 _STRIP_FROM_UPSTREAM = _HOP_BY_HOP | _SERVER_SET
 
 
-async def proxy_request(request: Request, upstream_base: str) -> Response:
+async def proxy_request(
+    request: Request,
+    upstream_base: str,
+    extra_headers: dict[str, str] | None = None,
+) -> Response:
     if not _client:
         raise RuntimeError("Proxy client not initialized")
 
@@ -69,6 +73,8 @@ async def proxy_request(request: Request, upstream_base: str) -> Response:
 
     headers = dict(request.headers)
     headers.pop("host", None)
+    if extra_headers:
+        headers.update(extra_headers)
     body = await request.body()
 
     is_idempotent = request.method.upper() in _IDEMPOTENT_METHODS
