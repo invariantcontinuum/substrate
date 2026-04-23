@@ -67,16 +67,16 @@ jobs:
         run: uv sync --frozen --dev
 
       - name: Gateway tests
-        run: uv run pytest services/gateway/tests
+        run: cd services/gateway && uv run --extra dev pytest tests
 
       - name: Shared Python package tests
-        run: uv run pytest packages/substrate-common/tests
+        run: cd packages/substrate-common && uv run --extra dev pytest tests
 
       - name: Graph builder tests
-        run: uv run pytest packages/substrate-graph-builder/tests
+        run: cd packages/substrate-graph-builder && uv run --with pytest pytest tests
 
       - name: Ingestion sync-progress regression tests
-        run: uv run pytest services/ingestion/tests/test_sync_progress.py
+        run: cd services/ingestion && uv run --extra dev pytest tests/test_sync_progress.py
 
   frontend-fast:
     runs-on: ubuntu-latest
@@ -121,4 +121,6 @@ jobs:
         run: pip install --no-cache-dir mkdocs mkdocs-material mkdocs-minify-plugin
 
       - name: Build docs site
-        run: cd docs && mkdocs build -f mkdocs.yml
+        run: |
+          cp docs/mkdocs.yml mkdocs.ci.yml
+          mkdocs build -f mkdocs.ci.yml
