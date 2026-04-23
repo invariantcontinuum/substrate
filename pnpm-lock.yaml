@@ -13,9 +13,6 @@ importers:
       '@base-ui/react':
         specifier: ^1.3.0
         version: 1.4.0(@date-fns/tz@1.4.1)(@types/react@19.2.14)(date-fns@4.1.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
-      '@invariantcontinuum/graph':
-        specifier: workspace:*
-        version: link:../../packages/graph-ui
       '@tanstack/react-query':
         specifier: ^5.96.2
         version: 5.99.0(react@19.2.5)
