@@ -153,14 +153,14 @@ export function NodeDetailPanel() {
   };
 
   const exportSummary = () => {
-    if (!cached?.id) return;
+    if (!node?.id) return;
     const allEdges = useGraphStore.getState().edges;
     const related = allEdges.filter(
-      (e) => e.source === cached.id || e.target === cached.id,
+      (e) => e.source === node.id || e.target === node.id,
     );
     // eslint-disable-next-line react-hooks/purity -- event handler; runs on click, not render
-    downloadJson(`node-${cached.id}-summary-${Date.now()}.json`, {
-      node: cached,
+    downloadJson(`node-${node.id}-summary-${Date.now()}.json`, {
+      node,
       summary: summaryQuery.data?.summary ?? null,
       summary_source: summaryQuery.data?.source ?? null,
       edges: related,
@@ -202,14 +202,14 @@ export function NodeDetailPanel() {
   };
 
   const handleExportNode = () => {
-    if (!cached?.id) return;
+    if (!node?.id) return;
     const allEdges = useGraphStore.getState().edges;
     const related = allEdges.filter(
-      (e) => e.source === cached.id || e.target === cached.id,
+      (e) => e.source === node.id || e.target === node.id,
     );
     // eslint-disable-next-line react-hooks/purity -- event handler; runs on click, not render
-    downloadJson(`node-${cached.id}-${Date.now()}.json`, {
-      node: cached,
+    downloadJson(`node-${node.id}-${Date.now()}.json`, {
+      node,
       edges: related,
       exported_at: new Date().toISOString(),
     });

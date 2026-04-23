@@ -35,6 +35,7 @@ class ThreadRename(BaseModel):
 class MessagePost(BaseModel):
     content: str = Field(min_length=1, max_length=8000)
     sync_ids: list[str] = Field(default_factory=list)
+    graph_context: dict[str, Any] | None = None
 
 
 @router.get("/threads")
@@ -109,6 +110,7 @@ async def post_message(
     turn = await ask_pipeline.run_turn(
         user_sub=sub, user_content=body.content,
         sync_ids=body.sync_ids, prior_turns=prior_turns,
+        graph_context=body.graph_context,
     )
     assistant_msg = await ask_store.insert_message(
         thread_id=thread_id, role="assistant",

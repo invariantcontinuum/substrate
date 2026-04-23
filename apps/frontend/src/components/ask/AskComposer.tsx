@@ -2,17 +2,19 @@ import { useRef, type KeyboardEvent } from "react";
 import { Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAskStore } from "@/stores/ask";
-import { useSendTurn } from "@/hooks/useAskMutations";
+import { useSendTurn, useCreateThread } from "@/hooks/useAskMutations";
 
 export function AskComposer({ threadId }: { threadId: string | null }) {
   const draft = useAskStore((s) => s.composerDraft);
   const setDraft = useAskStore((s) => s.setComposerDraft);
   const sending = useAskStore((s) => s.sendingTurn);
   const setSending = useAskStore((s) => s.setSendingTurn);
-  const send = useSendTurn(threadId);
+  const setActiveThreadId = useAskStore((s) => s.setActiveThreadId);
+  const send = useSendTurn();
+  const createThread = useCreateThread();
   const taRef = useRef<HTMLTextAreaElement | null>(null);
 
-  const canSend = draft.trim().length > 0 && !!threadId && !sending;
+  const canSend = draft.trim().length > 0 && !sending;
 
   const doSend = async () => {
     if (!canSend) return;
@@ -20,7 +22,13 @@ export function AskComposer({ threadId }: { threadId: string | null }) {
     setDraft("");
     setSending(true);
     try {
-      await send.mutateAsync(content);
+      let activeId = threadId;
+      if (!activeId) {
+        const created = await createThread.mutateAsync(content.slice(0, 60));
+        activeId = created.id;
+        setActiveThreadId(activeId);
+      }
+      await send.mutateAsync({ threadId: activeId, content });
     } finally {
       setSending(false);
       taRef.current?.focus();
@@ -41,8 +49,8 @@ export function AskComposer({ threadId }: { threadId: string | null }) {
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={onKey}
-        placeholder={threadId ? "Ask about the graph…" : "Select or create a thread to start"}
-        disabled={!threadId || sending}
+        placeholder="Ask about the graph…"
+        disabled={sending}
         className="ask-composer-input"
         rows={3}
       />

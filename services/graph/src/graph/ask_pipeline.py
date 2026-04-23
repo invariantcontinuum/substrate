@@ -28,6 +28,7 @@ async def run_turn(
     user_content: str,
     sync_ids: list[str],
     prior_turns: list[dict],
+    graph_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Return `{content, citations}` for the assistant message."""
     query_embedding = await _embed_query(user_content)
@@ -40,6 +41,7 @@ async def run_turn(
         user_content=user_content,
         prior_turns=prior_turns,
         retrieved=retrieved,
+        graph_context=graph_context,
     )
     llm_output = await _call_dense_llm(prompt_messages)
     answer, cited_ids = _parse_response(llm_output)
@@ -49,6 +51,7 @@ async def run_turn(
 
 def _build_prompt(
     *, user_content: str, prior_turns: list[dict], retrieved: list[dict],
+    graph_context: dict[str, Any] | None = None,
 ) -> list[dict]:
     budget = settings.ask_total_budget_chars
 
@@ -62,19 +65,59 @@ def _build_prompt(
     nodes_section = "\n".join(_node_block(n) for n in retrieved)
     system = settings.ask_system_instruction
     header = "### Node context (from the user's active sync set):\n"
+    graph_section = ""
+    if graph_context:
+        gc_nodes = graph_context.get("nodes") or []
+        gc_edges = graph_context.get("edges") or []
+        if gc_nodes:
+            graph_nodes_lines = "\n".join(
+                f"- node_id={n.get('id')} name={n.get('name') or ''} type={n.get('type') or ''}"
+                for n in gc_nodes
+            )
+            graph_edges_lines = "\n".join(
+                f"- {e.get('source')} -> {e.get('type') or 'rel'} -> {e.get('target')}"
+                for e in gc_edges
+            )
+            graph_section = (
+                "\n\n### Currently rendered graph topology:\n"
+                f"Nodes:\n{graph_nodes_lines}\n"
+            )
+            if graph_edges_lines:
+                graph_section += f"Relationships:\n{graph_edges_lines}\n"
     user_prefix = "\n\n### Question:\n"
 
     messages: list[dict] = [{"role": "system", "content": system}]
     history = prior_turns[-settings.ask_history_turns * 2:]
     messages.extend([{"role": t["role"], "content": t["content"]} for t in history])
 
-    prompt_body = header + nodes_section + user_prefix + user_content
+    prompt_body = header + nodes_section + graph_section + user_prefix + user_content
     while _char_cost(messages) + len(prompt_body) > budget and nodes_section:
         lines = nodes_section.splitlines()
         if len(lines) <= 1:
             break
         nodes_section = "\n".join(lines[:-1])
-        prompt_body = header + nodes_section + user_prefix + user_content
+        prompt_body = header + nodes_section + graph_section + user_prefix + user_content
+    # If still over budget, trim graph context
+    while _char_cost(messages) + len(prompt_body) > budget and graph_section:
+        # Drop edges first, then halve nodes
+        if "Relationships:" in graph_section:
+            graph_section = graph_section.split("Relationships:")[0]
+            prompt_body = header + nodes_section + graph_section + user_prefix + user_content
+            continue
+        gc_nodes = graph_context.get("nodes") or [] if graph_context else []
+        if len(gc_nodes) > 5:
+            half = len(gc_nodes) // 2
+            graph_nodes_lines = "\n".join(
+                f"- node_id={n.get('id')} name={n.get('name') or ''} type={n.get('type') or ''}"
+                for n in gc_nodes[:half]
+            )
+            graph_section = (
+                "\n\n### Currently rendered graph topology:\n"
+                f"Nodes:\n{graph_nodes_lines}\n"
+            )
+            prompt_body = header + nodes_section + graph_section + user_prefix + user_content
+            continue
+        break
     while _char_cost(messages) + len(prompt_body) > budget and len(messages) > 1:
         messages.pop(1)
 

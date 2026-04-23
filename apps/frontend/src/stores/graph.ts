@@ -9,6 +9,11 @@ export interface SlimNode {
   name: string;
   layer?: string;
   source_id?: string;
+  file_path?: string;
+  loaded_sync_ids?: string[];
+  latest_sync_id?: string;
+  divergent?: boolean;
+  uuid?: string;
 }
 
 export interface SlimEdge {
@@ -284,7 +289,7 @@ export const useGraphStore = create<GraphState>((set) => ({
     // here and wipe the user's graph; that bug stays fixed by this guard.
     if (!syncIds.length) return;
     try {
-      const url = `/api/graph?sync_ids=${encodeURIComponent(syncIds.join(","))}`;
+      const url = `/api/graph?sync_ids=${encodeURIComponent(syncIds.join(","))}&projection=full`;
       // Slim default projection emits flat `{id, type, name, layer, source_id}`
       // per element; legacy full projection wraps each element in `{data: {...}}`.
       // Tolerate both shapes so a caller explicitly requesting `?projection=full`

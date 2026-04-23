@@ -107,6 +107,7 @@ async def get_merged_graph(
                    max(name)   FILTER (WHERE rn = 1) AS name,
                    max(type)   FILTER (WHERE rn = 1) AS type,
                    max(domain) FILTER (WHERE rn = 1) AS domain,
+                   max(id)     FILTER (WHERE rn = 1) AS id,
                    count(DISTINCT content_hash) > 1 AS divergent
             FROM ranked
             GROUP BY source_id, file_path
@@ -117,6 +118,7 @@ async def get_merged_graph(
         nodes = [
             {"data": {
                 "id": _node_id(r["source_id"], r["file_path"]),
+                "uuid": r["id"],
                 "name": r["name"], "type": r["type"], "domain": r["domain"] or "",
                 "source_id": r["source_id"], "file_path": r["file_path"],
                 "loaded_sync_ids": list(r["loaded_sync_ids"]),

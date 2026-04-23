@@ -4,10 +4,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AskComposer } from "./AskComposer";
 import { useAskStore } from "@/stores/ask";
 
-const mutateAsync = vi.fn().mockResolvedValue({});
+const sendMutateAsync = vi.fn().mockResolvedValue({});
+const createMutateAsync = vi.fn().mockResolvedValue({ id: "new-thread" });
 
 vi.mock("@/hooks/useAskMutations", () => ({
-  useSendTurn: () => ({ mutateAsync }),
+  useSendTurn: () => ({ mutateAsync: sendMutateAsync }),
+  useCreateThread: () => ({ mutateAsync: createMutateAsync }),
 }));
 vi.mock("react-oidc-context", () => ({
   useAuth: () => ({ user: { access_token: "t" } }),
@@ -19,8 +21,9 @@ function wrap(ui: React.ReactElement) {
 
 describe("AskComposer", () => {
   beforeEach(() => {
-    mutateAsync.mockClear();
-    useAskStore.setState({ composerDraft: "", sendingTurn: false });
+    sendMutateAsync.mockClear();
+    createMutateAsync.mockClear();
+    useAskStore.setState({ composerDraft: "", sendingTurn: false, activeThreadId: null });
   });
 
   it("disables send when empty", () => {
@@ -28,12 +31,13 @@ describe("AskComposer", () => {
     expect(screen.getByRole("button", { name: /send/i })).toBeDisabled();
   });
 
-  it("Enter sends the turn", () => {
+  it("Enter sends the turn when thread exists", () => {
     render(wrap(<AskComposer threadId="t1" />));
     const ta = screen.getByPlaceholderText(/Ask about the graph/i);
     fireEvent.change(ta, { target: { value: "hi" } });
     fireEvent.keyDown(ta, { key: "Enter" });
-    expect(mutateAsync).toHaveBeenCalledWith("hi");
+    expect(sendMutateAsync).toHaveBeenCalledWith({ threadId: "t1", content: "hi" });
+    expect(createMutateAsync).not.toHaveBeenCalled();
   });
 
   it("Shift+Enter does not send", () => {
@@ -41,11 +45,17 @@ describe("AskComposer", () => {
     const ta = screen.getByPlaceholderText(/Ask about the graph/i);
     fireEvent.change(ta, { target: { value: "hi" } });
     fireEvent.keyDown(ta, { key: "Enter", shiftKey: true });
-    expect(mutateAsync).not.toHaveBeenCalled();
+    expect(sendMutateAsync).not.toHaveBeenCalled();
   });
 
-  it("disables input without a threadId", () => {
+  it("creates a thread and sends when no threadId", async () => {
     render(wrap(<AskComposer threadId={null} />));
-    expect(screen.getByPlaceholderText(/Select or create a thread/i)).toBeDisabled();
+    const ta = screen.getByPlaceholderText(/Ask about the graph/i);
+    fireEvent.change(ta, { target: { value: "hello" } });
+    fireEvent.keyDown(ta, { key: "Enter" });
+    expect(createMutateAsync).toHaveBeenCalledWith("hello");
+    // After thread creation, send is called
+    await new Promise((r) => setTimeout(r, 0));
+    expect(sendMutateAsync).toHaveBeenCalledWith({ threadId: "new-thread", content: "hello" });
   });
 });

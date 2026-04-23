@@ -2,8 +2,56 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "react-oidc-context";
 import { apiFetch } from "@/lib/api";
 import { useSyncSetStore } from "@/stores/syncSet";
+import { useGraphStore } from "@/stores/graph";
 import type { AskMessage } from "./useAskMessages";
 import type { AskThread } from "./useAskThreads";
+
+interface GraphContext {
+  nodes: Array<{ id: string; name: string; type: string }>;
+  edges: Array<{ source: string; target: string; type: string }>;
+}
+
+function buildGraphContext(): GraphContext | undefined {
+  const { nodes, edges, filters } = useGraphStore.getState();
+  const visibleNodes = nodes.filter((n) =>
+    filters.types.has(String(n.type || "unknown")),
+  );
+  if (visibleNodes.length === 0) return undefined;
+
+  // Compute degree for each node
+  const degree = new Map<string, number>();
+  for (const n of visibleNodes) degree.set(n.id, 0);
+  for (const e of edges) {
+    if (degree.has(e.source)) degree.set(e.source, (degree.get(e.source) || 0) + 1);
+    if (degree.has(e.target)) degree.set(e.target, (degree.get(e.target) || 0) + 1);
+  }
+
+  // Take top 60 nodes by degree
+  const topNodes = [...visibleNodes]
+    .sort((a, b) => (degree.get(b.id) || 0) - (degree.get(a.id) || 0))
+    .slice(0, 60);
+  const topIds = new Set(topNodes.map((n) => n.id));
+
+  // Build synthetic-id -> uuid map for edge translation
+  const idToUuid = new Map<string, string>();
+  for (const n of topNodes) {
+    idToUuid.set(n.id, n.uuid || n.id);
+  }
+
+  // Take edges where both ends are in top nodes, cap at 100
+  const topEdges = edges
+    .filter((e) => topIds.has(e.source) && topIds.has(e.target))
+    .slice(0, 100);
+
+  return {
+    nodes: topNodes.map((n) => ({ id: n.uuid || n.id, name: n.name, type: n.type })),
+    edges: topEdges.map((e) => ({
+      source: idToUuid.get(e.source) || e.source,
+      target: idToUuid.get(e.target) || e.target,
+      type: e.type,
+    })),
+  };
+}
 
 export function useCreateThread() {
   const qc = useQueryClient();
@@ -44,27 +92,53 @@ export function useDeleteThread() {
   });
 }
 
-export function useSendTurn(threadId: string | null) {
+export function useSendTurn() {
   const qc = useQueryClient();
   const auth = useAuth();
   const token = auth.user?.access_token;
   const syncIds = useSyncSetStore((s) => s.syncIds);
   return useMutation({
-    mutationFn: async (content: string) => {
-      if (!threadId) throw new Error("no active thread");
+    mutationFn: async ({ threadId, content }: { threadId: string; content: string }) => {
+      const graphContext = buildGraphContext();
       return apiFetch<{ user_message: AskMessage; assistant_message: AskMessage }>(
         `/api/ask/threads/${threadId}/messages`,
         token,
         {
           method: "POST",
-          body: JSON.stringify({ content, sync_ids: syncIds }),
+          body: JSON.stringify({ content, sync_ids: syncIds, graph_context: graphContext }),
         },
       );
     },
-    onSuccess: ({ user_message, assistant_message }) => {
+    onMutate: async ({ threadId, content }) => {
+      await qc.cancelQueries({ queryKey: ["ask", "messages", threadId] });
+      const previousMessages = qc.getQueryData<AskMessage[]>(["ask", "messages", threadId]);
+      const optimisticUserMessage: AskMessage = {
+        id: `optimistic-${Date.now()}`,
+        role: "user",
+        content,
+        citations: [],
+        created_at: new Date().toISOString(),
+      };
       qc.setQueryData<AskMessage[]>(
         ["ask", "messages", threadId],
-        (prev) => [...(prev ?? []), user_message, assistant_message],
+        (prev) => [...(prev ?? []), optimisticUserMessage],
+      );
+      return { previousMessages, threadId };
+    },
+    onError: (_err, _vars, context) => {
+      if (context) {
+        qc.setQueryData(["ask", "messages", context.threadId], context.previousMessages);
+      }
+    },
+    onSuccess: ({ user_message, assistant_message }, { threadId }) => {
+      qc.setQueryData<AskMessage[]>(
+        ["ask", "messages", threadId],
+        (prev) => {
+          const withoutOptimistic = (prev ?? []).filter(
+            (m) => !m.id.startsWith("optimistic-"),
+          );
+          return [...withoutOptimistic, user_message, assistant_message];
+        },
       );
       qc.invalidateQueries({ queryKey: ["ask", "threads"] });
     },
