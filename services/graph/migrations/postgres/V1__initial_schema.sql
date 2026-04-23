@@ -239,3 +239,35 @@ CREATE TABLE ask_messages (
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX ask_messages_thread_created ON ask_messages(thread_id, created_at);
+
+-- ---------------------------------------------------------------------------
+-- leiden_cache — active-set Leiden results (spec §2.2)
+-- ---------------------------------------------------------------------------
+CREATE TABLE leiden_cache (
+    cache_key          TEXT PRIMARY KEY,
+    user_sub           TEXT NOT NULL,
+    sync_ids           UUID[] NOT NULL,
+    config             JSONB NOT NULL,
+    community_count    INT NOT NULL,
+    modularity         DOUBLE PRECISION NOT NULL,
+    orphan_pct         DOUBLE PRECISION NOT NULL,
+    community_sizes    INT[] NOT NULL,
+    assignments        JSONB NOT NULL,
+    labels             JSONB NOT NULL DEFAULT '{}'::jsonb,
+    compute_ms         INT NOT NULL,
+    created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+    expires_at         TIMESTAMPTZ NOT NULL DEFAULT now() + INTERVAL '24 hours'
+);
+
+CREATE INDEX idx_leiden_cache_user     ON leiden_cache(user_sub);
+CREATE INDEX idx_leiden_cache_expires  ON leiden_cache(expires_at);
+CREATE INDEX idx_leiden_cache_sync_ids ON leiden_cache USING GIN (sync_ids);
+
+-- ---------------------------------------------------------------------------
+-- user_preferences — per-user defaults (spec §2.3)
+-- ---------------------------------------------------------------------------
+CREATE TABLE user_preferences (
+    user_sub    TEXT PRIMARY KEY,
+    prefs       JSONB NOT NULL DEFAULT '{}'::jsonb,
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
