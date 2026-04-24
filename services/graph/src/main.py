@@ -22,7 +22,11 @@ from src.api.users import router as users_router
 from src.config import settings
 from src.graph import store
 from src.sse_retention import start_sse_retention_loop, stop_sse_retention_loop
-from src.startup import check_embedding_dim
+from src.startup import (
+    check_embedding_dim,
+    start_leiden_cache_tasks,
+    stop_leiden_cache_tasks,
+)
 
 configure_logging(service=settings.service_name)
 logger = structlog.get_logger()
@@ -35,8 +39,10 @@ async def lifespan(app: FastAPI):
     async with pool.acquire() as conn:
         await check_embedding_dim(conn, expected_dim=settings.embedding_dim)
     await start_sse_retention_loop()
+    await start_leiden_cache_tasks()
     logger.info("graph_service_started")
     yield
+    await stop_leiden_cache_tasks()
     await stop_sse_retention_loop()
     await store.disconnect()
     logger.info("graph_service_stopped")
