@@ -24,9 +24,18 @@ export interface PrefsState {
   setLayout: (layout: LayoutPref) => void;
   setTheme: (theme: ThemePref) => void;
   setTelemetry: (telemetry: boolean) => void;
-  /** Replace the whole prefs shape (used after hydrate + after server PUT). */
-  replace: (next: Partial<Omit<PrefsState, "hydrated" | "setLeiden"
-    | "setLayout" | "setTheme" | "setTelemetry" | "replace">>) => void;
+  /** Replace the whole prefs shape (used after hydrate + after server PUT).
+   *  Accepts partial values — any missing field keeps the current value,
+   *  which is what the server-side deep-merge guarantees anyway. */
+  replace: (next: ServerPrefsShape) => void;
+}
+
+export interface ServerPrefsShape {
+  leiden?: Partial<LeidenPrefs>;
+  layout?: LayoutPref;
+  theme?: ThemePref;
+  telemetry?: boolean;
+  schema_version?: number;
 }
 
 export const DEFAULT_LEIDEN: LeidenPrefs = {

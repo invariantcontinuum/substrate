@@ -19,14 +19,19 @@ function authToken(): string | undefined {
   return (window as Window & { __authToken?: string }).__authToken;
 }
 
+interface OidcProfile {
+  name?: string;
+  preferred_username?: string;
+  email?: string;
+  exp?: number;
+}
+
 export function AccountProfileTab() {
   const auth = useAuth();
-  const profile = auth.user?.profile ?? {};
-  const name =
-    (profile.name as string | undefined) ??
-    (profile.preferred_username as string | undefined);
-  const email = profile.email as string | undefined;
-  const exp = profile.exp as number | undefined;
+  const profile = (auth.user?.profile ?? {}) as OidcProfile;
+  const name = profile.name ?? profile.preferred_username;
+  const email = profile.email;
+  const exp = profile.exp;
 
   const signOutAll = async () => {
     const tok = authToken();

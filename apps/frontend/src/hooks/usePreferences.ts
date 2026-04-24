@@ -1,16 +1,10 @@
 import { useEffect, useRef } from "react";
 import { apiFetch } from "@/lib/api";
 import { logger } from "@/lib/logger";
-import { usePrefsStore } from "@/stores/prefs";
+import { usePrefsStore, type ServerPrefsShape } from "@/stores/prefs";
 
 interface ServerPrefs {
-  prefs: {
-    leiden?: Partial<import("@/stores/prefs").LeidenPrefs>;
-    layout?: import("@/stores/prefs").LayoutPref;
-    theme?: import("@/stores/prefs").ThemePref;
-    telemetry?: boolean;
-    schema_version?: number;
-  };
+  prefs: ServerPrefsShape;
   updated_at: string | null;
 }
 
