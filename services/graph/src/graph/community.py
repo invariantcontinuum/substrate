@@ -20,6 +20,7 @@ Notes on the Postgres boundary:
     relational ``graph_nodes``/``graph_edges`` tables mentioned in early
     plan drafts do NOT exist in this codebase.
 """
+import asyncio
 import json
 import time
 import uuid
@@ -28,6 +29,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+import httpx
 import networkx as nx
 import structlog
 from graspologic.partition import hierarchical_leiden
@@ -120,10 +122,10 @@ async def get_or_compute(
         community_sizes=sizes_sorted,
     )
     compute_ms = int((time.perf_counter() - t0) * 1000)
-    # LLM labels land in Task 14. For now every cluster gets a "Community N"
-    # default; the write path preserves whatever labels are present so a
-    # later task can swap them in place without re-running Leiden.
-    labels = {i: f"Community {i}" for i in range(len(sizes_sorted))}
+    # LLM-generated labels (Task 14). Disabled setting or any transport /
+    # decode failure falls back to "Community N" per-community so a dead
+    # dense LLM never fails the whole Leiden run.
+    labels = await _label_communities(g, final, sizes_sorted)
     communities = _build_community_entries(final, sizes_sorted, labels)
 
     await _write_cache_row(
@@ -512,3 +514,93 @@ async def evict_lru_for_user(user_sub: str) -> int:
             user_sub, cap,
         )
     return int(result.split()[-1]) if result else 0
+
+
+async def _label_communities(
+    g: nx.Graph,
+    assignments: dict[str, int],
+    sizes: list[int],
+) -> dict[int, str]:
+    """Assign a short human label to each surviving community. Runs all
+    per-community requests in parallel via ``asyncio.gather``. Every failure
+    path — disabled setting, transport error, non-OK response, empty
+    completion — falls back to ``"Community N"``; this function never raises.
+
+    Nodes are picked by intra-community degree (top-10 most-connected) so
+    the LLM sees the structural core of each cluster."""
+    if not settings.active_set_leiden_labeling_enabled:
+        return {i: f"Community {i}" for i in range(len(sizes))}
+
+    degree = dict(g.degree())
+    by_idx: dict[int, list[str]] = {}
+    for node, idx in assignments.items():
+        if idx < 0:
+            continue
+        by_idx.setdefault(idx, []).append(node)
+
+    async def label_one(idx: int) -> tuple[int, str]:
+        nodes = sorted(
+            by_idx.get(idx, []), key=lambda n: -degree.get(n, 0),
+        )[:10]
+        if not nodes:
+            return idx, f"Community {idx}"
+        try:
+            label = await _label_community(nodes)
+        except Exception as exc:  # noqa: BLE001 — LLM failure is non-fatal
+            logger.warning(
+                "community_label_failed", idx=idx, error=str(exc),
+            )
+            return idx, f"Community {idx}"
+        cleaned = (label or "").strip().strip('"\'').strip()
+        return idx, (cleaned[:40] or f"Community {idx}")
+
+    results = await asyncio.gather(*(label_one(i) for i in range(len(sizes))))
+    return dict(results)
+
+
+async def _label_community(node_ids: list[str]) -> str:
+    """Call the dense LLM once for a single community. The node_ids are
+    ``file_embeddings.id::text`` (matching the ``file_id`` property on
+    :File AGE nodes). Queries the relational ``file_embeddings`` table for
+    label context rather than the AGE node, because ``file_path`` is only
+    on the relational side."""
+    pool = store.get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT id::text AS file_id, name, file_path, type "
+            "FROM file_embeddings "
+            "WHERE id::text = ANY($1::text[]) "
+            "ORDER BY file_path "
+            "LIMIT 10",
+            node_ids,
+        )
+    if not rows:
+        return "Community"
+    bullets = [
+        f"- {r['type']} · {r['name']} ({r['file_path'] or ''})"
+        for r in rows
+    ]
+    prompt = (
+        "These code nodes form one cluster:\n"
+        + "\n".join(bullets)
+        + "\n\nName this cluster in 2-4 words. Reply with just the name."
+    )
+    timeout = httpx.Timeout(connect=5.0, read=30.0, write=10.0, pool=10.0)
+    headers: dict[str, str] = {}
+    if settings.llm_api_key:
+        headers["Authorization"] = f"Bearer {settings.llm_api_key}"
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        resp = await client.post(
+            settings.dense_llm_url,
+            headers=headers,
+            json={
+                "model": settings.active_set_leiden_label_model,
+                "messages": [{"role": "user", "content": prompt}],
+                "max_tokens": 16,
+                "temperature": 0.2,
+            },
+        )
+        resp.raise_for_status()
+        payload = resp.json()
+    text = payload["choices"][0]["message"]["content"]
+    return (text or "").strip().strip('"\'').strip() or "Community"

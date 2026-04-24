@@ -235,3 +235,69 @@ async def test_evict_lru_for_user_trims_to_cap(app_pool):
             await conn.execute(
                 "DELETE FROM leiden_cache WHERE user_sub = $1", user,
             )
+
+
+async def test_labels_fallback_when_llm_down(
+    app_pool, seeded_two_cluster_syncs, monkeypatch,
+):
+    """If ``_label_community`` raises (dense LLM unreachable), ``get_or_compute``
+    must still succeed and fall back to 'Community N' for every entry. Verifies
+    the fallback is per-community (not fail-closed)."""
+    from src.graph import community as cm
+
+    async def boom(*a, **kw):
+        raise RuntimeError("dense LLM unreachable")
+
+    monkeypatch.setattr(cm, "_label_community", boom)
+
+    r = await cm.get_or_compute(
+        seeded_two_cluster_syncs, DEFAULT_CFG, user_sub="u1", force=True,
+    )
+    assert r.summary.community_count >= 2
+    for e in r.communities:
+        assert e.label.startswith("Community "), e.label
+
+
+async def test_labels_use_llm_reply_when_successful(
+    app_pool, seeded_two_cluster_syncs, monkeypatch,
+):
+    """When ``_label_community`` returns a string, it lands on the entries
+    (trimmed of quotes + whitespace, capped at 40 chars)."""
+    from src.graph import community as cm
+
+    async def fake(node_ids):
+        return '  "Auth Handlers"  '
+
+    monkeypatch.setattr(cm, "_label_community", fake)
+
+    r = await cm.get_or_compute(
+        seeded_two_cluster_syncs, DEFAULT_CFG, user_sub="u1", force=True,
+    )
+    for e in r.communities:
+        assert e.label == "Auth Handlers"
+
+
+async def test_labels_disabled_short_circuits(
+    app_pool, seeded_two_cluster_syncs, monkeypatch,
+):
+    """When ``active_set_leiden_labeling_enabled=False``, the LLM path is
+    never entered — labels are the default 'Community N'."""
+    from src.config import settings as s
+    from src.graph import community as cm
+
+    calls = 0
+
+    async def counted(node_ids):
+        nonlocal calls
+        calls += 1
+        return "Should Not Appear"
+
+    monkeypatch.setattr(cm, "_label_community", counted)
+    monkeypatch.setattr(s, "active_set_leiden_labeling_enabled", False)
+
+    r = await cm.get_or_compute(
+        seeded_two_cluster_syncs, DEFAULT_CFG, user_sub="u1", force=True,
+    )
+    assert calls == 0
+    for e in r.communities:
+        assert e.label.startswith("Community ")
