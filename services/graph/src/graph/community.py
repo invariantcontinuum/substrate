@@ -33,6 +33,7 @@ import httpx
 import networkx as nx
 import structlog
 from graspologic.partition import hierarchical_leiden
+from substrate_common.sse import Event, SseBus
 
 from src.config import settings
 from src.graph import snapshot_query, store
@@ -70,6 +71,43 @@ class CommunityResult:
     communities: list[CommunityEntry]
 
 
+async def _emit_compute_event(
+    *,
+    user_sub: str,
+    cache_key: str,
+    phase: str,
+    sync_ids: list[str],
+) -> None:
+    """Publish a ``leiden.compute`` SSE event for the carousel to observe.
+
+    Non-fatal: if the bus publish fails we log and continue. The compute
+    itself is authoritative — SSE is only for liveness feedback. ``user_sub``
+    MUST be set so the gateway can filter the event per-user.
+
+    The first sync_id is pinned into ``event.sync_id`` so a subscriber
+    that already filters by a specific sync (e.g. snapshot-row live tile)
+    still sees the compute progress. Further sync_ids are carried in the
+    payload.
+    """
+    try:
+        bus = SseBus(store.get_pool())
+        await bus.publish(Event(
+            type="leiden.compute",
+            sync_id=uuid.UUID(sync_ids[0]) if sync_ids else None,
+            user_sub=user_sub,
+            payload={
+                "cache_key": cache_key,
+                "phase": phase,
+                "sync_ids": sync_ids,
+            },
+        ))
+    except Exception as exc:  # noqa: BLE001 — liveness side channel is non-fatal
+        logger.warning(
+            "leiden_compute_sse_emit_failed",
+            phase=phase, cache_key=cache_key, error=str(exc),
+        )
+
+
 async def get_or_compute(
     sync_ids: list[str],
     config: LeidenConfig,
@@ -99,8 +137,18 @@ async def get_or_compute(
             )
             return hit
 
+    # Cache-miss path begins. Everything below is progress-tracked.
+    await _emit_compute_event(
+        user_sub=user_sub, cache_key=cache_key,
+        phase="building_graph", sync_ids=sync_ids,
+    )
     t0 = time.perf_counter()
     g = await _build_graph(sync_ids)
+
+    await _emit_compute_event(
+        user_sub=user_sub, cache_key=cache_key,
+        phase="running_leiden", sync_ids=sync_ids,
+    )
     raw, sizes_sorted, renumber = _run_leiden(g, config)
     final = _apply_renumber(raw, renumber)
     modularity = _modularity(g, final, config)
@@ -125,9 +173,17 @@ async def get_or_compute(
     # LLM-generated labels (Task 14). Disabled setting or any transport /
     # decode failure falls back to "Community N" per-community so a dead
     # dense LLM never fails the whole Leiden run.
+    await _emit_compute_event(
+        user_sub=user_sub, cache_key=cache_key,
+        phase="labeling", sync_ids=sync_ids,
+    )
     labels = await _label_communities(g, final, sizes_sorted)
     communities = _build_community_entries(final, sizes_sorted, labels)
 
+    await _emit_compute_event(
+        user_sub=user_sub, cache_key=cache_key,
+        phase="writing_cache", sync_ids=sync_ids,
+    )
     await _write_cache_row(
         cache_key=cache_key,
         user_sub=user_sub,
