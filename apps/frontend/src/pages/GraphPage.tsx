@@ -1,6 +1,7 @@
 import { GraphCanvas } from "@/components/graph/GraphCanvas";
 import { NodeDetailPanel } from "@/components/panels/NodeDetailPanel";
 import { SearchBar } from "@/components/layout/SearchBar";
+import { CarouselEngine } from "@/components/carousel/CarouselEngine";
 
 export function GraphPage() {
   return (
@@ -15,6 +16,9 @@ export function GraphPage() {
       </div>
       <div className="graph-canvas-wrapper">
         <GraphCanvas />
+        <div className="carousel-overlay">
+          <CarouselEngine />
+        </div>
       </div>
       <NodeDetailPanel />
     </div>

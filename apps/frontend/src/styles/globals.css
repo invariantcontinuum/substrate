@@ -2849,3 +2849,149 @@ html {
   padding: 18px; border: 1px dashed rgba(255,255,255,0.12);
   border-radius: 10px; text-align: center;
 }
+
+/* ---- Carousel (P2) ---- */
+.carousel-overlay {
+  position: absolute;
+  inset: 12px 12px auto auto;
+  width: min(340px, calc(100% - 24px));
+  max-height: calc(100% - 24px);
+  pointer-events: none;
+  z-index: 5;
+}
+.carousel-engine {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  background: rgba(20, 24, 32, 0.72);
+  backdrop-filter: blur(8px);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  pointer-events: auto;
+}
+.carousel-viewport { min-height: 140px; }
+.carousel-empty {
+  padding: 10px 12px;
+  font-size: 11px;
+  opacity: 0.7;
+  text-align: center;
+  pointer-events: auto;
+  background: rgba(20, 24, 32, 0.72);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+.carousel-rail {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+}
+.carousel-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  border: none;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.carousel-dot.active {
+  background: rgba(90, 180, 255, 0.35);
+  color: #fff;
+}
+
+/* TOC slide */
+.toc-slide .toc-header h2 {
+  font-size: 13px;
+  margin-bottom: 2px;
+}
+.toc-summary {
+  font-size: 10px;
+  opacity: 0.6;
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.toc-cards {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.toc-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  color: inherit;
+  font-size: 11px;
+  text-align: left;
+}
+.toc-card:hover { border-color: rgba(90, 180, 255, 0.3); }
+.toc-card-rank {
+  font-family: monospace;
+  opacity: 0.5;
+  min-width: 24px;
+}
+.toc-card-body { flex: 1; min-width: 0; }
+.toc-card-label { font-weight: 500; }
+.toc-card-meta { font-size: 10px; opacity: 0.55; margin-top: 1px; }
+
+/* Community slide */
+.community-slide-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.community-slide-rank {
+  font-family: monospace;
+  font-size: 10px;
+  opacity: 0.55;
+}
+.community-slide-label {
+  font-size: 13px;
+  font-weight: 600;
+  flex: 1;
+  min-width: 0;
+}
+.community-slide-meta { font-size: 10px; opacity: 0.55; }
+.community-slide-nodes {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.community-slide-node {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 10px;
+  color: inherit;
+  cursor: pointer;
+}
+.community-slide-node:hover {
+  border-color: rgba(90, 180, 255, 0.4);
+}
+.community-slide-more { font-size: 10px; opacity: 0.55; padding: 2px 6px; }
+.community-slide-foot {
+  margin-top: 6px;
+  display: flex;
+  justify-content: flex-end;
+}
