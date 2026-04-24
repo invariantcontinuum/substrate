@@ -124,6 +124,153 @@ async def seeded_two_sync_runs(app_pool):
 
 
 @pytest_asyncio.fixture(loop_scope="session")
+async def seeded_two_cluster_syncs(app_pool):
+    """Seed one source, two completed sync_runs, and 8 files across the two
+    syncs — 4 per sync — wired into two disjoint K4 cliques (6 edges each)
+    bridged by a single cross-sync DEPENDS_ON edge. The resulting graph has
+    13 edges, two tight communities, and a high modularity floor (well above
+    0.2) so active-set Leiden reliably recovers both clusters regardless of
+    random seed.
+
+    Returns ``[sync_a, sync_b]`` as uuid strings. Tears down via source delete
+    (cascades to sync_runs + file_embeddings) plus a defensive cypher sweep
+    of the :File nodes whose ``source_id`` matches the seeded source.
+    """
+    pool = store.get_pool()
+    dim = settings.embedding_dim
+    zero_vec = "[" + ",".join("0" for _ in range(dim)) + "]"
+
+    async with pool.acquire() as conn:
+        # Pre-clean any leftover rows from a prior aborted run. The unique
+        # (source_type, owner, name) shape lets us idempotently re-seed.
+        await conn.execute(
+            "DELETE FROM sources WHERE source_type='github_repo' "
+            "AND owner='leiden' AND name='two_cluster'"
+        )
+        src_id = await conn.fetchval(
+            "INSERT INTO sources (source_type, owner, name, url) "
+            "VALUES ('github_repo','leiden','two_cluster','u') RETURNING id::text"
+        )
+        sid_a = await conn.fetchval(
+            "INSERT INTO sync_runs (source_id, status, completed_at) "
+            "VALUES ($1::uuid,'completed', now()) RETURNING id::text",
+            src_id,
+        )
+        sid_b = await conn.fetchval(
+            "INSERT INTO sync_runs (source_id, status, completed_at) "
+            "VALUES ($1::uuid,'completed', now()) RETURNING id::text",
+            src_id,
+        )
+        # 4 files per sync: cluster A (sync_a) and cluster B (sync_b).
+        file_ids: dict[str, list[str]] = {"a": [], "b": []}
+        for cluster, sid in (("a", sid_a), ("b", sid_b)):
+            for i in range(4):
+                fe_id = await conn.fetchval(
+                    """INSERT INTO file_embeddings
+                           (sync_id, source_id, file_path, name, type,
+                            description, embedding)
+                       VALUES ($1::uuid, $2::uuid, $3, $3, 'file',
+                               $4, $5::vector)
+                       RETURNING id::text""",
+                    sid, src_id,
+                    f"{cluster}{i}.py",
+                    f"cluster {cluster} file {i}",
+                    zero_vec,
+                )
+                file_ids[cluster].append(fe_id)
+
+        # Build cypher for two K4 cliques + one bridge edge. Each cluster's
+        # edges carry its own sync_id; the bridge edge carries sync_a so it
+        # appears whenever sync_a is active.
+        def _k4_edges(nodes: list[str]) -> list[tuple[str, str]]:
+            return [
+                (nodes[i], nodes[j])
+                for i in range(len(nodes))
+                for j in range(i + 1, len(nodes))
+            ]
+
+        all_nodes: list[tuple[str, str]] = [
+            (fe, sid_a) for fe in file_ids["a"]
+        ] + [
+            (fe, sid_b) for fe in file_ids["b"]
+        ]
+
+        # MERGE all :File nodes (deterministic, idempotent).
+        for fe_id, node_sync in all_nodes:
+            await conn.execute(
+                f"""SELECT * FROM cypher('substrate', $$
+                        MERGE (n:File {{
+                            file_id: '{fe_id}',
+                            sync_id: '{node_sync}',
+                            source_id: '{src_id}'
+                        }})
+                        RETURN 1
+                    $$) AS (ok agtype)"""
+            )
+
+        # K4 on cluster A (edges tagged sync_a).
+        for s_fe, t_fe in _k4_edges(file_ids["a"]):
+            await conn.execute(
+                f"""SELECT * FROM cypher('substrate', $$
+                        MATCH (a:File {{file_id: '{s_fe}'}}),
+                              (b:File {{file_id: '{t_fe}'}})
+                        MERGE (a)-[r:DEPENDS_ON {{
+                            sync_id: '{sid_a}', weight: 1.0
+                        }}]->(b)
+                        RETURN 1
+                    $$) AS (ok agtype)"""
+            )
+        # K4 on cluster B (edges tagged sync_b).
+        for s_fe, t_fe in _k4_edges(file_ids["b"]):
+            await conn.execute(
+                f"""SELECT * FROM cypher('substrate', $$
+                        MATCH (a:File {{file_id: '{s_fe}'}}),
+                              (b:File {{file_id: '{t_fe}'}})
+                        MERGE (a)-[r:DEPENDS_ON {{
+                            sync_id: '{sid_b}', weight: 1.0
+                        }}]->(b)
+                        RETURN 1
+                    $$) AS (ok agtype)"""
+            )
+        # Single bridge edge between the two cliques (tagged sync_a so it
+        # surfaces when sync_a is part of the active set). This keeps
+        # modularity high while still producing a connected graph.
+        bridge_src, bridge_dst = file_ids["a"][0], file_ids["b"][0]
+        await conn.execute(
+            f"""SELECT * FROM cypher('substrate', $$
+                    MATCH (a:File {{file_id: '{bridge_src}'}}),
+                          (b:File {{file_id: '{bridge_dst}'}})
+                    MERGE (a)-[r:DEPENDS_ON {{
+                        sync_id: '{sid_a}', weight: 1.0
+                    }}]->(b)
+                    RETURN 1
+                $$) AS (ok agtype)"""
+        )
+
+    yield [sid_a, sid_b]
+
+    async with pool.acquire() as conn:
+        # Sweep the AGE vertices + edges we MERGEd. The source DELETE below
+        # removes file_embeddings rows (cascade), but :File nodes live in
+        # AGE's own ag_label tables and don't cascade, so clean them up
+        # first or future runs accumulate stale nodes.
+        await conn.execute(
+            f"""SELECT * FROM cypher('substrate', $$
+                    MATCH (n:File {{source_id: '{src_id}'}})
+                    DETACH DELETE n
+                $$) AS (ok agtype)"""
+        )
+        # Also clean leiden_cache rows written by the tests so repeat runs
+        # don't return stale cached results for the same cache_key.
+        await conn.execute(
+            "DELETE FROM leiden_cache WHERE $1::uuid = ANY(sync_ids) "
+            "OR $2::uuid = ANY(sync_ids)",
+            sid_a, sid_b,
+        )
+        await conn.execute("DELETE FROM sources WHERE id=$1::uuid", src_id)
+
+
+@pytest_asyncio.fixture(loop_scope="session")
 async def seeded_assistant_turn(async_client, monkeypatch):
     """Stub ``ask_pipeline.run_turn`` with a canned response, create a
     fresh thread for ``user-a``, POST one user message, and return the
