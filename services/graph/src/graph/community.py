@@ -457,3 +457,58 @@ async def get_community_nodes(
     window = nodes[offset : offset + limit]
     next_cursor = str(offset + limit) if offset + limit < len(nodes) else None
     return PaginatedNodes(items=window, next_cursor=next_cursor)
+
+
+async def invalidate_for_sync_ids(sync_ids: list[str]) -> int:
+    """Delete every cache row whose sync_ids array overlaps the given set.
+    Called when a sync is superseded, deleted, or moved outside the active
+    set. Relies on the GIN index on leiden_cache.sync_ids (V1 schema) so the
+    overlap operator stays O(index_lookup). Returns affected row count."""
+    if not sync_ids:
+        return 0
+    pool = store.get_pool()
+    async with pool.acquire() as conn:
+        result = await conn.execute(
+            "DELETE FROM leiden_cache WHERE sync_ids && $1::uuid[]",
+            sync_ids,
+        )
+    # asyncpg's execute() returns a string like "DELETE 3".
+    return int(result.split()[-1]) if result else 0
+
+
+async def sweep_expired() -> int:
+    """Bounded delete of rows past their TTL. Invoked on service startup
+    and every ``leiden_cache_sweep_interval_s`` seconds by a background
+    task. Limited to 500 rows per sweep to keep the lock window short on
+    large caches; repeated sweeps catch up to steady state."""
+    pool = store.get_pool()
+    async with pool.acquire() as conn:
+        result = await conn.execute(
+            "DELETE FROM leiden_cache "
+            "WHERE cache_key IN ("
+            "  SELECT cache_key FROM leiden_cache "
+            "  WHERE expires_at < now() "
+            "  LIMIT 500"
+            ")"
+        )
+    return int(result.split()[-1]) if result else 0
+
+
+async def evict_lru_for_user(user_sub: str) -> int:
+    """Enforce the per-user row cap. Ordered by created_at DESC so the
+    newest N rows are retained and everything past the cap is dropped.
+    Called after each successful cache write by the API layer (Task 15/16)
+    so repeated knob-tweaks by a single user don't balloon the cache."""
+    pool = store.get_pool()
+    cap = settings.leiden_cache_max_rows_per_user
+    async with pool.acquire() as conn:
+        result = await conn.execute(
+            "DELETE FROM leiden_cache WHERE cache_key IN ("
+            "  SELECT cache_key FROM leiden_cache "
+            "  WHERE user_sub = $1 "
+            "  ORDER BY created_at DESC "
+            "  OFFSET $2"
+            ")",
+            user_sub, cap,
+        )
+    return int(result.split()[-1]) if result else 0

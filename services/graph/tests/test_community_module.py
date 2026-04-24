@@ -123,3 +123,115 @@ async def test_get_assignments_empty_on_cache_miss(app_pool):
     from src.graph.community import get_assignments
     pairs = [x async for x in get_assignments("nonexistent-key")]
     assert pairs == []
+
+
+async def test_invalidate_for_sync_ids_deletes_overlapping_rows(
+    app_pool, seeded_two_cluster_syncs,
+):
+    """Invalidating on *one* of the cached sync_ids removes the whole row —
+    any overlap with the cached sync set is enough."""
+    from src.graph import store
+    from src.graph.community import get_or_compute, invalidate_for_sync_ids
+
+    r = await get_or_compute(
+        seeded_two_cluster_syncs, DEFAULT_CFG, user_sub="u1",
+    )
+    pool = store.get_pool()
+    async with pool.acquire() as conn:
+        before = await conn.fetchval(
+            "SELECT count(*) FROM leiden_cache WHERE cache_key = $1",
+            r.cache_key,
+        )
+    assert before == 1
+
+    deleted = await invalidate_for_sync_ids([seeded_two_cluster_syncs[0]])
+    assert deleted >= 1
+
+    async with pool.acquire() as conn:
+        after = await conn.fetchval(
+            "SELECT count(*) FROM leiden_cache WHERE cache_key = $1",
+            r.cache_key,
+        )
+    assert after == 0
+
+
+async def test_invalidate_empty_sync_ids_is_noop(app_pool):
+    from src.graph.community import invalidate_for_sync_ids
+    assert await invalidate_for_sync_ids([]) == 0
+
+
+async def test_sweep_expired_removes_past_ttl(app_pool):
+    import uuid
+    from src.graph import store
+    from src.graph.community import sweep_expired
+    pool = store.get_pool()
+    stale_key = f"stale-{uuid.uuid4().hex[:12]}"
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO leiden_cache ("
+            "  cache_key, user_sub, sync_ids, config, community_count, "
+            "  modularity, orphan_pct, community_sizes, assignments, labels, "
+            "  compute_ms, expires_at"
+            ") VALUES ("
+            "  $1, 'u1', ARRAY[]::uuid[], '{}'::jsonb, 0, 0, 0, "
+            "  ARRAY[]::int[], '{}'::jsonb, '{}'::jsonb, 0, "
+            "  now() - interval '1 hour'"
+            ")",
+            stale_key,
+        )
+
+    n = await sweep_expired()
+    assert n >= 1
+
+    async with pool.acquire() as conn:
+        still = await conn.fetchval(
+            "SELECT 1 FROM leiden_cache WHERE cache_key = $1", stale_key,
+        )
+    assert still is None
+
+
+async def test_evict_lru_for_user_trims_to_cap(app_pool):
+    """Seed 3 cache rows for a user, reduce the cap to 2, and verify that
+    exactly one row (the oldest) is evicted. Restores the setting at
+    teardown."""
+    import uuid
+    from src.config import settings
+    from src.graph import store
+    from src.graph.community import evict_lru_for_user
+
+    pool = store.get_pool()
+    user = f"evict-user-{uuid.uuid4().hex[:8]}"
+    keys = [f"k-{uuid.uuid4().hex[:12]}" for _ in range(3)]
+    original_cap = settings.leiden_cache_max_rows_per_user
+    try:
+        async with pool.acquire() as conn:
+            for i, k in enumerate(keys):
+                await conn.execute(
+                    "INSERT INTO leiden_cache ("
+                    "  cache_key, user_sub, sync_ids, config, community_count, "
+                    "  modularity, orphan_pct, community_sizes, assignments, "
+                    "  labels, compute_ms, created_at, expires_at"
+                    ") VALUES ("
+                    "  $1, $2, ARRAY[]::uuid[], '{}'::jsonb, 0, 0, 0, "
+                    "  ARRAY[]::int[], '{}'::jsonb, '{}'::jsonb, 0, "
+                    "  now() - make_interval(secs => $3::int), "
+                    "  now() + interval '1 day'"
+                    ")",
+                    k, user, (3 - i) * 10,  # k[0] newest, k[2] oldest
+                )
+
+        settings.leiden_cache_max_rows_per_user = 2
+        evicted = await evict_lru_for_user(user)
+        assert evicted == 1
+
+        async with pool.acquire() as conn:
+            remaining = await conn.fetchval(
+                "SELECT count(*) FROM leiden_cache WHERE user_sub = $1", user,
+            )
+        assert remaining == 2
+    finally:
+        settings.leiden_cache_max_rows_per_user = original_cap
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "DELETE FROM leiden_cache WHERE user_sub = $1", user,
+            )
