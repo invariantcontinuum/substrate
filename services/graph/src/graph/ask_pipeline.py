@@ -249,5 +249,35 @@ async def _hydrate_citations(node_ids: list[str]) -> list[dict]:
                 "type": str(ntype) if ntype is not None else "",
             }
 
+        # Second pass: enrich every resolved node with relational-side
+        # metadata — file_path and the first content chunk. Ask chat uses
+        # this to show an expandable source excerpt under the citation,
+        # so the user can read the evidence without opening the Graph page.
+        # Pulled in one batch to avoid N-per-citation round-trips.
+        if resolved:
+            file_rows = await conn.fetch(
+                "SELECT fe.id::text AS id, fe.file_path, fe.language, "
+                "       cc.content AS excerpt "
+                "FROM file_embeddings fe "
+                "LEFT JOIN LATERAL ( "
+                "  SELECT content FROM content_chunks cc "
+                "   WHERE cc.file_id = fe.id "
+                "   ORDER BY cc.chunk_index ASC LIMIT 1 "
+                ") cc ON true "
+                "WHERE fe.id::text = ANY($1::text[])",
+                list(resolved.keys()),
+            )
+            _CHUNK_MAX = 1200
+            for fr in file_rows:
+                entry = resolved.get(fr["id"])
+                if not entry:
+                    continue
+                entry["file_path"] = fr["file_path"] or ""
+                entry["language"] = fr["language"] or ""
+                excerpt = fr["excerpt"] or ""
+                if len(excerpt) > _CHUNK_MAX:
+                    excerpt = excerpt[:_CHUNK_MAX] + "…"
+                entry["excerpt"] = excerpt
+
     # Return in the LLM-supplied order; drop unresolved ids.
     return [resolved[nid] for nid in valid_ids if nid in resolved]

@@ -283,6 +283,7 @@ function buildCyStylesheet(theme: GraphTheme) {
       },
     },
 
+    { selector: ".carousel-hidden", style: { display: "none" } },
     { selector: ".spotlight-dim", style: { opacity: 0.28 } },
     { selector: "node.spotlight-dim",
       style: { "text-opacity": 1, color: t.spotlightDimText } },
@@ -323,6 +324,7 @@ export function GraphCanvas() {
   const layoutName = useGraphStore((s) => s.layoutName);
   const selectedNodeId = useGraphStore((s) => s.selectedNodeId);
   const visibleTypes = useGraphStore((s) => s.filters.types);
+  const visibleSubset = useGraphStore((s) => s.visibleSubset);
   const setSelectedNodeId = useGraphStore((s) => s.setSelectedNodeId);
   const setZoom = useGraphStore((s) => s.setZoom);
   const setLayoutName = useGraphStore((s) => s.setLayoutName);
@@ -646,6 +648,51 @@ export function GraphCanvas() {
 
     return () => observer.disconnect();
   }, [ready, runRelayout]);
+
+  /* Carousel-driven visibility filter.
+   *
+   * The carousel scopes the canvas to one Leiden community per slide.
+   * When `visibleSubset` is null every element is shown (slide 0 / full
+   * graph). When it is a non-empty Set we hide every node NOT in the set
+   * (plus the edges that dangle as a result) and re-fit the camera on
+   * the remaining subgraph. Compound parents stay visible as long as at
+   * least one of their children is — hiding an empty parent would leave
+   * an empty source-wrapper on screen. */
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy || !ready) return;
+    cy.batch(() => {
+      cy.elements().removeClass("carousel-hidden");
+      if (!visibleSubset) return;
+      cy.nodes().forEach((n) => {
+        if (n.data("isSourceParent")) return;
+        const id = n.id();
+        if (!visibleSubset.has(id)) n.addClass("carousel-hidden");
+      });
+      cy.edges().forEach((e) => {
+        const src = e.source();
+        const tgt = e.target();
+        if (src.hasClass("carousel-hidden") || tgt.hasClass("carousel-hidden")) {
+          e.addClass("carousel-hidden");
+        }
+      });
+      cy.nodes().forEach((n) => {
+        if (!n.data("isSourceParent")) return;
+        let anyVisible = false;
+        n.children().forEach((c) => {
+          if (!c.hasClass("carousel-hidden")) anyVisible = true;
+        });
+        if (!anyVisible) n.addClass("carousel-hidden");
+      });
+    });
+    const visible = cy.elements().not(".carousel-hidden");
+    if (visible.length > 0) {
+      cy.animate(
+        { fit: { eles: visible, padding: 40 } },
+        { duration: 260, easing: "ease-out" },
+      );
+    }
+  }, [visibleSubset, ready]);
 
   /* selection highlight + spotlight zoom
    *

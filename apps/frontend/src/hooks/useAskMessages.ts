@@ -6,6 +6,14 @@ export interface Citation {
   node_id: string;
   name: string;
   type: string;
+  /** Relational file_path (e.g. ``src/foo/bar.py``). Empty when the backend
+   *  couldn't JOIN the node to file_embeddings. */
+  file_path?: string;
+  /** First content chunk, truncated to ~1200 chars on the server. Shown
+   *  as an expandable code block under the citation chip. */
+  excerpt?: string;
+  /** Language hint for the expanded code block. */
+  language?: string;
 }
 
 export interface AskMessage {

@@ -146,6 +146,18 @@ interface GraphState {
   setCanvasCleared: (v: boolean) => void;
   clearCanvas: () => void;
 
+  /**
+   * Carousel-driven visibility filter. When ``null`` every node is visible
+   * (default graph render). When a non-null Set is supplied, GraphCanvas
+   * hides every node whose id is NOT in the set plus any edge whose source
+   * or target is hidden, then re-fits the camera on the remaining
+   * subgraph. Slide 0 of the carousel clears the filter; per-community
+   * slides set it to the community's node_ids; the orphan slide sets it
+   * to the complement of all clustered nodes.
+   */
+  visibleSubset: Set<string> | null;
+  setVisibleSubset: (ids: Set<string> | null) => void;
+
   /* Rendering / clustering config */
   graphConfig: GraphConfig;
   setGraphConfig: (next: Partial<GraphConfig>) => void;
@@ -253,6 +265,9 @@ export const useGraphStore = create<GraphState>((set) => ({
 
   canvasCleared: false,
   setCanvasCleared: (canvasCleared) => set({ canvasCleared }),
+
+  visibleSubset: null,
+  setVisibleSubset: (visibleSubset) => set({ visibleSubset }),
 
   graphConfig: DEFAULT_GRAPH_CONFIG,
   setGraphConfig: (next) =>

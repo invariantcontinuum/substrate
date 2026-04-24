@@ -669,71 +669,26 @@ html {
 /* ---- Graph Page + Canvas ---- */
 .graph-page {
   display: flex;
+  flex-direction: column;
   height: 100%;
-  padding: var(--space-3);
-  gap: var(--space-3);
   overflow: hidden;
-}
-
-@media (max-width: 1023px) {
-  .graph-page {
-    padding: var(--space-2);
-    padding-bottom: var(--space-3);
-    gap: var(--space-2);
-    /* Stack vertically so the mobile search row sits above the canvas
-     * instead of competing for horizontal space with it. */
-    flex-direction: column;
-  }
-}
-
-/* Mobile-only search bar that appears between the top-nav pill and the
- * graph canvas. At desktop sizes the top-nav search covers this role so we
- * hide the extra row. At ≤640px the top-nav drops its center slot entirely
- * (see `.top-nav-center { display: none }`), and this row becomes the
- * primary search entry point — no more needing to open a separate search
- * modal just to spotlight a node. */
-.graph-mobile-search {
-  display: none;
-}
-@media (max-width: 640px) {
-  .graph-mobile-search {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    padding: 0 var(--space-1);
-    margin-bottom: var(--space-1);
-    flex-shrink: 0;
-  }
-  /* Make the search input fill the row; same 36px pill treatment as
-   * top-nav-search but full-width. */
-  .graph-mobile-search > * {
-    flex: 1;
-    min-width: 0;
-  }
+  padding: 0;
+  gap: 0;
 }
 
 .graph-canvas-wrapper {
-  flex: 1;
+  flex: 1 1 auto;
   position: relative;
   min-width: 0;
   min-height: 0;
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--glass-border);
+  border: none;
   background: var(--surface-elevated);
   overflow: hidden;
 }
 
-@media (max-width: 1023px) {
-  .graph-canvas-wrapper {
-    min-height: 420px;
-  }
-}
-
-@media (max-width: 640px) {
-  .graph-canvas-wrapper {
-    min-height: 480px;
-  }
-}
+/* Canvas fills whatever space the carousel strip leaves — the old
+ * min-height clamp is gone because the page now uses flex: 1 1 auto
+ * and the strip owns its own ~58px at the bottom. */
 
 .graph-canvas,
 .graph-canvas-inner,
@@ -2605,14 +2560,48 @@ html {
 .ask-bubble.is-assistant { align-self: flex-start; background: var(--surface-elevated); }
 .ask-bubble.is-typing { font-style: italic; color: var(--fg-muted); display: inline-flex; gap: 6px; align-items: center; }
 
-.ask-citations { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.ask-citations { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.ask-citation { display: flex; flex-direction: column; gap: 4px; }
+.ask-citation-row { display: flex; gap: 4px; align-items: stretch; }
 .ask-citation-chip {
+  flex: 1; min-width: 0;
   display: inline-flex; gap: 6px; align-items: center;
-  padding: 4px 8px; border: 1px solid var(--border); border-radius: 999px;
+  padding: 4px 10px; border: 1px solid var(--border); border-radius: 8px;
   background: var(--surface); cursor: pointer; font-size: 0.8rem;
+  text-align: left; color: inherit;
 }
 .ask-citation-chip:hover { background: var(--surface-hover); }
-.ask-citation-type { color: var(--fg-muted); font-size: 0.75rem; }
+.ask-citation-name {
+  flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: var(--font-mono, ui-monospace, monospace);
+}
+.ask-citation-type { color: var(--fg-muted); font-size: 0.72rem; }
+.ask-citation-toggle {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-weight: 700; opacity: 0.55; margin-left: 4px;
+}
+.ask-citation-inspect {
+  flex: 0 0 28px;
+  border: 1px solid var(--border); border-radius: 6px;
+  background: var(--surface); color: inherit; cursor: pointer;
+  font-size: 0.8rem;
+}
+.ask-citation-inspect:hover { background: var(--surface-hover); }
+.ask-citation-excerpt {
+  margin: 0; padding: 8px 10px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  font-size: 11px; line-height: 1.45;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  max-height: 260px; overflow: auto;
+  white-space: pre;
+}
+.ask-citation-excerpt code { color: inherit; font-family: inherit; }
+@media (max-width: 640px) {
+  .ask-citation-excerpt { font-size: 10.5px; max-height: 180px; }
+}
 
 .ask-composer {
   display: flex; gap: 8px; align-items: flex-end;
@@ -2851,147 +2840,104 @@ html {
 }
 
 /* ---- Carousel (P2) ---- */
-.carousel-overlay {
-  position: absolute;
-  inset: 12px 12px auto auto;
-  width: min(340px, calc(100% - 24px));
-  max-height: calc(100% - 24px);
-  pointer-events: none;
-  z-index: 5;
-}
-.carousel-engine {
+/* ---- Carousel strip (bottom chrome, no overlap with canvas) ---- */
+.carousel-strip {
+  flex: 0 0 auto;
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 10px;
-  background: rgba(20, 24, 32, 0.72);
-  backdrop-filter: blur(8px);
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  pointer-events: auto;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+  background: rgba(12, 14, 18, 0.82);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 12px;
+  min-height: 58px;
 }
-.carousel-viewport { min-height: 140px; }
-.carousel-empty {
-  padding: 10px 12px;
-  font-size: 11px;
-  opacity: 0.7;
-  text-align: center;
-  pointer-events: auto;
-  background: rgba(20, 24, 32, 0.72);
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-}
-.carousel-rail {
-  display: flex;
+.carousel-strip.is-empty {
   justify-content: center;
-  gap: 4px;
+  opacity: 0.7;
+  font-size: 11px;
+  padding: 12px;
 }
-.carousel-dot {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.08);
-  border: none;
+.carousel-step {
+  flex: 0 0 40px;
+  height: 40px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
   cursor: pointer;
-  color: rgba(255, 255, 255, 0.5);
-  font-weight: 700;
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
-.carousel-dot.active {
-  background: rgba(90, 180, 255, 0.35);
-  color: #fff;
+.carousel-step:hover:not(:disabled) {
+  background: rgba(90, 180, 255, 0.18);
+  border-color: rgba(90, 180, 255, 0.35);
 }
-
-/* TOC slide */
-.toc-slide .toc-header h2 {
-  font-size: 13px;
-  margin-bottom: 2px;
-}
-.toc-summary {
-  font-size: 10px;
-  opacity: 0.6;
-  display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
-}
-.toc-cards {
-  margin-top: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  max-height: 220px;
-  overflow-y: auto;
-}
-.toc-card {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid transparent;
-  border-radius: 6px;
-  cursor: pointer;
-  color: inherit;
-  font-size: 11px;
-  text-align: left;
-}
-.toc-card:hover { border-color: rgba(90, 180, 255, 0.3); }
-.toc-card-rank {
-  font-family: monospace;
-  opacity: 0.5;
-  min-width: 24px;
-}
-.toc-card-body { flex: 1; min-width: 0; }
-.toc-card-label { font-weight: 500; }
-.toc-card-meta { font-size: 10px; opacity: 0.55; margin-top: 1px; }
-
-/* Community slide */
-.community-slide-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 8px;
-  margin-bottom: 6px;
-}
-.community-slide-rank {
-  font-family: monospace;
-  font-size: 10px;
-  opacity: 0.55;
-}
-.community-slide-label {
-  font-size: 13px;
-  font-weight: 600;
+.carousel-step:disabled { opacity: 0.3; cursor: default; }
+.carousel-body {
   flex: 1;
   min-width: 0;
-}
-.community-slide-meta { font-size: 10px; opacity: 0.55; }
-.community-slide-nodes {
-  list-style: none;
-  padding: 0;
-  margin: 0;
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: center;
   gap: 4px;
-  max-height: 180px;
-  overflow-y: auto;
+  overflow: hidden;
 }
-.community-slide-node {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 4px;
-  padding: 2px 6px;
+.carousel-label {
+  font-weight: 500;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.carousel-count {
   font-size: 10px;
-  color: inherit;
-  cursor: pointer;
+  opacity: 0.5;
+  font-family: var(--font-mono, ui-monospace, monospace);
 }
-.community-slide-node:hover {
-  border-color: rgba(90, 180, 255, 0.4);
-}
-.community-slide-more { font-size: 10px; opacity: 0.55; padding: 2px 6px; }
-.community-slide-foot {
-  margin-top: 6px;
+.carousel-rail {
   display: flex;
-  justify-content: flex-end;
+  flex-wrap: nowrap;
+  gap: 5px;
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 2px 0;
+}
+.carousel-rail::-webkit-scrollbar { height: 2px; }
+.carousel-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.18);
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  flex: 0 0 10px;
+  transition: background 0.15s, transform 0.15s;
+}
+.carousel-dot:hover { background: rgba(255, 255, 255, 0.38); }
+.carousel-dot.active {
+  background: rgba(90, 180, 255, 0.85);
+  transform: scale(1.25);
+}
+.carousel-dot.is-full { background: rgba(120, 220, 160, 0.55); }
+.carousel-dot.is-full.active { background: rgba(120, 220, 160, 0.95); }
+.carousel-dot.is-orphan { background: rgba(200, 140, 200, 0.55); }
+.carousel-dot.is-orphan.active { background: rgba(220, 160, 220, 0.95); }
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+@media (max-width: 640px) {
+  .carousel-strip { padding-inline: 8px; }
+  .carousel-step { flex-basis: 36px; height: 36px; }
 }

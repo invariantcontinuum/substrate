@@ -1,21 +1,23 @@
-import { useEffect } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useAssignments } from "@/hooks/useAssignments";
 import { useCommunities } from "@/hooks/useCommunities";
+import { useGraphStore } from "@/stores/graph";
 import { usePrefsStore } from "@/stores/prefs";
 import { useSyncSetStore } from "@/stores/syncSet";
-import { TOCSlide } from "./TOCSlide";
-import { CommunitySlide } from "./CommunitySlide";
 
 /**
- * Slide registry + navigation for the per-community carousel.
+ * The carousel REPLACES the single-canvas Graph view. A single GraphCanvas
+ * instance stays mounted at page level; the engine writes to
+ * ``useGraphStore.setVisibleSubset`` to scope it per slide:
  *
- * Slot 0 is the TOC/legend; slots 1..N are per-community slides in
- * descending size order; slot N+1 (if orphans exist) pools every
- * unclustered node. Route parameters ``:cacheKey/:idx`` keep the current
- * slide deep-linkable; a navigation that lands on a stale cache key
- * silently falls back to the TOC while the fresh result materialises.
+ *   slot 0          → full merged graph (subset = null)
+ *   slot 1..N       → one Leiden community each (subset = its node_ids)
+ *   slot N+1        → orphans: every node that DIDN'T land in a community
  *
- * Keyboard shortcuts: ← / → to page; Home to TOC.
+ * The UI chrome is a bottom strip only (prev/next + dot rail + current
+ * slide label). Nothing floats over the canvas — the graph is the page.
  */
 export function CarouselEngine() {
   const navigate = useNavigate();
@@ -23,117 +25,215 @@ export function CarouselEngine() {
   const syncIds = useSyncSetStore((s) => s.syncIds);
   const prefsLeiden = usePrefsStore((s) => s.leiden);
   const hydrated = usePrefsStore((s) => s.hydrated);
+  const setVisibleSubset = useGraphStore((s) => s.setVisibleSubset);
+  const allNodes = useGraphStore((s) => s.nodes);
+
   const { data, loading, error } = useCommunities(
     syncIds,
     hydrated ? prefsLeiden : null,
   );
+  const { assignments } = useAssignments(data?.cache_key ?? null);
 
-  const totalSlides = data ? 1 + data.communities.length : 1;
+  // Precompute slide buckets. Slot 0 is the full-graph view; slots 1..N
+  // are communities in the order the server returned; slot N+1 exists
+  // iff at least one node in the graph isn't assigned to any community.
+  const slides = useMemo(() => {
+    if (!data) return [] as Array<
+      | { kind: "full"; label: string }
+      | { kind: "community"; label: string; index: number; size: number;
+          ids: Set<string> }
+      | { kind: "orphans"; label: string; ids: Set<string> }
+    >;
+    const out: Array<
+      | { kind: "full"; label: string }
+      | { kind: "community"; label: string; index: number; size: number;
+          ids: Set<string> }
+      | { kind: "orphans"; label: string; ids: Set<string> }
+    > = [
+      { kind: "full", label: "All communities" },
+    ];
+    // Group assigned ids by community index once; fall back to the sample
+    // nodes from the summary response when the NDJSON stream hasn't yet
+    // arrived, so the canvas has *something* to filter on immediately.
+    const byCommunity = new Map<number, Set<string>>();
+    for (const [nid, cidx] of assignments.entries()) {
+      if (cidx < 0) continue;
+      let bucket = byCommunity.get(cidx);
+      if (!bucket) {
+        bucket = new Set();
+        byCommunity.set(cidx, bucket);
+      }
+      bucket.add(nid);
+    }
+    for (const entry of data.communities) {
+      const streamed = byCommunity.get(entry.index);
+      const ids = streamed ?? new Set(entry.node_ids_sample);
+      out.push({
+        kind: "community",
+        label: entry.label,
+        index: entry.index,
+        size: entry.size,
+        ids,
+      });
+    }
+    // Orphan slot — nodes that aren't in any surviving community. Derived
+    // from whatever the canvas has loaded, minus every clustered id.
+    const clustered = new Set<string>();
+    for (const set of byCommunity.values()) {
+      for (const nid of set) clustered.add(nid);
+    }
+    const orphans = new Set<string>();
+    for (const n of allNodes) {
+      if (!clustered.has(n.id)) orphans.add(n.id);
+    }
+    if (orphans.size > 0) {
+      out.push({ kind: "orphans", label: "Other", ids: orphans });
+    }
+    return out;
+  }, [data, assignments, allNodes]);
+
+  const totalSlides = slides.length;
   const rawIdx = Number.parseInt(params.idx ?? "0", 10);
   const slotIdx = Number.isFinite(rawIdx)
-    ? Math.max(0, Math.min(rawIdx, totalSlides - 1))
+    ? Math.max(0, Math.min(rawIdx, Math.max(0, totalSlides - 1)))
     : 0;
+  const currentSlide = slides[slotIdx];
 
-  // Keep the URL honest — once a fresh cache_key arrives, rebase the
-  // route onto it so refreshes and shared links stay stable.
+  // Apply the visibility filter whenever the slide changes. The effect
+  // clears on unmount so navigating away from /graph restores the full
+  // canvas for other consumers (e.g. the Sources page active-set pill
+  // reuses the same mounted cytoscape).
+  useEffect(() => {
+    if (!currentSlide) {
+      setVisibleSubset(null);
+      return;
+    }
+    if (currentSlide.kind === "full") {
+      setVisibleSubset(null);
+    } else {
+      setVisibleSubset(currentSlide.ids);
+    }
+    return () => {
+      setVisibleSubset(null);
+    };
+  }, [currentSlide, setVisibleSubset]);
+
+  // Rebase the URL onto a fresh cache_key whenever one arrives, so
+  // sharing the URL reproduces the same slide for another viewer.
+  const lastCacheKey = useRef<string | null>(null);
   useEffect(() => {
     if (!data) return;
+    if (lastCacheKey.current === data.cache_key) return;
+    lastCacheKey.current = data.cache_key;
     if (params.cacheKey !== data.cache_key) {
       navigate(`/graph/c/${data.cache_key}/${slotIdx}`, { replace: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data?.cache_key]);
 
+  const goTo = (next: number) => {
+    if (!data) return;
+    const clamped = Math.max(0, Math.min(totalSlides - 1, next));
+    navigate(`/graph/c/${data.cache_key}/${clamped}`);
+  };
+
+  // Keyboard nav. Home → slide 0, ←/→ → step.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!data) return;
-      if (e.key === "ArrowRight") {
-        const next = Math.min(totalSlides - 1, slotIdx + 1);
-        navigate(`/graph/c/${data.cache_key}/${next}`);
-      } else if (e.key === "ArrowLeft") {
-        const prev = Math.max(0, slotIdx - 1);
-        navigate(`/graph/c/${data.cache_key}/${prev}`);
-      } else if (e.key === "Home") {
-        navigate(`/graph/c/${data.cache_key}/0`);
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable)
+      ) {
+        return;
       }
+      if (e.key === "ArrowRight") goTo(slotIdx + 1);
+      else if (e.key === "ArrowLeft") goTo(slotIdx - 1);
+      else if (e.key === "Home") goTo(0);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [data, slotIdx, totalSlides, navigate]);
-
-  const selectCommunity = (communityIdx: number) => {
-    if (!data) return;
-    navigate(`/graph/c/${data.cache_key}/${communityIdx + 1}`);
-  };
-
-  const openNode = (nodeId: string) => {
-    navigate(`/graph?node=${encodeURIComponent(nodeId)}`);
-  };
-
-  const askCluster = (nodeIds: string[]) => {
-    const qs = new URLSearchParams({ scope: nodeIds.join(",") });
-    navigate(`/ask?${qs.toString()}`);
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, slotIdx, totalSlides]);
 
   if (syncIds.length === 0) {
     return (
-      <div className="carousel-empty">
-        Load at least one snapshot in the Sources tab to see its communities.
+      <div className="carousel-strip is-empty">
+        Load a snapshot from Sources to see its communities.
       </div>
     );
   }
-  if (loading && !data) {
-    return <div className="carousel-empty">Computing communities…</div>;
+  if (!data && loading) {
+    return <div className="carousel-strip is-empty">Computing communities…</div>;
   }
-  if (error && !data) {
-    return <div className="carousel-empty">Compute failed: {error}</div>;
+  if (!data && error) {
+    return <div className="carousel-strip is-empty">Compute failed</div>;
   }
-  if (!data) {
-    return <div className="carousel-empty">No community data yet.</div>;
+  if (!data || totalSlides === 0) {
+    return null;
   }
 
+  const label =
+    currentSlide?.kind === "full"
+      ? `All · ${data.summary.community_count} groups`
+      : currentSlide?.kind === "orphans"
+        ? `Other · ${currentSlide.ids.size} node${
+            currentSlide.ids.size === 1 ? "" : "s"
+          }`
+        : currentSlide
+          ? `${currentSlide.label} · ${currentSlide.size} node${
+              currentSlide.size === 1 ? "" : "s"
+            }`
+          : "";
+
   return (
-    <div className="carousel-engine">
-      <div className="carousel-viewport">
-        {slotIdx === 0 ? (
-          <TOCSlide
-            summary={data.summary}
-            communities={data.communities}
-            onSelect={selectCommunity}
-          />
-        ) : (
-          <CommunitySlide
-            community={data.communities[slotIdx - 1]}
-            total={data.communities.length}
-            position={slotIdx - 1}
-            onAsk={askCluster}
-            onOpenNode={openNode}
-          />
-        )}
-      </div>
-      <nav className="carousel-rail" aria-label="Community slides">
-        <button
-          type="button"
-          className={`carousel-dot${slotIdx === 0 ? " active" : ""}`}
-          onClick={() => navigate(`/graph/c/${data.cache_key}/0`)}
-          aria-label="Table of contents"
+    <div className="carousel-strip">
+      <button
+        type="button"
+        className="carousel-step"
+        onClick={() => goTo(slotIdx - 1)}
+        disabled={slotIdx === 0}
+        aria-label="Previous slide"
+      >
+        <ChevronLeft size={16} />
+      </button>
+      <div className="carousel-body">
+        <div className="carousel-label">{label}</div>
+        <nav
+          className="carousel-rail"
+          aria-label="Community slides"
+          role="tablist"
         >
-          ·
-        </button>
-        {data.communities.map((c, i) => (
-          <button
-            key={c.index}
-            type="button"
-            className={`carousel-dot${slotIdx === i + 1 ? " active" : ""}`}
-            onClick={() =>
-              navigate(`/graph/c/${data.cache_key}/${i + 1}`)
-            }
-            aria-label={`Community ${c.label}`}
-          >
-            ·
-          </button>
-        ))}
-      </nav>
+          {slides.map((s, i) => (
+            <button
+              key={`${s.kind}-${i}`}
+              type="button"
+              role="tab"
+              aria-selected={i === slotIdx}
+              className={`carousel-dot${i === slotIdx ? " active" : ""}${s.kind === "full" ? " is-full" : ""}${s.kind === "orphans" ? " is-orphan" : ""}`}
+              onClick={() => goTo(i)}
+              title={s.label}
+            >
+              <span className="sr-only">{s.label}</span>
+            </button>
+          ))}
+        </nav>
+        <div className="carousel-count">
+          {slotIdx + 1} / {totalSlides}
+        </div>
+      </div>
+      <button
+        type="button"
+        className="carousel-step"
+        onClick={() => goTo(slotIdx + 1)}
+        disabled={slotIdx >= totalSlides - 1}
+        aria-label="Next slide"
+      >
+        <ChevronRight size={16} />
+      </button>
     </div>
   );
 }
