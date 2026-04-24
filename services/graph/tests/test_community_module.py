@@ -64,6 +64,12 @@ async def test_cache_hit_is_consistent(
     assert r2.cache_key == r1.cache_key
     assert r2.summary.community_sizes == r1.summary.community_sizes
     assert r2.summary.community_count == r1.summary.community_count
+    # Every derived summary field must round-trip byte-identically: a
+    # divergence here (previously: largest_share) silently misreported
+    # carousel health on every cache hit after the first.
+    assert r2.summary.largest_share == r1.summary.largest_share
+    assert r2.summary.orphan_pct == r1.summary.orphan_pct
+    assert r2.summary.modularity == r1.summary.modularity
 
 
 async def test_force_bypasses_cache(

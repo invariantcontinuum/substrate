@@ -104,14 +104,19 @@ async def get_or_compute(
     modularity = _modularity(g, final, config)
 
     orphan_count = sum(1 for v in final.values() if v < 0)
-    total = len(final) or 1
+    total_all = len(final) or 1
+    # largest_share is the top community's share of the *clustered* node set
+    # (orphans excluded). Using the clustered denominator keeps the cache-hit
+    # path able to reproduce this value from `community_sizes` alone, without
+    # persisting the pre-filter node count. orphan_pct stays on the total.
+    clustered_total = sum(sizes_sorted) or 1
     summary = CommunitySummary(
         community_count=len(sizes_sorted),
         modularity=round(modularity, 6),
         largest_share=round(
-            (sizes_sorted[0] / total) if sizes_sorted else 0.0, 6,
+            (sizes_sorted[0] / clustered_total) if sizes_sorted else 0.0, 6,
         ),
-        orphan_pct=round(orphan_count / total, 6),
+        orphan_pct=round(orphan_count / total_all, 6),
         community_sizes=sizes_sorted,
     )
     compute_ms = int((time.perf_counter() - t0) * 1000)
@@ -246,20 +251,21 @@ def _build_community_entries(
     labels: dict[int, str],
 ) -> list[CommunityEntry]:
     """Produce the capped ``CommunityEntry`` list for the response payload.
-    ``node_ids_sample`` is truncated to 20 ids — the full assignment list
-    is retrievable via the streaming ``get_assignments`` endpoint (Task 12).
-    """
+    ``node_ids_sample`` is truncated per ``settings.leiden_community_sample_size``;
+    the full assignment list is retrievable via the streaming
+    ``get_assignments`` endpoint (Task 12)."""
     by_idx: dict[int, list[str]] = {}
     for node, idx in final.items():
         if idx < 0:
             continue
         by_idx.setdefault(idx, []).append(node)
+    cap = settings.leiden_community_sample_size
     return [
         CommunityEntry(
             index=i,
             label=labels.get(i, f"Community {i}"),
             size=size,
-            node_ids_sample=by_idx.get(i, [])[:20],
+            node_ids_sample=by_idx.get(i, [])[:cap],
         )
         for i, size in enumerate(sizes)
     ]
@@ -302,11 +308,13 @@ async def _load_cached(cache_key: str) -> CommunityResult | None:
         json.loads(labels_raw) if isinstance(labels_raw, str) else labels_raw
     )
     sizes = list(row["community_sizes"])
-    total = sum(sizes) or 0
+    clustered_total = sum(sizes) or 1
     summary = CommunitySummary(
         community_count=row["community_count"],
         modularity=float(row["modularity"]),
-        largest_share=(sizes[0] / total) if total else 0.0,
+        largest_share=round(
+            (sizes[0] / clustered_total) if sizes else 0.0, 6,
+        ),
         orphan_pct=float(row["orphan_pct"]),
         community_sizes=sizes,
     )

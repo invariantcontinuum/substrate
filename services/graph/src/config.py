@@ -173,6 +173,11 @@ class _GraphSettings(BaseSettings):
     leiden_cache_sweep_interval_s: int = 900
     # LRU cap per user. Heavy knob-tweaking still evicts.
     leiden_cache_max_rows_per_user: int = 20
+    # Max node_ids attached to each CommunityEntry in the /api/communities
+    # response. Full assignments stream via /api/communities/{key}/assignments.
+    # Higher = larger payload + fewer drill-down round-trips; lower = smaller
+    # payload but the UI must page through get_community_nodes more.
+    leiden_community_sample_size: int = 20
 
 
 settings = load_settings("", _GraphSettings)
