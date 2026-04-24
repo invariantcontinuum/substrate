@@ -11,6 +11,7 @@ from substrate_common import (
     register_handlers,
 )
 
+from src.api.activity import router as activity_router
 from src.api.ask import router as ask_router
 from src.api.communities import router as communities_router
 from src.api.preferences import router as preferences_router
@@ -58,6 +59,7 @@ app.include_router(router)
 app.include_router(sources_router)
 app.include_router(syncs_router)
 app.include_router(schedules_router)
+app.include_router(activity_router)
 app.include_router(ask_router)
 app.include_router(communities_router)
 app.include_router(preferences_router)
