@@ -2840,22 +2840,23 @@ html {
 }
 
 /* ---- Carousel (P2) ---- */
-/* ---- Carousel strip (bottom chrome, no overlap with canvas) ---- */
+/* ---- Carousel strip (bottom chrome, theme-aware) ---- */
 .carousel-strip {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
-  background: rgba(12, 14, 18, 0.82);
+  background: var(--surface-elevated);
+  color: var(--fg);
   backdrop-filter: blur(10px);
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid var(--border);
   font-size: 12px;
   min-height: 58px;
 }
 .carousel-strip.is-empty {
   justify-content: center;
-  opacity: 0.7;
+  color: var(--fg-muted);
   font-size: 11px;
   padding: 12px;
 }
@@ -2863,19 +2864,20 @@ html {
   flex: 0 0 40px;
   height: 40px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.04);
-  color: inherit;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--fg);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 .carousel-step:hover:not(:disabled) {
-  background: rgba(90, 180, 255, 0.18);
-  border-color: rgba(90, 180, 255, 0.35);
+  background: var(--surface-hover);
+  border-color: var(--accent);
+  color: var(--accent);
 }
-.carousel-step:disabled { opacity: 0.3; cursor: default; }
+.carousel-step:disabled { opacity: 0.35; cursor: default; }
 .carousel-body {
   flex: 1;
   min-width: 0;
@@ -2891,10 +2893,11 @@ html {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: var(--fg);
 }
 .carousel-count {
   font-size: 10px;
-  opacity: 0.5;
+  color: var(--fg-subtle);
   font-family: var(--font-mono, ui-monospace, monospace);
 }
 .carousel-rail {
@@ -2910,22 +2913,22 @@ html {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.18);
+  background: var(--border-strong);
   border: none;
   cursor: pointer;
   padding: 0;
   flex: 0 0 10px;
   transition: background 0.15s, transform 0.15s;
 }
-.carousel-dot:hover { background: rgba(255, 255, 255, 0.38); }
+.carousel-dot:hover { background: var(--fg-muted); }
 .carousel-dot.active {
-  background: rgba(90, 180, 255, 0.85);
+  background: var(--accent);
   transform: scale(1.25);
 }
-.carousel-dot.is-full { background: rgba(120, 220, 160, 0.55); }
-.carousel-dot.is-full.active { background: rgba(120, 220, 160, 0.95); }
-.carousel-dot.is-orphan { background: rgba(200, 140, 200, 0.55); }
-.carousel-dot.is-orphan.active { background: rgba(220, 160, 220, 0.95); }
+.carousel-dot.is-full { background: var(--accent-soft); }
+.carousel-dot.is-full.active { background: var(--accent); }
+.carousel-dot.is-orphan { background: var(--accent-highlight); opacity: 0.65; }
+.carousel-dot.is-orphan.active { background: var(--accent-highlight); opacity: 1; }
 .sr-only {
   position: absolute;
   width: 1px;

@@ -37,6 +37,14 @@ export function CarouselEngine() {
   // Precompute slide buckets. Slot 0 is the full-graph view; slots 1..N
   // are communities in the order the server returned; slot N+1 exists
   // iff at least one node in the graph isn't assigned to any community.
+  //
+  // ID-space caveat: assignments are keyed by ``file_embeddings.id`` UUIDs
+  // (the ``file_id`` the backend emits), while cytoscape identifies nodes
+  // by the synthetic ``src_<source_uuid>:<file_path>`` strings from
+  // ``/api/graph`` (SlimNode.id). Each SlimNode carries its UUID on
+  // ``.uuid``. We build a UUID→synthetic map once and translate every
+  // bucket into cytoscape's address space so the canvas visibility
+  // filter actually matches the nodes it knows about.
   const slides = useMemo(() => {
     if (!data) return [] as Array<
       | { kind: "full"; label: string }
@@ -44,6 +52,13 @@ export function CarouselEngine() {
           ids: Set<string> }
       | { kind: "orphans"; label: string; ids: Set<string> }
     >;
+    const uuidToCanvasId = new Map<string, string>();
+    for (const n of allNodes) {
+      if (n.uuid) uuidToCanvasId.set(n.uuid, n.id);
+    }
+    const toCanvasId = (uuid: string): string | undefined =>
+      uuidToCanvasId.get(uuid);
+
     const out: Array<
       | { kind: "full"; label: string }
       | { kind: "community"; label: string; index: number; size: number;
@@ -52,22 +67,40 @@ export function CarouselEngine() {
     > = [
       { kind: "full", label: "All communities" },
     ];
-    // Group assigned ids by community index once; fall back to the sample
-    // nodes from the summary response when the NDJSON stream hasn't yet
-    // arrived, so the canvas has *something* to filter on immediately.
+
+    // Group assigned UUIDs by community index once; fall back to the
+    // summary-response sample when the NDJSON stream hasn't yet arrived
+    // so the canvas has *something* to filter on immediately. Values in
+    // each bucket are already translated to cytoscape synthetic ids.
     const byCommunity = new Map<number, Set<string>>();
-    for (const [nid, cidx] of assignments.entries()) {
+    const clusteredCanvasIds = new Set<string>();
+    for (const [uuid, cidx] of assignments.entries()) {
       if (cidx < 0) continue;
+      const canvasId = toCanvasId(uuid);
+      if (!canvasId) continue;
       let bucket = byCommunity.get(cidx);
       if (!bucket) {
         bucket = new Set();
         byCommunity.set(cidx, bucket);
       }
-      bucket.add(nid);
+      bucket.add(canvasId);
+      clusteredCanvasIds.add(canvasId);
     }
     for (const entry of data.communities) {
       const streamed = byCommunity.get(entry.index);
-      const ids = streamed ?? new Set(entry.node_ids_sample);
+      let ids: Set<string>;
+      if (streamed && streamed.size > 0) {
+        ids = streamed;
+      } else {
+        ids = new Set();
+        for (const uuid of entry.node_ids_sample) {
+          const canvasId = toCanvasId(uuid);
+          if (canvasId) {
+            ids.add(canvasId);
+            clusteredCanvasIds.add(canvasId);
+          }
+        }
+      }
       out.push({
         kind: "community",
         label: entry.label,
@@ -76,15 +109,13 @@ export function CarouselEngine() {
         ids,
       });
     }
+
     // Orphan slot — nodes that aren't in any surviving community. Derived
-    // from whatever the canvas has loaded, minus every clustered id.
-    const clustered = new Set<string>();
-    for (const set of byCommunity.values()) {
-      for (const nid of set) clustered.add(nid);
-    }
+    // from whatever the canvas has loaded, minus every clustered id,
+    // both in the canvas (synthetic) id space.
     const orphans = new Set<string>();
     for (const n of allNodes) {
-      if (!clustered.has(n.id)) orphans.add(n.id);
+      if (!clusteredCanvasIds.has(n.id)) orphans.add(n.id);
     }
     if (orphans.size > 0) {
       out.push({ kind: "orphans", label: "Other", ids: orphans });

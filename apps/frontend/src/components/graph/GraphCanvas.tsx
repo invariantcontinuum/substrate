@@ -11,10 +11,13 @@ import { ViolationBadge } from "./ViolationBadge";
 import { DynamicLegend } from "./DynamicLegend";
 
 const MAX_LABEL_CHARS = 32;
-const NODE_W = 214;
-const NODE_H = 22;
+// NODE_W/NODE_H mirror the base `node` selector's width/height in the
+// cytoscape stylesheet. If you bump those there, bump these here too —
+// the grid layout spaces cells with these dimensions.
+const NODE_W = 200;
+const NODE_H = 46;
 const GAP_X = 20;
-const GAP_Y = 10;
+const GAP_Y = 12;
 const CELL_W = NODE_W + GAP_X;
 const CELL_H = NODE_H + GAP_Y;
 
@@ -194,16 +197,31 @@ function buildCyStylesheet(theme: GraphTheme) {
         label:                  "data(label)",
         color:                  t.nodeText,
         "text-outline-color":   t.nodeTextOutline,
-        "text-outline-width":   1.5,
+        "text-outline-width":   1,
         "text-outline-opacity": 1,
-        "font-size":            11,
+        // Auto-fit the label inside the node box: wrap long filenames onto
+        // two lines and shrink the font so it never spills over the border.
+        // The buckets below match the visual ladder — short names stay at
+        // the base size, longer ones down-shift in two steps before we
+        // break to a second line.
+        "font-size":            ((ele: cytoscape.NodeSingular) => {
+          const raw = (ele.data("label") as string | undefined) ?? "";
+          const len = raw.length;
+          if (len <= 14) return 11;
+          if (len <= 22) return 10;
+          if (len <= 32) return 9;
+          return 8;
+        }) as any,
         "font-family":          '"Manrope", -apple-system, BlinkMacSystemFont, sans-serif',
         "font-weight":          600,
         "text-valign":          "center",
         "text-halign":          "center",
-        "text-wrap":            "none",
-        width:                  110,
-        height:                 38,
+        "text-wrap":            "wrap",
+        "text-max-width":       "184px",
+        "text-overflow-wrap":   "anywhere",
+        "line-height":          1.1,
+        width:                  200,
+        height:                 46,
         shape:                  "roundrectangle",
         padding:                "8px" as any,
         "z-index":              10,
