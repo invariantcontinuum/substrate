@@ -2825,3 +2825,27 @@ html {
 .activity-body { flex: 1; min-width: 0; }
 .activity-subject { font-weight: 500; }
 .activity-meta { font-size: 10px; opacity: 0.55; margin-top: 2px; }
+
+/* ---- Account page ---- */
+.account-page { height: 100%; overflow-y: auto; }
+.account-tab-body { padding: 12px; max-width: 720px; margin: 0 auto; }
+.profile-head { display: flex; align-items: center; gap: 14px; margin-bottom: 10px; }
+.profile-name { font-weight: 600; }
+.profile-email { opacity: 0.55; font-size: 11px; }
+.avatar {
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #5cf, #2a7ac9);
+  color: #0a0a0a; font-weight: 700;
+}
+.device-cell { flex: 1; min-width: 0; }
+.device-name { font-weight: 500; display: flex; align-items: center; gap: 6px; }
+.device-meta { font-size: 10px; opacity: 0.55; margin-top: 2px; }
+.chip-this-device {
+  font-size: 9px; padding: 1px 4px; border-radius: 3px;
+  background: rgba(80,220,140,0.15); color: #a0f0c0;
+}
+.billing-placeholder {
+  padding: 18px; border: 1px dashed rgba(255,255,255,0.12);
+  border-radius: 10px; text-align: center;
+}

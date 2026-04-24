@@ -23,8 +23,8 @@ interface UIState {
   setDefaultRepoUrl: (url: string | null) => void;
   sourcesPageTarget: { sourceId: string; expandSyncId: string | null } | null;
   setSourcesPageTarget: (target: { sourceId: string; expandSyncId: string | null } | null) => void;
-  activeView: "graph" | "sources" | "ask";
-  setActiveView: (v: "graph" | "sources" | "ask") => void;
+  activeView: "graph" | "sources" | "ask" | "account";
+  setActiveView: (v: "graph" | "sources" | "ask" | "account") => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({

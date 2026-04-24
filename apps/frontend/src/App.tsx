@@ -10,6 +10,13 @@ import { SourcesTab } from "@/pages/SourcesTab";
 import { SourcesSnapshotsTab } from "@/pages/SourcesSnapshotsTab";
 import { SourcesConfigTab } from "@/pages/SourcesConfigTab";
 import { SourcesActivityTab } from "@/pages/SourcesActivityTab";
+import { AccountPage } from "@/pages/AccountPage";
+import { AccountProfileTab } from "@/pages/AccountProfileTab";
+import { AccountDevicesTab } from "@/pages/AccountDevicesTab";
+import { AccountDefaultsTab } from "@/pages/AccountDefaultsTab";
+import { AccountIntegrationsTab } from "@/pages/AccountIntegrationsTab";
+import { AccountBillingTab } from "@/pages/AccountBillingTab";
+import { useApplyTheme } from "@/hooks/useApplyTheme";
 import { useGraphStore } from "@/stores/graph";
 import { useSyncSetStore } from "@/stores/syncSet";
 import { logger } from "@/lib/logger";
@@ -112,6 +119,7 @@ function RequireAuth({ children }: { children: ReactNode }) {
 }
 
 function App() {
+  useApplyTheme();
   return (
     <Routes>
       <Route path="/callback" element={<CallbackPage />} />
@@ -131,6 +139,13 @@ function App() {
           <Route path="snapshots" element={<SourcesSnapshotsTab />} />
           <Route path="config" element={<SourcesConfigTab />} />
           <Route path="activity" element={<SourcesActivityTab />} />
+        </Route>
+        <Route path="account" element={<AccountPage />}>
+          <Route index element={<AccountProfileTab />} />
+          <Route path="devices" element={<AccountDevicesTab />} />
+          <Route path="defaults" element={<AccountDefaultsTab />} />
+          <Route path="integrations" element={<AccountIntegrationsTab />} />
+          <Route path="billing" element={<AccountBillingTab />} />
         </Route>
       </Route>
     </Routes>

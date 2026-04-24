@@ -115,6 +115,7 @@ export function DashboardLayout() {
   useEffect(() => {
     const path = location.pathname;
     if (path.startsWith("/sources")) setActiveView("sources");
+    else if (path.startsWith("/account")) setActiveView("account");
     else if (path.startsWith("/ask")) setActiveView("ask");
     else setActiveView("graph");
   }, [location.pathname, setActiveView]);
