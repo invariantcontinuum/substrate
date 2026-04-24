@@ -35,6 +35,9 @@ interface SyncSetState {
   hydrateForUser: (userSub: string) => void;
   load: (syncId: string) => void;
   unload: (syncId: string) => void;
+  addSyncId: (syncId: string) => void;
+  removeSyncId: (syncId: string) => void;
+  setSyncIds: (ids: string[]) => void;
   setActiveSet: (ids: string[]) => void;
   onSyncCompleted: (run: SyncRunSummary, sourceLabel: string) => void;
   undoSwap: () => void;
@@ -89,6 +92,23 @@ export const useSyncSetStore = create<SyncSetState>()((set, get) => ({
 
   unload: (syncId) => {
     set((s) => ({ syncIds: s.syncIds.filter((id) => id !== syncId) }));
+    persistContext(get());
+  },
+
+  addSyncId: (syncId: string) => {
+    set((s) => (
+      s.syncIds.includes(syncId) ? {} : { syncIds: [...s.syncIds, syncId] }
+    ));
+    persistContext(get());
+  },
+
+  removeSyncId: (syncId: string) => {
+    set((s) => ({ syncIds: s.syncIds.filter((id) => id !== syncId) }));
+    persistContext(get());
+  },
+
+  setSyncIds: (ids: string[]) => {
+    set({ syncIds: normalizeSyncIds(ids) });
     persistContext(get());
   },
 

@@ -1,16 +1,17 @@
+import { useNavigate } from "react-router-dom";
 import type { Citation } from "@/hooks/useAskMessages";
 import { useUIStore } from "@/stores/ui";
 import { useGraphStore } from "@/stores/graph";
 
 export function CitationChips({ items }: { items: Citation[] }) {
-  const setActiveView = useUIStore((s) => s.setActiveView);
+  const navigate = useNavigate();
   const openModal = useUIStore((s) => s.openModal);
   const setSelectedNodeId = useGraphStore((s) => s.setSelectedNodeId);
 
   if (items.length === 0) return null;
 
   const open = (nodeId: string) => {
-    setActiveView("graph");
+    navigate("/graph");
     setSelectedNodeId(nodeId);
     openModal("nodeDetail");
   };

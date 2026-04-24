@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   GitBranch, Plug, MessageCircle, Shield,
   FileText, Activity, Terminal,
@@ -34,6 +35,7 @@ const items: NavItem[] = [
 ];
 
 export function Sidebar() {
+  const navigate = useNavigate();
   const openModal = useUIStore((s) => s.openModal);
   const setActiveView = useUIStore((s) => s.setActiveView);
   const toggleSidebar = useUIStore((s) => s.toggleSidebar);
@@ -49,8 +51,16 @@ export function Sidebar() {
   });
 
   const handleNav = (action: NavAction) => {
-    if (action.kind === "modal") openModal(action.modal);
-    else if (action.kind === "view") setActiveView(action.view);
+    if (action.kind === "modal") {
+      openModal(action.modal);
+      return;
+    }
+    if (action.kind === "view") {
+      const path = action.view === "graph" ? "/graph" : action.view === "sources" ? "/sources" : "/ask";
+      navigate(path);
+      setActiveView(action.view);
+      return;
+    }
   };
 
   return (

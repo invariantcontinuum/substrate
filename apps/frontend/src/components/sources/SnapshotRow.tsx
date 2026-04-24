@@ -1,7 +1,7 @@
 // frontend/src/components/sources/SnapshotRow.tsx
 import type { SyncRun } from "@/hooks/useSyncs";
 import { SnapshotRowSummary } from "./SnapshotRowSummary";
-import { SnapshotIssuesInline } from "./SnapshotIssuesInline";
+import { SnapshotExpandedDrawer } from "./SnapshotExpandedDrawer";
 
 interface Props {
   run: SyncRun;
@@ -15,7 +15,7 @@ export function SnapshotRow(props: Props) {
   return (
     <div className={`snapshot-row${props.isExpanded ? " is-expanded" : ""}`}>
       <SnapshotRowSummary {...props} />
-      {props.isExpanded && <SnapshotIssuesInline run={props.run} />}
+      {props.isExpanded && <SnapshotExpandedDrawer run={props.run} />}
     </div>
   );
 }

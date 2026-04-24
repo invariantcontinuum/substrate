@@ -18,6 +18,7 @@ const __dirname = path.dirname(__filename);
 export const AUTH_STATE_PATH = path.join(__dirname, ".auth-state.json");
 
 export default async function globalSetup(_config: FullConfig) {
+  void _config;
   const baseURL = process.env.E2E_BASE_URL ?? "http://localhost:5173";
   const username = process.env.E2E_USERNAME ?? "admin";
   const password = process.env.E2E_PASSWORD ?? "testpass123";

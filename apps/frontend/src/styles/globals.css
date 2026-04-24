@@ -2684,3 +2684,144 @@ html {
   .ask-page:has(.ask-chat-header) .ask-rail { display: none; }
   .ask-page:has(.ask-chat-header) .ask-chat { flex: 1 1 100%; }
 }
+
+/* =============================================================
+ * P3 Sources Redesign — new shared primitives + tab pages
+ * ============================================================= */
+
+/* ---- TabStrip ---- */
+.tab-strip { display: flex; gap: 2px; padding: 6px 10px; border-bottom: 1px solid rgba(255,255,255,0.06); overflow-x: auto; }
+.tab-strip-tab { padding: 4px 10px; font-size: 11px; border-radius: 6px; opacity: 0.55; white-space: nowrap; text-decoration: none; color: inherit; }
+.tab-strip-tab.active { background: rgba(90,180,255,0.18); opacity: 1; color: #a8d8ff; }
+
+/* ---- Row ---- */
+.ui-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: rgba(255,255,255,0.04); border-radius: 8px; margin-bottom: 6px; font-size: 12px; }
+.ui-row-k { opacity: 0.55; font-size: 11px; }
+.ui-row-v { font-weight: 600; }
+.ui-row-grow { flex: 1; }
+.ui-row.is-end { justify-content: flex-end; }
+.ui-row.is-danger { border: 1px solid rgba(255,120,120,0.2); }
+
+/* ---- StatPill ---- */
+.stat-pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 5px; background: rgba(255,255,255,0.05); font-size: 11px; }
+.stat-pill-label { opacity: 0.6; }
+.stat-pill-value { font-weight: 600; }
+
+/* ---- StatBox ---- */
+.stat-box { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px; border-radius: 6px; background: rgba(255,255,255,0.04); font-size: 11px; }
+.stat-box-value { font-weight: 700; font-size: 13px; }
+.stat-box-label { opacity: 0.6; font-size: 10px; }
+
+/* ---- SectionHeader ---- */
+.section-header { display: flex; align-items: center; gap: 8px; padding: 10px 0 4px; font-size: 12px; font-weight: 600; border-top: 1px solid rgba(255,255,255,0.06); margin-top: 6px; }
+.section-header:first-of-type { border-top: none; margin-top: 0; }
+.section-header-aux { opacity: 0.55; font-weight: 400; font-size: 11px; margin-left: auto; }
+
+/* ---- CommunitySparkline ---- */
+.community-sparkline { display: flex; align-items: flex-end; gap: 2px; height: 24px; }
+.sparkline-bar { flex: 1; min-width: 4px; background: rgba(90,180,255,0.5); border-radius: 2px 2px 0 0; }
+
+/* ---- CommunityHistogram ---- */
+.community-histogram { display: flex; height: 22px; border-radius: 4px; overflow: hidden; gap: 2px; }
+.community-histogram-bar { border-radius: 2px; }
+.community-histogram-empty { font-size: 11px; opacity: 0.55; }
+
+/* ---- PhaseStrip ---- */
+.phase-strip { display: flex; height: 14px; gap: 2px; margin: 6px 0; }
+.phase-strip-seg { background: linear-gradient(90deg, #2a7ac9, #5cf); border-radius: 2px; position: relative; overflow: hidden; }
+.phase-strip-label { position: absolute; left: 4px; top: 16px; font-size: 9px; opacity: 0.55; white-space: nowrap; }
+
+/* ---- ActiveSetPill ---- */
+.active-set-pill {
+  position: sticky; top: 0; z-index: 10;
+  padding: 6px 10px; border-radius: 999px;
+  background: rgba(90,180,255,0.14); color: #a8d8ff;
+  border: 1px solid rgba(90,180,255,0.3); font-size: 11px;
+  cursor: pointer; margin: 10px;
+}
+.active-set-popover { position: absolute; top: 50px; left: 10px; background: rgba(20,20,20,0.96); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 12px; max-width: 90vw; z-index: 20; }
+.active-set-popover ul { list-style: none; padding: 0; margin: 6px 0 0; }
+.active-set-popover li { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.muted { opacity: 0.6; font-size: 11px; }
+.muted-btn { background: none; border: none; color: #ffaaaa; font-size: 10px; cursor: pointer; }
+
+/* ---- SourcesPage shell ---- */
+.sources-page { height: 100%; overflow-y: auto; }
+.sources-tab-body { padding: 10px 12px 44px; }
+
+/* ---- SourcesTab ---- */
+.sources-tab { display: flex; flex-direction: column; gap: 6px; }
+.sources-list { display: flex; flex-direction: column; gap: 2px; }
+
+/* ---- SnapshotRowSummary V3 ---- */
+.snapshot-card {
+  display: grid; gap: 8px;
+  grid-template-columns: 1fr;
+  background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 10px; padding: 10px 12px; margin-bottom: 6px;
+}
+@media (min-width: 640px) {
+  .snapshot-card { grid-template-columns: 1.2fr 1.8fr 1fr; align-items: center; }
+}
+.snapshot-card-identity { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.snapshot-card-stats { display: flex; gap: 6px; flex-wrap: wrap; }
+.snapshot-card-unavailable { font-size: 11px; }
+.chip { padding: 2px 7px; border-radius: 5px; font-size: 11px; }
+.chip-completed { background: rgba(80,220,140,0.15); color: #a0f0c0; }
+.chip-running   { background: rgba(255,180,90,0.15); color: #ffd197; }
+.chip-failed    { background: rgba(255,100,100,0.15); color: #ffaaaa; }
+.chip-cleaned   { background: rgba(180,180,180,0.12); color: #ccc; }
+.chip-cancelled { background: rgba(180,180,180,0.12); color: #ccc; }
+.loaded-dot { color: #5ccdff; font-size: 8px; }
+.time { opacity: 0.75; }
+.duration { opacity: 0.55; font-size: 10px; }
+.expand-caret { margin-left: auto; background: none; border: none; color: inherit; cursor: pointer; opacity: 0.55; }
+
+/* ---- SnapshotExpandedDrawer ---- */
+.snapshot-drawer { padding: 10px 12px; border-top: 1px solid rgba(255,255,255,0.06); font-size: 12px; }
+.stats-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 4px 0; }
+.stats-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 4px 0; }
+.pill-row    { display: flex; gap: 4px; flex-wrap: wrap; margin: 4px 0 6px; }
+@media (max-width: 640px) {
+  .stats-grid-4 { grid-template-columns: repeat(2, 1fr); }
+  .stats-grid-3 { grid-template-columns: 1fr 1fr; }
+}
+
+/* ---- SnapshotFilters + MassActionBar ---- */
+.snapshot-filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 8px 0; }
+.filter-chips { display: flex; gap: 4px; flex-wrap: wrap; }
+.filter-chip { padding: 3px 8px; border-radius: 4px; background: rgba(255,255,255,0.05); font-size: 10px; border: none; cursor: pointer; color: inherit; }
+.filter-chip.active { background: rgba(90,180,255,0.2); color: #a8d8ff; }
+.ck { font-size: 11px; display: flex; align-items: center; gap: 4px; }
+
+.mass-action-bar {
+  position: sticky; bottom: 0;
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px; margin: 10px -10px -44px;
+  background: rgba(20,20,20,0.95); border-top: 1px solid rgba(255,255,255,0.08);
+  font-size: 12px;
+}
+.mab-primary { padding: 4px 10px; border-radius: 6px; background: rgba(90,180,255,0.22); color: #a8d8ff; border: none; font-weight: 600; cursor: pointer; }
+.mab-ghost   { padding: 4px 10px; border-radius: 6px; background: rgba(255,255,255,0.05); border: none; color: inherit; cursor: pointer; }
+
+/* ---- LeidenKnob ---- */
+.leiden-knob { display: grid; grid-template-columns: 110px 1fr 48px; gap: 8px; align-items: center; padding: 6px 2px; font-size: 12px; }
+.leiden-knob-label { font-size: 11px; opacity: 0.75; }
+.leiden-knob input[type="range"] { width: 100%; }
+.leiden-knob-value { font-variant-numeric: tabular-nums; font-size: 11px; text-align: right; opacity: 0.8; }
+
+/* ---- SourcesConfigTab ---- */
+.config-tab { display: flex; flex-direction: column; gap: 2px; }
+.config-actions { display: flex; gap: 8px; margin: 10px 0; flex-wrap: wrap; }
+.cta-primary { padding: 6px 12px; border-radius: 7px; background: rgba(90,180,255,0.22); color: #a8d8ff; font-weight: 600; font-size: 12px; border: none; cursor: pointer; }
+.cta-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+.cta-ghost   { padding: 6px 12px; border-radius: 7px; background: rgba(255,255,255,0.05); font-size: 12px; border: none; cursor: pointer; color: inherit; }
+.preview { padding: 8px; border-radius: 10px; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.06); }
+
+/* ---- SourcesActivityTab ---- */
+.activity-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 4px; }
+.activity-item { display: flex; gap: 10px; padding: 8px 10px; background: rgba(255,255,255,0.03); border-radius: 8px; font-size: 12px; }
+.activity-icon { opacity: 0.7; }
+.activity-body { flex: 1; min-width: 0; }
+.activity-subject { font-weight: 500; }
+.activity-meta { font-size: 10px; opacity: 0.55; margin-top: 2px; }

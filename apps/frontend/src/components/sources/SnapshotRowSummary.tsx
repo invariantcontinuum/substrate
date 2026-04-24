@@ -1,13 +1,9 @@
-// frontend/src/components/sources/SnapshotRowSummary.tsx
-import { ChevronDown, ChevronRight, Eye } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import type { SyncRun } from "@/hooks/useSyncs";
 import { useSyncSetStore } from "@/stores/syncSet";
+import { StatPill } from "@/components/common/StatPill";
+import { CommunitySparkline } from "@/components/common/CommunitySparkline";
 
-// Phases where progress_done/progress_total meaningfully measure % complete.
-// After "graphing" finishes the per-file chunking loop, progress_done hits its
-// ceiling (= total files) while the sync is still doing AGE writes + embedding.
-// Showing "100%" during those phases is misleading — we switch to a phase
-// label + spinner instead.
 const PROGRESS_BAR_PHASES = new Set(["discovering", "parsing", "preparing", "graphing"]);
 
 const PHASE_LABEL: Record<string, string> = {
@@ -29,21 +25,24 @@ interface Props {
   onToggleExpand: () => void;
 }
 
-function formatTs(s: string | null): string {
-  if (!s) return "—";
-  const d = new Date(s);
-  if (Number.isNaN(d.getTime())) return s;
-  const diff = Date.now() - d.getTime();
+function formatRelative(iso: string | null): string {
+  if (!iso) return "—";
+  const diff = Date.now() - new Date(iso).getTime();
   if (diff < 60_000) return "just now";
   if (diff < 3_600_000) return `${Math.round(diff / 60_000)}m ago`;
   if (diff < 86_400_000) return `${Math.round(diff / 3_600_000)}h ago`;
   return `${Math.round(diff / 86_400_000)}d ago`;
 }
 
-function statusChip(status: string) {
-  const cls = `snapshot-row-chip status-${status}`;
-  return <span className={cls}>{status}</span>;
+function formatDuration(ms: number | undefined): string {
+  if (!ms) return "";
+  const s = Math.round(ms / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60), rs = s % 60;
+  return `${m}m ${rs}s`;
 }
+
+const numFmt = new Intl.NumberFormat("en-US");
 
 export function SnapshotRowSummary({ run, isSelected, isExpanded, onToggleSelect, onToggleExpand }: Props) {
   const isRunning = run.status === "running";
@@ -53,12 +52,6 @@ export function SnapshotRowSummary({ run, isSelected, isExpanded, onToggleSelect
   const phaseHasBar = PROGRESS_BAR_PHASES.has(phase);
   const phaseLabel = PHASE_LABEL[phase] ?? phase;
 
-  // During "embedding_chunks" the file-level counters pin at 100% because
-  // the chunker already stamped `progress_done = len(nodes)` earlier. The
-  // live work happens in `meta.chunks_embedded / meta.chunks_total`, so
-  // we prefer those when present. Same logic would apply to
-  // "embedding_summaries", but there ingestion updates progress_done via
-  // `meta.files_embedded` so the file-level counters are accurate.
   const useChunkCounters =
     phase === "embedding_chunks" &&
     meta?.chunks_total != null &&
@@ -67,48 +60,57 @@ export function SnapshotRowSummary({ run, isSelected, isExpanded, onToggleSelect
   const displayTotal = useChunkCounters ? (meta?.chunks_total ?? 0) : run.progress_total;
   const pct = displayTotal > 0 ? Math.round((displayDone / displayTotal) * 100) : 0;
 
+  const stats = (run.stats as never as { schema_version?: number; counts?: { node_count?: number; edge_count?: number }; leiden?: { count?: number; modularity?: number; community_sizes?: number[]; note?: string }; timing?: { total_ms?: number } }) ?? {};
+  const unavailable = !stats.schema_version || stats.schema_version < 1;
+
   return (
-    <div className={`snapshot-row-summary${isExpanded ? " is-expanded" : ""}`}>
-      <input
-        type="checkbox"
-        checked={isSelected}
-        onChange={(e) => { e.stopPropagation(); onToggleSelect(); }}
-        onClick={(e) => e.stopPropagation()}
-        aria-label={`Select snapshot ${run.id.slice(0, 8)}`}
-      />
-      <button
-        type="button"
-        className="snapshot-row-body"
-        onClick={onToggleExpand}
-      >
-        <span className="snapshot-row-ts">{formatTs(run.completed_at ?? run.created_at)}</span>
-        {statusChip(run.status)}
-        {isLoaded && (
-          <Eye
-            size={14}
-            className="snapshot-row-loaded-icon"
-            aria-label="Loaded on graph"
-          />
-        )}
-        {isRunning && (
-          <span className="snapshot-row-progress">
-            <span className="snapshot-row-progress-text">
-              {phaseLabel || "Running"}
-              {displayTotal > 0 && (
-                <>
-                  {" · "}
-                  {displayDone} / {displayTotal}
-                </>
-              )}
-              {phaseHasBar && ` · ${pct}%`}
-            </span>
-            <span className="snapshot-row-progress-bar">
-              <span style={{ width: `${phaseHasBar ? pct : 100}%` }} className={phaseHasBar ? "" : "indeterminate"} />
-            </span>
+    <div className={`snapshot-card ${isExpanded ? "is-expanded" : ""}`} data-status={run.status}>
+      <div className="snapshot-card-identity">
+        <input
+          type="checkbox"
+          checked={isSelected}
+          onChange={(e) => { e.stopPropagation(); onToggleSelect(); }}
+          onClick={(e) => e.stopPropagation()}
+          aria-label={`Select snapshot ${run.id.slice(0, 8)}`}
+        />
+        <span className={`chip chip-${run.status}`}>{run.status}</span>
+        {isLoaded && <span className="loaded-dot" aria-label="loaded">●</span>}
+        <span className="time">{formatRelative(run.completed_at ?? run.created_at)}</span>
+        {stats.timing?.total_ms && <span className="duration">· {formatDuration(stats.timing.total_ms)}</span>}
+        <button className="expand-caret" onClick={onToggleExpand} aria-expanded={isExpanded} aria-label="Expand details">
+          {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+        </button>
+      </div>
+
+      {isRunning ? (
+        <div className="snapshot-row-progress">
+          <span className="snapshot-row-progress-text">
+            {phaseLabel || "Running"}
+            {displayTotal > 0 && (
+              <>
+                {" · "}
+                {displayDone} / {displayTotal}
+              </>
+            )}
+            {phaseHasBar && ` · ${pct}%`}
           </span>
-        )}
-        {(isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />)}
-      </button>
+          <span className="snapshot-row-progress-bar">
+            <span style={{ width: `${phaseHasBar ? pct : 100}%` }} className={phaseHasBar ? "" : "indeterminate"} />
+          </span>
+        </div>
+      ) : unavailable ? (
+        <div className="snapshot-card-unavailable muted">stats unavailable</div>
+      ) : (
+        <>
+          <div className="snapshot-card-stats">
+            <StatPill label="nodes" value={numFmt.format(stats.counts?.node_count ?? 0)} />
+            <StatPill label="edges" value={numFmt.format(stats.counts?.edge_count ?? 0)} />
+            <StatPill label="communities" value={stats.leiden?.count ?? 0} />
+            <StatPill label="mod" value={(stats.leiden?.modularity ?? 0).toFixed(2)} />
+          </div>
+          <CommunitySparkline sizes={stats.leiden?.community_sizes} />
+        </>
+      )}
     </div>
   );
 }

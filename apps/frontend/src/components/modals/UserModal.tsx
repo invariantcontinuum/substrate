@@ -31,9 +31,13 @@ export function UserModal() {
 
   useEffect(() => {
     if (!me?.profile) return;
-    setDisplayNameDraft(me.profile.display_name || me.profile.preferred_username || "");
+    const name = me.profile.display_name || me.profile.preferred_username || "";
     const current = me.devices.find((d) => d.device_id === deviceId);
-    setDeviceLabelDraft(current?.label || "");
+    const label = current?.label || "";
+    queueMicrotask(() => {
+      setDisplayNameDraft(name);
+      setDeviceLabelDraft(label);
+    });
   }, [me, deviceId]);
 
   const role = me?.profile.role || "viewer";

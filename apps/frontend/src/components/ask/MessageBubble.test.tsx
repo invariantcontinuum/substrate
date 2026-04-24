@@ -1,4 +1,5 @@
 import { render, screen, fireEvent } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, beforeEach } from "vitest";
 import { MessageBubble } from "./MessageBubble";
 import { useUIStore } from "@/stores/ui";
@@ -20,13 +21,13 @@ describe("MessageBubble", () => {
   });
 
   it("renders content and citation chip", () => {
-    render(<MessageBubble message={base} />);
+    render(<MessageBubble message={base} />, { wrapper: MemoryRouter });
     expect(screen.getByText("The answer is X.")).toBeInTheDocument();
     expect(screen.getByText("file.py")).toBeInTheDocument();
   });
 
   it("citation click sets active view, selected node, and opens node detail", () => {
-    render(<MessageBubble message={base} />);
+    render(<MessageBubble message={base} />, { wrapper: MemoryRouter });
     fireEvent.click(screen.getByRole("listitem"));
 
     expect(useUIStore.getState().activeView).toBe("graph");
@@ -35,7 +36,7 @@ describe("MessageBubble", () => {
   });
 
   it("user role hides citation chips", () => {
-    render(<MessageBubble message={{ ...base, role: "user" }} />);
+    render(<MessageBubble message={{ ...base, role: "user" }} />, { wrapper: MemoryRouter });
     expect(screen.queryByText("file.py")).not.toBeInTheDocument();
   });
 });

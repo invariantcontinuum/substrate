@@ -1,9 +1,15 @@
 import { useEffect, useRef, type ReactNode } from "react";
-import { Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "react-oidc-context";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { GraphPage } from "@/pages/GraphPage";
 import { CallbackPage } from "@/pages/CallbackPage";
+import { AskPage } from "@/pages/AskPage";
+import { SourcesPage } from "@/pages/SourcesPage";
+import { SourcesTab } from "@/pages/SourcesTab";
+import { SourcesSnapshotsTab } from "@/pages/SourcesSnapshotsTab";
+import { SourcesConfigTab } from "@/pages/SourcesConfigTab";
+import { SourcesActivityTab } from "@/pages/SourcesActivityTab";
 import { useGraphStore } from "@/stores/graph";
 import { useSyncSetStore } from "@/stores/syncSet";
 import { logger } from "@/lib/logger";
@@ -117,7 +123,15 @@ function App() {
           </RequireAuth>
         }
       >
-        <Route index element={<GraphPage />} />
+        <Route index element={<Navigate to="/graph" replace />} />
+        <Route path="graph" element={<GraphPage />} />
+        <Route path="ask" element={<AskPage />} />
+        <Route path="sources" element={<SourcesPage />}>
+          <Route index element={<SourcesTab />} />
+          <Route path="snapshots" element={<SourcesSnapshotsTab />} />
+          <Route path="config" element={<SourcesConfigTab />} />
+          <Route path="activity" element={<SourcesActivityTab />} />
+        </Route>
       </Route>
     </Routes>
   );

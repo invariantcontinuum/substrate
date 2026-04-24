@@ -28,7 +28,7 @@ function renderWithClient(ui: React.ReactElement) {
 }
 
 describe("SnapshotRow", () => {
-  it("toggles expansion on row click", () => {
+  it("toggles expansion on caret click", () => {
     const onToggleExpand = vi.fn();
     renderWithClient(
       <SnapshotRow
@@ -39,11 +39,11 @@ describe("SnapshotRow", () => {
         onToggleExpand={onToggleExpand}
       />
     );
-    fireEvent.click(screen.getByRole("button", { name: /failed/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Expand details/i }));
     expect(onToggleExpand).toHaveBeenCalled();
   });
 
-  it("renders stats panel when expanded (issues absent)", () => {
+  it("renders stats panel when expanded", () => {
     renderWithClient(
       <SnapshotRow
         run={makeRun({
@@ -51,8 +51,9 @@ describe("SnapshotRow", () => {
           started_at: "2026-04-15T06:55:00Z",
           completed_at: "2026-04-15T07:00:00Z",
           stats: {
-            nodes: 12480, edges: 34209, files_embedded: 3240,
-            chunks: 41820, chunks_embedded: 41820, duration_ms: 300000,
+            schema_version: 1,
+            counts: { node_count: 12480, edge_count: 34209, files_indexed: 3240 },
+            timing: { total_ms: 300000, phase_ms: {} },
           },
         }) as any}
         isSelected={false}
@@ -65,7 +66,6 @@ describe("SnapshotRow", () => {
     expect(screen.getByText(/34,209/)).toBeInTheDocument();
     expect(screen.getByText(/3,240/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /retry/i })).toBeNull();
-    expect(screen.queryByText(/No structured issues recorded/)).toBeNull();
   });
 
   it("shows file-count readout for a running sync", () => {

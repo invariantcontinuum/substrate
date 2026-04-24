@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 import { ChevronRight } from "lucide-react";
 import { useAuth } from "react-oidc-context";
 import { TopBar } from "./TopBar";
@@ -7,8 +7,6 @@ import { Sidebar } from "./Sidebar";
 import { MobileNav } from "./MobileNav";
 import { ModalRoot } from "@/components/modals/ModalRoot";
 import { SwapToast } from "@/components/SwapToast";
-import { SourcesSettings } from "@/components/sources/SourcesSettings";
-import { AskPage } from "@/pages/AskPage";
 import { useUIStore } from "@/stores/ui";
 import { useResponsive } from "@/hooks/useResponsive";
 import { useSyncs } from "@/hooks/useSyncs";
@@ -108,10 +106,18 @@ export function DashboardLayout() {
     }).catch(() => { /* ignore device-sync telemetry failures */ });
   }, [token, userSub, deviceId, syncIds]);
 
+  const location = useLocation();
   const sidebarOpen = useUIStore((s) => s.sidebarOpen);
   const setSidebarOpen = useUIStore((s) => s.setSidebarOpen);
-  const activeView = useUIStore((s) => s.activeView);
+  const setActiveView = useUIStore((s) => s.setActiveView);
   const { isDesktop } = useResponsive();
+
+  useEffect(() => {
+    const path = location.pathname;
+    if (path.startsWith("/sources")) setActiveView("sources");
+    else if (path.startsWith("/ask")) setActiveView("ask");
+    else setActiveView("graph");
+  }, [location.pathname, setActiveView]);
   const showSidebar = isDesktop && sidebarOpen;
   const showReopenHandle = isDesktop && !sidebarOpen;
 
@@ -132,15 +138,7 @@ export function DashboardLayout() {
           </button>
         )}
         <main className="dashboard-main">
-          <div className={`view-root${activeView === "graph" ? "" : " is-hidden"}`}>
-            <Outlet />
-          </div>
-          <div className={`view-root${activeView === "sources" ? "" : " is-hidden"}`}>
-            <SourcesSettings />
-          </div>
-          <div className={`view-root${activeView === "ask" ? "" : " is-hidden"}`}>
-            <AskPage />
-          </div>
+          <Outlet />
         </main>
       </div>
       <MobileNav />

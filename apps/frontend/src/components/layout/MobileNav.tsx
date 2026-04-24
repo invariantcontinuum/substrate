@@ -1,3 +1,4 @@
+import { useNavigate, useLocation } from "react-router-dom";
 import { GitBranch, Plug, MessageCircle, User } from "lucide-react";
 import { useUIStore, type ModalName } from "@/stores/ui";
 
@@ -16,19 +17,28 @@ const items: { icon: typeof GitBranch; label: string; action: MobileNavAction }[
 ];
 
 export function MobileNav() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const openModal = useUIStore((s) => s.openModal);
   const setActiveView = useUIStore((s) => s.setActiveView);
-  const activeView = useUIStore((s) => s.activeView);
   const activeModal = useUIStore((s) => s.activeModal);
 
   const isActive = (action: MobileNavAction): boolean => {
-    if (action.kind === "view") return activeView === action.view;
+    if (action.kind === "view") {
+      const path = action.view === "graph" ? "/graph" : action.view === "sources" ? "/sources" : "/ask";
+      return location.pathname.startsWith(path);
+    }
     return activeModal === action.modal;
   };
 
   const handleNav = (action: MobileNavAction) => {
-    if (action.kind === "modal") openModal(action.modal);
-    else setActiveView(action.view);
+    if (action.kind === "modal") {
+      openModal(action.modal);
+      return;
+    }
+    const path = action.view === "graph" ? "/graph" : action.view === "sources" ? "/sources" : "/ask";
+    navigate(path);
+    setActiveView(action.view);
   };
 
   return (

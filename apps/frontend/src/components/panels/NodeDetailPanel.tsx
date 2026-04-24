@@ -1,5 +1,6 @@
 // frontend/src/components/panels/NodeDetailPanel.tsx
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Check, Copy, Download, FileText, RefreshCw, X } from "lucide-react";
 import { useAuth } from "react-oidc-context";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -55,7 +56,7 @@ export function NodeDetailPanel() {
   const activeModal = useUIStore((s) => s.activeModal);
   const closeModal = useUIStore((s) => s.closeModal);
   const setSourcesPageTarget = useUIStore((s) => s.setSourcesPageTarget);
-  const setActiveView = useUIStore((s) => s.setActiveView);
+  const navigate = useNavigate();
   const auth = useAuth();
   const token = auth.user?.access_token;
   const queryClient = useQueryClient();
@@ -239,7 +240,7 @@ export function NodeDetailPanel() {
       sourceId: cached.source_id as string,
       expandSyncId: effectiveSnapshotId,
     });
-    setActiveView("sources");
+    navigate("/sources");
   };
 
   const title = (node as { label?: string; name?: string; id?: string } | undefined)?.label

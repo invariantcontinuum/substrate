@@ -82,6 +82,8 @@ export function useSources() {
 
   return {
     sources: list.data?.items ?? [],
+    isLoading: list.isLoading,
+    isPending: list.isPending,
     createSource: create.mutateAsync,
     purgeSource: purgeSource.mutateAsync,
     updateSource: updateSource.mutateAsync,
