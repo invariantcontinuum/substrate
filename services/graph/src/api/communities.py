@@ -41,7 +41,7 @@ async def get_communities(
     ids = [s.strip() for s in sync_ids.split(",") if s.strip()]
     if not ids:
         raise HTTPException(400, "sync_ids is required")
-    cfg = _resolve_config(config, user_sub)
+    cfg = await _resolve_config(config, user_sub)
     try:
         result = await community_mod.get_or_compute(ids, cfg, user_sub=user_sub)
     except asyncio.TimeoutError:
@@ -70,7 +70,7 @@ async def recompute(
 ) -> dict[str, Any]:
     if not body.sync_ids:
         raise HTTPException(400, "sync_ids is required")
-    cfg = _resolve_config(body.config, user_sub)
+    cfg = await _resolve_config(body.config, user_sub)
     result = await community_mod.get_or_compute(
         body.sync_ids, cfg, user_sub=user_sub, force=True,
     )
@@ -107,7 +107,7 @@ async def community_nodes(
     return {"items": page.items, "next_cursor": page.next_cursor}
 
 
-def _resolve_config(
+async def _resolve_config(
     config_input: str | dict[str, Any] | None, user_sub: str,
 ) -> LeidenConfig:
     """Merge (user-pinned defaults) with (request-provided overrides) and
@@ -120,7 +120,7 @@ def _resolve_config(
             raise HTTPException(400, "config must be valid JSON")
     if config_input is not None and not isinstance(config_input, dict):
         raise HTTPException(400, "config must be a JSON object")
-    defaults = load_user_leiden_defaults(user_sub)
+    defaults = await load_user_leiden_defaults(user_sub)
     merged = {**defaults, **(config_input or {})}
     try:
         return LeidenConfig(**merged)
