@@ -301,3 +301,35 @@ async def test_labels_disabled_short_circuits(
     assert calls == 0
     for e in r.communities:
         assert e.label.startswith("Community ")
+
+
+async def test_modularity_handles_isolated_nodes(app_pool):
+    """Regression: the graph may include isolated :File nodes that
+    graspologic does not assign. _modularity must compute on the
+    subgraph induced by the actually-clustered nodes, not on the
+    full graph — otherwise networkx rejects the partition."""
+    import uuid
+
+    import networkx as nx
+    from src.graph.community import _modularity
+    from src.graph.leiden_config import LeidenConfig
+
+    # 4-node K4 (clustered) + 3 isolated nodes (no edges).
+    g = nx.Graph()
+    g.add_edges_from([("a", "b"), ("a", "c"), ("a", "d"),
+                      ("b", "c"), ("b", "d"), ("c", "d")])
+    g.add_nodes_from(["iso1", "iso2", "iso3"])
+
+    # Simulates what _run_leiden returns: only the 4 clustered nodes are
+    # assigned; isolated nodes are absent from `final`.
+    final = {"a": 0, "b": 0, "c": 0, "d": 0}
+    cfg = LeidenConfig(
+        resolution=1.0, beta=0.01, iterations=10,
+        min_cluster_size=3, seed=42,
+    )
+    modularity = _modularity(g, final, cfg)
+    assert isinstance(modularity, float)
+    # One community covering the entire subgraph → modularity is 0
+    # (a single group captures all edges; community contribution
+    # (L_c/L - (k_c/2L)**2) with L==L_c becomes 1 - 1 = 0).
+    assert modularity == 0.0

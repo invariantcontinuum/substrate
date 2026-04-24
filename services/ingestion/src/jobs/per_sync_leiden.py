@@ -164,7 +164,18 @@ async def _run(sync_id: str) -> None:
 
 
 def _modularity(g: nx.Graph, assignments: dict[str, int]) -> float:
-    """Compute modularity over non-orphan (cluster >= 0) partition."""
+    """Modularity of the non-orphan (cluster >= 0) communities over the
+    subgraph they cover.
+
+    networkx requires the community list to partition the graph passed in
+    (union == V(g), pairwise disjoint). When graspologic's hierarchical
+    Leiden skips isolated / tiny-component nodes or when we demote
+    below-``min_cluster_size`` clusters to orphan (-1), the surviving
+    communities are a proper subset of ``g.nodes()``. Restricting to
+    ``g.subgraph(covered)`` keeps both sides of the ratio faithful — only
+    nodes actually clustered are counted in the modularity denominator,
+    while ``orphan_pct`` remains the honest signal for "how many didn't
+    cluster"."""
     from networkx.algorithms.community import modularity as nx_modularity
     communities: dict[int, set[str]] = {}
     for n, c in assignments.items():
@@ -173,8 +184,10 @@ def _modularity(g: nx.Graph, assignments: dict[str, int]) -> float:
         communities.setdefault(c, set()).add(n)
     if not communities:
         return 0.0
+    covered: set[str] = set().union(*communities.values())
+    subg = g.subgraph(covered)
     return nx_modularity(
-        g, list(communities.values()),
+        subg, list(communities.values()),
         resolution=settings.per_sync_leiden_resolution,
     )
 

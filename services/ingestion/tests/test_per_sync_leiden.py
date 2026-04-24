@@ -130,3 +130,82 @@ async def test_per_sync_leiden_tiny_graph_note(graph_pool):
         async with graph_pool.acquire() as c:
             await c.execute("DELETE FROM sync_runs WHERE id = $1::uuid", sync_id)
             await c.execute("DELETE FROM sources WHERE id = $1::uuid", source_id)
+
+
+async def test_per_sync_leiden_handles_isolated_nodes(graph_pool):
+    """Regression: a sync whose graph includes isolated :File nodes (no
+    DEPENDS_ON edges) must compute modularity without raising. Before
+    the fix, nx_modularity rejected the partition because isolated nodes
+    weren't covered by any non-orphan community."""
+    from src import graph_writer
+    from src.jobs.per_sync_leiden import per_sync_leiden
+    import json
+    import uuid
+
+    source_id = str(uuid.uuid4())
+    sync_id = str(uuid.uuid4())
+    async with graph_pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO sources (id, user_sub, source_type, owner, name, url) "
+            "VALUES ($1::uuid, 'u1', 'github_repo', 'o', 'r-iso', 'https://x')",
+            source_id,
+        )
+        await conn.execute(
+            "INSERT INTO sync_runs (id, source_id, status) "
+            "VALUES ($1::uuid, $2::uuid, 'running')",
+            sync_id, source_id,
+        )
+
+    # 4-node K4 cluster + 6 isolated nodes (no edges).
+    nodes = [
+        {"file_id": f"{sync_id}-c{i}", "name": f"c{i}.py",
+         "type": "code", "domain": "src"}
+        for i in range(4)
+    ] + [
+        {"file_id": f"{sync_id}-iso{i}", "name": f"iso{i}.py",
+         "type": "code", "domain": "src"}
+        for i in range(6)
+    ]
+    edges = []
+    for i in range(4):
+        for j in range(i + 1, 4):
+            edges.append({
+                "source_id": f"{sync_id}-c{i}",
+                "target_id": f"{sync_id}-c{j}",
+                "weight": 1.0,
+            })
+
+    assert await graph_writer.write_age_nodes(nodes, sync_id, source_id) == 0
+    assert await graph_writer.write_age_edges(edges, sync_id, source_id) == 0
+
+    try:
+        await per_sync_leiden(sync_id)
+        async with graph_pool.acquire() as conn:
+            stats = await conn.fetchval(
+                "SELECT stats FROM sync_runs WHERE id = $1::uuid", sync_id,
+            )
+            issues = await conn.fetch(
+                "SELECT code FROM sync_issues WHERE sync_id = $1::uuid",
+                sync_id,
+            )
+        parsed = json.loads(stats) if isinstance(stats, str) else (stats or {})
+        leiden = parsed.get("leiden")
+        assert leiden is not None, (
+            "stats.leiden must be populated — the compute should succeed"
+        )
+        # Exactly one surviving cluster (the 4-node clique), or zero if
+        # graspologic's hierarchical pass split it below min_cluster_size.
+        assert isinstance(leiden["count"], int)
+        assert isinstance(leiden["modularity"], float)
+        # No per_sync_leiden_failed warning should land — the compute
+        # succeeded end-to-end.
+        codes = [r["code"] for r in issues]
+        assert "per_sync_leiden_failed" not in codes, (
+            f"expected no leiden failure, got issues: {codes}"
+        )
+    finally:
+        await graph_writer.cleanup_partial(sync_id)
+        async with graph_pool.acquire() as c:
+            await c.execute("DELETE FROM sync_runs WHERE id = $1::uuid", sync_id)
+            await c.execute("DELETE FROM sources WHERE id = $1::uuid", source_id)
+            await c.execute("DELETE FROM sync_issues WHERE sync_id = $1::uuid", sync_id)

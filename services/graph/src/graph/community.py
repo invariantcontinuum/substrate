@@ -288,9 +288,18 @@ def _apply_renumber(
 def _modularity(
     g: nx.Graph, final: dict[str, int], cfg: LeidenConfig,
 ) -> float:
-    """Compute modularity over surviving (non-orphan) partitions only.
-    Using ``cfg.resolution`` here matches the resolution used by Leiden so
-    the reported score is the value Leiden optimised, not a rescaled one."""
+    """Compute modularity of the surviving (non-orphan) communities over
+    the subgraph they cover.
+
+    networkx requires ``communities`` to partition the graph passed in
+    (union == V(g), pairwise disjoint). When graspologic's hierarchical
+    Leiden skips isolated / tiny-component :File nodes or when we demote
+    below-``min_cluster_size`` clusters to orphan (-1), the survivors are
+    a proper subset of ``g.nodes()``. Restricting to ``g.subgraph(covered)``
+    makes the partition valid while keeping both sides of the ratio
+    honest — ``orphan_pct`` still carries the "how many didn't cluster"
+    signal. Using ``cfg.resolution`` here matches the resolution Leiden
+    optimised, so the reported score is the one Leiden itself maximised."""
     groups: dict[int, set[str]] = {}
     for n, c in final.items():
         if c < 0:
@@ -298,8 +307,10 @@ def _modularity(
         groups.setdefault(c, set()).add(n)
     if not groups:
         return 0.0
+    covered: set[str] = set().union(*groups.values())
+    subg = g.subgraph(covered)
     return nx.algorithms.community.modularity(
-        g, list(groups.values()), resolution=cfg.resolution,
+        subg, list(groups.values()), resolution=cfg.resolution,
     )
 
 
