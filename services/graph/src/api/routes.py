@@ -138,9 +138,11 @@ async def get_node_file(
                 except (ValueError, AttributeError, TypeError):
                     raise NotFoundError("node_not_found")
             row = await conn.fetchrow(
-                """SELECT id::text, file_path, language, line_count, size_bytes,
-                          sync_id::text AS sync_id, last_commit_sha,
-                          last_commit_at::text, exports
+                """SELECT fe.id::text AS id, fe.file_path, fe.language,
+                          fe.line_count, fe.size_bytes,
+                          fe.sync_id::text AS sync_id, fe.last_commit_sha,
+                          fe.last_commit_at::text AS last_commit_at,
+                          fe.exports
                      FROM file_embeddings fe
                      JOIN sources s ON s.id = fe.source_id
                     WHERE fe.id = $1::uuid

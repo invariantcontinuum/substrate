@@ -87,7 +87,8 @@ async def get_merged_graph(
         node_rows = await c.fetch(
             """
             WITH ranked AS (
-                SELECT fe.source_id::text AS source_id,
+                SELECT fe.id::text AS id,
+                       fe.source_id::text AS source_id,
                        fe.file_path,
                        fe.sync_id::text AS sync_id,
                        fe.name, fe.type, fe.domain,
@@ -288,9 +289,10 @@ async def get_node_detail(
             if not resolved_sync_id:
                 return {}
         node = await c.fetchrow(
-            """SELECT id::text, file_path, name, type, domain, language,
-                      status, description, size_bytes, line_count,
-                      content_hash, created_at::text
+            """SELECT fe.id::text AS id, fe.file_path, fe.name, fe.type,
+                      fe.domain, fe.language, fe.status, fe.description,
+                      fe.size_bytes, fe.line_count, fe.content_hash,
+                      fe.created_at::text AS created_at
                FROM file_embeddings fe
                JOIN sources s ON s.id = fe.source_id
                WHERE fe.source_id=$1::uuid AND fe.file_path=$2 AND fe.sync_id=$3::uuid
