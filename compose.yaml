@@ -58,6 +58,11 @@ services:
       KC_PROXY_HEADERS: xforwarded
       KC_HEALTH_ENABLED: "true"
       KC_METRICS_ENABLED: "true"
+      # Single-replica deployment: use Infinispan local cache instead of
+      # distributed clustering. Silences JGRP000015 UDP buffer-size
+      # warnings that fire on every startup because the Linux kernel's
+      # default rmem_max/wmem_max are below JGroups' multicast defaults.
+      KC_CACHE: local
     ports: ["8080:8080"]
     volumes:
       - kc_data:/opt/keycloak/data
