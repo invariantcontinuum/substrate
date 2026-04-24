@@ -395,3 +395,57 @@ def _iso_expires() -> str:
         .isoformat(timespec="seconds")
         .replace("+00:00", "Z")
     )
+
+
+@dataclass
+class PaginatedNodes:
+    """One page of node_ids belonging to a single community. Cursor is
+    an opaque integer offset encoded as string — assignments are an
+    unordered map so there's no natural stable cursor beyond lexicographic
+    sort of node_ids."""
+    items: list[str]
+    next_cursor: str | None
+
+
+async def get_assignments(cache_key: str):
+    """Stream (node_id, community_index) pairs for an entire cached run.
+    Yields nothing on cache miss. Used by frontend carousel for seeding
+    per-community subgraph rendering and by Ask for scope expansion."""
+    pool = store.get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchval(
+            "SELECT assignments FROM leiden_cache WHERE cache_key = $1",
+            cache_key,
+        )
+    if row is None:
+        return
+    data = json.loads(row) if isinstance(row, str) else row
+    for node, idx in data.items():
+        yield node, int(idx)
+
+
+async def get_community_nodes(
+    cache_key: str,
+    community_index: int,
+    limit: int,
+    cursor: str | None,
+) -> PaginatedNodes:
+    """Paginated list of node_ids belonging to one community, sorted
+    lexicographically for stable pagination. Cursor is a simple offset
+    encoded as string; callers treat it opaquely. Returns empty page on
+    cache miss. Used by Ask scope expansion when the user pins a whole
+    community as context."""
+    pool = store.get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchval(
+            "SELECT assignments FROM leiden_cache WHERE cache_key = $1",
+            cache_key,
+        )
+    if row is None:
+        return PaginatedNodes(items=[], next_cursor=None)
+    data = json.loads(row) if isinstance(row, str) else row
+    nodes = sorted(n for n, idx in data.items() if int(idx) == community_index)
+    offset = int(cursor) if cursor else 0
+    window = nodes[offset : offset + limit]
+    next_cursor = str(offset + limit) if offset + limit < len(nodes) else None
+    return PaginatedNodes(items=window, next_cursor=next_cursor)

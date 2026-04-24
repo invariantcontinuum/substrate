@@ -77,3 +77,43 @@ async def test_force_bypasses_cache(
         sync_ids, DEFAULT_CFG, user_sub="u1", force=True,
     )
     assert r2.cached is False
+
+
+async def test_get_assignments_streams_all_nodes(
+    app_pool, seeded_two_cluster_syncs,
+):
+    from collections import Counter
+    from src.graph.community import get_or_compute, get_assignments
+    r = await get_or_compute(seeded_two_cluster_syncs, DEFAULT_CFG, user_sub="u1")
+    pairs = [(n, idx) async for n, idx in get_assignments(r.cache_key)]
+    assert len(pairs) >= 8  # fixture seeds 8 files
+    positive_sizes = Counter(idx for _, idx in pairs if idx >= 0)
+    assert sorted(positive_sizes.values(), reverse=True) == r.summary.community_sizes
+
+
+async def test_get_community_nodes_paginates(
+    app_pool, seeded_two_cluster_syncs,
+):
+    from src.graph.community import get_or_compute, get_community_nodes
+    r = await get_or_compute(seeded_two_cluster_syncs, DEFAULT_CFG, user_sub="u1")
+    page1 = await get_community_nodes(r.cache_key, 0, limit=2, cursor=None)
+    assert len(page1.items) == 2
+    assert page1.next_cursor is not None
+    page2 = await get_community_nodes(
+        r.cache_key, 0, limit=2, cursor=page1.next_cursor,
+    )
+    assert len(page2.items) >= 1
+    assert set(page1.items).isdisjoint(page2.items)
+
+
+async def test_get_community_nodes_empty_on_cache_miss(app_pool):
+    from src.graph.community import get_community_nodes
+    page = await get_community_nodes("nonexistent-key", 0, limit=10, cursor=None)
+    assert page.items == []
+    assert page.next_cursor is None
+
+
+async def test_get_assignments_empty_on_cache_miss(app_pool):
+    from src.graph.community import get_assignments
+    pairs = [x async for x in get_assignments("nonexistent-key")]
+    assert pairs == []
