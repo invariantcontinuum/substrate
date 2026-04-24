@@ -128,3 +128,98 @@ async def list_issues(
             *args,
         )
     return [normalize_row_json_fields(r, "context") for r in rows]
+
+
+import json as _json  # used only inside get_sync_delta — keep local to avoid
+                      # re-ordering the existing imports block.
+
+
+@router.get("/{sync_id}/delta")
+async def get_sync_delta(
+    sync_id: str, user_sub: str = Depends(require_user_sub),
+) -> dict[str, object]:
+    """Delta between this sync's final stats and the nearest prior completed
+    sync on the same source. Returns ``{"delta": null}`` when no prior run
+    exists — caller should render a "baseline" row rather than a delta chip.
+
+    The comparison uses ``completed_at`` for ordering (wall-clock), not
+    ``created_at``, so a re-queued older run that completes after a newer
+    one does not become "prior" to it."""
+    pool = store.get_pool()
+    async with pool.acquire() as conn:
+        this_row = await conn.fetchrow(
+            "SELECT sr.id::text, sr.source_id::text, sr.stats, "
+            "       sr.completed_at "
+            "FROM sync_runs sr JOIN sources s ON s.id = sr.source_id "
+            "WHERE sr.id = $1::uuid AND s.user_sub = $2",
+            sync_id, user_sub,
+        )
+        if not this_row:
+            raise NotFoundError(f"sync {sync_id} not found")
+
+        prior = None
+        if this_row["completed_at"] is not None:
+            prior = await conn.fetchrow(
+                "SELECT id::text, stats, completed_at::text AS completed_at "
+                "FROM sync_runs "
+                "WHERE source_id = $1::uuid "
+                "  AND id::text <> $2 "
+                "  AND status = 'completed' "
+                "  AND completed_at < $3 "
+                "ORDER BY completed_at DESC LIMIT 1",
+                this_row["source_id"], sync_id, this_row["completed_at"],
+            )
+
+    if not prior:
+        return {
+            "prior_sync_id": None,
+            "prior_completed_at": None,
+            "delta": None,
+        }
+
+    this_stats = this_row["stats"] or {}
+    prior_stats = prior["stats"] or {}
+    if isinstance(this_stats, str):
+        this_stats = _json.loads(this_stats)
+    if isinstance(prior_stats, str):
+        prior_stats = _json.loads(prior_stats)
+    if not isinstance(this_stats, dict):
+        this_stats = {}
+    if not isinstance(prior_stats, dict):
+        prior_stats = {}
+
+    def _get(obj: dict, *path: str, default: float = 0) -> float:
+        cur: object = obj
+        for p in path:
+            if not isinstance(cur, dict):
+                return default
+            cur = cur.get(p, {} if p != path[-1] else default)
+        return cur if isinstance(cur, (int, float)) else default
+
+    delta = {
+        "node_count": _get(this_stats, "counts", "node_count")
+                    - _get(prior_stats, "counts", "node_count"),
+        "edge_count": _get(this_stats, "counts", "edge_count")
+                    - _get(prior_stats, "counts", "edge_count"),
+        "files_indexed": _get(this_stats, "counts", "files_indexed")
+                       - _get(prior_stats, "counts", "files_indexed"),
+        "community_count": _get(this_stats, "leiden", "count")
+                         - _get(prior_stats, "leiden", "count"),
+        "modularity": round(
+            _get(this_stats, "leiden", "modularity")
+            - _get(prior_stats, "leiden", "modularity"),
+            6,
+        ),
+        "storage_bytes": (
+            _get(this_stats, "storage", "graph_bytes")
+            + _get(this_stats, "storage", "embedding_bytes")
+        ) - (
+            _get(prior_stats, "storage", "graph_bytes")
+            + _get(prior_stats, "storage", "embedding_bytes")
+        ),
+    }
+    return {
+        "prior_sync_id": prior["id"],
+        "prior_completed_at": prior["completed_at"],
+        "delta": delta,
+    }
