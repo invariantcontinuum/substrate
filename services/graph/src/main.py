@@ -14,11 +14,15 @@ from substrate_common import (
 from src.api.activity import router as activity_router
 from src.api.ask import router as ask_router
 from src.api.communities import router as communities_router
+from src.api.deletion import router as deletion_router
+from src.api.integrations import router as integrations_router
 from src.api.preferences import router as preferences_router
 from src.api.routes import router
 from src.api.schedules import router as schedules_router
+from src.api.sessions import router as sessions_router
 from src.api.sources import router as sources_router
 from src.api.syncs import router as syncs_router
+from src.api.usage import router as usage_router
 from src.api.users import router as users_router
 from src.config import settings
 from src.graph import store
@@ -64,6 +68,10 @@ app.include_router(ask_router)
 app.include_router(communities_router)
 app.include_router(preferences_router)
 app.include_router(users_router)
+app.include_router(sessions_router)
+app.include_router(integrations_router)
+app.include_router(usage_router)
+app.include_router(deletion_router)
 
 
 @app.get("/health")

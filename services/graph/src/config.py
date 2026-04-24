@@ -179,5 +179,21 @@ class _GraphSettings(BaseSettings):
     # payload but the UI must page through get_community_nodes more.
     leiden_community_sample_size: int = 20
 
+    # ── Keycloak admin (spec §9.7, P4) ──────────────────────────────
+    # Service-account access to Keycloak for end-all-sessions + account-
+    # deletion flows. An empty client_secret short-circuits the sessions
+    # endpoint with 501 so unconfigured stacks fail loudly.
+    keycloak_admin_url: str = "http://keycloak:8080/admin/realms/substrate"
+    keycloak_token_url: str = (
+        "http://keycloak:8080/realms/substrate/protocol/openid-connect/token"
+    )
+    keycloak_admin_client_id: str = "substrate-admin"
+    keycloak_admin_client_secret: str = ""
+
+    # ── GitHub integration validation (spec §9.9, P4) ───────────────
+    # Account · Integrations uses this timeout when hitting GitHub's
+    # /user endpoint to validate a pasted PAT.
+    github_validate_timeout_s: int = 10
+
 
 settings = load_settings("", _GraphSettings)
