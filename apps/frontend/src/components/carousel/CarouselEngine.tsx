@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { useAssignments } from "@/hooks/useAssignments";
 import { useCommunities } from "@/hooks/useCommunities";
 import { useGraphStore } from "@/stores/graph";
 import { usePrefsStore } from "@/stores/prefs";
 import { useSyncSetStore } from "@/stores/syncSet";
+import { useExportCommunity } from "@/hooks/useExportCommunity";
+import { useExportGraph } from "@/hooks/useExportGraph";
 
 /**
  * The carousel REPLACES the single-canvas Graph view. A single GraphCanvas
@@ -27,6 +29,8 @@ export function CarouselEngine() {
   const hydrated = usePrefsStore((s) => s.hydrated);
   const setVisibleSubset = useGraphStore((s) => s.setVisibleSubset);
   const allNodes = useGraphStore((s) => s.nodes);
+  const exportComm = useExportCommunity();
+  const exportLoaded = useExportGraph();
 
   const { data, loading, error } = useCommunities(
     syncIds,
@@ -232,7 +236,26 @@ export function CarouselEngine() {
         <ChevronLeft size={16} />
       </button>
       <div className="carousel-body">
-        <div className="carousel-label">{label}</div>
+        <div className="carousel-label-row">
+          <div className="carousel-label">{label}</div>
+          {currentSlide && currentSlide.kind !== "orphans" && (
+            <button
+              type="button"
+              className="carousel-slide-download"
+              title="Export this slide as JSON"
+              aria-label="Export this slide"
+              onClick={() => {
+                if (currentSlide.kind === "full") {
+                  void exportLoaded(syncIds).catch(console.error);
+                } else if (currentSlide.kind === "community" && data?.cache_key) {
+                  void exportComm(data.cache_key, currentSlide.index).catch(console.error);
+                }
+              }}
+            >
+              <Download size={11} />
+            </button>
+          )}
+        </div>
         <nav
           className="carousel-rail"
           aria-label="Community slides"

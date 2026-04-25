@@ -3122,6 +3122,13 @@ html {
   gap: 4px;
   overflow: hidden;
 }
+.carousel-label-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  min-width: 0;
+}
 .carousel-label {
   font-weight: 500;
   max-width: 100%;
@@ -3129,6 +3136,24 @@ html {
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--fg);
+}
+.carousel-slide-download {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  color: var(--fg-subtle);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.carousel-slide-download:hover {
+  color: var(--accent);
+  border-color: var(--accent);
 }
 .carousel-count {
   font-size: 10px;
