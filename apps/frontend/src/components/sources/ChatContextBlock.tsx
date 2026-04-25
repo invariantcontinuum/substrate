@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useSources } from "@/hooks/useSources";
 import { useAllSyncs } from "@/hooks/useAllSyncs";
 import { useChatContext, useApplyChatContext } from "@/hooks/useChatContext";
+import { CommunityPicker } from "./CommunityPicker";
 
 export function ChatContextBlock() {
   const { sources } = useSources();
@@ -15,14 +16,18 @@ export function ChatContextBlock() {
   const [snapshotIds, setSnapshotIds] = useState<Set<string>>(
     new Set(active?.active?.snapshot_ids ?? []),
   );
+  const [communityIds, setCommunityIds] = useState<
+    { cache_key: string; community_index: number }[]
+  >(active?.active?.community_ids ?? []);
 
   const sourceSyncs = (syncs ?? []).filter((s) => s.source_id === sourceId);
+  const snapshotIdList = Array.from(snapshotIds);
 
   return (
     <section className="chat-context-block">
       <h3>Chat context</h3>
       <p className="muted">
-        Selected source and snapshots will be attached to every{" "}
+        Selected source, snapshots, and communities will be attached to every{" "}
         <strong>new</strong> chat thread you create. Existing threads keep
         their original scope.
       </p>
@@ -33,6 +38,7 @@ export function ChatContextBlock() {
           onChange={(e) => {
             setSourceId(e.target.value);
             setSnapshotIds(new Set());
+            setCommunityIds([]);
           }}
         >
           <option value="">(none)</option>
@@ -58,6 +64,7 @@ export function ChatContextBlock() {
                   if (next.has(s.id)) next.delete(s.id);
                   else next.add(s.id);
                   setSnapshotIds(next);
+                  setCommunityIds([]);
                 }}
               />
               <span>
@@ -67,6 +74,11 @@ export function ChatContextBlock() {
           ))
         )}
       </fieldset>
+      <CommunityPicker
+        snapshotIds={snapshotIdList}
+        value={communityIds}
+        onChange={setCommunityIds}
+      />
       <div className="ctx-actions">
         <button
           type="button"
@@ -74,8 +86,8 @@ export function ChatContextBlock() {
           onClick={() =>
             apply.mutate({
               source_id: sourceId,
-              snapshot_ids: [...snapshotIds],
-              community_ids: [],
+              snapshot_ids: snapshotIdList,
+              community_ids: communityIds,
             })
           }
         >
@@ -84,7 +96,12 @@ export function ChatContextBlock() {
         <button
           type="button"
           className="link"
-          onClick={() => apply.mutate(null)}
+          onClick={() => {
+            setSourceId("");
+            setSnapshotIds(new Set());
+            setCommunityIds([]);
+            apply.mutate(null);
+          }}
         >
           Clear
         </button>

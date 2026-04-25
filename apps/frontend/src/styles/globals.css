@@ -2927,6 +2927,46 @@ html {
   border-color: var(--text-muted);
 }
 
+/* Community multi-checkbox picker (Sources Config tab). Communities are
+ * a function of (snapshot set + leiden config), so editing snapshots
+ * marks the previously-loaded list as stale until the user reloads. */
+.community-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+.community-picker-error {
+  color: #e07070;
+}
+.community-picker-list {
+  list-style: none;
+  margin: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--surface);
+}
+.community-picker-list.is-stale {
+  opacity: 0.5;
+}
+.community-picker-list li {
+  margin: 0;
+  padding: 2px 0;
+}
+.community-picker-list li > label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+.community-picker-list.is-stale li > label {
+  cursor: not-allowed;
+}
+
 /* ---- SnapshotExpandedDrawer ---- */
 .snapshot-drawer { padding: 10px 12px; border-top: 1px solid rgba(255,255,255,0.06); font-size: 12px; }
 .stats-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 4px 0; }
