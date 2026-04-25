@@ -7,10 +7,7 @@ import {
   SnapshotFilters,
   type SnapshotFilterState,
 } from "@/components/sources/SnapshotFilters";
-import { MassActionBar } from "@/components/sources/MassActionBar";
 import { UnifiedToolbar } from "@/components/sources/UnifiedToolbar";
-
-const EMPTY_SOURCE_IDS: Set<string> = new Set();
 
 export function SourcesSnapshotsTab() {
   const { syncs, isLoading } = useAllSyncs();
@@ -20,10 +17,8 @@ export function SourcesSnapshotsTab() {
     loadedOnly: false,
   });
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [scheduleExpanded, setScheduleExpanded] = useState(false);
   const syncSetIds = useSyncSetStore((s) => s.syncIds);
-  const load = useSyncSetStore((s) => s.load);
 
   const filtered = useMemo(
     () =>
@@ -44,27 +39,14 @@ export function SourcesSnapshotsTab() {
       else n.add(id);
       return n;
     });
-  const toggleSelect = (id: string) =>
-    setSelected((prev) => {
-      const n = new Set(prev);
-      if (n.has(id)) n.delete(id);
-      else n.add(id);
-      return n;
-    });
 
   if (isLoading) return <div className="muted">Loading snapshots…</div>;
 
   return (
     <div className="snapshots-tab">
       <UnifiedToolbar
-        selectedSourceIds={EMPTY_SOURCE_IDS}
-        selectedSyncIds={selected}
         scheduleExpanded={scheduleExpanded}
         onToggleSchedule={() => setScheduleExpanded((v) => !v)}
-        onSnapshotActionComplete={() => setSelected(new Set())}
-        onSourceActionComplete={() => {
-          /* Snapshots tab never selects sources. */
-        }}
       />
       <SnapshotFilters filters={filters} onChange={setFilters} />
       <Virtuoso
@@ -73,20 +55,10 @@ export function SourcesSnapshotsTab() {
         itemContent={(_i, r) => (
           <SnapshotRow
             run={r}
-            isSelected={selected.has(r.id)}
             isExpanded={expanded.has(r.id)}
-            onToggleSelect={() => toggleSelect(r.id)}
             onToggleExpand={() => toggleExpand(r.id)}
           />
         )}
-      />
-      <MassActionBar
-        selection={selected}
-        onLoadSelection={() => {
-          for (const id of selected) load(id);
-          setSelected(new Set());
-        }}
-        onClear={() => setSelected(new Set())}
       />
     </div>
   );

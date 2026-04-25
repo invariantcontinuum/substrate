@@ -5,9 +5,9 @@ import { SnapshotExpandedDrawer } from "./SnapshotExpandedDrawer";
 
 interface Props {
   run: SyncRun;
-  isSelected: boolean;
+  isSelected?: boolean;
   isExpanded: boolean;
-  onToggleSelect: () => void;
+  onToggleSelect?: () => void;
   onToggleExpand: () => void;
 }
 

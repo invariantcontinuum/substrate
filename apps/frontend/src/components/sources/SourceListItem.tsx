@@ -4,11 +4,11 @@ import type { Source } from "@/hooks/useSources";
 interface Props {
   source: Source;
   isActive: boolean;
-  isSelected: boolean;
+  isSelected?: boolean;
   isLoaded: boolean;
   isRunning: boolean;
   onNavigate: () => void;
-  onToggleSelect: () => void;
+  onToggleSelect?: () => void;
 }
 
 export function SourceListItem(props: Props) {
@@ -21,14 +21,16 @@ export function SourceListItem(props: Props) {
       onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onNavigate()}
       className={`source-list-item${isActive ? " is-active" : ""}`}
     >
-      <input
-        type="checkbox"
-        checked={isSelected}
-        onChange={(e) => { e.stopPropagation(); onToggleSelect(); }}
-        onClick={(e) => e.stopPropagation()}
-        aria-label={`Select ${source.owner}/${source.name}`}
-        className="source-list-item-cb"
-      />
+      {onToggleSelect && (
+        <input
+          type="checkbox"
+          checked={!!isSelected}
+          onChange={(e) => { e.stopPropagation(); onToggleSelect(); }}
+          onClick={(e) => e.stopPropagation()}
+          aria-label={`Select ${source.owner}/${source.name}`}
+          className="source-list-item-cb"
+        />
+      )}
       <span className="source-list-item-label">
         {source.owner}/{source.name}
       </span>

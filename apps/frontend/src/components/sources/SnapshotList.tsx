@@ -5,8 +5,8 @@ import { SnapshotRow } from "./SnapshotRow";
 
 interface Props {
   sourceId: string;
-  selectedSyncIds: Set<string>;
-  toggleSelect: (syncId: string) => void;
+  selectedSyncIds?: Set<string>;
+  toggleSelect?: (syncId: string) => void;
   expandedRows: Set<string>;
   toggleExpand: (syncId: string) => void;
   autoExpandSyncId?: string | null;
@@ -32,9 +32,9 @@ export function SnapshotList(props: Props) {
         <div key={run.id} ref={(el) => { rowRefs.current.set(run.id, el); }}>
           <SnapshotRow
             run={run}
-            isSelected={props.selectedSyncIds.has(run.id)}
+            isSelected={props.selectedSyncIds?.has(run.id) ?? false}
             isExpanded={props.expandedRows.has(run.id)}
-            onToggleSelect={() => props.toggleSelect(run.id)}
+            onToggleSelect={props.toggleSelect ? () => props.toggleSelect!(run.id) : undefined}
             onToggleExpand={() => props.toggleExpand(run.id)}
           />
         </div>

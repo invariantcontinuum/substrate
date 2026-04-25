@@ -20,9 +20,9 @@ const PHASE_LABEL: Record<string, string> = {
 
 interface Props {
   run: SyncRun;
-  isSelected: boolean;
+  isSelected?: boolean;
   isExpanded: boolean;
-  onToggleSelect: () => void;
+  onToggleSelect?: () => void;
   onToggleExpand: () => void;
 }
 
@@ -71,13 +71,15 @@ export function SnapshotRowSummary({ run, isSelected, isExpanded, onToggleSelect
   return (
     <div className={`snapshot-card ${isExpanded ? "is-expanded" : ""}`} data-status={run.status}>
       <div className="snapshot-card-identity">
-        <input
-          type="checkbox"
-          checked={isSelected}
-          onChange={(e) => { e.stopPropagation(); onToggleSelect(); }}
-          onClick={(e) => e.stopPropagation()}
-          aria-label={`Select snapshot ${run.id.slice(0, 8)}`}
-        />
+        {onToggleSelect && (
+          <input
+            type="checkbox"
+            checked={!!isSelected}
+            onChange={(e) => { e.stopPropagation(); onToggleSelect(); }}
+            onClick={(e) => e.stopPropagation()}
+            aria-label={`Select snapshot ${run.id.slice(0, 8)}`}
+          />
+        )}
         <span className={`chip chip-${run.status}`}>{run.status}</span>
         {isLoaded && <span className="loaded-dot" aria-label="loaded">●</span>}
         <span className="time">{formatRelative(run.completed_at ?? run.created_at)}</span>

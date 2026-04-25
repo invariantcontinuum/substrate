@@ -9,8 +9,8 @@ interface Props {
   sourceId: string;
   onBack?: () => void;
   autoExpandSyncId?: string | null;
-  selectedSyncIds: Set<string>;
-  toggleSelectSync: (id: string) => void;
+  selectedSyncIds?: Set<string>;
+  toggleSelectSync?: (id: string) => void;
 }
 
 export function SourceDetailPane({ sourceId, onBack, autoExpandSyncId, selectedSyncIds, toggleSelectSync }: Props) {

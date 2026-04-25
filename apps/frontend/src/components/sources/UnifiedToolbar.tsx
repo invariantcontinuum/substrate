@@ -1,321 +1,38 @@
 // frontend/src/components/sources/UnifiedToolbar.tsx
-import { useState, useEffect } from "react";
-import { RefreshCw, Clock, Settings, Square, Trash2, Download, Upload, Eraser, Sparkles } from "lucide-react";
+import { Download, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { Label } from "@/components/ui/label";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { useSyncs } from "@/hooks/useSyncs";
-import { useSyncsByIds } from "@/hooks/useSyncsByIds";
-import { useSources } from "@/hooks/useSources";
-import { useSchedules } from "@/hooks/useSchedules";
 import { useSyncSetStore } from "@/stores/syncSet";
-import { useUIStore } from "@/stores/ui";
 import { useExportGraph } from "@/hooks/useExportGraph";
-import { SyncAlreadyActiveNotice } from "@/components/SyncAlreadyActiveNotice";
-import { ConfigDialog } from "./ConfigDialog";
-
-const INTERVAL_OPTIONS = [
-  { label: "5 min", value: 5 }, { label: "15 min", value: 15 },
-  { label: "30 min", value: 30 }, { label: "1 hour", value: 60 },
-  { label: "6 hours", value: 360 }, { label: "24 hours", value: 1440 },
-];
+import { AddSourceInput } from "./AddSourceInput";
 
 interface Props {
-  selectedSourceIds: Set<string>;
-  selectedSyncIds: Set<string>;
   scheduleExpanded: boolean;
   onToggleSchedule: () => void;
-  onSnapshotActionComplete: () => void;
-  onSourceActionComplete: () => void;
-  /** Called when a sync attempt finds an already-active sync; provides the existing sync_id and the source_id it belongs to. */
-  onAlreadyActive?: (syncId: string, sourceId: string) => void;
 }
 
-export function UnifiedToolbar(props: Props) {
-  const { selectedSourceIds, selectedSyncIds, scheduleExpanded, onToggleSchedule,
-          onSnapshotActionComplete, onSourceActionComplete, onAlreadyActive } = props;
-  const { startSync, cancelSync, cleanSync, purgeSync, activeSyncs } = useSyncs();
-  const { purgeSource, sources } = useSources();
-  const { createSchedule } = useSchedules();
-  const load = useSyncSetStore((s) => s.load);
-  const unload = useSyncSetStore((s) => s.unload);
+export function UnifiedToolbar({ scheduleExpanded, onToggleSchedule }: Props) {
   const loadedIds = useSyncSetStore((s) => s.syncIds);
-  const openModal = useUIStore((s) => s.openModal);
   const exportGraph = useExportGraph();
-
-  const [interval, setInterval] = useState(60);
-  const [alreadyActiveSyncId, setAlreadyActiveSyncId] = useState<string | null>(null);
-  const [alreadyActiveSourceId, setAlreadyActiveSourceId] = useState<string | null>(null);
-  const [confirmClean, setConfirmClean] = useState(false);
-  const [confirmPurge, setConfirmPurge] = useState(false);
-  const [confirmPurgeSource, setConfirmPurgeSource] = useState(false);
-  const [configOpen, setConfigOpen] = useState(false);
-
-  // Auto-dismiss the "already active" notice after 6 seconds (mirrors SwapToast pattern).
-  useEffect(() => {
-    if (!alreadyActiveSyncId) return;
-    const t = setTimeout(() => {
-      setAlreadyActiveSyncId(null);
-      setAlreadyActiveSourceId(null);
-    }, 6000);
-    return () => clearTimeout(t);
-  }, [alreadyActiveSyncId]);
-
-  const snapshotMode = selectedSyncIds.size > 0;
-  const sourceMode = !snapshotMode && selectedSourceIds.size > 0;
-
-  // Snapshot mode — operate on selected sync_ids.
-  const snapshotIds = Array.from(selectedSyncIds);
-  const snapshotLoadedCount = snapshotIds.filter((id) => loadedIds.includes(id)).length;
-  const snapshotSomeLoaded = snapshotLoadedCount > 0;
-  const snapshotSomeUnloaded = snapshotIds.length > snapshotLoadedCount;
-
-  // Per-snapshot status lookup for Resync/Stop visibility gating.
-  const { syncsById } = useSyncsByIds(snapshotIds);
-  const snapshotStatuses = snapshotIds.map((id) => syncsById.get(id)?.status);
-  const canResync = snapshotIds.length > 0
-    && snapshotStatuses.every((s) => s === "completed" || s === "failed");
-  // Stop is available whenever any selected snapshot is still live.
-  const snapshotRunningIds = snapshotIds.filter((id) => {
-    const s = syncsById.get(id)?.status;
-    return s === "running" || s === "pending";
-  });
-  const canStopSnapshot = snapshotRunningIds.length > 0;
-
-  const doLoad = () => {
-    snapshotIds.forEach(load);
-    onSnapshotActionComplete();
-  };
-  const doUnload = () => {
-    snapshotIds.forEach(unload);
-    onSnapshotActionComplete();
-  };
-  const doClean = () => setConfirmClean(true);
-  const onConfirmClean = () => {
-    setConfirmClean(false);
-    // Fire-and-forget: don't await, so the UI doesn't block on slow backends.
-    snapshotIds.forEach((id) => { void cleanSync(id); });
-    onSnapshotActionComplete();
-  };
-  const doPurge = () => setConfirmPurge(true);
-  const onConfirmPurge = () => {
-    setConfirmPurge(false);
-    snapshotIds.forEach((id) => { void purgeSync(id); });
-    onSnapshotActionComplete();
-  };
-  const doStopSnapshot = () => {
-    snapshotRunningIds.forEach((id) => { void cancelSync(id); });
-    onSnapshotActionComplete();
-  };
-  const doResync = () => {
-    // Dedupe source_ids so one sync is fired per distinct source.
-    const srcIds = Array.from(new Set(
-      snapshotIds
-        .map((id) => syncsById.get(id)?.source_id)
-        .filter((v): v is string => !!v),
-    ));
-    let firstAlreadyActiveFound = false;
-    srcIds.forEach((sourceId) => {
-      void startSync({ source_id: sourceId }).then((outcome) => {
-        if (outcome.kind === "already_active" && !firstAlreadyActiveFound) {
-          firstAlreadyActiveFound = true;
-          setAlreadyActiveSyncId(outcome.sync_id);
-          setAlreadyActiveSourceId(sourceId);
-        }
-      });
-    });
-    onSnapshotActionComplete();
-  };
-
-  // Source mode — operate on selected source_ids.
-  const sourceIds = Array.from(selectedSourceIds);
-  const selectedSingleSource = sourceIds.length === 1 ? sourceIds[0] : null;
-  // Stop button: only visible when any selected source has a pending/running sync.
-  const selectedRunningSyncs = activeSyncs.filter((r) => selectedSourceIds.has(r.source_id));
-  const hasRunning = selectedRunningSyncs.length > 0;
-  const multi = sourceIds.length > 1;
-  const syncLabel = multi ? `Sync (${sourceIds.length} sources)` : "Sync";
-
-  const doSync = () => {
-    setAlreadyActiveSyncId(null);
-    setAlreadyActiveSourceId(null);
-    // Fire in parallel; capture first already_active outcome to surface in the notice.
-    let firstAlreadyActiveFound = false;
-    sourceIds.forEach((sourceId) => {
-      void startSync({ source_id: sourceId }).then((outcome) => {
-        if (outcome.kind === "already_active" && !firstAlreadyActiveFound) {
-          firstAlreadyActiveFound = true;
-          setAlreadyActiveSyncId(outcome.sync_id);
-          setAlreadyActiveSourceId(sourceId);
-        }
-      });
-    });
-    onSourceActionComplete();
-  };
-  const doStop = () => {
-    selectedRunningSyncs.forEach((r) => { void cancelSync(r.id); });
-    onSourceActionComplete();
-  };
-  const doPurgeSource = () => setConfirmPurgeSource(true);
-  const onConfirmPurgeSource = () => {
-    setConfirmPurgeSource(false);
-    sourceIds.forEach((id) => { void purgeSource(id); });
-    onSourceActionComplete();
-  };
-  const doSaveSchedule = async () => {
-    await Promise.all(sourceIds.map((source_id) =>
-      createSchedule({ source_id, interval_minutes: interval })
-    ));
-    onSourceActionComplete();
-  };
-
-  // Rendering
-  if (!snapshotMode && !sourceMode) {
-    return (
-      <div className="unified-toolbar unified-toolbar-empty">
-        <span className="unified-toolbar-hint muted">Select sources or snapshots to act on them.</span>
-      </div>
-    );
-  }
-
-  if (snapshotMode) {
-    return (
-      <>
-        <div className="unified-toolbar">
-          <span className="unified-toolbar-label">Snapshot ({snapshotIds.length})</span>
-          {snapshotSomeUnloaded && (
-            <Button onClick={doLoad}>
-              <Download size={12} /> Load{snapshotSomeLoaded ? ` (${snapshotIds.length - snapshotLoadedCount})` : ""}
-            </Button>
-          )}
-          {snapshotSomeLoaded && (
-            <Button onClick={doUnload}>
-              <Upload size={12} /> Unload{snapshotSomeUnloaded ? ` (${snapshotLoadedCount})` : ""}
-            </Button>
-          )}
-          {canStopSnapshot && (
-            <Button onClick={doStopSnapshot}>
-              <Square size={12} /> Stop{snapshotRunningIds.length > 1 ? ` (${snapshotRunningIds.length})` : ""}
-            </Button>
-          )}
-          {canResync && (
-            <Button onClick={doResync}>
-              <RefreshCw size={12} /> Resync
-            </Button>
-          )}
-          <Button onClick={doClean}><Eraser size={12} /> Clean</Button>
-          <Button onClick={doPurge} className="danger"><Trash2 size={12} /> Purge</Button>
-          <Button
-            onClick={() => { void exportGraph(loadedIds).catch(console.error); }}
-            disabled={loadedIds.length === 0}
-            title="Export the loaded graph + all source files as JSON"
-          >
-            <Download size={12} /> Export Graph
-          </Button>
-        </div>
-        {alreadyActiveSyncId && alreadyActiveSourceId && (
-          <SyncAlreadyActiveNotice
-            syncId={alreadyActiveSyncId}
-            onOpenSync={onAlreadyActive
-              ? (syncId) => onAlreadyActive(syncId, alreadyActiveSourceId)
-              : undefined
-            }
-            className="mx-2 mt-1 rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-900/30 dark:border-amber-700 px-3 py-2 text-sm flex items-center justify-between gap-3"
-          />
-        )}
-        <ConfirmDialog
-          open={confirmClean}
-          title="Clean snapshots"
-          body={`Clean ${snapshotIds.length} snapshot${snapshotIds.length === 1 ? "" : "s"}? Graph data will be removed; the row stays as audit.`}
-          variant="neutral"
-          confirmLabel="Clean"
-          onConfirm={onConfirmClean}
-          onCancel={() => setConfirmClean(false)}
-        />
-        <ConfirmDialog
-          open={confirmPurge}
-          title="Purge snapshots"
-          body={`Purge ${snapshotIds.length} snapshot${snapshotIds.length === 1 ? "" : "s"}? Both the row and the data will be removed.`}
-          variant="danger"
-          confirmLabel="Purge"
-          onConfirm={onConfirmPurge}
-          onCancel={() => setConfirmPurge(false)}
-        />
-      </>
-    );
-  }
-
-  // sourceMode
   return (
-    <>
-      <div className="unified-toolbar">
-        <span className="unified-toolbar-label">Source ({sourceIds.length})</span>
-        <Button onClick={doSync}><RefreshCw size={12} /> {syncLabel}</Button>
-        <Button onClick={doStop} style={{ display: hasRunning ? undefined : "none" }}>
-          <Square size={12} /> Stop{selectedRunningSyncs.length > 1 ? ` (${selectedRunningSyncs.length})` : ""}
-        </Button>
-        <Button onClick={onToggleSchedule} className={scheduleExpanded ? "is-active" : ""}>
-          <Clock size={12} /> Set Schedule
-        </Button>
-        {selectedSingleSource && (
-          <Button onClick={() => openModal("enrichment")}>
-            <Sparkles size={12} /> Enrich
-          </Button>
-        )}
-        {selectedSingleSource && (
-          <Button onClick={() => setConfigOpen(true)}>
-            <Settings size={12} /> Config…
-          </Button>
-        )}
-        <Button onClick={doPurgeSource} className="danger"><Trash2 size={12} /> Purge source{multi ? "s" : ""}</Button>
-      </div>
-      {alreadyActiveSyncId && alreadyActiveSourceId && (
-        <SyncAlreadyActiveNotice
-          syncId={alreadyActiveSyncId}
-          onOpenSync={onAlreadyActive
-            ? (syncId) => onAlreadyActive(syncId, alreadyActiveSourceId)
-            : undefined
-          }
-          className="mx-2 mt-1 rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-900/30 dark:border-amber-700 px-3 py-2 text-sm flex items-center justify-between gap-3"
-        />
-      )}
-      {scheduleExpanded && (
-        <div className="unified-schedule-row">
-          <Label>Every</Label>
-          <Select value={String(interval)} onValueChange={(v) => v && setInterval(Number(v))}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {INTERVAL_OPTIONS.map((o) => (
-                <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button onClick={() => { void doSaveSchedule(); onToggleSchedule(); }}>Save schedule</Button>
-          <Button onClick={onToggleSchedule}>Cancel</Button>
-        </div>
-      )}
-      <ConfirmDialog
-        open={confirmPurgeSource}
-        title="Purge sources"
-        body={`Purge ${sourceIds.length} source${sourceIds.length === 1 ? "" : "s"} and all their snapshots?`}
-        variant="danger"
-        confirmLabel="Purge"
-        onConfirm={onConfirmPurgeSource}
-        onCancel={() => setConfirmPurgeSource(false)}
-      />
-      {(() => {
-        const src = selectedSingleSource
-          ? sources.find((s) => s.id === selectedSingleSource)
-          : null;
-        return src ? (
-          <ConfigDialog
-            open={configOpen}
-            source={src}
-            onClose={() => setConfigOpen(false)}
-          />
-        ) : null;
-      })()}
-    </>
+    <div className="unified-toolbar">
+      <AddSourceInput />
+      <Button
+        onClick={onToggleSchedule}
+        title="Schedule cron pause / resume"
+        className={scheduleExpanded ? "is-active" : ""}
+      >
+        <Clock size={14} /> Schedule {scheduleExpanded ? "▴" : "▾"}
+      </Button>
+      <Button
+        disabled={loadedIds.length === 0}
+        title="Export the loaded graph + all source files as JSON"
+        onClick={() => { void exportGraph(loadedIds).catch(console.error); }}
+      >
+        <Download size={14} /> Export Graph
+      </Button>
+      <div className="unified-toolbar-spacer" />
+      {/* ChatContextSummaryPill wired in Task 6 — placeholder div for layout */}
+      <div className="chat-context-pill-slot" aria-hidden="true" />
+    </div>
   );
 }
