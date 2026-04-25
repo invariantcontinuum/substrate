@@ -150,11 +150,11 @@ html {
     padding-right: max(var(--space-3), env(safe-area-inset-right));
     gap: var(--space-3);
   }
-  /* Reserve room for the floating mobile nav pill INCLUDING the
-   * home-indicator safe area on iPhones (env(safe-area-inset-bottom)
-   * is 0 on everything else so desktop/tablet padding is unchanged). */
+  /* Honour the home-indicator safe area on iPhones; desktop/tablet
+   * padding is unaffected (env() returns 0 there). The old 76px reserve
+   * was for the deleted MobileNav floating pill. */
   .dashboard-main {
-    padding-bottom: calc(76px + var(--space-4) + env(safe-area-inset-bottom));
+    padding-bottom: env(safe-area-inset-bottom);
   }
 }
 
@@ -1236,7 +1236,7 @@ html {
   text-decoration: none;
 }
 .settings-modal-tab:hover { background: var(--surface-hover); }
-.settings-modal-tab.is-active { background: var(--surface-active); font-weight: 500; }
+.settings-modal-tab.is-active { background: var(--accent-tint); font-weight: 500; }
 .settings-modal-body {
   flex: 1;
   min-width: 0;
@@ -1670,7 +1670,7 @@ html {
   border-radius: var(--radius-xs);
   display: inline-flex;
   align-items: center;
-  color: var(--text-muted);
+  color: var(--fg-muted);
   opacity: 0.6;
 }
 .source-action-menu-summary::-webkit-details-marker { display: none; }
@@ -2336,9 +2336,24 @@ html {
  * ============================================================= */
 
 /* ---- TabStrip ---- */
-.tab-strip { display: flex; gap: 2px; padding: 6px 10px; border-bottom: 1px solid rgba(255,255,255,0.06); overflow-x: auto; }
-.tab-strip-tab { padding: 4px 10px; font-size: 11px; border-radius: 6px; opacity: 0.55; white-space: nowrap; text-decoration: none; color: inherit; }
-.tab-strip-tab.active { background: rgba(90,180,255,0.18); opacity: 1; color: #a8d8ff; }
+.tab-strip {
+  display: flex;
+  gap: 4px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  flex-shrink: 0;
+}
+.tab-strip-tab {
+  padding: 5px 12px;
+  font-size: var(--text-sm);
+  border-radius: var(--radius-xs);
+  white-space: nowrap;
+  text-decoration: none;
+  color: var(--fg-muted);
+}
+.tab-strip-tab:hover { background: var(--surface-hover); color: var(--fg); }
+.tab-strip-tab.active { background: var(--accent-tint); color: var(--accent); }
 
 /* ---- Row ---- */
 .ui-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: rgba(255,255,255,0.04); border-radius: 8px; margin-bottom: 6px; font-size: 12px; }
@@ -2392,8 +2407,18 @@ html {
 .muted-btn { background: none; border: none; color: #ffaaaa; font-size: 10px; cursor: pointer; }
 
 /* ---- SourcesPage shell ---- */
-.sources-page { height: 100%; overflow-y: auto; }
-.sources-tab-body { padding: 10px 12px 44px; }
+.sources-page {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.sources-tab-body {
+  padding: 10px 12px;
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+}
 
 /* ---- SourcesTab ---- */
 .sources-tab { display: flex; flex-direction: column; gap: 6px; }
@@ -2516,14 +2541,14 @@ html {
 .toast-close {
   background: transparent;
   border: 0;
-  color: var(--text-muted);
+  color: var(--fg-muted);
   cursor: pointer;
   font-size: 16px;
   line-height: 1;
   padding: 0 4px;
   flex-shrink: 0;
 }
-.toast-close:hover { color: var(--text); }
+.toast-close:hover { color: var(--fg); }
 
 /* Chat-context summary pill — global toolbar affordance.
  * Live read of useChatContextStore.active. Click navigates to
@@ -2550,12 +2575,12 @@ html {
 .chat-context-pill.is-empty {
   background: transparent;
   border-color: var(--border);
-  color: var(--text-muted);
+  color: var(--fg-muted);
 }
 .chat-context-pill.is-empty:hover {
   background: var(--surface-hover);
-  color: var(--text);
-  border-color: var(--text-muted);
+  color: var(--fg);
+  border-color: var(--fg-muted);
 }
 
 /* Community multi-checkbox picker (Sources Config tab). Communities are
@@ -2657,7 +2682,7 @@ html {
   border-radius: 50%;
   background: var(--surface);
   border: 1px solid var(--border);
-  color: var(--text-muted);
+  color: var(--fg-muted);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2933,14 +2958,20 @@ html {
   .carousel-step { flex-basis: 36px; height: 36px; }
 }
 
-/* Open-webui-style global Sidebar (replaces icon-strip + TopBar + MobileNav) */
+/* Open-webui-style global Sidebar (replaces icon-strip + TopBar + MobileNav).
+ * Matches the dashboard-main glass panel treatment so the two surfaces
+ * read as a coordinated pair rather than disconnected boxes. */
 .sidebar {
   display: flex;
   flex-direction: column;
   width: 260px;
   flex-shrink: 0;
-  border-right: 1px solid var(--border);
-  background: var(--surface);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  backdrop-filter: blur(var(--blur-sm)) saturate(140%);
+  -webkit-backdrop-filter: blur(var(--blur-sm)) saturate(140%);
+  box-shadow: var(--glass-shadow);
   overflow: hidden;
 }
 .sidebar-header {
@@ -2960,12 +2991,12 @@ html {
 .sidebar-collapse {
   background: transparent;
   border: 0;
-  color: var(--text-muted);
+  color: var(--fg-muted);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
 }
-.sidebar-collapse:hover { color: var(--text); }
+.sidebar-collapse:hover { color: var(--fg); }
 
 .sidebar-actions {
   display: flex;
@@ -3029,13 +3060,13 @@ html {
   border-radius: var(--radius-xs);
   font: inherit;
   font-size: var(--text-sm);
-  color: var(--text);
+  color: var(--fg);
   cursor: pointer;
 }
 .sidebar-nav-link:hover { background: var(--surface-hover); }
 .sidebar-nav-link.is-active {
-  background: var(--surface-active);
-  color: var(--text);
+  background: var(--accent-tint);
+  color: var(--fg);
 }
 
 .sidebar-threads {
@@ -3052,7 +3083,7 @@ html {
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: var(--text-muted);
+  color: var(--fg-muted);
 }
 .thread-group-list {
   list-style: none;
@@ -3128,7 +3159,7 @@ html {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: var(--text);
+  color: var(--fg);
 }
 .dashboard-reopen:hover { background: var(--surface-hover); }
 
@@ -3138,6 +3169,10 @@ html {
     inset: 0 auto 0 0;
     width: min(280px, 85vw);
     z-index: 50;
+    border-radius: 0;
+    border-top: 0;
+    border-bottom: 0;
+    border-left: 0;
     box-shadow: 0 0 24px rgba(0, 0, 0, 0.3);
   }
 }
@@ -3161,17 +3196,17 @@ html {
 }
 .code-block-lang {
   text-transform: lowercase;
-  color: var(--text-muted);
+  color: var(--fg-muted);
 }
 .code-block-copy {
   background: transparent;
   border: 0;
-  color: var(--text-muted);
+  color: var(--fg-muted);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
 }
-.code-block-copy:hover { color: var(--text); }
+.code-block-copy:hover { color: var(--fg); }
 .code-block-body {
   padding: 8px 12px;
   overflow-x: auto;
