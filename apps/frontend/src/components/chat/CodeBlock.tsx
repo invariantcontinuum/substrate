@@ -36,9 +36,14 @@ export function CodeBlock({ code, language = "text" }: Props) {
   }, [code, language]);
 
   const onCopy = async () => {
-    await navigator.clipboard.writeText(code);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1200);
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1200);
+    } catch {
+      // Clipboard permission denied / non-HTTPS / browser quirk — silently skip;
+      // the user can still select+copy manually from the highlighted block.
+    }
   };
 
   return (

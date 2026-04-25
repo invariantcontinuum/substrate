@@ -11,8 +11,8 @@ const markdownComponents: Components = {
       : false;
     const langMatch = /language-(\w+)/.exec(className ?? "");
     const code = String(children ?? "").replace(/\n$/, "");
-    if (isBlock && langMatch) {
-      return <CodeBlock code={code} language={langMatch[1]} />;
+    if (isBlock) {
+      return <CodeBlock code={code} language={langMatch?.[1] ?? "text"} />;
     }
     return <code className={className} {...props}>{children}</code>;
   },
