@@ -61,7 +61,8 @@ async def list_syncs(
             f"""SELECT sr.id::text, sr.source_id::text, sr.status, sr.ref,
                        sr.progress_done, sr.progress_total, sr.progress_meta,
                        sr.stats, sr.schedule_id, sr.triggered_by,
-                       sr.started_at::text, sr.completed_at::text, sr.created_at::text
+                       sr.started_at::text, sr.completed_at::text, sr.created_at::text,
+                       sr.resume_cursor, sr.parent_sync_id::text
                 FROM sync_runs sr
                 JOIN sources s ON s.id = sr.source_id
                 {where}
@@ -75,6 +76,7 @@ async def list_syncs(
             "config_snapshot",
             "progress_meta",
             "stats",
+            "resume_cursor",
         )
         for r in rows[:limit]
     ]
@@ -95,7 +97,8 @@ async def get_sync(sync_id: str, user_sub: str = Depends(require_user_sub)):
             """SELECT sr.id::text, sr.source_id::text, sr.status, sr.ref, sr.config_snapshot,
                       sr.progress_done, sr.progress_total, sr.progress_meta, sr.stats,
                       sr.schedule_id, sr.triggered_by, sr.started_at::text,
-                      sr.completed_at::text, sr.created_at::text
+                      sr.completed_at::text, sr.created_at::text,
+                      sr.resume_cursor, sr.parent_sync_id::text
                FROM sync_runs sr
                JOIN sources s ON s.id = sr.source_id
                WHERE sr.id=$1::uuid AND s.user_sub = $2""",
@@ -103,7 +106,7 @@ async def get_sync(sync_id: str, user_sub: str = Depends(require_user_sub)):
         )
     if not row:
         raise NotFoundError("sync not found")
-    return normalize_row_json_fields(row, "config_snapshot", "progress_meta", "stats")
+    return normalize_row_json_fields(row, "config_snapshot", "progress_meta", "stats", "resume_cursor")
 
 
 @router.get("/{sync_id}/issues")

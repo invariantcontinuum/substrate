@@ -1,6 +1,16 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SnapshotRowSummary } from "./SnapshotRowSummary";
+
+vi.mock("react-oidc-context", () => ({
+  useAuth: () => ({ user: { access_token: "test" } }),
+}));
+
+function renderWithProviders(ui: React.ReactElement) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>);
+}
 
 const BASE_RUN = {
   id: "r1",
@@ -25,7 +35,7 @@ const BASE_RUN = {
 
 describe("SnapshotRowSummary V3", () => {
   it("renders node, edge, community, modularity pills", () => {
-    render(
+    renderWithProviders(
       <SnapshotRowSummary
         run={BASE_RUN as never}
         isSelected={false}
@@ -42,7 +52,7 @@ describe("SnapshotRowSummary V3", () => {
 
   it("shows 'stats unavailable' when schema_version is 0", () => {
     const r = { ...BASE_RUN, stats: { schema_version: 0 } };
-    render(
+    renderWithProviders(
       <SnapshotRowSummary
         run={r as never}
         isSelected={false}
@@ -55,7 +65,7 @@ describe("SnapshotRowSummary V3", () => {
   });
 
   it("sparkline renders 6 bars for 6 community sizes", () => {
-    const { container } = render(
+    const { container } = renderWithProviders(
       <SnapshotRowSummary
         run={BASE_RUN as never}
         isSelected={false}

@@ -80,6 +80,13 @@ export interface SyncProgressMeta {
   nodes_by_type?: Record<string, number>;
 }
 
+export interface ResumeCursor {
+  commit_sha: string;
+  tree_total_paths?: number;
+  processed_paths: string[];
+  last_batch_finished_at?: string;
+}
+
 export interface SyncRun {
   id: string;
   source_id: string;
@@ -94,6 +101,8 @@ export interface SyncRun {
   started_at: string | null;
   completed_at: string | null;
   created_at: string;
+  resume_cursor: ResumeCursor | null;
+  parent_sync_id: string | null;
 }
 
 export function useSyncs() {

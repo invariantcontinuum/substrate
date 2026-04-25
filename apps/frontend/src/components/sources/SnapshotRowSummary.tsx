@@ -1,6 +1,7 @@
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, RotateCw } from "lucide-react";
 import type { SyncRun } from "@/hooks/useSyncs";
 import { useSyncSetStore } from "@/stores/syncSet";
+import { useResyncSnapshot } from "@/hooks/useResyncSnapshot";
 import { StatPill } from "@/components/common/StatPill";
 import { CommunitySparkline } from "@/components/common/CommunitySparkline";
 
@@ -47,6 +48,10 @@ const numFmt = new Intl.NumberFormat("en-US");
 export function SnapshotRowSummary({ run, isSelected, isExpanded, onToggleSelect, onToggleExpand }: Props) {
   const isRunning = run.status === "running";
   const isLoaded = useSyncSetStore((s) => s.syncIds.includes(run.id));
+  const resync = useResyncSnapshot();
+  const eligibleForResync =
+    (run.status === "failed" || run.status === "cancelled") &&
+    run.resume_cursor != null;
   const meta = run.progress_meta;
   const phase = meta?.phase ?? "";
   const phaseHasBar = PROGRESS_BAR_PHASES.has(phase);
@@ -77,6 +82,18 @@ export function SnapshotRowSummary({ run, isSelected, isExpanded, onToggleSelect
         {isLoaded && <span className="loaded-dot" aria-label="loaded">●</span>}
         <span className="time">{formatRelative(run.completed_at ?? run.created_at)}</span>
         {stats.timing?.total_ms && <span className="duration">· {formatDuration(stats.timing.total_ms)}</span>}
+        {eligibleForResync && (
+          <button
+            type="button"
+            className="snapshot-row-resync"
+            title="Resume sync from last successful batch"
+            onClick={(e) => { e.stopPropagation(); resync.mutate(run.id); }}
+            disabled={resync.isPending}
+            aria-label="Resume sync"
+          >
+            <RotateCw size={12} />
+          </button>
+        )}
         <button className="expand-caret" onClick={onToggleExpand} aria-expanded={isExpanded} aria-label="Expand details">
           {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
         </button>
