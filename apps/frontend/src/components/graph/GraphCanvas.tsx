@@ -13,8 +13,8 @@ const MAX_LABEL_CHARS = 32;
 // NODE_W/NODE_H mirror the base `node` selector's width/height in the
 // cytoscape stylesheet. If you bump those there, bump these here too —
 // the grid layout spaces cells with these dimensions.
-const NODE_W = 200;
-const NODE_H = 46;
+const NODE_W = 220;
+const NODE_H = 52;
 const GAP_X = 20;
 const GAP_Y = 12;
 const CELL_W = NODE_W + GAP_X;
@@ -206,21 +206,21 @@ function buildCyStylesheet(theme: GraphTheme) {
         "font-size":            ((ele: cytoscape.NodeSingular) => {
           const raw = (ele.data("label") as string | undefined) ?? "";
           const len = raw.length;
-          if (len <= 14) return 11;
-          if (len <= 22) return 10;
-          if (len <= 32) return 9;
-          return 8;
+          if (len <= 14) return 13;
+          if (len <= 22) return 12;
+          if (len <= 32) return 11;
+          return 10;
         }) as any,
         "font-family":          '"Manrope", -apple-system, BlinkMacSystemFont, sans-serif',
         "font-weight":          600,
         "text-valign":          "center",
         "text-halign":          "center",
         "text-wrap":            "wrap",
-        "text-max-width":       "184px",
+        "text-max-width":       "204px",
         "text-overflow-wrap":   "anywhere",
         "line-height":          1.1,
-        width:                  200,
-        height:                 46,
+        width:                  220,
+        height:                 52,
         shape:                  "roundrectangle",
         padding:                "8px" as any,
         "z-index":              10,
