@@ -221,14 +221,23 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
             filepath = os.path.join(tree.root_dir, node.id)
             content = _read_text_safe(filepath)
             language = _detect_language(node.id)
-            line_count = (
-                content.count("\n") + (0 if content.endswith("\n") else 1)
-                if content else 0
-            )
             size_bytes = len(content.encode("utf-8", errors="replace")) if content else 0
             content_hash = hashlib.sha256(content.encode("utf-8", errors="replace")).hexdigest() if content else None
             summary = file_summary_text(node.id, node.type, language, content)
-            chunks = chunk_file(node.id, content, settings.chunk_size, settings.chunk_overlap) if content.strip() else []
+            if content.strip():
+                chunk_result = chunk_file(
+                    node.id, content,
+                    settings.chunk_size, settings.chunk_overlap,
+                    return_metadata=True,
+                )
+                chunks = chunk_result["chunks"]
+                line_count = chunk_result["total_lines"]
+            else:
+                chunks = []
+                line_count = (
+                    content.count("\n") + (0 if content.endswith("\n") else 1)
+                    if content else 0
+                )
             file_info_list.append({
                 "node": node, "content": content, "language": language,
                 "line_count": line_count, "size_bytes": size_bytes,

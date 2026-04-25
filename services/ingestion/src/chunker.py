@@ -21,13 +21,19 @@ def chunk_file(
     content: str,
     chunk_size: int | None = None,
     overlap: int | None = None,
-) -> list[Chunk]:
+    *,
+    return_metadata: bool = False,
+) -> list[Chunk] | dict:
     budget = chunk_size if chunk_size is not None else settings.chunk_size
     over = overlap if overlap is not None else settings.chunk_overlap
-    chunks = chunk_content(path=path, content=content, budget=budget, overlap=over)
+    result = chunk_content(
+        path=path, content=content, budget=budget, overlap=over,
+        return_metadata=return_metadata,
+    )
+    chunks = result["chunks"] if return_metadata else result
     logger.debug("file_chunked", path=path, chunks_produced=len(chunks),
                  input_bytes=len(content))
-    return chunks
+    return result
 
 
 def file_summary_text(
