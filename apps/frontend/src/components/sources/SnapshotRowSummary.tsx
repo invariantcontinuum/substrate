@@ -1,9 +1,8 @@
-import { ChevronDown, ChevronRight, RotateCw } from "lucide-react";
 import type { SyncRun } from "@/hooks/useSyncs";
 import { useSyncSetStore } from "@/stores/syncSet";
-import { useResyncSnapshot } from "@/hooks/useResyncSnapshot";
 import { StatPill } from "@/components/common/StatPill";
 import { CommunitySparkline } from "@/components/common/CommunitySparkline";
+import { SnapshotActionStrip } from "./SnapshotActionStrip";
 
 const PROGRESS_BAR_PHASES = new Set(["discovering", "parsing", "preparing", "graphing"]);
 
@@ -20,10 +19,7 @@ const PHASE_LABEL: Record<string, string> = {
 
 interface Props {
   run: SyncRun;
-  isSelected?: boolean;
   isExpanded: boolean;
-  onToggleSelect?: () => void;
-  onToggleExpand: () => void;
 }
 
 function formatRelative(iso: string | null): string {
@@ -45,13 +41,9 @@ function formatDuration(ms: number | undefined): string {
 
 const numFmt = new Intl.NumberFormat("en-US");
 
-export function SnapshotRowSummary({ run, isSelected, isExpanded, onToggleSelect, onToggleExpand }: Props) {
+export function SnapshotRowSummary({ run, isExpanded }: Props) {
   const isRunning = run.status === "running";
   const isLoaded = useSyncSetStore((s) => s.syncIds.includes(run.id));
-  const resync = useResyncSnapshot();
-  const eligibleForResync =
-    (run.status === "failed" || run.status === "cancelled") &&
-    run.resume_cursor != null;
   const meta = run.progress_meta;
   const phase = meta?.phase ?? "";
   const phaseHasBar = PROGRESS_BAR_PHASES.has(phase);
@@ -71,34 +63,12 @@ export function SnapshotRowSummary({ run, isSelected, isExpanded, onToggleSelect
   return (
     <div className={`snapshot-card ${isExpanded ? "is-expanded" : ""}`} data-status={run.status}>
       <div className="snapshot-card-identity">
-        {onToggleSelect && (
-          <input
-            type="checkbox"
-            checked={!!isSelected}
-            onChange={(e) => { e.stopPropagation(); onToggleSelect(); }}
-            onClick={(e) => e.stopPropagation()}
-            aria-label={`Select snapshot ${run.id.slice(0, 8)}`}
-          />
-        )}
         <span className={`chip chip-${run.status}`}>{run.status}</span>
         {isLoaded && <span className="loaded-dot" aria-label="loaded">●</span>}
         <span className="time">{formatRelative(run.completed_at ?? run.created_at)}</span>
         {stats.timing?.total_ms && <span className="duration">· {formatDuration(stats.timing.total_ms)}</span>}
-        {eligibleForResync && (
-          <button
-            type="button"
-            className="snapshot-row-resync"
-            title="Resume sync from last successful batch"
-            onClick={(e) => { e.stopPropagation(); resync.mutate(run.id); }}
-            disabled={resync.isPending}
-            aria-label="Resume sync"
-          >
-            <RotateCw size={12} />
-          </button>
-        )}
-        <button className="expand-caret" onClick={onToggleExpand} aria-expanded={isExpanded} aria-label="Expand details">
-          {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-        </button>
+        <div className="snapshot-card-spacer" />
+        <SnapshotActionStrip run={run} />
       </div>
 
       {isRunning ? (

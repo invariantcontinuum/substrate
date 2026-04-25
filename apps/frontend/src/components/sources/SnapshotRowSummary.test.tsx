@@ -12,6 +12,29 @@ vi.mock("@/hooks/useResyncSnapshot", () => ({
   useResyncSnapshot: () => ({ mutate: resyncMutate, isPending: false }),
 }));
 
+const cleanSyncMock = vi.fn();
+const purgeSyncMock = vi.fn();
+vi.mock("@/hooks/useSyncs", async () => {
+  const actual = await vi.importActual<typeof import("@/hooks/useSyncs")>(
+    "@/hooks/useSyncs",
+  );
+  return {
+    ...actual,
+    useSyncs: () => ({
+      activeSyncs: [],
+      startSync: vi.fn(),
+      cancelSync: vi.fn(),
+      cleanSync: cleanSyncMock,
+      purgeSync: purgeSyncMock,
+    }),
+  };
+});
+
+const exportSnapMock = vi.fn().mockResolvedValue(undefined);
+vi.mock("@/hooks/useExportSnapshot", () => ({
+  useExportSnapshot: () => exportSnapMock,
+}));
+
 function renderWithProviders(ui: React.ReactElement) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>);
@@ -36,18 +59,13 @@ const BASE_RUN = {
   schedule_id: null,
   triggered_by: "user",
   started_at: null,
+  resume_cursor: null,
 };
 
 describe("SnapshotRowSummary V3", () => {
   it("renders node, edge, community, modularity pills", () => {
     renderWithProviders(
-      <SnapshotRowSummary
-        run={BASE_RUN as never}
-        isSelected={false}
-        isExpanded={false}
-        onToggleSelect={vi.fn()}
-        onToggleExpand={vi.fn()}
-      />,
+      <SnapshotRowSummary run={BASE_RUN as never} isExpanded={false} />,
     );
     expect(screen.getByText(/12,430/)).toBeInTheDocument();
     expect(screen.getByText(/38,102/)).toBeInTheDocument();
@@ -58,39 +76,27 @@ describe("SnapshotRowSummary V3", () => {
   it("shows 'stats unavailable' when schema_version is 0", () => {
     const r = { ...BASE_RUN, stats: { schema_version: 0 } };
     renderWithProviders(
-      <SnapshotRowSummary
-        run={r as never}
-        isSelected={false}
-        isExpanded={false}
-        onToggleSelect={vi.fn()}
-        onToggleExpand={vi.fn()}
-      />,
+      <SnapshotRowSummary run={r as never} isExpanded={false} />,
     );
     expect(screen.getByText(/unavailable/i)).toBeInTheDocument();
   });
 
   it("sparkline renders 6 bars for 6 community sizes", () => {
     const { container } = renderWithProviders(
-      <SnapshotRowSummary
-        run={BASE_RUN as never}
-        isSelected={false}
-        isExpanded={false}
-        onToggleSelect={vi.fn()}
-        onToggleExpand={vi.fn()}
-      />,
+      <SnapshotRowSummary run={BASE_RUN as never} isExpanded={false} />,
     );
     expect(container.querySelectorAll(".sparkline-bar").length).toBe(6);
   });
 });
 
-describe("SnapshotRowSummary resync icon", () => {
+describe("SnapshotActionStrip resync button (via SnapshotRowSummary)", () => {
   const RESUMABLE_CURSOR = {
     pinned_commit: "abc123",
     completed_files: ["a.py", "b.py"],
   };
 
   it("hides resync button on completed runs (cursor irrelevant)", () => {
-    const { container } = renderWithProviders(
+    renderWithProviders(
       <SnapshotRowSummary
         run={
           {
@@ -100,27 +106,23 @@ describe("SnapshotRowSummary resync icon", () => {
           } as never
         }
         isExpanded={false}
-        onToggleExpand={vi.fn()}
       />,
     );
-    expect(container.querySelector(".snapshot-row-resync")).toBeNull();
+    expect(screen.queryByRole("button", { name: /resume sync/i })).toBeNull();
   });
 
   it("hides resync button on failed runs without resume_cursor", () => {
-    const { container } = renderWithProviders(
+    renderWithProviders(
       <SnapshotRowSummary
-        run={
-          { ...BASE_RUN, status: "failed", resume_cursor: null } as never
-        }
+        run={{ ...BASE_RUN, status: "failed", resume_cursor: null } as never}
         isExpanded={false}
-        onToggleExpand={vi.fn()}
       />,
     );
-    expect(container.querySelector(".snapshot-row-resync")).toBeNull();
+    expect(screen.queryByRole("button", { name: /resume sync/i })).toBeNull();
   });
 
   it("shows resync button on failed runs with resume_cursor", () => {
-    const { container } = renderWithProviders(
+    renderWithProviders(
       <SnapshotRowSummary
         run={
           {
@@ -130,14 +132,13 @@ describe("SnapshotRowSummary resync icon", () => {
           } as never
         }
         isExpanded={false}
-        onToggleExpand={vi.fn()}
       />,
     );
-    expect(container.querySelector(".snapshot-row-resync")).not.toBeNull();
+    expect(screen.getByRole("button", { name: /resume sync/i })).toBeInTheDocument();
   });
 
   it("shows resync button on cancelled runs with resume_cursor", () => {
-    const { container } = renderWithProviders(
+    renderWithProviders(
       <SnapshotRowSummary
         run={
           {
@@ -147,16 +148,14 @@ describe("SnapshotRowSummary resync icon", () => {
           } as never
         }
         isExpanded={false}
-        onToggleExpand={vi.fn()}
       />,
     );
-    expect(container.querySelector(".snapshot-row-resync")).not.toBeNull();
+    expect(screen.getByRole("button", { name: /resume sync/i })).toBeInTheDocument();
   });
 
-  it("clicking resync fires mutate with sync id and does not toggle expand", () => {
+  it("clicking resync fires mutate with sync id", () => {
     resyncMutate.mockClear();
-    const onToggleExpand = vi.fn();
-    const { container } = renderWithProviders(
+    renderWithProviders(
       <SnapshotRowSummary
         run={
           {
@@ -166,13 +165,9 @@ describe("SnapshotRowSummary resync icon", () => {
           } as never
         }
         isExpanded={false}
-        onToggleExpand={onToggleExpand}
       />,
     );
-    const btn = container.querySelector(".snapshot-row-resync");
-    expect(btn).not.toBeNull();
-    fireEvent.click(btn!);
+    fireEvent.click(screen.getByRole("button", { name: /resume sync/i }));
     expect(resyncMutate).toHaveBeenCalledWith(BASE_RUN.id);
-    expect(onToggleExpand).not.toHaveBeenCalled();
   });
 });

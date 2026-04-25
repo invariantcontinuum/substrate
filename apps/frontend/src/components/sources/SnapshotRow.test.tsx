@@ -10,6 +10,27 @@ vi.mock("react-oidc-context", () => ({
 vi.mock("@/hooks/useSyncIssues", () => ({
   useSyncIssues: () => ({ issues: [], isLoading: false }),
 }));
+vi.mock("@/hooks/useResyncSnapshot", () => ({
+  useResyncSnapshot: () => ({ mutate: vi.fn(), isPending: false }),
+}));
+vi.mock("@/hooks/useExportSnapshot", () => ({
+  useExportSnapshot: () => vi.fn().mockResolvedValue(undefined),
+}));
+vi.mock("@/hooks/useSyncs", async () => {
+  const actual = await vi.importActual<typeof import("@/hooks/useSyncs")>(
+    "@/hooks/useSyncs",
+  );
+  return {
+    ...actual,
+    useSyncs: () => ({
+      activeSyncs: [],
+      startSync: vi.fn(),
+      cancelSync: vi.fn(),
+      cleanSync: vi.fn(),
+      purgeSync: vi.fn(),
+    }),
+  };
+});
 
 function makeRun(overrides = {}) {
   return {
@@ -18,6 +39,7 @@ function makeRun(overrides = {}) {
     progress_done: 0, progress_total: 0, progress_meta: null, stats: null,
     triggered_by: "user", started_at: null,
     completed_at: "2026-04-15T07:00:00Z", created_at: "2026-04-15T07:00:00Z",
+    resume_cursor: null,
     ...overrides,
   };
 }
@@ -28,18 +50,18 @@ function renderWithClient(ui: React.ReactElement) {
 }
 
 describe("SnapshotRow", () => {
-  it("toggles expansion on caret click", () => {
+  it("toggles expansion when the row body is clicked", () => {
     const onToggleExpand = vi.fn();
-    renderWithClient(
+    const { container } = renderWithClient(
       <SnapshotRow
-        run={makeRun() as any}
-        isSelected={false}
+        run={makeRun() as never}
         isExpanded={false}
-        onToggleSelect={() => {}}
         onToggleExpand={onToggleExpand}
-      />
+      />,
     );
-    fireEvent.click(screen.getByRole("button", { name: /Expand details/i }));
+    const row = container.querySelector(".snapshot-row");
+    expect(row).not.toBeNull();
+    fireEvent.click(row!);
     expect(onToggleExpand).toHaveBeenCalled();
   });
 
@@ -55,12 +77,10 @@ describe("SnapshotRow", () => {
             counts: { node_count: 12480, edge_count: 34209, files_indexed: 3240 },
             timing: { total_ms: 300000, phase_ms: {} },
           },
-        }) as any}
-        isSelected={false}
+        }) as never}
         isExpanded={true}
-        onToggleSelect={() => {}}
         onToggleExpand={() => {}}
-      />
+      />,
     );
     expect(screen.getByText(/12,480/)).toBeInTheDocument();
     expect(screen.getByText(/34,209/)).toBeInTheDocument();
@@ -76,12 +96,10 @@ describe("SnapshotRow", () => {
           progress_done: 42,
           progress_total: 120,
           progress_meta: { phase: "parsing" },
-        }) as any}
-        isSelected={false}
+        }) as never}
         isExpanded={false}
-        onToggleSelect={() => {}}
         onToggleExpand={() => {}}
-      />
+      />,
     );
     expect(screen.getByText(/42 \/ 120/)).toBeInTheDocument();
   });
@@ -94,12 +112,10 @@ describe("SnapshotRow", () => {
           progress_done: 120,
           progress_total: 120,
           progress_meta: { phase: "embedding_chunks" },
-        }) as any}
-        isSelected={false}
+        }) as never}
         isExpanded={false}
-        onToggleSelect={() => {}}
         onToggleExpand={() => {}}
-      />
+      />,
     );
     expect(screen.getByText(/120 \/ 120/)).toBeInTheDocument();
   });
