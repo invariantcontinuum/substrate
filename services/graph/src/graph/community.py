@@ -33,7 +33,7 @@ import httpx
 import networkx as nx
 import structlog
 from graspologic.partition import hierarchical_leiden
-from substrate_common.sse import Event, SseBus
+from substrate_common.sse import Event, safe_publish
 
 from src.config import settings
 from src.graph import snapshot_query, store
@@ -89,23 +89,16 @@ async def _emit_compute_event(
     still sees the compute progress. Further sync_ids are carried in the
     payload.
     """
-    try:
-        bus = SseBus(store.get_pool())
-        await bus.publish(Event(
-            type="leiden.compute",
-            sync_id=uuid.UUID(sync_ids[0]) if sync_ids else None,
-            user_sub=user_sub,
-            payload={
-                "cache_key": cache_key,
-                "phase": phase,
-                "sync_ids": sync_ids,
-            },
-        ))
-    except Exception as exc:  # noqa: BLE001 — liveness side channel is non-fatal
-        logger.warning(
-            "leiden_compute_sse_emit_failed",
-            phase=phase, cache_key=cache_key, error=str(exc),
-        )
+    await safe_publish(Event(
+        type="leiden.compute",
+        sync_id=uuid.UUID(sync_ids[0]) if sync_ids else None,
+        user_sub=user_sub,
+        payload={
+            "cache_key": cache_key,
+            "phase": phase,
+            "sync_ids": sync_ids,
+        },
+    ))
 
 
 async def get_or_compute(

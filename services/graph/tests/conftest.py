@@ -53,9 +53,16 @@ async def app_pool():
     """Ensure ``store._pool`` is connected once per test session. The ask
     router and pipeline helpers all reach into ``store.get_pool()`` rather
     than receiving a pool argument, so tests must drive the same global
-    asyncpg pool the running service would."""
+    asyncpg pool the running service would.
+
+    Also initialises the shared ``substrate_common.sse`` bus singleton so
+    pipeline producers using ``safe_publish`` find a real bus instead of
+    raising ``SSE bus not initialized``."""
+    from substrate_common import init_bus
+
     if store._pool is None:
         await store.connect()
+    init_bus(store.get_pool())
     yield
 
 

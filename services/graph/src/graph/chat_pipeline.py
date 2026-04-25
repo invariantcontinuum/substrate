@@ -5,6 +5,7 @@ singleton). The HTTP handler returns 202 immediately and calls stream_turn
 via asyncio.create_task."""
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 from typing import Any, AsyncIterator
@@ -15,7 +16,7 @@ import httpx
 import structlog
 
 from substrate_common import ValidationError
-from substrate_common.sse import Event, SseBus
+from substrate_common.sse import Event, safe_publish
 
 from src.api.routes import _embed_query
 from src.config import settings
@@ -286,9 +287,8 @@ async def stream_turn(
     legacy fire-and-forget path."""
     from src.graph import chat_store
 
-    # Initialise bus and assistant_id BEFORE the try so the except block can
+    # Initialise assistant_id BEFORE the try so the except block can
     # always publish CHAT_TURN_FAILED, even when the prompt-build raises.
-    bus = SseBus(store.get_pool())
     if assistant_id is None:
         assistant_id = uuid4()
 
@@ -319,7 +319,7 @@ async def stream_turn(
                 sync_ids=sync_ids,
             )
 
-        await bus.publish(Event(
+        await safe_publish(Event(
             type=CHAT_TURN_STARTED,
             user_sub=user_sub,
             payload={
@@ -332,7 +332,7 @@ async def stream_turn(
         buffer: list[str] = []
         async for delta in _stream_dense_llm(messages):
             buffer.append(delta)
-            await bus.publish(Event(
+            await safe_publish(Event(
                 type=CHAT_TURN_CHUNK,
                 user_sub=user_sub,
                 payload={
@@ -355,7 +355,7 @@ async def stream_turn(
         )
         await chat_store.touch_thread(thread_id, maybe_title=user_content.strip()[:60])
 
-        await bus.publish(Event(
+        await safe_publish(Event(
             type=CHAT_TURN_COMPLETED,
             user_sub=user_sub,
             payload={
@@ -374,7 +374,7 @@ async def stream_turn(
         # then re-raise so the task is properly marked cancelled.
         logger.info("chat_stream_turn_cancelled", thread_id=str(thread_id))
         try:
-            await bus.publish(Event(
+            await safe_publish(Event(
                 type=CHAT_TURN_FAILED,
                 user_sub=user_sub,
                 payload={
@@ -388,7 +388,7 @@ async def stream_turn(
         raise
     except Exception as exc:  # noqa: BLE001 — user-visible error boundary
         logger.exception("chat_stream_turn_failed", thread_id=str(thread_id))
-        await bus.publish(Event(
+        await safe_publish(Event(
             type=CHAT_TURN_FAILED,
             user_sub=user_sub,
             payload={

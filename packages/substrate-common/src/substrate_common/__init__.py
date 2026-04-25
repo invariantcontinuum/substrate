@@ -16,7 +16,14 @@ from substrate_common.errors import (
 from substrate_common.logging import configure_logging
 from substrate_common.middleware import ExceptionLoggingMiddleware, RequestIdMiddleware
 from substrate_common.schema import EdgeAffected, GraphEvent, NodeAffected
-from substrate_common.sse import Event, SseBus, StreamDropped
+from substrate_common.sse import (
+    Event,
+    SseBus,
+    StreamDropped,
+    get_bus,
+    init_bus,
+    safe_publish,
+)
 
 __version__ = "0.1.0"
 
@@ -41,6 +48,9 @@ __all__ = [
     "asyncpg_dsn",
     "configure_logging",
     "create_pool",
+    "get_bus",
+    "init_bus",
     "load_settings",
     "register_handlers",
+    "safe_publish",
 ]

@@ -221,30 +221,32 @@ async def test_stream_turn_event_order_and_persistence(
 # ---------------------------------------------------------------------------
 
 
-class _FakeBus:
-    """Drop-in SseBus that records published events without touching the DB."""
+class _CapturedEvents:
+    """Helper exposing a `.events` list captured from chat_pipeline.safe_publish.
 
-    def __init__(self, _pool=None):
+    The legacy fixture wrapped `SseBus(pool)` and inspected its `.events`
+    attribute, but chat_pipeline now publishes via the module-level
+    `safe_publish` helper from substrate_common. This adapter keeps the
+    test surface (`bus.events`) unchanged."""
+
+    def __init__(self) -> None:
         self.events: list[Event] = []
-
-    async def publish(self, event: Event) -> None:
-        self.events.append(event)
 
 
 @pytest.fixture()
 def fake_bus_class(monkeypatch):
-    """Replaces SseBus inside chat_pipeline with _FakeBus and returns the
-    most-recently-constructed instance via a one-element list so tests can
-    inspect emitted events after stream_turn returns."""
-    instances: list[_FakeBus] = []
+    """Replaces ``chat_pipeline.safe_publish`` with a recording stub so
+    tests can inspect emitted events after ``stream_turn`` returns. The
+    returned list contains a single ``_CapturedEvents`` instance for
+    backwards-compatibility with the prior `fake_bus_class[0].events`
+    assertion shape."""
+    captured = _CapturedEvents()
 
-    class _CapturingFakeBus(_FakeBus):
-        def __init__(self, pool=None):
-            super().__init__(pool)
-            instances.append(self)
+    async def _recording_publish(event: Event) -> None:
+        captured.events.append(event)
 
-    monkeypatch.setattr(chat_pipeline, "SseBus", _CapturingFakeBus)
-    return instances
+    monkeypatch.setattr(chat_pipeline, "safe_publish", _recording_publish)
+    return [captured]
 
 
 def _patch_no_db_helpers(monkeypatch):

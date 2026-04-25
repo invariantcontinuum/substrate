@@ -47,6 +47,49 @@ class Event(BaseModel):
     )
 
 
+# ---------------------------------------------------------------------------
+# Process-wide bus singleton + safe-publish helper
+#
+# Both ingestion and graph used to maintain their own copy of this exact
+# pattern (init at startup, get accessor, swallow publish errors). Hoisted
+# here so producers in any service share the same instance and the same
+# never-break-the-caller publish semantics. Producers call `init_bus(pool)`
+# during their FastAPI lifespan startup and `safe_publish(event)` inline.
+# ---------------------------------------------------------------------------
+
+_BUS: SseBus | None = None
+
+
+def init_bus(pool: asyncpg.Pool) -> None:
+    """Bind a process-wide ``SseBus`` to the supplied pool. Idempotent —
+    a second call replaces the binding (useful for tests that reset
+    state between cases)."""
+    global _BUS
+    _BUS = SseBus(pool)
+    _log.info("sse_bus_initialized")
+
+
+def get_bus() -> SseBus:
+    """Return the bus initialized by ``init_bus``. Raises if startup
+    forgot to wire it. Producers should never `SseBus(pool)` ad-hoc;
+    that path drops the safe-publish error handling."""
+    if _BUS is None:
+        raise RuntimeError("SSE bus not initialized — call init_bus(pool) at startup")
+    return _BUS
+
+
+async def safe_publish(event: Event) -> None:
+    """Fire-and-forget publish. SSE is a side channel — failures here
+    must never break the producer (sync writes, leiden compute, chat
+    streaming). Errors are logged at WARN."""
+    try:
+        await get_bus().publish(event)
+    except Exception as exc:  # noqa: BLE001 — SSE side channel must not break producers
+        _log.warning(
+            "sse_publish_failed", event_type=event.type, error=str(exc),
+        )
+
+
 class SseBus:
     """Postgres LISTEN/NOTIFY event bus backing SSE server-push."""
 

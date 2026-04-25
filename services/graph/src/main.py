@@ -8,6 +8,7 @@ from substrate_common import (
     ExceptionLoggingMiddleware,
     RequestIdMiddleware,
     configure_logging,
+    init_bus,
     register_handlers,
 )
 
@@ -44,6 +45,7 @@ logger = structlog.get_logger()
 async def lifespan(app: FastAPI):
     await store.connect()
     pool = store.get_pool()
+    init_bus(pool)
     async with pool.acquire() as conn:
         await check_embedding_dim(conn, expected_dim=settings.embedding_dim)
     await start_sse_retention_loop()

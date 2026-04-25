@@ -1,46 +1,25 @@
 """
-Thin wrapper around substrate-common's SSE bus, bound to ingestion's
-existing asyncpg pool via graph_writer.
+Typed publish_* helpers around the shared substrate_common SSE bus.
 
-Producers in this service call publish_* helpers after DB writes.
-SSE publish failures are logged and swallowed — the side channel must
-never break a sync.
+The bus singleton + safe_publish semantics live in `substrate_common.sse`.
+This module just provides ingestion-specific event payload shapes.
+Producers call `init_bus(graph_writer.get_pool())` at startup, then use
+the helpers below; the helpers swallow publish errors so a producer
+write path never breaks because the side channel hiccupped.
 """
 from __future__ import annotations
 
 import uuid
 from typing import Any, Optional
 
-import structlog
-from substrate_common.sse import Event, SseBus
+from substrate_common.sse import Event, init_bus as _init_shared_bus, safe_publish
 
 from src import graph_writer
 
-_log = structlog.get_logger()
-_bus: SseBus | None = None
-
 
 def init_bus() -> None:
-    """Bind SSE bus to the already-connected graph_writer pool."""
-    global _bus
-    pool = graph_writer.get_pool()
-    _bus = SseBus(pool)
-    _log.info("sse_bus_initialized")
-
-
-def bus() -> SseBus:
-    if _bus is None:
-        raise RuntimeError("SSE bus not initialized — call init_bus() at startup")
-    return _bus
-
-
-async def _safe_publish(event: Event) -> None:
-    try:
-        await bus().publish(event)
-    except Exception as e:  # noqa: BLE001 — SSE side channel must not break producers
-        _log.warning(
-            "sse_publish_failed", event_type=event.type, error=str(e)
-        )
+    """Bind the shared SSE bus to ingestion's graph_writer pool."""
+    _init_shared_bus(graph_writer.get_pool())
 
 
 async def publish_sync_lifecycle(
@@ -59,7 +38,7 @@ async def publish_sync_lifecycle(
     )
     if source_id is not None:
         event.source_id = uuid.UUID(str(source_id))
-    await _safe_publish(event)
+    await safe_publish(event)
 
 
 async def publish_sync_progress(
@@ -82,7 +61,4 @@ async def publish_sync_progress(
     )
     if source_id is not None:
         event.source_id = uuid.UUID(str(source_id))
-    await _safe_publish(event)
-
-
-
+    await safe_publish(event)
