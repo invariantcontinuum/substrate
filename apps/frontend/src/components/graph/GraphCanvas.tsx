@@ -201,19 +201,20 @@ function buildCyStylesheet(theme: GraphTheme) {
         "text-outline-opacity": 1,
         // Auto-fit the label inside the node box: wrap long filenames onto
         // two lines and shrink the font so it never spills over the border.
-        // The buckets below match the visual ladder — short names stay at
-        // the base size, longer ones down-shift in two steps before we
-        // break to a second line.
+        // Sizes scale with label length so short names use the full
+        // node width and stay easy to read at zoom-out distances. The
+        // 220×52 node box at text-max-width: 204px fits these comfortably.
         "font-size":            ((ele: cytoscape.NodeSingular) => {
           const raw = (ele.data("label") as string | undefined) ?? "";
           const len = raw.length;
-          if (len <= 14) return 13;
-          if (len <= 22) return 12;
-          if (len <= 32) return 11;
-          return 10;
+          if (len <= 8)  return 18;
+          if (len <= 14) return 16;
+          if (len <= 22) return 14;
+          if (len <= 32) return 12;
+          return 11;
         }) as any,
         "font-family":          '"Manrope", -apple-system, BlinkMacSystemFont, sans-serif',
-        "font-weight":          600,
+        "font-weight":          500,
         "text-valign":          "center",
         "text-halign":          "center",
         "text-wrap":            "wrap",
@@ -315,7 +316,7 @@ function buildCyStylesheet(theme: GraphTheme) {
     { selector: "node.spotlight-focus",
       style: { opacity: 1, "text-opacity": 1 } },
     { selector: "node.spotlight-focus:childless",
-      style: { "font-size": 13, "border-width": 3, "border-color": t.spotlightFocusBorder, "z-index": 20 } },
+      style: { "font-size": 18, "border-width": 3, "border-color": t.spotlightFocusBorder, "z-index": 20 } },
     {
       selector: "edge.spotlight-focus",
       style: {

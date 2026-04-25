@@ -2020,14 +2020,22 @@ html {
  * vertical space. Legend shrinks, moves above the sheet, and hides the
  * "count" column to save horizontal room. */
 @media (max-width: 640px) {
+  /* Phone: toolbar goes bottom-right so it doesn't fight the legend
+   * which now lives as a horizontal scroll bar at the top. When the
+   * bottom-sheet detail panel opens (`data-spotlight-active="true"`)
+   * the toolbar lifts above it; otherwise it sits near the canvas
+   * floor. */
   .graph-toolbar {
-    top: var(--space-2);
+    top: auto;
     right: var(--space-2);
-    bottom: auto;
+    bottom: calc(var(--space-2) + env(safe-area-inset-bottom));
     left: auto;
     flex-direction: row;
     padding: 3px;
     gap: 2px;
+  }
+  .graph-canvas-container[data-spotlight-active="true"] ~ .graph-toolbar {
+    bottom: calc(55vh + env(safe-area-inset-bottom) + var(--space-2));
   }
   .graph-toolbar button {
     width: 28px;

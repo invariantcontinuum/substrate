@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 
 export interface LeidenPrefs {
   resolution: number;
@@ -46,26 +47,49 @@ export const DEFAULT_LEIDEN: LeidenPrefs = {
   seed: 42,
 };
 
-export const usePrefsStore = create<PrefsState>((set) => ({
-  leiden: { ...DEFAULT_LEIDEN },
-  layout: "force-directed",
-  theme: "system",
-  telemetry: true,
-  schema_version: 1,
-  hydrated: false,
+/**
+ * `persist` keeps theme/layout/telemetry/leiden in localStorage so the
+ * preferred theme paints on first reload before the async server
+ * hydrate completes — no flash-of-default-palette. The `replace` action
+ * (called after the server fetches the canonical prefs) reconciles
+ * server values into the local copy. `hydrated` is intentionally NOT
+ * persisted — every reload should re-fetch from the server so the
+ * local copy doesn't drift behind device-cross-edits.
+ */
+export const usePrefsStore = create<PrefsState>()(
+  persist(
+    (set) => ({
+      leiden: { ...DEFAULT_LEIDEN },
+      layout: "force-directed",
+      theme: "system",
+      telemetry: true,
+      schema_version: 1,
+      hydrated: false,
 
-  setLeiden: (patch) =>
-    set((s) => ({ leiden: { ...s.leiden, ...patch } })),
-  setLayout: (layout) => set({ layout }),
-  setTheme: (theme) => set({ theme }),
-  setTelemetry: (telemetry) => set({ telemetry }),
-  replace: (next) =>
-    set((s) => ({
-      leiden: next.leiden ? { ...s.leiden, ...next.leiden } : s.leiden,
-      layout: next.layout ?? s.layout,
-      theme: next.theme ?? s.theme,
-      telemetry: next.telemetry ?? s.telemetry,
-      schema_version: next.schema_version ?? s.schema_version,
-      hydrated: true,
-    })),
-}));
+      setLeiden: (patch) =>
+        set((s) => ({ leiden: { ...s.leiden, ...patch } })),
+      setLayout: (layout) => set({ layout }),
+      setTheme: (theme) => set({ theme }),
+      setTelemetry: (telemetry) => set({ telemetry }),
+      replace: (next) =>
+        set((s) => ({
+          leiden: next.leiden ? { ...s.leiden, ...next.leiden } : s.leiden,
+          layout: next.layout ?? s.layout,
+          theme: next.theme ?? s.theme,
+          telemetry: next.telemetry ?? s.telemetry,
+          schema_version: next.schema_version ?? s.schema_version,
+          hydrated: true,
+        })),
+    }),
+    {
+      name: "substrate-prefs.v1",
+      partialize: (s) => ({
+        leiden: s.leiden,
+        layout: s.layout,
+        theme: s.theme,
+        telemetry: s.telemetry,
+        schema_version: s.schema_version,
+      }),
+    },
+  ),
+);
