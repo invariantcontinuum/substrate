@@ -133,7 +133,6 @@ function App() {
         <Route path="graph" element={<GraphPage />} />
         <Route path="graph/c/:cacheKey/:idx" element={<GraphPage />} />
         <Route path="chat" element={<ChatPage />} />
-        <Route path="ask" element={<Navigate to="/chat" replace />} />
         <Route path="sources" element={<SourcesPage />}>
           <Route index element={<SourcesTab />} />
           <Route path="snapshots" element={<SourcesSnapshotsTab />} />
