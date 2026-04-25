@@ -1,6 +1,11 @@
-"""Sync read endpoints. Write endpoints live in ingestion."""
+"""Sync read endpoints. Write endpoints live in ingestion (with the one
+exception below: POST /{id}/resync creates a child sync row with the
+parent's resume_cursor, then ingestion's pending-sync runner picks it up
+via the existing job loop)."""
 import base64
 import binascii
+from typing import Any
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 
@@ -223,3 +228,51 @@ async def get_sync_delta(
         "prior_completed_at": prior["completed_at"],
         "delta": delta,
     }
+
+
+@router.post("/{sync_id}/resync")
+async def resync_sync(
+    sync_id: UUID,
+    user_sub: str = Depends(require_user_sub),
+) -> dict[str, Any]:
+    """Create a child sync that resumes a failed or cancelled parent.
+    Rejected with 422 if the parent succeeded or never wrote a cursor.
+    Authz: 404 if the parent is owned by another user (anti-enumeration).
+    The new sync row inherits the parent's resume_cursor — ingestion's
+    pending-sync runner picks it up via the existing job loop."""
+    pool = store.get_pool()
+    async with pool.acquire() as conn:
+        parent = await conn.fetchrow(
+            """
+            SELECT r.id, r.status, r.resume_cursor, r.source_id
+            FROM sync_runs r
+            JOIN sources s ON s.id = r.source_id
+            WHERE r.id = $1 AND s.user_sub = $2
+            """,
+            sync_id, user_sub,
+        )
+        if not parent:
+            raise NotFoundError("sync not found")
+        if parent["status"] not in {"failed", "cancelled"}:
+            status_value = parent["status"]
+            raise ValidationError(
+                f"cannot resync a {status_value} sync — only failed "
+                "or cancelled syncs may be resumed",
+            )
+        if parent["resume_cursor"] is None:
+            raise ValidationError(
+                "parent sync has no resume cursor; start a fresh sync",
+            )
+        child = await conn.fetchrow(
+            """
+            INSERT INTO sync_runs
+              (source_id, status, parent_sync_id, resume_cursor)
+            VALUES ($1, 'pending', $2, $3)
+            RETURNING id::text AS id, source_id::text AS source_id,
+                      status, parent_sync_id::text AS parent_sync_id,
+                      resume_cursor, started_at
+            """,
+            parent["source_id"], sync_id, parent["resume_cursor"],
+        )
+    return dict(child)
+
