@@ -9,12 +9,12 @@ from __future__ import annotations
 
 import asyncio
 from typing import AsyncIterator
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import pytest
 import pytest_asyncio
 
-from src.graph import chat_pipeline, chat_store
+from src.graph import chat_pipeline
 from src.graph.chat_pipeline import (
     CHAT_TURN_CHUNK,
     CHAT_TURN_COMPLETED,
@@ -165,7 +165,6 @@ async def test_stream_turn_event_order_and_persistence(
 
     await chat_pipeline.stream_turn(
         thread_id=thread_id,
-        user_message_id=user_msg_id,
         user_content="test question",
         sync_ids=[str(sync_id)],
         graph_context=None,

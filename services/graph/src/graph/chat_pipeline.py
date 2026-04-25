@@ -259,7 +259,6 @@ async def _stream_dense_llm(messages: list[dict]) -> AsyncIterator[str]:
 async def stream_turn(
     *,
     thread_id: UUID,
-    user_message_id: UUID,
     user_content: str,
     sync_ids: list,
     graph_context: dict[str, Any] | None,

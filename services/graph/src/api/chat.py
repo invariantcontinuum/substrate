@@ -4,6 +4,7 @@ thread.user_sub does not match, to avoid leaking existence."""
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -67,7 +68,7 @@ async def create_thread(
                 "file_count": len(files),
                 "created_at": (
                     created_at.isoformat()
-                    if hasattr(created_at, "isoformat") else created_at
+                    if isinstance(created_at, datetime) else created_at
                 ),
             })
     return thread
@@ -129,7 +130,6 @@ async def post_message(
 
     asyncio.create_task(chat_pipeline.stream_turn(
         thread_id=thread_id,
-        user_message_id=user_msg["id"],
         user_content=body.content,
         sync_ids=body.sync_ids,
         graph_context=body.graph_context,
