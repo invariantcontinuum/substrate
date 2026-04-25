@@ -202,6 +202,32 @@ async def update_source_last_sync(source_id: str, sync_id: str) -> None:
         )
 
 
+async def set_resume_cursor(sync_id: str, cursor: dict) -> None:
+    """Persist a connector-specific resume cursor on the sync row.
+    Called at every batch boundary so a crash mid-sync leaves a usable
+    resume point for POST /api/syncs/{id}/resync."""
+    pool = graph_writer.get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE sync_runs SET resume_cursor = $2::jsonb WHERE id = $1::uuid",
+            sync_id, json.dumps(cursor),
+        )
+
+
+async def get_resume_cursor(sync_id: str) -> dict | None:
+    """Read the cursor written by the previous run. Returns None when
+    the sync hasn't checkpointed yet."""
+    pool = graph_writer.get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT resume_cursor FROM sync_runs WHERE id = $1::uuid", sync_id,
+        )
+    if not row or row["resume_cursor"] is None:
+        return None
+    val = row["resume_cursor"]
+    return val if isinstance(val, dict) else json.loads(val)
+
+
 async def ensure_active_sync(
     conn: asyncpg.Connection,
     *,

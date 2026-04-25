@@ -2,6 +2,7 @@ import hashlib
 import os
 import shutil
 import time
+from datetime import datetime, timezone
 from typing import Any
 
 import structlog
@@ -140,8 +141,31 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
 
     tree: MaterializedTree | None = None
     last_commit_at: str | None = None
+    # Resume-cursor state (Task 7). When the sync row carries a cursor from
+    # a prior failed/cancelled run, we pin the commit_sha the parent was
+    # working against and skip files the parent already finished. The cursor
+    # is rewritten at every per-file batch boundary so a crash here leaves
+    # a usable resume point for POST /api/syncs/{id}/resync.
+    existing_cursor = await sync_runs.get_resume_cursor(sync_id)
+    processed_paths: set[str] = set(
+        existing_cursor.get("processed_paths", []) if existing_cursor else []
+    )
+    pinned_commit_sha: str | None = (
+        existing_cursor.get("commit_sha") if existing_cursor else None
+    )
     try:
         tree = await connector.materialize(source, scratch_dir="/tmp")
+        if pinned_commit_sha:
+            # Resume mode: the parent already committed work tied to that
+            # exact commit; resume must FINISH that work, not start a new
+            # attempt at HEAD. Override the freshly-cloned ref so all
+            # downstream writes (sync_runs.ref, file_embeddings.last_commit_sha)
+            # stay coherent with the parent's progress.
+            tree = MaterializedTree(
+                root_dir=tree.root_dir,
+                file_paths=tree.file_paths,
+                ref=pinned_commit_sha,
+            )
         if tree.ref:
             await sync_runs.set_ref(sync_id, tree.ref)
             if source_type == "github_repo":
@@ -253,8 +277,18 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
         await _publish_progress(sync_id, meta, done=0, total=len(nodes))
 
         file_id_map: dict[str, str] = {}
+        all_paths = [fi["node"].id for fi in file_info_list]
+        # Track which paths are processed in this sync so the resume cursor
+        # can be rewritten at every batch boundary. On a fresh sync this set
+        # starts empty; on resume it inherits the parent's set so skipped
+        # files remain marked done in the cursor.
+        cursor_processed: set[str] = set(processed_paths)
         for fi_idx, fi in enumerate(file_info_list):
             node = fi["node"]
+            if node.id in processed_paths:
+                # Resume mode: parent already committed this file under its
+                # sync_id. Skip it so we only finish the unprocessed tail.
+                continue
             file_db_id = await graph_writer.insert_file(
                 sync_id=sync_id, source_id=source_id,
                 file_path=node.id, name=node.name, file_type=node.type,
@@ -280,9 +314,18 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
             if chunk_dicts:
                 await graph_writer.insert_chunks(file_db_id, sync_id, chunk_dicts)
 
+            cursor_processed.add(node.id)
             done = fi_idx + 1
             if done % settings.sync_cancellation_poll_every_n == 0 or done == len(file_info_list):
                 await _publish_progress(sync_id, meta, done=done, total=len(nodes))
+                # Persist a checkpoint at every batch boundary. A crash here
+                # leaves the row with a usable cursor for POST /resync.
+                await sync_runs.set_resume_cursor(sync_id, {
+                    "commit_sha": tree.ref or "",
+                    "tree_total_paths": len(all_paths),
+                    "processed_paths": sorted(cursor_processed),
+                    "last_batch_finished_at": datetime.now(timezone.utc).isoformat(),
+                })
                 await _check_cancelled(sync_id)
 
         age_nodes = [
