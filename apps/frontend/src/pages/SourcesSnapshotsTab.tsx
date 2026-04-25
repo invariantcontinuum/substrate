@@ -17,6 +17,8 @@ export function SourcesSnapshotsTab() {
     loadedOnly: false,
   });
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  // `scheduleExpanded` toggles the toolbar Schedule button's visual state.
+  // The companion overview panel UI lands in a follow-up task.
   const [scheduleExpanded, setScheduleExpanded] = useState(false);
   const syncSetIds = useSyncSetStore((s) => s.syncIds);
 

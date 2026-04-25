@@ -1,10 +1,15 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SnapshotRowSummary } from "./SnapshotRowSummary";
 
 vi.mock("react-oidc-context", () => ({
   useAuth: () => ({ user: { access_token: "test" } }),
+}));
+
+const resyncMutate = vi.fn();
+vi.mock("@/hooks/useResyncSnapshot", () => ({
+  useResyncSnapshot: () => ({ mutate: resyncMutate, isPending: false }),
 }));
 
 function renderWithProviders(ui: React.ReactElement) {
@@ -75,5 +80,99 @@ describe("SnapshotRowSummary V3", () => {
       />,
     );
     expect(container.querySelectorAll(".sparkline-bar").length).toBe(6);
+  });
+});
+
+describe("SnapshotRowSummary resync icon", () => {
+  const RESUMABLE_CURSOR = {
+    pinned_commit: "abc123",
+    completed_files: ["a.py", "b.py"],
+  };
+
+  it("hides resync button on completed runs (cursor irrelevant)", () => {
+    const { container } = renderWithProviders(
+      <SnapshotRowSummary
+        run={
+          {
+            ...BASE_RUN,
+            status: "completed",
+            resume_cursor: RESUMABLE_CURSOR,
+          } as never
+        }
+        isExpanded={false}
+        onToggleExpand={vi.fn()}
+      />,
+    );
+    expect(container.querySelector(".snapshot-row-resync")).toBeNull();
+  });
+
+  it("hides resync button on failed runs without resume_cursor", () => {
+    const { container } = renderWithProviders(
+      <SnapshotRowSummary
+        run={
+          { ...BASE_RUN, status: "failed", resume_cursor: null } as never
+        }
+        isExpanded={false}
+        onToggleExpand={vi.fn()}
+      />,
+    );
+    expect(container.querySelector(".snapshot-row-resync")).toBeNull();
+  });
+
+  it("shows resync button on failed runs with resume_cursor", () => {
+    const { container } = renderWithProviders(
+      <SnapshotRowSummary
+        run={
+          {
+            ...BASE_RUN,
+            status: "failed",
+            resume_cursor: RESUMABLE_CURSOR,
+          } as never
+        }
+        isExpanded={false}
+        onToggleExpand={vi.fn()}
+      />,
+    );
+    expect(container.querySelector(".snapshot-row-resync")).not.toBeNull();
+  });
+
+  it("shows resync button on cancelled runs with resume_cursor", () => {
+    const { container } = renderWithProviders(
+      <SnapshotRowSummary
+        run={
+          {
+            ...BASE_RUN,
+            status: "cancelled",
+            resume_cursor: RESUMABLE_CURSOR,
+          } as never
+        }
+        isExpanded={false}
+        onToggleExpand={vi.fn()}
+      />,
+    );
+    expect(container.querySelector(".snapshot-row-resync")).not.toBeNull();
+  });
+
+  it("clicking resync fires mutate with sync id and does not toggle expand", () => {
+    resyncMutate.mockClear();
+    const onToggleExpand = vi.fn();
+    const { container } = renderWithProviders(
+      <SnapshotRowSummary
+        run={
+          {
+            ...BASE_RUN,
+            status: "failed",
+            resume_cursor: RESUMABLE_CURSOR,
+          } as never
+        }
+        isExpanded={false}
+        onToggleExpand={onToggleExpand}
+      />,
+    );
+    const btn = container.querySelector(".snapshot-row-resync");
+    expect(btn).not.toBeNull();
+    fireEvent.click(btn!);
+    expect(resyncMutate).toHaveBeenCalledWith(BASE_RUN.id);
+    expect(onToggleExpand).not.toHaveBeenCalled();
   });
 });

@@ -6,6 +6,9 @@ import { useExportGraph } from "@/hooks/useExportGraph";
 import { AddSourceInput } from "./AddSourceInput";
 
 interface Props {
+  // Toggled by the Schedule button. Per-source schedule editing now lives in
+  // each row's `…` menu (Task 2). The boolean is reserved for a future global
+  // schedule overview panel; no consumer renders that panel yet.
   scheduleExpanded: boolean;
   onToggleSchedule: () => void;
 }
@@ -18,7 +21,7 @@ export function UnifiedToolbar({ scheduleExpanded, onToggleSchedule }: Props) {
       <AddSourceInput />
       <Button
         onClick={onToggleSchedule}
-        title="Schedule cron pause / resume"
+        title="Toggle schedule overview (panel UI lands in a follow-up task)"
         className={scheduleExpanded ? "is-active" : ""}
       >
         <Clock size={14} /> Schedule {scheduleExpanded ? "▴" : "▾"}

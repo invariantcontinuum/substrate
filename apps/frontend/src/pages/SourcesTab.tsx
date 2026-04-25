@@ -9,6 +9,8 @@ import { UnifiedToolbar } from "@/components/sources/UnifiedToolbar";
 export function SourcesTab() {
   const { sources, isLoading } = useSources();
   const [activeSourceId, setActiveSourceId] = useState<string | null>(null);
+  // `scheduleExpanded` toggles the toolbar Schedule button's visual state.
+  // The companion overview panel UI lands in a follow-up task.
   const [scheduleExpanded, setScheduleExpanded] = useState(false);
   const [autoExpandSyncId, setAutoExpandSyncId] = useState<string | null>(null);
   const syncIds = useSyncSetStore((s) => s.syncIds);
