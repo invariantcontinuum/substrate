@@ -56,6 +56,15 @@ jobs:
   # Per-service Python tests with coverage. Each service runs in its own
   # job so failures are isolated and the matrix shows which one tripped.
   # Coverage XML is uploaded per service so SonarCloud can ingest it.
+  #
+  # Test scopes:
+  #  - gateway / substrate-common / substrate-graph-builder: full pytest
+  #    (no DB-bound integration tests).
+  #  - ingestion: only the sync-progress regression file in CI (the rest
+  #    of the suite needs a live Postgres + AGE instance which isn't
+  #    wired yet — tracked under follow-up "CI Postgres/AGE service").
+  #  - graph: same — only pure-unit tests in CI; the testcontainers-
+  #    backed integration tests run locally via `make test`.
   python-tests:
     runs-on: ubuntu-latest
     needs: versioning
@@ -66,18 +75,23 @@ jobs:
           - name: gateway
             path: services/gateway
             extra: --extra dev
+            tests: tests
           - name: ingestion
             path: services/ingestion
             extra: --extra dev
+            tests: tests/test_sync_progress.py
           - name: graph
             path: services/graph
             extra: --extra dev
+            tests: tests/test_chat_pipeline_streaming.py -k "extract_citation or stream_turn_llm or stream_turn_prompt"
           - name: substrate-common
             path: packages/substrate-common
             extra: --extra dev
+            tests: tests
           - name: substrate-graph-builder
             path: packages/substrate-graph-builder
             extra: --with pytest
+            tests: tests
     steps:
       - uses: actions/checkout@v4
 
@@ -92,7 +106,7 @@ jobs:
         run: |
           cd ${{ matrix.path }}
           uv run ${{ matrix.extra }} --with pytest-cov \
-            pytest tests \
+            pytest ${{ matrix.tests }} \
               --cov=src \
               --cov-report=xml:coverage.xml \
               --cov-report=term-missing
