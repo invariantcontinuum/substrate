@@ -141,7 +141,10 @@ export function DashboardLayout() {
             aria-label="Close sidebar"
           />
         )}
-        <main className="dashboard-main">
+        <main
+          className="dashboard-main"
+          inert={!isDesktop && sidebarOpen ? true : undefined}
+        >
           <Outlet />
         </main>
       </div>

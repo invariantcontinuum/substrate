@@ -5,6 +5,7 @@ import { GraphCanvas } from "@/components/graph/GraphCanvas";
 import { GraphToolbar } from "@/components/graph/GraphToolbar";
 import { CarouselEngine } from "@/components/carousel/CarouselEngine";
 import { NodeDetailPanel } from "@/components/panels/NodeDetailPanel";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 /**
  * Graph page = canvas + bottom carousel strip + a single floating
@@ -23,6 +24,7 @@ export function GraphPage() {
   };
   return (
     <div className="graph-page">
+      <PageHeader title="Graph" />
       <div className="graph-canvas-wrapper">
         <GraphCanvas />
         <GraphToolbar />
