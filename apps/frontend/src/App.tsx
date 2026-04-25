@@ -20,6 +20,7 @@ import { useApplyTheme } from "@/hooks/useApplyTheme";
 import { useGraphStore } from "@/stores/graph";
 import { useSyncSetStore } from "@/stores/syncSet";
 import { logger } from "@/lib/logger";
+import { ToastDock } from "@/components/common/ToastDock";
 
 /**
  * Guard that redirects unauthenticated users to Keycloak.
@@ -121,7 +122,9 @@ function RequireAuth({ children }: { children: ReactNode }) {
 function App() {
   useApplyTheme();
   return (
-    <Routes>
+    <>
+      <ToastDock />
+      <Routes>
       <Route path="/callback" element={<CallbackPage />} />
       <Route
         path="/"
@@ -149,7 +152,8 @@ function App() {
           <Route path="billing" element={<AccountBillingTab />} />
         </Route>
       </Route>
-    </Routes>
+      </Routes>
+    </>
   );
 }
 
