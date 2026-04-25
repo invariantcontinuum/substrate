@@ -58,7 +58,7 @@ test: ## Unit + integration tests across all services
 test-e2e: ## Playwright smoke against the live stack
 	cd apps/frontend && pnpm exec playwright test
 
-lint: graph-ui-build ## ruff + mypy + vulture + tsc + eslint + knip + banned-token gate (WASM artifacts must be fresh)
+lint: ## ruff + mypy + vulture + tsc + eslint + knip + banned-token gate
 	bash scripts/run-lint.sh
 
 check-contracts: ## Diff pydantic JSON schemas vs zod JSON schemas
