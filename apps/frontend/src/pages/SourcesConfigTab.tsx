@@ -3,6 +3,7 @@ import { LeidenKnob } from "@/components/common/LeidenKnob";
 import { Row } from "@/components/common/Row";
 import { CommunityHistogram } from "@/components/common/CommunityHistogram";
 import { ChatContextBlock } from "@/components/sources/ChatContextBlock";
+import { PerSourceSettingsList } from "@/components/sources/PerSourceSettingsList";
 import { useCarouselStore } from "@/stores/carousel";
 import { usePrefsStore } from "@/stores/prefs";
 import { useSyncSetStore } from "@/stores/syncSet";
@@ -94,6 +95,7 @@ export function SourcesConfigTab() {
       />
 
       <ChatContextBlock />
+      <PerSourceSettingsList />
     </div>
   );
 }

@@ -2967,6 +2967,50 @@ html {
   cursor: not-allowed;
 }
 
+/* Per-source settings list (Sources Config tab). One collapsible card per
+ * source — schedule, retention, drift, integrations. Inline editing of the
+ * fields lands in sub-project 6. */
+.per-source-settings-list {
+  margin-top: 24px;
+}
+.per-source-settings-list h3 {
+  margin: 0 0 8px;
+}
+.per-source-settings-list ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.per-source-settings-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  background: var(--surface);
+}
+.per-source-settings-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  background: transparent;
+  border: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.per-source-settings-summary:hover { background: var(--surface-hover); }
+.per-source-settings-card.is-open .per-source-settings-summary {
+  border-bottom: 1px solid var(--border);
+}
+.per-source-settings-body {
+  padding: 12px;
+  font-size: var(--text-sm);
+}
+
 /* ---- SnapshotExpandedDrawer ---- */
 .snapshot-drawer { padding: 10px 12px; border-top: 1px solid rgba(255,255,255,0.06); font-size: 12px; }
 .stats-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 4px 0; }
