@@ -3,6 +3,7 @@ import { Download, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSyncSetStore } from "@/stores/syncSet";
 import { useExportGraph } from "@/hooks/useExportGraph";
+import { ChatContextSummaryPill } from "@/components/common/ChatContextSummaryPill";
 import { AddSourceInput } from "./AddSourceInput";
 
 interface Props {
@@ -34,8 +35,7 @@ export function UnifiedToolbar({ scheduleExpanded, onToggleSchedule }: Props) {
         <Download size={14} /> Export Graph
       </Button>
       <div className="unified-toolbar-spacer" />
-      {/* ChatContextSummaryPill wired in Task 6 — placeholder div for layout */}
-      <div className="chat-context-pill-slot" aria-hidden="true" />
+      <ChatContextSummaryPill />
     </div>
   );
 }

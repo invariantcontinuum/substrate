@@ -2894,6 +2894,39 @@ html {
 }
 .toast-close:hover { color: var(--text); }
 
+/* Chat-context summary pill — global toolbar affordance.
+ * Live read of useChatContextStore.active. Click navigates to
+ * /sources/config so the user can pick or change context. */
+.chat-context-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: var(--accent-tint);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  color: var(--accent);
+  font-size: var(--text-xs);
+  font: inherit;
+  font-size: var(--text-xs);
+  cursor: pointer;
+  white-space: nowrap;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chat-context-pill:hover { background: var(--accent); color: var(--accent-contrast); }
+.chat-context-pill.is-empty {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+.chat-context-pill.is-empty:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+  border-color: var(--text-muted);
+}
+
 /* ---- SnapshotExpandedDrawer ---- */
 .snapshot-drawer { padding: 10px 12px; border-top: 1px solid rgba(255,255,255,0.06); font-size: 12px; }
 .stats-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 4px 0; }
