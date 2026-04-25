@@ -9,11 +9,7 @@ MODE     ?= local
 ENV_FILE := .env.$(MODE)
 COMPOSE  := ENV_FILE=$(ENV_FILE) docker compose --env-file $(ENV_FILE)
 
-.PHONY: help up down restart nuke nuke-keycloak ps logs doctor test test-e2e lint check-contracts graph-ui-build
-
-# wasm-pack lives under ~/.cargo/bin on fresh cargo installs; ensure Make can find it.
-WASM_PACK ?= $(shell command -v wasm-pack 2>/dev/null || echo $$HOME/.cargo/bin/wasm-pack)
-GRAPH_UI_DIR := $(abspath packages/graph-ui)
+.PHONY: help up down restart nuke nuke-keycloak ps logs doctor test test-e2e lint check-contracts
 
 help: ## Show this help
 	@awk 'BEGIN{FS=":.*##"; printf "\nUsage: make <target> [MODE=local|prod]\n\nTargets:\n"} /^[a-zA-Z_-]+:.*##/ {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -63,22 +59,3 @@ lint: ## ruff + mypy + vulture + tsc + eslint + knip + banned-token gate
 
 check-contracts: ## Diff pydantic JSON schemas vs zod JSON schemas
 	bash scripts/check-contracts.sh
-
-graph-ui-build: ## Rebuild packages/graph-ui WASM artifacts (main + worker)
-	@if [ ! -x "$(WASM_PACK)" ] && ! command -v wasm-pack >/dev/null 2>&1; then \
-	  echo "wasm-pack not found; installing via cargo"; \
-	  cargo install wasm-pack; \
-	fi
-	@cp $(GRAPH_UI_DIR)/package.json /tmp/graph-ui-package.json.bak
-	@cp $(GRAPH_UI_DIR)/.gitignore /tmp/graph-ui-gitignore.bak
-	@$(WASM_PACK) build --release --target web \
-	  --out-dir $(GRAPH_UI_DIR) \
-	  --out-name graph_main_wasm \
-	  $(GRAPH_UI_DIR)/crates/graph-main-wasm
-	@$(WASM_PACK) build --release --target web \
-	  --out-dir $(GRAPH_UI_DIR) \
-	  --out-name graph_worker_wasm \
-	  $(GRAPH_UI_DIR)/crates/graph-worker-wasm
-	@cp /tmp/graph-ui-package.json.bak $(GRAPH_UI_DIR)/package.json
-	@cp /tmp/graph-ui-gitignore.bak $(GRAPH_UI_DIR)/.gitignore
-	@rm /tmp/graph-ui-package.json.bak /tmp/graph-ui-gitignore.bak
