@@ -221,7 +221,10 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
             filepath = os.path.join(tree.root_dir, node.id)
             content = _read_text_safe(filepath)
             language = _detect_language(node.id)
-            line_count = content.count("\n") + 1 if content else 0
+            line_count = (
+                content.count("\n") + (0 if content.endswith("\n") else 1)
+                if content else 0
+            )
             size_bytes = len(content.encode("utf-8", errors="replace")) if content else 0
             content_hash = hashlib.sha256(content.encode("utf-8", errors="replace")).hexdigest() if content else None
             summary = file_summary_text(node.id, node.type, language, content)
