@@ -2,6 +2,7 @@ import { SectionHeader } from "@/components/common/SectionHeader";
 import { LeidenKnob } from "@/components/common/LeidenKnob";
 import { Row } from "@/components/common/Row";
 import { CommunityHistogram } from "@/components/common/CommunityHistogram";
+import { ChatContextBlock } from "@/components/sources/ChatContextBlock";
 import { useCarouselStore } from "@/stores/carousel";
 import { usePrefsStore } from "@/stores/prefs";
 import { useSyncSetStore } from "@/stores/syncSet";
@@ -91,6 +92,8 @@ export function SourcesConfigTab() {
              ? <span style={{ color: "#ffd197" }}>{driftCount} knob{driftCount === 1 ? "" : "s"} changed — Recompute to apply</span>
              : <span style={{ color: "#a0f0c0" }}>in sync</span>}
       />
+
+      <ChatContextBlock />
     </div>
   );
 }
