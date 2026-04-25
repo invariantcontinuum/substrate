@@ -1,0 +1,62 @@
+name: SonarCloud
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Only one analysis at a time per ref so back-to-back pushes don't
+# clobber each other's report uploads.
+concurrency:
+  group: sonarcloud-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: SonarCloud scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout (full history for blame-based new-code detection)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Fetch coverage artifacts produced by the CI workflow on the same
+      # commit. If CI hasn't run yet (e.g. workflow_dispatch on a fresh
+      # SHA) the action falls back gracefully and Sonar runs without
+      # coverage signal.
+      - name: Download coverage artifacts (best-effort)
+        uses: dawidd6/action-download-artifact@v6
+        continue-on-error: true
+        with:
+          workflow: ci.yml
+          commit: ${{ github.sha }}
+          name_is_regexp: true
+          name: coverage-(.+)
+          path: artifacts
+
+      # Lay coverage files where sonar-project.properties expects them.
+      - name: Stage per-module coverage
+        if: hashFiles('artifacts/**') != ''
+        run: |
+          set -e
+          for d in artifacts/coverage-*; do
+            module=$(basename "$d" | sed 's/^coverage-//')
+            case "$module" in
+              graph|gateway|ingestion)
+                cp "$d/coverage.xml" "services/$module/coverage.xml" 2>/dev/null || true
+                ;;
+              frontend)
+                mkdir -p apps/frontend/coverage
+                cp "$d/lcov.info" "apps/frontend/coverage/lcov.info" 2>/dev/null || true
+                ;;
+            esac
+          done
+
+      - name: SonarCloud scan
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
