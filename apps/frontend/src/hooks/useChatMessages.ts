@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { useAuth } from "react-oidc-context";
 import { apiFetch } from "@/lib/api";
+import { useAuthToken } from "./useAuthToken";
 
 export interface Citation {
   node_id: string;
@@ -25,8 +25,7 @@ export interface ChatMessage {
 }
 
 export function useChatMessages(threadId: string | null) {
-  const auth = useAuth();
-  const token = auth.user?.access_token;
+  const token = useAuthToken();
   return useQuery({
     queryKey: ["chat", "messages", threadId],
     queryFn: async () => {

@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { useAuth } from "react-oidc-context";
 import { apiFetch } from "@/lib/api";
+import { useAuthToken } from "./useAuthToken";
 
 export interface ChatThread {
   id: string;
@@ -10,9 +10,15 @@ export interface ChatThread {
   last_message_preview: string | null;
 }
 
+/**
+ * Lists chat threads for the current user. The endpoint returns
+ * `{items: ChatThread[]}`; we unwrap to the array so consumers don't
+ * have to. Uses `useAuthedQuery`-style boilerplate inline because the
+ * unwrap requires a custom queryFn (helper assumes the response IS the
+ * data shape, which is fine for the other hooks).
+ */
 export function useChatThreads() {
-  const auth = useAuth();
-  const token = auth.user?.access_token;
+  const token = useAuthToken();
   return useQuery({
     queryKey: ["chat", "threads"],
     queryFn: async () => {
