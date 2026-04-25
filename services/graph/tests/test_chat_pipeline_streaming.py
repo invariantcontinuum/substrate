@@ -11,6 +11,7 @@ import asyncio
 from typing import AsyncIterator
 from uuid import uuid4
 
+import httpx
 import pytest
 import pytest_asyncio
 
@@ -18,6 +19,7 @@ from src.graph import chat_pipeline
 from src.graph.chat_pipeline import (
     CHAT_TURN_CHUNK,
     CHAT_TURN_COMPLETED,
+    CHAT_TURN_FAILED,
     CHAT_TURN_STARTED,
     extract_citation_markers,
 )
@@ -212,3 +214,139 @@ async def test_stream_turn_event_order_and_persistence(
 
     # --- verify citation extraction ---
     assert extract_citation_markers(row["content"]) == ["node-1"]
+
+
+# ---------------------------------------------------------------------------
+# Failure-path unit tests — no DB required (FakeBus captures events in-memory)
+# ---------------------------------------------------------------------------
+
+
+class _FakeBus:
+    """Drop-in SseBus that records published events without touching the DB."""
+
+    def __init__(self, _pool=None):
+        self.events: list[Event] = []
+
+    async def publish(self, event: Event) -> None:
+        self.events.append(event)
+
+
+@pytest.fixture()
+def fake_bus_class(monkeypatch):
+    """Replaces SseBus inside chat_pipeline with _FakeBus and returns the
+    most-recently-constructed instance via a one-element list so tests can
+    inspect emitted events after stream_turn returns."""
+    instances: list[_FakeBus] = []
+
+    class _CapturingFakeBus(_FakeBus):
+        def __init__(self, pool=None):
+            super().__init__(pool)
+            instances.append(self)
+
+    monkeypatch.setattr(chat_pipeline, "SseBus", _CapturingFakeBus)
+    return instances
+
+
+def _patch_no_db_helpers(monkeypatch):
+    """Stub all helpers that would hit a real DB or LLM so unit tests stay pure.
+
+    Also stubs ``store.get_pool`` used by ``SseBus(store.get_pool())`` at the
+    top of ``stream_turn`` so tests work without a running Postgres instance.
+    """
+    from src.graph import store as _store
+
+    monkeypatch.setattr(_store, "get_pool", lambda: None)
+
+    async def _fake_embed(text: str) -> list[float]:
+        return [0.0] * 768
+
+    async def _fake_search(**kwargs) -> list[dict]:
+        return []
+
+    async def _no_ctx_files(thread_id) -> None:
+        return None
+
+    async def _fake_hydrate(node_ids: list[str]) -> list[dict]:
+        return []
+
+    monkeypatch.setattr(chat_pipeline, "_embed_query", _fake_embed)
+    monkeypatch.setattr(chat_pipeline, "search_scoped", _fake_search)
+    monkeypatch.setattr(chat_pipeline, "_build_thread_context_files", _no_ctx_files)
+    monkeypatch.setattr(chat_pipeline, "_hydrate_citations", _fake_hydrate)
+
+
+@pytest.mark.asyncio(loop_scope="function")
+async def test_stream_turn_llm_connect_error_emits_failed_no_raise(monkeypatch, fake_bus_class):
+    """Regression: if _stream_dense_llm raises immediately the coroutine must
+    not propagate the exception (fire-and-forget) and must emit CHAT_TURN_FAILED
+    — preceded by CHAT_TURN_STARTED because the prompt build succeeded."""
+    _patch_no_db_helpers(monkeypatch)
+
+    async def _failing_stream(messages: list[dict]) -> AsyncIterator[str]:
+        raise httpx.ConnectError("oops")
+        yield  # noqa: RET505 — unreachable yield makes this an async generator
+
+    monkeypatch.setattr(chat_pipeline, "_stream_dense_llm", _failing_stream)
+
+    # stream_turn must NOT raise
+    await chat_pipeline.stream_turn(
+        thread_id=uuid4(),
+        user_content="hello",
+        sync_ids=["sync-1"],
+        graph_context=None,
+        user_sub="test-user",
+        prior_turns=[],
+    )
+
+    assert len(fake_bus_class) == 1, "FakeBus was not instantiated"
+    bus = fake_bus_class[0]
+    types = [e.type for e in bus.events]
+    assert CHAT_TURN_FAILED in types, f"CHAT_TURN_FAILED missing from {types}"
+    # started fires before the LLM call; failed follows it
+    assert CHAT_TURN_STARTED in types, f"CHAT_TURN_STARTED missing from {types}"
+    started_idx = types.index(CHAT_TURN_STARTED)
+    failed_idx = types.index(CHAT_TURN_FAILED)
+    assert started_idx < failed_idx, "CHAT_TURN_STARTED must precede CHAT_TURN_FAILED"
+    # Error message is forwarded to the client
+    failed_payload = bus.events[failed_idx].payload
+    assert "oops" in failed_payload.get("error", ""), (
+        f"expected 'oops' in error payload, got: {failed_payload}"
+    )
+
+
+@pytest.mark.asyncio(loop_scope="function")
+async def test_stream_turn_prompt_build_error_emits_failed_no_raise(monkeypatch, fake_bus_class):
+    """Regression (Issue 1): an exception thrown DURING the prompt-build phase
+    (before the LLM call) must still emit CHAT_TURN_FAILED and must not raise.
+    The client must never hang after receiving 202."""
+    _patch_no_db_helpers(monkeypatch)
+
+    async def _exploding_embed(text: str) -> list[float]:
+        raise RuntimeError("embed service unavailable")
+
+    monkeypatch.setattr(chat_pipeline, "_embed_query", _exploding_embed)
+
+    # stream_turn must NOT raise
+    await chat_pipeline.stream_turn(
+        thread_id=uuid4(),
+        user_content="hello",
+        sync_ids=["sync-1"],
+        graph_context=None,
+        user_sub="test-user",
+        prior_turns=[],
+    )
+
+    assert len(fake_bus_class) == 1, "FakeBus was not instantiated"
+    bus = fake_bus_class[0]
+    types = [e.type for e in bus.events]
+
+    # Prompt build failed before CHAT_TURN_STARTED could fire — only
+    # CHAT_TURN_FAILED should be in the events list.
+    assert CHAT_TURN_FAILED in types, f"CHAT_TURN_FAILED missing from {types}"
+    assert CHAT_TURN_COMPLETED not in types, "CHAT_TURN_COMPLETED must not appear"
+    assert CHAT_TURN_CHUNK not in types, "CHAT_TURN_CHUNK must not appear"
+
+    failed_payload = bus.events[types.index(CHAT_TURN_FAILED)].payload
+    assert "embed service unavailable" in failed_payload.get("error", ""), (
+        f"expected embed error in payload, got: {failed_payload}"
+    )

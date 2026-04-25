@@ -268,47 +268,53 @@ async def stream_turn(
     """Stream an assistant turn. Caller returns 202 immediately; this
     coroutine runs in the background and writes events to sse_events as
     it goes. The final chat_messages row is inserted on success;
-    chat.turn.failed event fires on exception."""
+    chat.turn.failed event fires on any exception — including prompt-build
+    failures that would previously have left the client hanging forever."""
     from src.graph import chat_store
 
+    # Initialise bus and assistant_id BEFORE the try so the except block can
+    # always publish CHAT_TURN_FAILED, even when the prompt-build raises.
     bus = SseBus(store.get_pool())
     assistant_id = uuid4()
 
-    # Build the context-aware prompt (same path as run_turn used).
-    ctx_files = await _build_thread_context_files(thread_id)
-    if ctx_files is not None:
-        messages = await _build_thread_context_prompt(
-            user_content=user_content,
-            prior_turns=prior_turns,
-            files=ctx_files,
-        )
-    else:
-        query_embedding = await _embed_query(user_content)
-        retrieved = await search_scoped(
-            query_embedding=query_embedding,
-            sync_ids=sync_ids,
-            limit=settings.chat_top_k,
-        )
-        messages = _build_prompt(
-            user_content=user_content,
-            prior_turns=prior_turns,
-            retrieved=retrieved,
-            graph_context=graph_context,
-            sync_ids=sync_ids,
-        )
-
-    await bus.publish(Event(
-        type=CHAT_TURN_STARTED,
-        user_sub=user_sub,
-        payload={
-            "thread_id": str(thread_id),
-            "message_id": str(assistant_id),
-            "role": "assistant",
-        },
-    ))
-
-    buffer: list[str] = []
     try:
+        # Build the context-aware prompt (same path as run_turn used).
+        # Any exception here (ValidationError, DB timeout, embed failure, …)
+        # is now caught below and published as a CHAT_TURN_FAILED event so
+        # the client is never left hanging after the 202 response.
+        ctx_files = await _build_thread_context_files(thread_id)
+        if ctx_files is not None:
+            messages = await _build_thread_context_prompt(
+                user_content=user_content,
+                prior_turns=prior_turns,
+                files=ctx_files,
+            )
+        else:
+            query_embedding = await _embed_query(user_content)
+            retrieved = await search_scoped(
+                query_embedding=query_embedding,
+                sync_ids=sync_ids,
+                limit=settings.chat_top_k,
+            )
+            messages = _build_prompt(
+                user_content=user_content,
+                prior_turns=prior_turns,
+                retrieved=retrieved,
+                graph_context=graph_context,
+                sync_ids=sync_ids,
+            )
+
+        await bus.publish(Event(
+            type=CHAT_TURN_STARTED,
+            user_sub=user_sub,
+            payload={
+                "thread_id": str(thread_id),
+                "message_id": str(assistant_id),
+                "role": "assistant",
+            },
+        ))
+
+        buffer: list[str] = []
         async for delta in _stream_dense_llm(messages):
             buffer.append(delta)
             await bus.publish(Event(

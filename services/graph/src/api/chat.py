@@ -20,6 +20,10 @@ from src.graph import chat_pipeline, chat_store, chat_context_resolver, chat_con
 logger = structlog.get_logger()
 router = APIRouter(prefix="/api/chat")
 
+# Strong references to background streaming tasks — prevents CPython GC from
+# silently discarding an in-flight Task whose only reference is the event loop.
+_background_tasks: set[asyncio.Task] = set()
+
 
 class ThreadCreate(BaseModel):
     title: str | None = None
@@ -128,7 +132,7 @@ async def post_message(
     prior = await chat_store.list_messages(thread_id)
     prior_turns = [m for m in prior if m["id"] != user_msg["id"]]
 
-    asyncio.create_task(chat_pipeline.stream_turn(
+    t = asyncio.create_task(chat_pipeline.stream_turn(
         thread_id=thread_id,
         user_content=body.content,
         sync_ids=body.sync_ids,
@@ -136,5 +140,7 @@ async def post_message(
         user_sub=sub,
         prior_turns=prior_turns,
     ))
+    _background_tasks.add(t)
+    t.add_done_callback(_background_tasks.discard)
 
     return {"user_message": user_msg, "status": "streaming"}
