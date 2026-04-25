@@ -130,6 +130,7 @@ async def post_message(
         user_sub=sub, user_content=body.content,
         sync_ids=body.sync_ids, prior_turns=prior_turns,
         graph_context=body.graph_context,
+        thread_id=thread_id,
     )
     assistant_msg = await ask_store.insert_message(
         thread_id=thread_id, role="assistant",

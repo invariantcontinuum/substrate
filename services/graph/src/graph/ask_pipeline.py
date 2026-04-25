@@ -7,15 +7,19 @@ import json
 import re
 import uuid as _uuid
 from typing import Any
+from uuid import UUID
 
 import asyncpg
 import httpx
 import structlog
 
+from substrate_common import ValidationError
+
 from src.api.routes import _embed_query
 from src.config import settings
-from src.graph import store
+from src.graph import chat_context_store, store
 from src.graph.ask_store import search_scoped
+from src.graph.file_reconstruct import reconstruct_chunks
 
 logger = structlog.get_logger()
 
@@ -29,8 +33,31 @@ async def run_turn(
     sync_ids: list[str],
     prior_turns: list[dict],
     graph_context: dict[str, Any] | None = None,
+    thread_id: UUID | None = None,
 ) -> dict[str, Any]:
-    """Return `{content, citations}` for the assistant message."""
+    """Return ``{content, citations}`` for the assistant message.
+
+    When ``thread_id`` is provided AND the thread has a frozen
+    context_summary (set at create-time from the user's active chat
+    context), this path bypasses pgvector retrieval and instead
+    reconstructs every included file's full content for the prompt.
+    Per spec §4.1.3 the per-message build raises ValidationError when
+    the included token total exceeds ``settings.chat_context_token_budget``."""
+    if thread_id is not None:
+        ctx_files = await _build_thread_context_files(thread_id)
+        if ctx_files is not None:
+            prompt_messages = await _build_thread_context_prompt(
+                user_content=user_content,
+                prior_turns=prior_turns,
+                files=ctx_files,
+            )
+            llm_output = await _call_dense_llm(prompt_messages)
+            answer, cited_ids = _parse_response(llm_output)
+            # Citations are file-level for thread-context mode; hydrate by
+            # file_id. Fall back to legacy node-id hydration when the parser
+            # returned non-UUID ids.
+            citations = await _hydrate_citations(cited_ids)
+            return {"content": answer, "citations": citations}
     query_embedding = await _embed_query(user_content)
     retrieved = await search_scoped(
         query_embedding=query_embedding,
@@ -47,6 +74,72 @@ async def run_turn(
     answer, cited_ids = _parse_response(llm_output)
     citations = await _hydrate_citations(cited_ids)
     return {"content": answer, "citations": citations}
+
+
+async def _build_thread_context_files(
+    thread_id: UUID,
+) -> list[dict] | None:
+    """Returns the included context files for a thread, or None if the
+    thread has no context_summary (legacy path)."""
+    summary = await chat_context_store.get_thread_context_summary(thread_id)
+    if summary is None:
+        return None
+    rows = await chat_context_store.list_thread_context_files(thread_id)
+    return [r for r in rows if r["included"]]
+
+
+async def _build_thread_context_prompt(
+    *, user_content: str, prior_turns: list[dict], files: list[dict],
+) -> list[dict]:
+    total_tokens = sum(f["total_tokens"] for f in files)
+    if total_tokens > settings.chat_context_token_budget:
+        raise ValidationError(
+            f"context exceeds token budget ({total_tokens} > "
+            f"{settings.chat_context_token_budget}); drop files in the "
+            "context modal to fit",
+        )
+    pool = store.get_pool()
+    blocks: list[str] = []
+    async with pool.acquire() as conn:
+        for f in files:
+            chunks = await conn.fetch(
+                """SELECT chunk_index, content, start_line, end_line
+                   FROM content_chunks
+                   WHERE file_id = $1::uuid
+                   ORDER BY chunk_index""",
+                f["file_id"],
+            )
+            meta_row = await conn.fetchrow(
+                "SELECT line_count FROM file_embeddings WHERE id = $1::uuid",
+                f["file_id"],
+            )
+            rebuilt = reconstruct_chunks(
+                [dict(c) for c in chunks],
+                cap_bytes=settings.file_reconstruct_max_bytes,
+                total_lines=meta_row["line_count"] if meta_row else None,
+            )
+            lang = f.get("language") or ""
+            blocks.append(
+                f"### {f['path']} ({lang or 'unknown'})\n"
+                f"```{lang}\n{rebuilt['content']}\n```"
+            )
+    history_section = ""
+    if prior_turns:
+        snippets = []
+        for t in prior_turns[-settings.ask_history_turns :]:
+            role = t.get("role", "user")
+            snippets.append(f"[{role}] {t.get('content', '')}")
+        history_section = "\n\n## Prior turns\n" + "\n".join(snippets)
+    files_section = "\n\n".join(blocks)
+    user_msg = (
+        "## Files in scope\n\n"
+        f"{files_section}{history_section}\n\n"
+        f"## Question\n{user_content}"
+    )
+    return [
+        {"role": "system", "content": settings.ask_system_instruction},
+        {"role": "user", "content": user_msg},
+    ]
 
 
 def _build_prompt(
