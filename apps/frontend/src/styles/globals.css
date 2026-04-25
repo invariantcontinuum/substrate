@@ -2067,6 +2067,103 @@ html {
 }
 .source-list-item-chevron { opacity: 0.4; }
 
+/* Per-source `…` overflow menu (SourceActionMenu, mounted inside
+ * SourceListItem). Uses native <details>/<summary> so the menu closes
+ * on outside click without us managing a global handler. */
+.source-action-menu {
+  position: relative;
+  flex-shrink: 0;
+}
+.source-action-menu-summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: var(--radius-xs);
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+.source-action-menu-summary::-webkit-details-marker { display: none; }
+.source-action-menu-summary:hover { opacity: 1; background: var(--surface-hover); }
+.source-action-menu[open] .source-action-menu-summary { opacity: 1; }
+.source-action-menu-list {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 2px);
+  z-index: 50;
+  min-width: 180px;
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+.source-action-menu-list li > button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  background: transparent;
+  border: 0;
+  font: inherit;
+  font-size: var(--text-sm);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.source-action-menu-list li > button:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+.source-action-menu-list li > button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.source-action-menu-list li > button.is-destructive {
+  color: #e07070;
+}
+.source-action-menu-list li > button.is-destructive:hover:not(:disabled) {
+  background: rgba(224, 112, 112, 0.12);
+}
+
+/* Delete-source modal (typed-name confirm) */
+.delete-source-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.delete-source-modal-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: var(--text-sm);
+}
+.delete-source-modal-input {
+  width: 100%;
+  padding: 6px 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  font: inherit;
+  font-family: var(--font-mono, monospace);
+}
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.ui-button.is-destructive {
+  background: #e07070;
+  color: white;
+  border-color: #c45050;
+}
+.ui-button.is-destructive:hover:not(:disabled) {
+  background: #c85050;
+}
+
 .add-source-input { display: flex; flex-direction: column; gap: 6px; }
 .add-source-input > :first-child { display: flex; gap: 6px; }
 .add-source-input-error { font-size: var(--text-xs); color: #e07070; }
