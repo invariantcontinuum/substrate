@@ -36,7 +36,7 @@ export function SourcesConfigTab() {
       communities: { index: number; label: string; size: number }[];
       config_used: typeof staged;
     }>(
-      `/api/graph/communities/recompute`, token, {
+      `/api/communities/recompute`, token, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sync_ids: syncIds, config: staged }),

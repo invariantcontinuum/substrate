@@ -2,7 +2,6 @@ import { Modal } from "@/components/ui/Modal";
 import { useUIStore } from "@/stores/ui";
 import { useGraphStore } from "@/stores/graph";
 import { GraphCanvas } from "@/components/graph/GraphCanvas";
-import { GraphToolbar } from "@/components/graph/GraphToolbar";
 import { CarouselEngine } from "@/components/carousel/CarouselEngine";
 import { NodeDetailPanel } from "@/components/panels/NodeDetailPanel";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -27,7 +26,6 @@ export function GraphPage() {
       <PageHeader title="Graph" />
       <div className="graph-canvas-wrapper">
         <GraphCanvas />
-        <GraphToolbar />
       </div>
       <CarouselEngine />
       <Modal

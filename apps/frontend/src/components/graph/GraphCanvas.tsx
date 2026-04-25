@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { LayoutGrid, Maximize2, ZoomIn, ZoomOut } from "lucide-react";
+import { Info, LayoutGrid, Maximize2, ZoomIn, ZoomOut } from "lucide-react";
 import { useGraphStore } from "@/stores/graph";
 import { useThemeStore } from "@/stores/theme";
+import { useUIStore } from "@/stores/ui";
 import { useResponsive } from "@/hooks/useResponsive";
 import { loadCytoscape } from "@/lib/cytoscapeLoader";
 import { useSources } from "@/hooks/useSources";
@@ -347,6 +348,15 @@ export function GraphCanvas() {
   const setLayoutName = useGraphStore((s) => s.setLayoutName);
   const setPan = useGraphStore((s) => s.setPan);
   const finalizeLoad = useGraphStore((s) => s.finalizeLoad);
+
+  const openModal = useUIStore((s) => s.openModal);
+  const [pulsing, setPulsing] = useState(false);
+  useEffect(() => {
+    if (selectedNodeId == null) return;
+    setPulsing(true);
+    const t = setTimeout(() => setPulsing(false), 800);
+    return () => clearTimeout(t);
+  }, [selectedNodeId]);
 
   const theme = useThemeStore((s) => s.theme);
 
@@ -817,6 +827,16 @@ export function GraphCanvas() {
       </div>
 
       <div className="graph-toolbar">
+        <button
+          type="button"
+          className={`graph-toolbar-info${pulsing ? " is-pulsing" : ""}`}
+          disabled={selectedNodeId == null}
+          title={selectedNodeId == null ? "Click a node to enable" : "Show node details"}
+          aria-label="Show node details"
+          onClick={() => openModal("nodeDetail")}
+        >
+          <Info size={16} strokeWidth={1.75} />
+        </button>
         <button
           onClick={() => {
             const cy = cyRef.current;

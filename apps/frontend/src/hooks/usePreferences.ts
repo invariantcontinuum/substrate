@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { apiFetch } from "@/lib/api";
 import { logger } from "@/lib/logger";
 import { usePrefsStore, type ServerPrefsShape } from "@/stores/prefs";
@@ -22,7 +22,6 @@ function authToken(): string | undefined {
 export function usePreferences(): void {
   const replace = usePrefsStore((s) => s.replace);
   const hydrated = usePrefsStore((s) => s.hydrated);
-  const firstRun = useRef(true);
 
   useEffect(() => {
     if (hydrated) return;
@@ -45,7 +44,12 @@ export function usePreferences(): void {
 
   useEffect(() => {
     if (!hydrated) return;
-    if (firstRun.current) { firstRun.current = false; return; }
+    // Subscribe to all future store updates and fire-and-forget a PUT
+    // back to the server. zustand's `subscribe` does NOT invoke the
+    // listener immediately on registration, so no "first-fire" guard
+    // is needed — the previous version's `firstRun.current` short-
+    // circuit aborted the effect entirely and silently dropped the
+    // server write path.
     const unsub = usePrefsStore.subscribe((state) => {
       const tok = authToken();
       if (!tok) return;

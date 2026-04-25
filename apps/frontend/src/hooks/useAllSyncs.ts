@@ -9,7 +9,7 @@ export function useAllSyncs() {
 
   const query = useQuery<{ items: SyncRun[] }>({
     queryKey: ["syncs", "all"],
-    queryFn: () => apiFetch("/api/syncs?limit=200", token),
+    queryFn: () => apiFetch("/api/syncs?limit=100", token),
     enabled: !!token,
     refetchOnWindowFocus: false,
     staleTime: 30_000,
