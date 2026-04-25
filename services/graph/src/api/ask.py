@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 from substrate_common import NotFoundError, ValidationError
 
 from src.api.auth import require_user_sub_strict
-from src.graph import ask_pipeline, ask_store
+from src.graph import ask_pipeline, ask_store, chat_context_resolver, chat_context_store
 
 logger = structlog.get_logger()
 router = APIRouter(prefix="/api/ask")
@@ -45,7 +45,31 @@ async def create_thread(
 ) -> dict[str, Any]:
     sub = require_user_sub_strict(x_user_sub)
     title = (body.title or "New thread").strip()[:200] or "New thread"
-    return await ask_store.create_thread(sub, title)
+    thread = await ask_store.create_thread(sub, title)
+
+    # If this user has applied a chat context in Sources Config, resolve it
+    # to the per-file list NOW and freeze a context_summary on the thread.
+    # Per spec §4.1: existing threads never retroactively change context;
+    # the snapshot is taken once at create-time.
+    active = await chat_context_store.get_active(sub)
+    if active is not None:
+        files = await chat_context_resolver.resolve(active, sub)
+        if files:
+            thread_uuid = UUID(thread["id"])
+            await chat_context_store.insert_thread_context_files(
+                thread_uuid, files,
+            )
+            created_at = thread.get("created_at")
+            await chat_context_store.write_context_summary(thread_uuid, {
+                **active,
+                "resolved_token_total": sum(f["total_tokens"] for f in files),
+                "file_count": len(files),
+                "created_at": (
+                    created_at.isoformat()
+                    if hasattr(created_at, "isoformat") else created_at
+                ),
+            })
+    return thread
 
 
 @router.patch("/threads/{thread_id}")
