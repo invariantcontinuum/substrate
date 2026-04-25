@@ -127,6 +127,22 @@ class _GraphSettings(BaseSettings):
     # Must stay ≤ the gateway's long-LLM timeout (115s) so the gateway
     # doesn't clip the request mid-flight.
     ask_llm_timeout_s: float = 110.0
+
+    # ── Chat context (spec 2026-04-25-backend-foundations §4.1) ─────
+    # Hard cap on tokens summed across included context files in a single
+    # thread. The pipeline returns 413 when the active set exceeds this;
+    # the user must drop files in the modal to fit. Must be ≤ the dense
+    # LLM CONTEXT_SIZE in ops/llm/lazy-lamacpp/config/models/dense.env.
+    # Trade-off: larger = richer context, more VRAM + slower per-message
+    # build; smaller = users must drop more files to fit.
+    chat_context_token_budget: int = 24000
+
+    # ── JSON export safety net (spec §4.4) ──────────────────────────
+    # Refuse JSON export if the resolved scope contains more files than
+    # this. Trade-off: larger = giant downloads possible; smaller =
+    # better DX in monorepos but legitimately big graphs blocked.
+    export_max_files: int = 10000
+
     # System prompt for the ask pipeline. Changing this reshapes every
     # future answer — keep short, task-focused, and format-strict.
     ask_system_instruction: str = (
