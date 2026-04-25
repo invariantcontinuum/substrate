@@ -3071,3 +3071,57 @@ html {
     box-shadow: 0 0 24px rgba(0, 0, 0, 0.3);
   }
 }
+
+/* ---- Code blocks (Shiki + copy button) ---- */
+.code-block {
+  margin: 8px 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  overflow: hidden;
+  background: var(--surface-sunken);
+}
+.code-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 10px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  font-size: var(--text-xs);
+}
+.code-block-lang {
+  text-transform: lowercase;
+  color: var(--text-muted);
+}
+.code-block-copy {
+  background: transparent;
+  border: 0;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+}
+.code-block-copy:hover { color: var(--text); }
+.code-block-body {
+  padding: 8px 12px;
+  overflow-x: auto;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 13px;
+}
+.code-block-body pre { margin: 0; }
+
+/* Inline code (outside code blocks) */
+.message-content :not(pre) > code {
+  padding: 1px 5px;
+  background: var(--surface-sunken);
+  border-radius: 4px;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.92em;
+}
+
+/* Markdown body — typography */
+.message.is-assistant .message-content :is(p, ul, ol) { margin: 8px 0; }
+.message.is-assistant .message-content h1 { font-size: 1.4em; margin: 16px 0 8px; }
+.message.is-assistant .message-content h2 { font-size: 1.2em; margin: 14px 0 6px; }
+.message.is-assistant .message-content h3 { font-size: 1.05em; margin: 12px 0 6px; }
+.message.is-assistant .message-content a { color: var(--accent); text-decoration: underline; }
