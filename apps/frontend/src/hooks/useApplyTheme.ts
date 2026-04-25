@@ -2,10 +2,14 @@ import { useEffect } from "react";
 import { usePrefsStore } from "@/stores/prefs";
 
 /**
- * Mirrors ``prefs.theme`` onto ``<html class="theme-light|theme-dark">`` so
- * CSS tokens in ``globals.css`` can swap palettes without rerendering the
- * tree. ``system`` resolves to the OS preference via ``matchMedia``; the
- * effect re-runs whenever the pref changes.
+ * Mirrors ``prefs.theme`` onto ``<html data-theme="light|dark">`` so the
+ * `[data-theme]`-keyed token blocks in ``theme.css`` swap palettes
+ * without rerendering the tree. ``system`` resolves to the OS preference
+ * via ``matchMedia``; the effect re-runs whenever the pref changes.
+ *
+ * Also keeps the legacy `.light`/`.dark` classes + `color-scheme` style
+ * in sync so any third-party integration hooking into those (mkdocs,
+ * etc.) keeps working — same behavior as `useThemeStore.applyTheme`.
  */
 export function useApplyTheme(): void {
   const theme = usePrefsStore((s) => s.theme);
@@ -18,8 +22,11 @@ export function useApplyTheme(): void {
         : "dark";
     };
     const apply = () => {
-      root.classList.remove("theme-light", "theme-dark");
-      root.classList.add(`theme-${resolve()}`);
+      const resolved = resolve();
+      root.setAttribute("data-theme", resolved);
+      root.classList.remove("light", "dark");
+      root.classList.add(resolved);
+      root.style.colorScheme = resolved;
     };
     apply();
     if (theme !== "system") return;

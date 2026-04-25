@@ -1062,7 +1062,11 @@ html {
   transform: translate(-50%, -50%);
   width: calc(100% - var(--space-6));
   max-width: 520px;
-  max-height: calc(100% - var(--space-6));
+  /* Safari iOS dynamic toolbar shrinks the visible viewport — 100vh
+   * puts modal bottoms (close button, footer) under the toolbar.
+   * 100dvh tracks the visible area; the safe-area-inset reserves the
+   * home-indicator space so close buttons stay tappable. */
+  max-height: calc(100dvh - var(--space-6) - env(safe-area-inset-top) - env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
   background: var(--glass-bg-strong);
@@ -1071,6 +1075,7 @@ html {
   border-radius: var(--radius-lg);
   box-shadow: var(--glass-shadow);
   padding: var(--space-6);
+  padding-bottom: max(var(--space-6), env(safe-area-inset-bottom));
   z-index: var(--z-modal);
   cursor: auto;
   animation: dialog-in var(--dur-base) var(--ease-out);
@@ -1248,10 +1253,11 @@ html {
 @media (max-width: 640px) {
   .settings-modal {
     max-width: 100vw;
-    max-height: 100vh;
+    max-height: 100dvh;
     width: 100vw;
-    height: 100vh;
+    height: 100dvh;
     border-radius: 0;
+    padding-bottom: max(var(--space-6), env(safe-area-inset-bottom));
   }
   .settings-modal-shell {
     flex-direction: column;
@@ -1263,6 +1269,9 @@ html {
     border-right: 0;
     border-bottom: 1px solid var(--border);
     padding: 6px 4px;
+  }
+  .settings-modal-body {
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
   }
 }
 
@@ -1970,16 +1979,33 @@ html {
     bottom: calc(116px + env(safe-area-inset-bottom));
     max-width: min(58vw, 240px);
   }
+  /* Legend turns into a horizontal scrollable strip pinned at the TOP
+   * of the canvas (above the toolbar), so it never goes off-viewport
+   * and doesn't fight the bottom-sheet detail panel for space. */
   .graph-overlay-bottom-right {
     display: block;
+    top: var(--space-2);
     right: var(--space-2);
-    bottom: calc(116px + env(safe-area-inset-bottom));
-    max-width: min(42vw, 176px);
+    left: var(--space-2);
+    bottom: auto;
+    max-width: none;
+    pointer-events: auto;
   }
   .dynamic-legend {
     flex-direction: row;
-    flex-wrap: wrap;
-    gap: 2px 6px;
+    flex-wrap: nowrap;
+    gap: 4px 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 4px 8px;
+    background: var(--surface-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    scrollbar-width: thin;
+  }
+  .dynamic-legend::-webkit-scrollbar { height: 3px; }
+  .dynamic-legend-item {
+    flex-shrink: 0;
   }
   .graph-toolbar {
     top: auto;
@@ -2007,30 +2033,16 @@ html {
     width: 28px;
     height: 28px;
   }
-  /* The legend lives above the bottom sheet so it never hides behind the
-   * detail panel. 55vh sheet + 8px gap + 64px nav = plenty of room to
-   * stack the legend right above the sheet. */
-  .graph-overlay-bottom-right {
-    bottom: calc(55vh + 64px + env(safe-area-inset-bottom) + var(--space-2));
-    max-width: min(60vw, 200px);
-  }
+  /* Phone: legend stays as a horizontal scrollable bar at the TOP of
+   * the canvas (set by the 900px rule). Bottom-left signals overlay
+   * still floats above the bottom-sheet detail panel. */
   .graph-overlay-bottom-left {
     bottom: calc(55vh + 64px + env(safe-area-inset-bottom) + var(--space-2));
   }
-  /* When no node is selected, there's no bottom sheet — reclaim the space
-   * so overlays sit at the normal bottom of the canvas. The React layer
-   * toggles `data-spotlight-active` on `.graph-canvas-container` from the
-   * `selectedNodeId` value, so we key the tight packing on the *absence*
-   * of that attribute. */
-  .graph-canvas-container[data-spotlight-active="false"] ~ .graph-overlay-bottom-right,
   .graph-canvas-container[data-spotlight-active="false"] ~ .graph-overlay-bottom-left {
     bottom: calc(64px + env(safe-area-inset-bottom) + var(--space-2));
   }
   .dynamic-legend {
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 2px 6px;
-    padding: 4px 6px;
     font-size: var(--text-xs);
   }
   .dynamic-legend-count {
@@ -2603,6 +2615,171 @@ html {
 /* Community multi-checkbox picker (Sources Config tab). Communities are
  * a function of (snapshot set + leiden config), so editing snapshots
  * marks the previously-loaded list as stale until the user reloads. */
+/* ContextBudgetPill — small clickable pill above the composer showing
+ * "X / Y tokens · N files". Goes amber at 80% of budget, red over.
+ * Click opens the ContextFilesModal so the user can drop files. */
+.context-budget-pill {
+  align-self: center;
+  margin: 6px auto 0;
+  padding: 4px 12px;
+  background: var(--accent-tint);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  font: inherit;
+  font-size: var(--text-xs);
+  color: var(--accent);
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.context-budget-pill:hover { background: var(--accent); color: var(--accent-contrast); }
+.context-budget-pill.is-warn {
+  background: rgba(255, 193, 130, 0.18);
+  border-color: rgba(255, 193, 130, 0.6);
+  color: rgba(255, 193, 130, 1);
+}
+.context-budget-pill.is-warn:hover { background: rgba(255, 193, 130, 0.4); }
+.context-budget-pill.is-over {
+  background: rgba(255, 120, 120, 0.18);
+  border-color: rgba(255, 120, 120, 0.6);
+  color: rgba(255, 120, 120, 1);
+}
+.context-budget-pill.is-over:hover { background: rgba(255, 120, 120, 0.4); }
+
+/* Context-files modal — list of files attached to the active thread,
+ * each with a checkbox to include/exclude + filename / language /
+ * token count metadata. Compact two-line row so long paths stay
+ * readable without overflowing the modal. */
+.ctx-files-modal { max-width: min(640px, 95vw); }
+.ctx-files-budget {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  background: var(--accent-tint);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-xs);
+  color: var(--accent);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+.ctx-files-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+.ctx-files-item {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  background: var(--surface);
+  transition: border-color var(--dur-fast) var(--ease-out), opacity var(--dur-fast) var(--ease-out);
+}
+.ctx-files-item:not(.is-included) { opacity: 0.5; }
+.ctx-files-item.is-included { border-color: var(--accent); }
+.ctx-files-item:hover { background: var(--surface-hover); }
+.ctx-files-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: var(--text-sm);
+}
+.ctx-files-row > input[type="checkbox"] {
+  flex-shrink: 0;
+  margin: 0;
+  cursor: pointer;
+}
+.ctx-files-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ctx-files-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.ctx-files-name {
+  font-weight: 500;
+  color: var(--fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono, monospace);
+  font-size: var(--text-sm);
+}
+.ctx-files-lang {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  background: var(--surface-sunken);
+  border-radius: 999px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--fg-muted);
+  font-weight: 500;
+}
+.ctx-files-path {
+  font-family: var(--font-mono, monospace);
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ctx-files-tokens {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+  min-width: 56px;
+  text-align: right;
+}
+.ctx-files-tokens-label { color: var(--fg-subtle); }
+
+/* GitHub token input + validate button — design-language pair used in
+ * AccountIntegrationsTab. Token input gets a monospace font for `ghp_…`
+ * readability; the row collapses gracefully on narrow viewports. */
+.github-token-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.github-token-input {
+  flex: 1;
+  min-width: 220px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: var(--text-sm);
+}
+
+/* Account-tab dropdowns (theme/layout selects in AccountDefaultsTab) —
+ * inherit the input chrome for visual parity. */
+.account-page select,
+.settings-modal-body select {
+  padding: 6px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--fg);
+  cursor: pointer;
+  min-width: 160px;
+}
+.account-page select:focus,
+.settings-modal-body select:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
 /* Chat context block (Sources Config tab). Source picker → snapshot
  * checkboxes → community picker → Apply / Clear. Uses substrate's
  * design tokens consistently so it matches the rest of the Config tab. */
@@ -2875,10 +3052,11 @@ html {
 @media (max-width: 640px) {
   .node-detail-modal {
     max-width: 100vw;
-    max-height: 100vh;
+    max-height: 100dvh;
     width: 100vw;
-    height: 100vh;
+    height: 100dvh;
     border-radius: 0;
+    padding-bottom: max(var(--space-6), env(safe-area-inset-bottom));
   }
 }
 
@@ -3043,12 +3221,16 @@ html {
 .carousel-dot {
   width: 10px;
   height: 10px;
+  min-width: 10px;
+  min-height: 10px;
   border-radius: 50%;
   background: var(--border-strong);
   border: none;
   cursor: pointer;
   padding: 0;
   flex: 0 0 10px;
+  aspect-ratio: 1;
+  box-sizing: border-box;
   transition: background 0.15s, transform 0.15s;
 }
 .carousel-dot:hover { background: var(--fg-muted); }

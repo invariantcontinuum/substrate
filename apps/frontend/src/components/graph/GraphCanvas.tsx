@@ -246,7 +246,11 @@ function buildCyStylesheet(theme: GraphTheme) {
     { selector: 'node[status="violation"]',
       style: { "border-color": t.typeViolation, "border-width": 2.5 } },
 
-    // Base edge: muted neutral line.
+    // Base edge: muted neutral line. z-index 1 keeps every default edge
+    // BEHIND every node (which has z-index 10) — only spotlight-focus
+    // edges (the ones touching the currently-selected node, set to 15
+    // below) climb above non-focused nodes so the user can trace the
+    // selection's neighborhood without occluding everything else.
     {
       selector: "edge",
       style: {
@@ -262,6 +266,8 @@ function buildCyStylesheet(theme: GraphTheme) {
         "text-background-color":    t.edgeLabelBg,
         "text-background-opacity":  0.95,
         "text-background-padding":  "2px" as any,
+        "z-index":                  1,
+        "z-compound-depth":         "auto" as any,
       },
     },
     { selector: 'edge[type="depends"]',

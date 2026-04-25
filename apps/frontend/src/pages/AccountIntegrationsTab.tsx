@@ -55,25 +55,22 @@ export function AccountIntegrationsTab() {
         k="Paste token to validate"
         v={
           <>
-            <input
-              type="password"
-              placeholder="ghp_…"
-              value={token}
-              onChange={(e) => setToken(e.target.value)}
-              style={{
-                marginRight: 6,
-                fontFamily: "monospace",
-                fontSize: 11,
-                width: 220,
-              }}
-            />
-            <button
-              className="cta-ghost"
-              onClick={validate}
-              disabled={!token || probing}
-            >
-              {probing ? "Validating…" : "Validate"}
-            </button>
+            <div className="github-token-row">
+              <input
+                type="password"
+                className="ui-input github-token-input"
+                placeholder="ghp_…"
+                value={token}
+                onChange={(e) => setToken(e.target.value)}
+              />
+              <button
+                className="cta-primary"
+                onClick={validate}
+                disabled={!token || probing}
+              >
+                {probing ? "Validating…" : "Validate"}
+              </button>
+            </div>
           </>
         }
       />

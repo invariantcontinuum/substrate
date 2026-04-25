@@ -134,11 +134,18 @@ def _build_prompt(
     budget = settings.chat_total_budget_chars
     retrieved = retrieved or []
 
+    # Per-node block — embeds the full file summary (description column)
+    # up to the per-node cap. The previous 200-char truncation lost the
+    # bulk of the embedded summary; the LLM was effectively reasoning
+    # from filenames + types alone. The outer budget guard below still
+    # trims oldest history / lowest-ranked nodes if the prompt grows
+    # past `chat_total_budget_chars`, so a generous per-node cap is
+    # safe — it only loosens the worst-case where we *had* room.
     def _node_block(n: dict) -> str:
         desc = (n.get("description") or "").strip().replace("\n", " ")
         return (
             f"- node_id={n['id']} name={n.get('name') or ''} "
-            f"type={n.get('type') or ''} desc={desc[:200]}"
+            f"type={n.get('type') or ''} desc={desc[:1500]}"
         )
 
     nodes_section = "\n".join(_node_block(n) for n in retrieved)
