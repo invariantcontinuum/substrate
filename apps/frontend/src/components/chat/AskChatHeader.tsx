@@ -9,7 +9,7 @@ export function AskChatHeader({ thread }: { thread: ChatThread | null }) {
     <header className="chat-pane-header">
       <button
         type="button"
-        className="ask-back-btn"
+        className="chat-back-btn"
         onClick={() => setActive(null)}
         aria-label="Back to thread list"
       >

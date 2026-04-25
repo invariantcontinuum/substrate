@@ -29,11 +29,11 @@ export function ThreadListItem({ thread, active, onSelect }: Props) {
   };
 
   return (
-    <div className={`ask-thread-item${active ? " is-active" : ""}`}>
+    <div className={`chat-thread-item${active ? " is-active" : ""}`}>
       {editing ? (
         <input
           autoFocus
-          className="ask-thread-edit"
+          className="chat-thread-edit"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onBlur={commit}
@@ -42,19 +42,19 @@ export function ThreadListItem({ thread, active, onSelect }: Props) {
       ) : (
         <button
           type="button"
-          className="ask-thread-select"
+          className="chat-thread-select"
           onClick={onSelect}
           onDoubleClick={() => { setDraft(thread.title); setEditing(true); }}
         >
-          <span className="ask-thread-title">{thread.title}</span>
+          <span className="chat-thread-title">{thread.title}</span>
           {thread.last_message_preview && (
-            <span className="ask-thread-preview">{thread.last_message_preview}</span>
+            <span className="chat-thread-preview">{thread.last_message_preview}</span>
           )}
         </button>
       )}
       <button
         type="button"
-        className="ask-thread-delete"
+        className="chat-thread-delete"
         onClick={(e) => { e.stopPropagation(); remove.mutate(thread.id); }}
         aria-label="Delete thread"
       >

@@ -19,36 +19,36 @@ export function Citations({ items }: { items: Citation[] }) {
   };
 
   return (
-    <div className="ask-citations" role="list">
+    <div className="chat-citations" role="list">
       {items.map((c) => {
         const isOpen = open === c.node_id;
         const hasSource = !!c.excerpt;
         return (
-          <div key={c.node_id} role="listitem" className="ask-citation">
-            <div className="ask-citation-row">
+          <div key={c.node_id} role="listitem" className="chat-citation">
+            <div className="chat-citation-row">
               <button
                 type="button"
-                className="ask-citation-chip"
+                className="chat-citation-chip"
                 title={c.file_path || c.node_id}
                 onClick={() =>
                   hasSource ? setOpen(isOpen ? null : c.node_id) : inspect(c.node_id)
                 }
               >
-                <span className="ask-citation-name">
+                <span className="chat-citation-name">
                   {c.file_path || c.name || c.node_id}
                 </span>
                 {c.type && (
-                  <span className="ask-citation-type">{c.type}</span>
+                  <span className="chat-citation-type">{c.type}</span>
                 )}
                 {hasSource && (
-                  <span className="ask-citation-toggle" aria-hidden>
+                  <span className="chat-citation-toggle" aria-hidden>
                     {isOpen ? "−" : "+"}
                   </span>
                 )}
               </button>
               <button
                 type="button"
-                className="ask-citation-inspect"
+                className="chat-citation-inspect"
                 onClick={() => inspect(c.node_id)}
                 aria-label="Open node in graph"
                 title="Open node in graph"
@@ -58,7 +58,7 @@ export function Citations({ items }: { items: Citation[] }) {
             </div>
             {isOpen && hasSource && (
               <pre
-                className="ask-citation-excerpt"
+                className="chat-citation-excerpt"
                 data-language={c.language || ""}
               >
                 <code>{c.excerpt}</code>
