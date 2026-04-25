@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { useChatThreads } from "@/hooks/useChatThreads";
 import { useCreateThread } from "@/hooks/useChatMutations";
 import { useChatStore } from "@/stores/chat";
-import { ThreadListItem } from "./ThreadListItem";
+import { ThreadListItem } from "@/components/layout/ThreadListItem";
 
 export function AskThreadRail() {
   const { data: threads, isLoading } = useChatThreads();
@@ -17,11 +17,11 @@ export function AskThreadRail() {
   };
 
   return (
-    <aside className="ask-rail">
-      <Button onClick={handleCreate} className="ask-new-btn" disabled={createThread.isPending}>
+    <aside className="chat-rail">
+      <Button onClick={handleCreate} className="chat-new-btn" disabled={createThread.isPending}>
         <Plus size={14} /> New thread
       </Button>
-      <div className="ask-thread-list">
+      <div className="chat-thread-list">
         {isLoading && <Loader2 size={14} />}
         {threads?.map((t) => (
           <ThreadListItem

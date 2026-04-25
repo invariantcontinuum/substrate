@@ -43,7 +43,7 @@ export function AskComposer({ threadId }: { threadId: string | null }) {
   };
 
   return (
-    <div className="ask-composer">
+    <div className="chat-composer">
       <textarea
         ref={taRef}
         value={draft}
@@ -51,10 +51,10 @@ export function AskComposer({ threadId }: { threadId: string | null }) {
         onKeyDown={onKey}
         placeholder="Ask about the graph…"
         disabled={sending}
-        className="ask-composer-input"
+        className="chat-composer-input"
         rows={3}
       />
-      <Button onClick={doSend} disabled={!canSend} className="ask-composer-send">
+      <Button onClick={doSend} disabled={!canSend} className="chat-composer-send">
         <Send size={14} /> {sending ? "Sending…" : "Send"}
       </Button>
     </div>

@@ -6,7 +6,7 @@ export function AskChatHeader({ thread }: { thread: ChatThread | null }) {
   const setActive = useChatStore((s) => s.setActiveThreadId);
   if (!thread) return null;
   return (
-    <header className="ask-chat-header">
+    <header className="chat-pane-header">
       <button
         type="button"
         className="ask-back-btn"
@@ -15,7 +15,7 @@ export function AskChatHeader({ thread }: { thread: ChatThread | null }) {
       >
         <ArrowLeft size={16} />
       </button>
-      <h2 className="ask-chat-title">{thread.title}</h2>
+      <h2 className="chat-pane-title">{thread.title}</h2>
     </header>
   );
 }

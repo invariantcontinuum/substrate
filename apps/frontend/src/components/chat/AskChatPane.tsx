@@ -13,7 +13,7 @@ export function AskChatPane() {
   const thread = threads?.find((t) => t.id === activeId) ?? null;
   const [ctxOpen, setCtxOpen] = useState(false);
   return (
-    <section className="ask-chat">
+    <section className="chat-pane">
       <AskChatHeader thread={thread} />
       <AskMessageList threadId={activeId} />
       <ContextBudgetPill threadId={activeId} onOpenModal={() => setCtxOpen(true)} />

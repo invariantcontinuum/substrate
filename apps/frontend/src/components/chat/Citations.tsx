@@ -4,7 +4,7 @@ import type { Citation } from "@/hooks/useChatMessages";
 import { useUIStore } from "@/stores/ui";
 import { useGraphStore } from "@/stores/graph";
 
-export function CitationChips({ items }: { items: Citation[] }) {
+export function Citations({ items }: { items: Citation[] }) {
   const navigate = useNavigate();
   const openModal = useUIStore((s) => s.openModal);
   const setSelectedNodeId = useGraphStore((s) => s.setSelectedNodeId);

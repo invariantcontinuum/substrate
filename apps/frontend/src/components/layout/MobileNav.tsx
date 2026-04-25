@@ -7,12 +7,12 @@ import { useUIStore, type ModalName } from "@/stores/ui";
 // "sources" is now a full-page view toggled via activeView, not a modal.
 type MobileNavAction =
   | { kind: "modal"; modal: ModalName }
-  | { kind: "view"; view: "graph" | "sources" | "ask" };
+  | { kind: "view"; view: "graph" | "sources" | "chat" };
 
 const items: { icon: typeof GitBranch; label: string; action: MobileNavAction }[] = [
   { icon: GitBranch, label: "Graph",   action: { kind: "view",  view: "graph" } },
   { icon: Plug,      label: "Sources", action: { kind: "view",  view: "sources" } },
-  { icon: MessageCircle, label: "Ask", action: { kind: "view",  view: "ask" } },
+  { icon: MessageCircle, label: "Chat", action: { kind: "view",  view: "chat" } },
   { icon: User,      label: "Account", action: { kind: "modal", modal: "user" } },
 ];
 
@@ -25,7 +25,7 @@ export function MobileNav() {
 
   const isActive = (action: MobileNavAction): boolean => {
     if (action.kind === "view") {
-      const path = action.view === "graph" ? "/graph" : action.view === "sources" ? "/sources" : "/ask";
+      const path = action.view === "graph" ? "/graph" : action.view === "sources" ? "/sources" : "/chat";
       return location.pathname.startsWith(path);
     }
     return activeModal === action.modal;
@@ -36,7 +36,7 @@ export function MobileNav() {
       openModal(action.modal);
       return;
     }
-    const path = action.view === "graph" ? "/graph" : action.view === "sources" ? "/sources" : "/ask";
+    const path = action.view === "graph" ? "/graph" : action.view === "sources" ? "/sources" : "/chat";
     navigate(path);
     setActiveView(action.view);
   };

@@ -116,7 +116,7 @@ export function DashboardLayout() {
     const path = location.pathname;
     if (path.startsWith("/sources")) setActiveView("sources");
     else if (path.startsWith("/account")) setActiveView("account");
-    else if (path.startsWith("/ask")) setActiveView("ask");
+    else if (path.startsWith("/chat")) setActiveView("chat");
     else setActiveView("graph");
   }, [location.pathname, setActiveView]);
   const showSidebar = isDesktop && sidebarOpen;

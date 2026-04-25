@@ -15,14 +15,14 @@ export function AskMessageList({ threadId }: { threadId: string | null }) {
   }, [messages?.length, sending]);
 
   if (!threadId) return <EmptyState variant="no-thread" />;
-  if (isLoading) return <div className="ask-list-loading"><Loader2 size={16} /></div>;
+  if (isLoading) return <div className="chat-list-loading"><Loader2 size={16} /></div>;
   if (!messages || messages.length === 0) return <EmptyState variant="empty-thread" />;
 
   return (
-    <div className="ask-list">
+    <div className="chat-list">
       {messages.map((m) => <MessageBubble key={m.id} message={m} />)}
       {sending && (
-        <div className="ask-bubble is-assistant is-typing">
+        <div className="chat-bubble is-assistant is-typing">
           <Loader2 size={14} /> thinking…
         </div>
       )}

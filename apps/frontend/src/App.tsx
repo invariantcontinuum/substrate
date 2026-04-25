@@ -4,7 +4,7 @@ import { useAuth } from "react-oidc-context";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { GraphPage } from "@/pages/GraphPage";
 import { CallbackPage } from "@/pages/CallbackPage";
-import { AskPage } from "@/pages/AskPage";
+import { ChatPage } from "@/pages/ChatPage";
 import { SourcesPage } from "@/pages/SourcesPage";
 import { SourcesTab } from "@/pages/SourcesTab";
 import { SourcesSnapshotsTab } from "@/pages/SourcesSnapshotsTab";
@@ -137,7 +137,8 @@ function App() {
         <Route index element={<Navigate to="/graph" replace />} />
         <Route path="graph" element={<GraphPage />} />
         <Route path="graph/c/:cacheKey/:idx" element={<GraphPage />} />
-        <Route path="ask" element={<AskPage />} />
+        <Route path="chat" element={<ChatPage />} />
+        <Route path="ask" element={<Navigate to="/chat" replace />} />
         <Route path="sources" element={<SourcesPage />}>
           <Route index element={<SourcesTab />} />
           <Route path="snapshots" element={<SourcesSnapshotsTab />} />
