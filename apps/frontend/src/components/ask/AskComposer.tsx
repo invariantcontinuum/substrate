@@ -1,15 +1,15 @@
 import { useRef, type KeyboardEvent } from "react";
 import { Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useAskStore } from "@/stores/ask";
-import { useSendTurn, useCreateThread } from "@/hooks/useAskMutations";
+import { useChatStore } from "@/stores/chat";
+import { useSendTurn, useCreateThread } from "@/hooks/useChatMutations";
 
 export function AskComposer({ threadId }: { threadId: string | null }) {
-  const draft = useAskStore((s) => s.composerDraft);
-  const setDraft = useAskStore((s) => s.setComposerDraft);
-  const sending = useAskStore((s) => s.sendingTurn);
-  const setSending = useAskStore((s) => s.setSendingTurn);
-  const setActiveThreadId = useAskStore((s) => s.setActiveThreadId);
+  const draft = useChatStore((s) => s.composerDraft);
+  const setDraft = useChatStore((s) => s.setComposerDraft);
+  const sending = useChatStore((s) => s.sendingTurn);
+  const setSending = useChatStore((s) => s.setSendingTurn);
+  const setActiveThreadId = useChatStore((s) => s.setActiveThreadId);
   const send = useSendTurn();
   const createThread = useCreateThread();
   const taRef = useRef<HTMLTextAreaElement | null>(null);

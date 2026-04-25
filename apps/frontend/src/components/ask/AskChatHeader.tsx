@@ -1,9 +1,9 @@
 import { ArrowLeft } from "lucide-react";
-import { useAskStore } from "@/stores/ask";
-import type { AskThread } from "@/hooks/useAskThreads";
+import { useChatStore } from "@/stores/chat";
+import type { ChatThread } from "@/hooks/useChatThreads";
 
-export function AskChatHeader({ thread }: { thread: AskThread | null }) {
-  const setActive = useAskStore((s) => s.setActiveThreadId);
+export function AskChatHeader({ thread }: { thread: ChatThread | null }) {
+  const setActive = useChatStore((s) => s.setActiveThreadId);
   if (!thread) return null;
   return (
     <header className="ask-chat-header">

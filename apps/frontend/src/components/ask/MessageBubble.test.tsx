@@ -4,9 +4,9 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { MessageBubble } from "./MessageBubble";
 import { useUIStore } from "@/stores/ui";
 import { useGraphStore } from "@/stores/graph";
-import type { AskMessage } from "@/hooks/useAskMessages";
+import type { ChatMessage } from "@/hooks/useChatMessages";
 
-const base: AskMessage = {
+const base: ChatMessage = {
   id: "m1",
   role: "assistant",
   content: "The answer is X.",
@@ -39,7 +39,7 @@ describe("MessageBubble", () => {
   });
 
   it("citation with excerpt expands a code block on click", () => {
-    const msg: AskMessage = {
+    const msg: ChatMessage = {
       ...base,
       citations: [
         {

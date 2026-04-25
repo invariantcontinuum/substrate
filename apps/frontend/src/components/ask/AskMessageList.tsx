@@ -1,13 +1,13 @@
 import { useEffect, useRef } from "react";
 import { Loader2 } from "lucide-react";
-import { useAskMessages } from "@/hooks/useAskMessages";
-import { useAskStore } from "@/stores/ask";
+import { useChatMessages } from "@/hooks/useChatMessages";
+import { useChatStore } from "@/stores/chat";
 import { MessageBubble } from "./MessageBubble";
 import { EmptyState } from "./EmptyState";
 
 export function AskMessageList({ threadId }: { threadId: string | null }) {
-  const { data: messages, isLoading } = useAskMessages(threadId);
-  const sending = useAskStore((s) => s.sendingTurn);
+  const { data: messages, isLoading } = useChatMessages(threadId);
+  const sending = useChatStore((s) => s.sendingTurn);
   const endRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {

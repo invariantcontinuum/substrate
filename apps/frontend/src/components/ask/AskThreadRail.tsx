@@ -1,15 +1,15 @@
 import { Plus, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useAskThreads } from "@/hooks/useAskThreads";
-import { useCreateThread } from "@/hooks/useAskMutations";
-import { useAskStore } from "@/stores/ask";
+import { useChatThreads } from "@/hooks/useChatThreads";
+import { useCreateThread } from "@/hooks/useChatMutations";
+import { useChatStore } from "@/stores/chat";
 import { ThreadListItem } from "./ThreadListItem";
 
 export function AskThreadRail() {
-  const { data: threads, isLoading } = useAskThreads();
+  const { data: threads, isLoading } = useChatThreads();
   const createThread = useCreateThread();
-  const activeId = useAskStore((s) => s.activeThreadId);
-  const setActiveId = useAskStore((s) => s.setActiveThreadId);
+  const activeId = useChatStore((s) => s.activeThreadId);
+  const setActiveId = useChatStore((s) => s.setActiveThreadId);
 
   const handleCreate = async () => {
     const created = await createThread.mutateAsync(undefined);

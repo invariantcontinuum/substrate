@@ -3,8 +3,8 @@ import { useAuth } from "react-oidc-context";
 import { apiFetch } from "@/lib/api";
 import { useSyncSetStore } from "@/stores/syncSet";
 import { useGraphStore } from "@/stores/graph";
-import type { AskMessage } from "./useAskMessages";
-import type { AskThread } from "./useAskThreads";
+import type { ChatMessage } from "./useChatMessages";
+import type { ChatThread } from "./useChatThreads";
 
 interface GraphContext {
   nodes: Array<{ id: string; name: string; type: string }>;
@@ -59,11 +59,11 @@ export function useCreateThread() {
   const token = auth.user?.access_token;
   return useMutation({
     mutationFn: async (title?: string) =>
-      apiFetch<AskThread>("/api/ask/threads", token, {
+      apiFetch<ChatThread>("/api/chat/threads", token, {
         method: "POST",
         body: JSON.stringify({ title }),
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["ask", "threads"] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["chat", "threads"] }),
   });
 }
 
@@ -73,11 +73,11 @@ export function useRenameThread() {
   const token = auth.user?.access_token;
   return useMutation({
     mutationFn: async ({ id, title }: { id: string; title: string }) =>
-      apiFetch<AskThread>(`/api/ask/threads/${id}`, token, {
+      apiFetch<ChatThread>(`/api/chat/threads/${id}`, token, {
         method: "PATCH",
         body: JSON.stringify({ title }),
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["ask", "threads"] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["chat", "threads"] }),
   });
 }
 
@@ -87,8 +87,8 @@ export function useDeleteThread() {
   const token = auth.user?.access_token;
   return useMutation({
     mutationFn: async (id: string) =>
-      apiFetch<null>(`/api/ask/threads/${id}`, token, { method: "DELETE" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["ask", "threads"] }),
+      apiFetch<null>(`/api/chat/threads/${id}`, token, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["chat", "threads"] }),
   });
 }
 
@@ -100,8 +100,8 @@ export function useSendTurn() {
   return useMutation({
     mutationFn: async ({ threadId, content }: { threadId: string; content: string }) => {
       const graphContext = buildGraphContext();
-      return apiFetch<{ user_message: AskMessage; assistant_message: AskMessage }>(
-        `/api/ask/threads/${threadId}/messages`,
+      return apiFetch<{ user_message: ChatMessage; assistant_message: ChatMessage }>(
+        `/api/chat/threads/${threadId}/messages`,
         token,
         {
           method: "POST",
@@ -110,29 +110,29 @@ export function useSendTurn() {
       );
     },
     onMutate: async ({ threadId, content }) => {
-      await qc.cancelQueries({ queryKey: ["ask", "messages", threadId] });
-      const previousMessages = qc.getQueryData<AskMessage[]>(["ask", "messages", threadId]);
-      const optimisticUserMessage: AskMessage = {
+      await qc.cancelQueries({ queryKey: ["chat", "messages", threadId] });
+      const previousMessages = qc.getQueryData<ChatMessage[]>(["chat", "messages", threadId]);
+      const optimisticUserMessage: ChatMessage = {
         id: `optimistic-${Date.now()}`,
         role: "user",
         content,
         citations: [],
         created_at: new Date().toISOString(),
       };
-      qc.setQueryData<AskMessage[]>(
-        ["ask", "messages", threadId],
+      qc.setQueryData<ChatMessage[]>(
+        ["chat", "messages", threadId],
         (prev) => [...(prev ?? []), optimisticUserMessage],
       );
       return { previousMessages, threadId };
     },
     onError: (_err, _vars, context) => {
       if (context) {
-        qc.setQueryData(["ask", "messages", context.threadId], context.previousMessages);
+        qc.setQueryData(["chat", "messages", context.threadId], context.previousMessages);
       }
     },
     onSuccess: ({ user_message, assistant_message }, { threadId }) => {
-      qc.setQueryData<AskMessage[]>(
-        ["ask", "messages", threadId],
+      qc.setQueryData<ChatMessage[]>(
+        ["chat", "messages", threadId],
         (prev) => {
           const withoutOptimistic = (prev ?? []).filter(
             (m) => !m.id.startsWith("optimistic-"),
@@ -140,7 +140,7 @@ export function useSendTurn() {
           return [...withoutOptimistic, user_message, assistant_message];
         },
       );
-      qc.invalidateQueries({ queryKey: ["ask", "threads"] });
+      qc.invalidateQueries({ queryKey: ["chat", "threads"] });
     },
   });
 }

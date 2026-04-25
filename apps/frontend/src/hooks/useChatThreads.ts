@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "react-oidc-context";
 import { apiFetch } from "@/lib/api";
 
-export interface AskThread {
+export interface ChatThread {
   id: string;
   title: string;
   created_at: string;
@@ -10,13 +10,13 @@ export interface AskThread {
   last_message_preview: string | null;
 }
 
-export function useAskThreads() {
+export function useChatThreads() {
   const auth = useAuth();
   const token = auth.user?.access_token;
   return useQuery({
-    queryKey: ["ask", "threads"],
+    queryKey: ["chat", "threads"],
     queryFn: async () => {
-      const data = await apiFetch<{ items: AskThread[] }>("/api/ask/threads", token);
+      const data = await apiFetch<{ items: ChatThread[] }>("/api/chat/threads", token);
       return data.items;
     },
     enabled: !!token,

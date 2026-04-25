@@ -16,7 +16,7 @@ export interface Citation {
   language?: string;
 }
 
-export interface AskMessage {
+export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
@@ -24,14 +24,14 @@ export interface AskMessage {
   created_at: string;
 }
 
-export function useAskMessages(threadId: string | null) {
+export function useChatMessages(threadId: string | null) {
   const auth = useAuth();
   const token = auth.user?.access_token;
   return useQuery({
-    queryKey: ["ask", "messages", threadId],
+    queryKey: ["chat", "messages", threadId],
     queryFn: async () => {
-      const data = await apiFetch<{ items: AskMessage[] }>(
-        `/api/ask/threads/${threadId}/messages`,
+      const data = await apiFetch<{ items: ChatMessage[] }>(
+        `/api/chat/threads/${threadId}/messages`,
         token,
       );
       return data.items;

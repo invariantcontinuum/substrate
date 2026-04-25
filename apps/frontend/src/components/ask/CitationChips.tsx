@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import type { Citation } from "@/hooks/useAskMessages";
+import type { Citation } from "@/hooks/useChatMessages";
 import { useUIStore } from "@/stores/ui";
 import { useGraphStore } from "@/stores/graph";
 

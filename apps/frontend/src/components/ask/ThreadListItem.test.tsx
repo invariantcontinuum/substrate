@@ -6,7 +6,7 @@ import { ThreadListItem } from "./ThreadListItem";
 const rename = vi.fn();
 const remove = vi.fn();
 
-vi.mock("@/hooks/useAskMutations", () => ({
+vi.mock("@/hooks/useChatMutations", () => ({
   useRenameThread: () => ({ mutate: rename }),
   useDeleteThread: () => ({ mutate: remove }),
 }));

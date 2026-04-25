@@ -2,12 +2,12 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AskComposer } from "./AskComposer";
-import { useAskStore } from "@/stores/ask";
+import { useChatStore } from "@/stores/chat";
 
 const sendMutateAsync = vi.fn().mockResolvedValue({});
 const createMutateAsync = vi.fn().mockResolvedValue({ id: "new-thread" });
 
-vi.mock("@/hooks/useAskMutations", () => ({
+vi.mock("@/hooks/useChatMutations", () => ({
   useSendTurn: () => ({ mutateAsync: sendMutateAsync }),
   useCreateThread: () => ({ mutateAsync: createMutateAsync }),
 }));
@@ -23,7 +23,7 @@ describe("AskComposer", () => {
   beforeEach(() => {
     sendMutateAsync.mockClear();
     createMutateAsync.mockClear();
-    useAskStore.setState({ composerDraft: "", sendingTurn: false, activeThreadId: null });
+    useChatStore.setState({ composerDraft: "", sendingTurn: false, activeThreadId: null });
   });
 
   it("disables send when empty", () => {

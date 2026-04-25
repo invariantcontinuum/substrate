@@ -1,10 +1,10 @@
 import { useState, type KeyboardEvent } from "react";
 import { X } from "lucide-react";
-import type { AskThread } from "@/hooks/useAskThreads";
-import { useRenameThread, useDeleteThread } from "@/hooks/useAskMutations";
+import type { ChatThread } from "@/hooks/useChatThreads";
+import { useRenameThread, useDeleteThread } from "@/hooks/useChatMutations";
 
 interface Props {
-  thread: AskThread;
+  thread: ChatThread;
   active: boolean;
   onSelect: () => void;
 }

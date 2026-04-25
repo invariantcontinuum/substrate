@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-interface AskState {
+interface ChatState {
   activeThreadId: string | null;
   setActiveThreadId: (id: string | null) => void;
   composerDraft: string;
@@ -9,7 +9,7 @@ interface AskState {
   setSendingTurn: (v: boolean) => void;
 }
 
-export const useAskStore = create<AskState>((set) => ({
+export const useChatStore = create<ChatState>((set) => ({
   activeThreadId: null,
   setActiveThreadId: (activeThreadId) => set({ activeThreadId }),
   composerDraft: "",
