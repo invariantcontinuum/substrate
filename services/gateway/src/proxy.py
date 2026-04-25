@@ -80,13 +80,13 @@ async def proxy_request(
     is_idempotent = request.method.upper() in _IDEMPOTENT_METHODS
     attempts = 3 if is_idempotent else 1
 
-    # Summary endpoints and Ask turn endpoints both call the local dense
+    # Summary endpoints and Chat turn endpoints both call the local dense
     # LLM, which routinely takes 30-90s; grant them a 115s read timeout
     # instead of the default 60s.
     path = request.url.path
     is_long_llm_call = (
         path.endswith("/summary")
-        or (path.startswith("/api/ask/threads/") and path.endswith("/messages"))
+        or (path.startswith("/api/chat/threads/") and path.endswith("/messages"))
     )
     per_request_timeout = (
         httpx.Timeout(connect=5.0, read=115.0, write=10.0, pool=10.0)
