@@ -2722,7 +2722,7 @@ html {
 
 /* ---- ActiveSetPill ---- */
 .active-set-pill {
-  position: sticky; top: 0; z-index: 10;
+  top: 0; z-index: 10;
   padding: 6px 10px; border-radius: 999px;
   background: rgba(90,180,255,0.14); color: #a8d8ff;
   border: 1px solid rgba(90,180,255,0.3); font-size: 11px;
