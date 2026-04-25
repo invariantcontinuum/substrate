@@ -18,6 +18,7 @@ WORKDIR /workspace
 COPY pyproject.toml /workspace/pyproject.toml
 COPY uv.lock /workspace/uv.lock
 COPY packages/substrate-common /workspace/packages/substrate-common
+COPY packages/substrate-graph-builder /workspace/packages/substrate-graph-builder
 
 COPY services/graph/pyproject.toml /workspace/services/graph/pyproject.toml
 

@@ -1878,6 +1878,7 @@ dependencies = [
     { name = "scipy" },
     { name = "structlog" },
     { name = "substrate-common" },
+    { name = "substrate-graph-builder" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -1902,6 +1903,7 @@ requires-dist = [
     { name = "scipy", specifier = ">=1.11.0" },
     { name = "structlog", specifier = ">=24.4.0" },
     { name = "substrate-common", editable = "packages/substrate-common" },
+    { name = "substrate-graph-builder", editable = "packages/substrate-graph-builder" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32.0" },
 ]
 provides-extras = ["dev"]
