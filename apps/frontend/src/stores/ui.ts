@@ -2,14 +2,13 @@ import { create } from "zustand";
 
 export type ModalName =
   | "enrichment"
-  // Settings are integrated as a tab inside the `user` modal, not a
-  // separate top-level modal.
   | "user"
   | "policies"
   | "adrs"
   | "drift"
   | "query"
   | "nodeDetail"
+  | "settings"
   | null;
 
 interface UIState {

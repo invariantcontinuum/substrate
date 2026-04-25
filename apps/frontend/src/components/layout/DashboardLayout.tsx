@@ -1,10 +1,7 @@
 import { useEffect } from "react";
 import { Outlet, useLocation } from "react-router-dom";
-import { ChevronRight } from "lucide-react";
 import { useAuth } from "react-oidc-context";
-import { TopBar } from "./TopBar";
 import { Sidebar } from "./Sidebar";
-import { MobileNav } from "./MobileNav";
 import { ModalRoot } from "@/components/modals/ModalRoot";
 import { SwapToast } from "@/components/SwapToast";
 import { useUIStore } from "@/stores/ui";
@@ -109,6 +106,7 @@ export function DashboardLayout() {
   const location = useLocation();
   const sidebarOpen = useUIStore((s) => s.sidebarOpen);
   const setSidebarOpen = useUIStore((s) => s.setSidebarOpen);
+  const toggleSidebar = useUIStore((s) => s.toggleSidebar);
   const setActiveView = useUIStore((s) => s.setActiveView);
   const { isDesktop } = useResponsive();
 
@@ -119,30 +117,34 @@ export function DashboardLayout() {
     else if (path.startsWith("/chat")) setActiveView("chat");
     else setActiveView("graph");
   }, [location.pathname, setActiveView]);
-  const showSidebar = isDesktop && sidebarOpen;
-  const showReopenHandle = isDesktop && !sidebarOpen;
 
   return (
     <div className="dashboard">
-      <TopBar />
       <div className="dashboard-body">
-        {showSidebar && <Sidebar />}
-        {showReopenHandle && (
+        <Sidebar />
+        {!sidebarOpen && isDesktop && (
           <button
             type="button"
-            className="side-nav-reopen"
+            className="dashboard-reopen"
             onClick={() => setSidebarOpen(true)}
             title="Show sidebar"
             aria-label="Show sidebar"
           >
-            <ChevronRight size={16} />
+            ☰
           </button>
+        )}
+        {!isDesktop && sidebarOpen && (
+          <button
+            type="button"
+            className="dashboard-scrim"
+            onClick={toggleSidebar}
+            aria-label="Close sidebar"
+          />
         )}
         <main className="dashboard-main">
           <Outlet />
         </main>
       </div>
-      <MobileNav />
       <ModalRoot />
       <SwapToast />
     </div>
