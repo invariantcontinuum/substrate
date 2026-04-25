@@ -1,19 +1,21 @@
 """Chat (RAG chat) — turn pipeline: embed -> retrieve -> prompt -> LLM ->
-parse -> hydrate citations. No DB writes here; the router owns persistence
-so the write ordering (user msg, then LLM, then assistant msg) is explicit."""
+stream chunks -> extract citations. Each call to stream_turn instantiates
+its own SseBus from the shared pool (per-call pattern; no module-level
+singleton). The HTTP handler returns 202 immediately and calls stream_turn
+via asyncio.create_task."""
 from __future__ import annotations
 
 import json
 import re
-import uuid as _uuid
-from typing import Any
-from uuid import UUID
+from typing import Any, AsyncIterator
+from uuid import UUID, uuid4
 
 import asyncpg
 import httpx
 import structlog
 
 from substrate_common import ValidationError
+from substrate_common.sse import Event, SseBus
 
 from src.api.routes import _embed_query
 from src.config import settings
@@ -23,57 +25,39 @@ from src.graph.file_reconstruct import reconstruct_chunks
 
 logger = structlog.get_logger()
 
-_JSON_BLOCK_RE = re.compile(r"\{.*\}", re.DOTALL)
+# ---------------------------------------------------------------------------
+# SSE event type constants
+# ---------------------------------------------------------------------------
+
+CHAT_TURN_STARTED = "chat.turn.started"
+CHAT_TURN_CHUNK = "chat.turn.chunk"
+CHAT_TURN_COMPLETED = "chat.turn.completed"
+CHAT_TURN_FAILED = "chat.turn.failed"
+
+_CITATION_MARKER_RE = re.compile(r"\[ref:([A-Za-z0-9_\-]+)\]")
 
 
-async def run_turn(
-    *,
-    user_sub: str,
-    user_content: str,
-    sync_ids: list[str],
-    prior_turns: list[dict],
-    graph_context: dict[str, Any] | None = None,
-    thread_id: UUID | None = None,
-) -> dict[str, Any]:
-    """Return ``{content, citations}`` for the assistant message.
+# ---------------------------------------------------------------------------
+# Citation marker extraction
+# ---------------------------------------------------------------------------
 
-    When ``thread_id`` is provided AND the thread has a frozen
-    context_summary (set at create-time from the user's active chat
-    context), this path bypasses pgvector retrieval and instead
-    reconstructs every included file's full content for the prompt.
-    Per spec §4.1.3 the per-message build raises ValidationError when
-    the included token total exceeds ``settings.chat_context_token_budget``."""
-    if thread_id is not None:
-        ctx_files = await _build_thread_context_files(thread_id)
-        if ctx_files is not None:
-            prompt_messages = await _build_thread_context_prompt(
-                user_content=user_content,
-                prior_turns=prior_turns,
-                files=ctx_files,
-            )
-            llm_output = await _call_dense_llm(prompt_messages)
-            answer, cited_ids = _parse_response(llm_output)
-            # Citations are file-level for thread-context mode; hydrate by
-            # file_id. Fall back to legacy node-id hydration when the parser
-            # returned non-UUID ids.
-            citations = await _hydrate_citations(cited_ids)
-            return {"content": answer, "citations": citations}
-    query_embedding = await _embed_query(user_content)
-    retrieved = await search_scoped(
-        query_embedding=query_embedding,
-        sync_ids=sync_ids,
-        limit=settings.chat_top_k,
-    )
-    prompt_messages = _build_prompt(
-        user_content=user_content,
-        prior_turns=prior_turns,
-        retrieved=retrieved,
-        graph_context=graph_context,
-    )
-    llm_output = await _call_dense_llm(prompt_messages)
-    answer, cited_ids = _parse_response(llm_output)
-    citations = await _hydrate_citations(cited_ids)
-    return {"content": answer, "citations": citations}
+
+def extract_citation_markers(text: str) -> list[str]:
+    """Extract ``[ref:UUID]`` markers from streamed assistant content,
+    preserving first-occurrence order and de-duping."""
+    seen: set[str] = set()
+    out: list[str] = []
+    for match in _CITATION_MARKER_RE.finditer(text):
+        node_id = match.group(1)
+        if node_id not in seen:
+            seen.add(node_id)
+            out.append(node_id)
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Context helpers
+# ---------------------------------------------------------------------------
 
 
 async def _build_thread_context_files(
@@ -143,10 +127,12 @@ async def _build_thread_context_prompt(
 
 
 def _build_prompt(
-    *, user_content: str, prior_turns: list[dict], retrieved: list[dict],
+    *, user_content: str, prior_turns: list[dict], retrieved: list[dict] | None = None,
     graph_context: dict[str, Any] | None = None,
+    sync_ids: list | None = None,
 ) -> list[dict]:
     budget = settings.chat_total_budget_chars
+    retrieved = retrieved or []
 
     def _node_block(n: dict) -> str:
         desc = (n.get("description") or "").strip().replace("\n", " ")
@@ -222,65 +208,160 @@ def _char_cost(messages: list[dict]) -> int:
     return sum(len(m.get("content", "")) for m in messages)
 
 
-async def _call_dense_llm(messages: list[dict]) -> str:
-    headers: dict[str, str] = {}
+# ---------------------------------------------------------------------------
+# Streaming LLM helper
+# ---------------------------------------------------------------------------
+
+
+async def _stream_dense_llm(messages: list[dict]) -> AsyncIterator[str]:
+    """Yield successive content deltas from the dense LLM's
+    OpenAI-compatible streaming endpoint. Skips non-content chunks."""
+    headers: dict[str, str] = {"Accept": "text/event-stream"}
     if settings.llm_api_key:
         headers["Authorization"] = f"Bearer {settings.llm_api_key}"
-
-    last_exc: Exception | None = None
-    last_text: str | None = None
-    for scale in settings.chat_retry_scales_tuple:
-        max_tokens = int(settings.chat_max_tokens * scale)
-        payload = {
-            "model": settings.dense_llm_model,
-            "messages": messages,
-            "max_tokens": max_tokens,
-            "temperature": settings.chat_temperature,
-            "response_format": {"type": "json_object"},
-        }
-        try:
-            async with httpx.AsyncClient(timeout=settings.chat_llm_timeout_s) as client:
-                resp = await client.post(
-                    settings.dense_llm_url, headers=headers, json=payload,
-                )
-            if resp.status_code == 400 and "context" in resp.text.lower():
-                logger.warning("chat_llm_context_retry", scale=scale)
-                last_exc = httpx.HTTPStatusError(
-                    "context", request=resp.request, response=resp,
-                )
-                continue
+    payload = {
+        "model": settings.dense_llm_model,
+        "messages": messages,
+        "max_tokens": settings.chat_max_tokens,
+        "temperature": settings.chat_temperature,
+        "stream": True,
+    }
+    async with httpx.AsyncClient(timeout=settings.chat_llm_timeout_s) as client:
+        async with client.stream(
+            "POST", settings.dense_llm_url, headers=headers, json=payload,
+        ) as resp:
             resp.raise_for_status()
-            data = resp.json()
-            last_text = (data.get("choices") or [{}])[0].get("message", {}).get("content", "")
-            if last_text:
-                return last_text
-        except httpx.HTTPError as exc:
-            last_exc = exc
-            logger.warning("chat_llm_call_failed", scale=scale, error=str(exc))
-    if last_text:
-        return last_text
-    if last_text == "":
-        raise RuntimeError("chat_llm_empty_response") from last_exc
-    raise RuntimeError(f"chat_llm_all_retries_failed: {last_exc}") from last_exc
+            async for line in resp.aiter_lines():
+                if not line.startswith("data:"):
+                    continue
+                data = line[5:].strip()
+                if data == "[DONE]":
+                    return
+                try:
+                    chunk = json.loads(data)
+                except json.JSONDecodeError:
+                    logger.warning("chat_stream_parse_failed", line=data)
+                    continue
+                delta = (
+                    (chunk.get("choices") or [{}])[0]
+                    .get("delta", {})
+                    .get("content", "")
+                )
+                if delta:
+                    yield delta
 
 
-def _parse_response(raw: str) -> tuple[str, list[str]]:
+# ---------------------------------------------------------------------------
+# stream_turn — fire-and-forget background coroutine
+# ---------------------------------------------------------------------------
+
+
+async def stream_turn(
+    *,
+    thread_id: UUID,
+    user_message_id: UUID,
+    user_content: str,
+    sync_ids: list,
+    graph_context: dict[str, Any] | None,
+    user_sub: str,
+    prior_turns: list[dict],
+) -> None:
+    """Stream an assistant turn. Caller returns 202 immediately; this
+    coroutine runs in the background and writes events to sse_events as
+    it goes. The final chat_messages row is inserted on success;
+    chat.turn.failed event fires on exception."""
+    from src.graph import chat_store
+
+    bus = SseBus(store.get_pool())
+    assistant_id = uuid4()
+
+    # Build the context-aware prompt (same path as run_turn used).
+    ctx_files = await _build_thread_context_files(thread_id)
+    if ctx_files is not None:
+        messages = await _build_thread_context_prompt(
+            user_content=user_content,
+            prior_turns=prior_turns,
+            files=ctx_files,
+        )
+    else:
+        query_embedding = await _embed_query(user_content)
+        retrieved = await search_scoped(
+            query_embedding=query_embedding,
+            sync_ids=sync_ids,
+            limit=settings.chat_top_k,
+        )
+        messages = _build_prompt(
+            user_content=user_content,
+            prior_turns=prior_turns,
+            retrieved=retrieved,
+            graph_context=graph_context,
+            sync_ids=sync_ids,
+        )
+
+    await bus.publish(Event(
+        type=CHAT_TURN_STARTED,
+        user_sub=user_sub,
+        payload={
+            "thread_id": str(thread_id),
+            "message_id": str(assistant_id),
+            "role": "assistant",
+        },
+    ))
+
+    buffer: list[str] = []
     try:
-        data = json.loads(raw)
-        return str(data.get("answer") or raw), [
-            str(nid) for nid in (data.get("cited_node_ids") or [])
-        ]
-    except json.JSONDecodeError:
-        m = _JSON_BLOCK_RE.search(raw)
-        if m:
-            try:
-                data = json.loads(m.group(0))
-                return str(data.get("answer") or raw), [
-                    str(nid) for nid in (data.get("cited_node_ids") or [])
-                ]
-            except json.JSONDecodeError:
-                pass
-    return raw, []
+        async for delta in _stream_dense_llm(messages):
+            buffer.append(delta)
+            await bus.publish(Event(
+                type=CHAT_TURN_CHUNK,
+                user_sub=user_sub,
+                payload={
+                    "thread_id": str(thread_id),
+                    "message_id": str(assistant_id),
+                    "delta": delta,
+                },
+            ))
+        full_content = "".join(buffer)
+        node_ids = extract_citation_markers(full_content)
+        citations = await _hydrate_citations(node_ids)
+
+        await chat_store.insert_message(
+            thread_id=thread_id,
+            role="assistant",
+            content=full_content,
+            citations=citations,
+            sync_ids=sync_ids,
+            id=assistant_id,
+        )
+        await chat_store.touch_thread(thread_id, maybe_title=user_content.strip()[:60])
+
+        await bus.publish(Event(
+            type=CHAT_TURN_COMPLETED,
+            user_sub=user_sub,
+            payload={
+                "thread_id": str(thread_id),
+                "message_id": str(assistant_id),
+                "content": full_content,
+                "citations": citations,
+            },
+        ))
+    except Exception as exc:  # noqa: BLE001 — user-visible error boundary
+        logger.exception("chat_stream_turn_failed", thread_id=str(thread_id))
+        await bus.publish(Event(
+            type=CHAT_TURN_FAILED,
+            user_sub=user_sub,
+            payload={
+                "thread_id": str(thread_id),
+                "message_id": str(assistant_id),
+                "error": str(exc),
+            },
+        ))
+        # No re-raise — fire-and-forget by design.
+
+
+# ---------------------------------------------------------------------------
+# Citation hydration
+# ---------------------------------------------------------------------------
 
 
 async def _hydrate_citations(node_ids: list[str]) -> list[dict]:
@@ -293,6 +374,8 @@ async def _hydrate_citations(node_ids: list[str]) -> list[dict]:
     Ids that don't resolve in AGE are likewise dropped. Duplicate ids collapse
     to a single citation entry in input order.
     """
+    import uuid as _uuid
+
     if not node_ids:
         return []
 

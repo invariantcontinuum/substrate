@@ -145,13 +145,14 @@ class _GraphSettings(BaseSettings):
 
     # System prompt for the chat pipeline. Changing this reshapes every
     # future answer — keep short, task-focused, and format-strict.
+    # Shell-quoted in .env examples so scripts/configure.sh can source them.
     chat_system_instruction: str = (
-        "You are answering questions about a codebase knowledge graph. "
-        "Use ONLY the node context provided below; if the answer is not "
-        "supported by that context, say so plainly. Respond as a single "
-        "JSON object: {\"answer\": \"<prose>\", \"cited_node_ids\": "
-        "[\"<id1>\", ...]}. Keep the answer to 1-3 short paragraphs. "
-        "Cite every node you actually used."
+        "You are a code-aware assistant grounded in a knowledge graph of "
+        "source files. Answer the user's question using markdown. Cite source "
+        "nodes inline with [ref:UUID] markers, where UUID is exactly one of "
+        "the candidate node IDs supplied in the user message context. "
+        "Do not output JSON. Do not invent UUIDs. If the context doesn't "
+        "support the answer, say so plainly."
     )
 
     @property

@@ -320,22 +320,24 @@ async def seed_one_file(app_pool):
 
 @pytest_asyncio.fixture(loop_scope="session")
 async def seeded_assistant_turn(async_client, monkeypatch):
-    """Stub ``chat_pipeline.run_turn`` with a canned response, create a
-    fresh thread for ``user-cascade``, POST one user message, and return the
-    thread id. Used by the cascade-on-delete test.
-
-    The stub keeps the DB boundary real (thread + both messages land in
-    Postgres) while avoiding any dense-LLM or embedding HTTP calls.
+    """Stub ``chat_pipeline.stream_turn`` so no LLM calls are made, create
+    a fresh thread for ``user-cascade``, POST one user message (returns 202),
+    and manually insert a canned assistant message so the cascade-on-delete
+    test sees both rows. Returns the thread id.
     """
-    from src.graph import chat_pipeline
+    from src.graph import chat_pipeline, chat_store
 
-    async def _stub(*args, **kwargs):
-        return {
-            "content": "stubbed",
-            "citations": [{"node_id": "n1", "name": "N", "type": "file"}],
-        }
+    async def _stub_stream_turn(**kwargs):
+        # Insert the assistant message directly so the cascade test sees 2 rows.
+        await chat_store.insert_message(
+            thread_id=kwargs["thread_id"],
+            role="assistant",
+            content="stubbed",
+            citations=[{"node_id": "n1", "name": "N", "type": "file"}],
+            sync_ids=[str(s) for s in (kwargs.get("sync_ids") or [])],
+        )
 
-    monkeypatch.setattr(chat_pipeline, "run_turn", _stub)
+    monkeypatch.setattr(chat_pipeline, "stream_turn", _stub_stream_turn)
 
     r = await async_client.post(
         "/api/chat/threads", json={"title": "cascade"},
@@ -350,7 +352,12 @@ async def seeded_assistant_turn(async_client, monkeypatch):
         json={"content": "hi", "sync_ids": [dummy_sync]},
         headers={"X-User-Sub": "user-cascade"},
     )
-    assert r.status_code == 200, r.text
+    # POST /threads/{id}/messages now returns 202 (streaming accepted).
+    assert r.status_code == 202, r.text
+    # The stub runs synchronously inside create_task before the response
+    # returns, but we yield control to let any pending tasks complete.
+    import asyncio
+    await asyncio.sleep(0.1)
 
     yield thread_id
 

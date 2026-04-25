@@ -98,18 +98,30 @@ async def list_messages(thread_id: UUID) -> list[dict]:
 async def insert_message(
     *, thread_id: UUID, role: str, content: str,
     citations: list[dict[str, Any]], sync_ids: list[str],
+    id: UUID | None = None,
 ) -> dict:
     pool = store.get_pool()
     async with pool.acquire() as conn:
-        row = await conn.fetchrow(
-            """
-            INSERT INTO chat_messages (thread_id, role, content, citations, sync_ids)
-            VALUES ($1, $2, $3, $4::jsonb, $5::jsonb)
-            RETURNING id::text AS id, role, content, citations, created_at
-            """,
-            thread_id, role, content,
-            citations, sync_ids,
-        )
+        if id is not None:
+            row = await conn.fetchrow(
+                """
+                INSERT INTO chat_messages (id, thread_id, role, content, citations, sync_ids)
+                VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb)
+                RETURNING id::text AS id, role, content, citations, created_at
+                """,
+                id, thread_id, role, content,
+                citations, sync_ids,
+            )
+        else:
+            row = await conn.fetchrow(
+                """
+                INSERT INTO chat_messages (thread_id, role, content, citations, sync_ids)
+                VALUES ($1, $2, $3, $4::jsonb, $5::jsonb)
+                RETURNING id::text AS id, role, content, citations, created_at
+                """,
+                thread_id, role, content,
+                citations, sync_ids,
+            )
     return _row_to_message(row)
 
 

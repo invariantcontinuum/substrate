@@ -1,6 +1,6 @@
 """Integration + unit tests for ``src.graph.chat_pipeline`` helpers and
-the scoped retrieval query in ``chat_store.search_scoped``. The parse /
-prompt-budget helpers are pure functions and run without a DB; the
+the scoped retrieval query in ``chat_store.search_scoped``. The prompt-
+budget helpers are pure functions and run without a DB; the
 citation-hydration and scoped-retrieval tests use the real Postgres
 fixture from ``conftest.py``."""
 from __future__ import annotations
@@ -13,38 +13,6 @@ from src.graph import chat_pipeline
 from src.graph.chat_store import search_scoped
 
 _async = pytest.mark.asyncio(loop_scope="session")
-
-
-# ---------------------------------------------------------------------------
-# _parse_response
-# ---------------------------------------------------------------------------
-
-
-def test_parse_response_valid_json():
-    raw = '{"answer": "two-plus-two is four", "cited_node_ids": ["a", "b"]}'
-    answer, cited = chat_pipeline._parse_response(raw)
-    assert answer == "two-plus-two is four"
-    assert cited == ["a", "b"]
-
-
-def test_parse_response_json_inside_noise():
-    raw = (
-        "Sure! Here's the JSON you asked for:\n"
-        "```json\n"
-        '{"answer": "inside fence", "cited_node_ids": ["c"]}\n'
-        "```\n"
-        "Let me know if that helps."
-    )
-    answer, cited = chat_pipeline._parse_response(raw)
-    assert answer == "inside fence"
-    assert cited == ["c"]
-
-
-def test_parse_response_plain_text_fallback():
-    raw = "I don't know — no JSON here."
-    answer, cited = chat_pipeline._parse_response(raw)
-    assert answer == raw
-    assert cited == []
 
 
 # ---------------------------------------------------------------------------
@@ -106,21 +74,30 @@ async def test_hydrate_citations_skips_unknown_ids(app_pool, monkeypatch):
         def __getitem__(self, key):
             return super().__getitem__(key)
 
+    call_count = {"n": 0}
+
     async def _fake_fetch(self, query, *args, **kwargs):
-        # Return canned agtype-shaped rows (JSON-quoted strings) for the two
-        # known ids; the unknown id is deliberately absent so the hydrator
-        # must drop it.
+        call_count["n"] += 1
+        if call_count["n"] == 1:
+            # First fetch: AGE cypher MATCH — return agtype-shaped rows for
+            # the two known ids; unknown id deliberately absent.
+            return [
+                _FakeRow(
+                    file_id=f'"{known_a}"',
+                    name='"alpha"',
+                    type='"file"',
+                ),
+                _FakeRow(
+                    file_id=f'"{known_b}"',
+                    name='"beta"',
+                    type='"file"',
+                ),
+            ]
+        # Second fetch: relational enrichment — return rows that the
+        # enrichment loop expects (id, file_path, language, excerpt).
         return [
-            _FakeRow(
-                file_id=f'"{known_a}"',
-                name='"alpha"',
-                type='"file"',
-            ),
-            _FakeRow(
-                file_id=f'"{known_b}"',
-                name='"beta"',
-                type='"file"',
-            ),
+            _FakeRow(id=known_a, file_path="a.py", language="python", excerpt=""),
+            _FakeRow(id=known_b, file_path="b.py", language="python", excerpt=""),
         ]
 
     # Patch asyncpg.Connection.fetch to the canned response so we don't

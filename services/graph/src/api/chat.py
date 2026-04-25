@@ -3,6 +3,7 @@ by the gateway after JWT verification). Thread-scoped endpoints 404 when
 thread.user_sub does not match, to avoid leaking existence."""
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 from uuid import UUID
 
@@ -106,7 +107,7 @@ async def list_messages(
     return {"items": await chat_store.list_messages(thread_id)}
 
 
-@router.post("/threads/{thread_id}/messages")
+@router.post("/threads/{thread_id}/messages", status_code=202)
 async def post_message(
     thread_id: UUID, body: MessagePost,
     x_user_sub: str | None = Header(default=None),
@@ -126,19 +127,14 @@ async def post_message(
     prior = await chat_store.list_messages(thread_id)
     prior_turns = [m for m in prior if m["id"] != user_msg["id"]]
 
-    turn = await chat_pipeline.run_turn(
-        user_sub=sub, user_content=body.content,
-        sync_ids=body.sync_ids, prior_turns=prior_turns,
-        graph_context=body.graph_context,
+    asyncio.create_task(chat_pipeline.stream_turn(
         thread_id=thread_id,
-    )
-    assistant_msg = await chat_store.insert_message(
-        thread_id=thread_id, role="assistant",
-        content=turn["content"], citations=turn["citations"],
+        user_message_id=user_msg["id"],
+        user_content=body.content,
         sync_ids=body.sync_ids,
-    )
+        graph_context=body.graph_context,
+        user_sub=sub,
+        prior_turns=prior_turns,
+    ))
 
-    derived_title = body.content.strip()[:60]
-    await chat_store.touch_thread(thread_id, maybe_title=derived_title)
-
-    return {"user_message": user_msg, "assistant_message": assistant_msg}
+    return {"user_message": user_msg, "status": "streaming"}
