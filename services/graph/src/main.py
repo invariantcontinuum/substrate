@@ -16,6 +16,7 @@ from src.api.ask import router as ask_router
 from src.api.chat_context import router as chat_context_router
 from src.api.communities import router as communities_router
 from src.api.deletion import router as deletion_router
+from src.api.export import router as export_router
 from src.api.files import router as files_router
 from src.api.integrations import router as integrations_router
 from src.api.preferences import router as preferences_router
@@ -76,6 +77,7 @@ app.include_router(usage_router)
 app.include_router(deletion_router)
 app.include_router(files_router)
 app.include_router(chat_context_router)
+app.include_router(export_router)
 
 
 @app.get("/health")
