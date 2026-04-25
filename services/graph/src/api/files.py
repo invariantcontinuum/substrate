@@ -1,6 +1,10 @@
 """Lazy full-file loader. Reconstructs the source text from
 content_chunks for any file the caller owns. Used by the chat-context
-modal, the node-detail modal (sub-project 3), and the JSON exporter."""
+modal, the node-detail modal (sub-project 3), and the JSON exporter.
+
+The on-disk column is ``file_embeddings.line_count`` (V1); the JSON
+response uses ``total_lines`` to match the spec contract and the
+``reconstruct_chunks`` parameter naming."""
 from __future__ import annotations
 
 from uuid import UUID
@@ -8,8 +12,9 @@ from uuid import UUID
 import structlog
 from fastapi import APIRouter, Header
 
-from substrate_common import NotFoundError, UnauthorizedError
+from substrate_common import NotFoundError
 
+from src.api.auth import require_user_sub_strict
 from src.config import settings
 from src.graph import store
 from src.graph.file_reconstruct import reconstruct_chunks
@@ -18,18 +23,12 @@ logger = structlog.get_logger()
 router = APIRouter(prefix="/api/files")
 
 
-def _require_sub(x_user_sub: str | None) -> str:
-    if not x_user_sub:
-        raise UnauthorizedError("missing X-User-Sub")
-    return x_user_sub
-
-
 @router.get("/{file_id}/content")
 async def get_file_content(
     file_id: UUID,
     x_user_sub: str | None = Header(default=None),
 ) -> dict:
-    sub = _require_sub(x_user_sub)
+    sub = require_user_sub_strict(x_user_sub)
     pool = store.get_pool()
     async with pool.acquire() as conn:
         owner_row = await conn.fetchrow(

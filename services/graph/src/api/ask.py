@@ -10,18 +10,13 @@ import structlog
 from fastapi import APIRouter, Header, Response
 from pydantic import BaseModel, Field
 
-from substrate_common import NotFoundError, UnauthorizedError, ValidationError
+from substrate_common import NotFoundError, ValidationError
 
+from src.api.auth import require_user_sub_strict
 from src.graph import ask_pipeline, ask_store
 
 logger = structlog.get_logger()
 router = APIRouter(prefix="/api/ask")
-
-
-def _require_sub(x_user_sub: str | None) -> str:
-    if not x_user_sub:
-        raise UnauthorizedError("missing X-User-Sub")
-    return x_user_sub
 
 
 class ThreadCreate(BaseModel):
@@ -40,7 +35,7 @@ class MessagePost(BaseModel):
 
 @router.get("/threads")
 async def list_threads(x_user_sub: str | None = Header(default=None)) -> dict[str, Any]:
-    sub = _require_sub(x_user_sub)
+    sub = require_user_sub_strict(x_user_sub)
     return {"items": await ask_store.list_threads(sub)}
 
 
@@ -48,7 +43,7 @@ async def list_threads(x_user_sub: str | None = Header(default=None)) -> dict[st
 async def create_thread(
     body: ThreadCreate, x_user_sub: str | None = Header(default=None),
 ) -> dict[str, Any]:
-    sub = _require_sub(x_user_sub)
+    sub = require_user_sub_strict(x_user_sub)
     title = (body.title or "New thread").strip()[:200] or "New thread"
     return await ask_store.create_thread(sub, title)
 
@@ -58,7 +53,7 @@ async def rename_thread(
     thread_id: UUID, body: ThreadRename,
     x_user_sub: str | None = Header(default=None),
 ) -> dict[str, Any]:
-    sub = _require_sub(x_user_sub)
+    sub = require_user_sub_strict(x_user_sub)
     row = await ask_store.rename_thread(sub, thread_id, body.title.strip()[:200])
     if not row:
         raise NotFoundError("thread not found")
@@ -69,7 +64,7 @@ async def rename_thread(
 async def delete_thread(
     thread_id: UUID, x_user_sub: str | None = Header(default=None),
 ) -> Response:
-    sub = _require_sub(x_user_sub)
+    sub = require_user_sub_strict(x_user_sub)
     ok = await ask_store.delete_thread(sub, thread_id)
     if not ok:
         raise NotFoundError("thread not found")
@@ -80,7 +75,7 @@ async def delete_thread(
 async def list_messages(
     thread_id: UUID, x_user_sub: str | None = Header(default=None),
 ) -> dict[str, Any]:
-    sub = _require_sub(x_user_sub)
+    sub = require_user_sub_strict(x_user_sub)
     thread = await ask_store.get_thread(sub, thread_id)
     if not thread:
         raise NotFoundError("thread not found")
@@ -92,7 +87,7 @@ async def post_message(
     thread_id: UUID, body: MessagePost,
     x_user_sub: str | None = Header(default=None),
 ) -> dict[str, Any]:
-    sub = _require_sub(x_user_sub)
+    sub = require_user_sub_strict(x_user_sub)
     thread = await ask_store.get_thread(sub, thread_id)
     if not thread:
         raise NotFoundError("thread not found")
