@@ -11,8 +11,6 @@ interface ChatState {
   setActiveThreadId: (id: string | null) => void;
   composerDraft: string;
   setComposerDraft: (v: string) => void;
-  sendingTurn: boolean;
-  setSendingTurn: (v: boolean) => void;
   streamingTurn: StreamingTurn | null;
   setStreamingTurn: (next: StreamingTurn | null) => void;
   appendStreamingDelta: (delta: string) => void;
@@ -23,8 +21,6 @@ export const useChatStore = create<ChatState>((set) => ({
   setActiveThreadId: (activeThreadId) => set({ activeThreadId }),
   composerDraft: "",
   setComposerDraft: (composerDraft) => set({ composerDraft }),
-  sendingTurn: false,
-  setSendingTurn: (sendingTurn) => set({ sendingTurn }),
   streamingTurn: null,
   setStreamingTurn: (streamingTurn) => set({ streamingTurn }),
   appendStreamingDelta: (delta) =>

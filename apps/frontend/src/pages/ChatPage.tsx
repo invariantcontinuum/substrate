@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useChatThreads } from "@/hooks/useChatThreads";
-import { useChatMessages } from "@/hooks/useChatMessages";
+import { useChatMessages, type ChatMessage } from "@/hooks/useChatMessages";
 import { useChatStore } from "@/stores/chat";
 import { useChatStream } from "@/hooks/useChatStream";
 import { Message } from "@/components/chat/Message";
@@ -22,7 +22,9 @@ export function ChatPage() {
   useChatStream(activeId);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth" });
+    endRef.current?.scrollIntoView({
+      behavior: streamingTurn ? "instant" : "smooth",
+    });
   }, [messages?.length, streamingTurn?.content]);
 
   const showPlaceholder = !activeId || !messages || messages.length === 0;
@@ -44,7 +46,7 @@ export function ChatPage() {
                   content: streamingTurn.content,
                   citations: [],
                   created_at: new Date().toISOString(),
-                } as never}
+                } as ChatMessage}
                 isStreaming
               />
             )}
