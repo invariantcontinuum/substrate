@@ -92,15 +92,32 @@ export function useDeleteThread() {
   });
 }
 
+export type SendTurnRequest = {
+  threadId: string;
+  content: string;
+  sync_ids?: string[];
+  graph_context?: GraphContext | null;
+};
+
+export type SendTurnResponse = {
+  user_message: ChatMessage;
+  status: "streaming";
+};
+
 export function useSendTurn() {
   const qc = useQueryClient();
   const auth = useAuth();
   const token = auth.user?.access_token;
   const syncIds = useSyncSetStore((s) => s.syncIds);
-  return useMutation({
-    mutationFn: async ({ threadId, content }: { threadId: string; content: string }) => {
-      const graphContext = buildGraphContext();
-      return apiFetch<{ user_message: ChatMessage; assistant_message: ChatMessage }>(
+  return useMutation<
+    SendTurnResponse,
+    Error,
+    SendTurnRequest,
+    { previousMessages: ChatMessage[] | undefined; threadId: string }
+  >({
+    mutationFn: async ({ threadId, content, graph_context }) => {
+      const graphContext = graph_context !== undefined ? graph_context : buildGraphContext();
+      return apiFetch<SendTurnResponse>(
         `/api/chat/threads/${threadId}/messages`,
         token,
         {
@@ -130,16 +147,18 @@ export function useSendTurn() {
         qc.setQueryData(["chat", "messages", context.threadId], context.previousMessages);
       }
     },
-    onSuccess: ({ user_message, assistant_message }, { threadId }) => {
+    onSuccess: ({ user_message }, vars) => {
+      const { threadId } = vars;
       qc.setQueryData<ChatMessage[]>(
         ["chat", "messages", threadId],
         (prev) => {
           const withoutOptimistic = (prev ?? []).filter(
             (m) => !m.id.startsWith("optimistic-"),
           );
-          return [...withoutOptimistic, user_message, assistant_message];
+          return [...withoutOptimistic, user_message];
         },
       );
+      qc.invalidateQueries({ queryKey: ["chat", "messages", threadId] });
       qc.invalidateQueries({ queryKey: ["chat", "threads"] });
     },
   });
