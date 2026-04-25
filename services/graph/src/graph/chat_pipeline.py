@@ -1,4 +1,4 @@
-"""Ask (RAG chat) — turn pipeline: embed -> retrieve -> prompt -> LLM ->
+"""Chat (RAG chat) — turn pipeline: embed -> retrieve -> prompt -> LLM ->
 parse -> hydrate citations. No DB writes here; the router owns persistence
 so the write ordering (user msg, then LLM, then assistant msg) is explicit."""
 from __future__ import annotations
@@ -18,7 +18,7 @@ from substrate_common import ValidationError
 from src.api.routes import _embed_query
 from src.config import settings
 from src.graph import chat_context_store, store
-from src.graph.ask_store import search_scoped
+from src.graph.chat_store import search_scoped
 from src.graph.file_reconstruct import reconstruct_chunks
 
 logger = structlog.get_logger()
@@ -62,7 +62,7 @@ async def run_turn(
     retrieved = await search_scoped(
         query_embedding=query_embedding,
         sync_ids=sync_ids,
-        limit=settings.ask_top_k,
+        limit=settings.chat_top_k,
     )
     prompt_messages = _build_prompt(
         user_content=user_content,
@@ -126,7 +126,7 @@ async def _build_thread_context_prompt(
     history_section = ""
     if prior_turns:
         snippets = []
-        for t in prior_turns[-settings.ask_history_turns :]:
+        for t in prior_turns[-settings.chat_history_turns :]:
             role = t.get("role", "user")
             snippets.append(f"[{role}] {t.get('content', '')}")
         history_section = "\n\n## Prior turns\n" + "\n".join(snippets)
@@ -137,7 +137,7 @@ async def _build_thread_context_prompt(
         f"## Question\n{user_content}"
     )
     return [
-        {"role": "system", "content": settings.ask_system_instruction},
+        {"role": "system", "content": settings.chat_system_instruction},
         {"role": "user", "content": user_msg},
     ]
 
@@ -146,7 +146,7 @@ def _build_prompt(
     *, user_content: str, prior_turns: list[dict], retrieved: list[dict],
     graph_context: dict[str, Any] | None = None,
 ) -> list[dict]:
-    budget = settings.ask_total_budget_chars
+    budget = settings.chat_total_budget_chars
 
     def _node_block(n: dict) -> str:
         desc = (n.get("description") or "").strip().replace("\n", " ")
@@ -156,7 +156,7 @@ def _build_prompt(
         )
 
     nodes_section = "\n".join(_node_block(n) for n in retrieved)
-    system = settings.ask_system_instruction
+    system = settings.chat_system_instruction
     header = "### Node context (from the user's active sync set):\n"
     graph_section = ""
     if graph_context:
@@ -180,7 +180,7 @@ def _build_prompt(
     user_prefix = "\n\n### Question:\n"
 
     messages: list[dict] = [{"role": "system", "content": system}]
-    history = prior_turns[-settings.ask_history_turns * 2:]
+    history = prior_turns[-settings.chat_history_turns * 2:]
     messages.extend([{"role": t["role"], "content": t["content"]} for t in history])
 
     prompt_body = header + nodes_section + graph_section + user_prefix + user_content
@@ -229,22 +229,22 @@ async def _call_dense_llm(messages: list[dict]) -> str:
 
     last_exc: Exception | None = None
     last_text: str | None = None
-    for scale in settings.ask_retry_scales_tuple:
-        max_tokens = int(settings.ask_max_tokens * scale)
+    for scale in settings.chat_retry_scales_tuple:
+        max_tokens = int(settings.chat_max_tokens * scale)
         payload = {
             "model": settings.dense_llm_model,
             "messages": messages,
             "max_tokens": max_tokens,
-            "temperature": settings.ask_temperature,
+            "temperature": settings.chat_temperature,
             "response_format": {"type": "json_object"},
         }
         try:
-            async with httpx.AsyncClient(timeout=settings.ask_llm_timeout_s) as client:
+            async with httpx.AsyncClient(timeout=settings.chat_llm_timeout_s) as client:
                 resp = await client.post(
                     settings.dense_llm_url, headers=headers, json=payload,
                 )
             if resp.status_code == 400 and "context" in resp.text.lower():
-                logger.warning("ask_llm_context_retry", scale=scale)
+                logger.warning("chat_llm_context_retry", scale=scale)
                 last_exc = httpx.HTTPStatusError(
                     "context", request=resp.request, response=resp,
                 )
@@ -256,12 +256,12 @@ async def _call_dense_llm(messages: list[dict]) -> str:
                 return last_text
         except httpx.HTTPError as exc:
             last_exc = exc
-            logger.warning("ask_llm_call_failed", scale=scale, error=str(exc))
+            logger.warning("chat_llm_call_failed", scale=scale, error=str(exc))
     if last_text:
         return last_text
     if last_text == "":
-        raise RuntimeError("ask_llm_empty_response") from last_exc
-    raise RuntimeError(f"ask_llm_all_retries_failed: {last_exc}") from last_exc
+        raise RuntimeError("chat_llm_empty_response") from last_exc
+    raise RuntimeError(f"chat_llm_all_retries_failed: {last_exc}") from last_exc
 
 
 def _parse_response(raw: str) -> tuple[str, list[str]]:
@@ -324,7 +324,7 @@ async def _hydrate_citations(node_ids: list[str]) -> list[dict]:
                 $$) AS (file_id agtype, name agtype, type agtype)"""
             )
         except asyncpg.PostgresError as e:
-            logger.warning("ask_citation_hydrate_failed", error=str(e))
+            logger.warning("chat_citation_hydrate_failed", error=str(e))
             return []
 
         for r in rows:
@@ -343,7 +343,7 @@ async def _hydrate_citations(node_ids: list[str]) -> list[dict]:
             }
 
         # Second pass: enrich every resolved node with relational-side
-        # metadata — file_path and the first content chunk. Ask chat uses
+        # metadata — file_path and the first content chunk. Chat uses
         # this to show an expandable source excerpt under the citation,
         # so the user can read the evidence without opening the Graph page.
         # Pulled in one batch to avoid N-per-citation round-trips.

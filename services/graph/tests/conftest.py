@@ -320,14 +320,14 @@ async def seed_one_file(app_pool):
 
 @pytest_asyncio.fixture(loop_scope="session")
 async def seeded_assistant_turn(async_client, monkeypatch):
-    """Stub ``ask_pipeline.run_turn`` with a canned response, create a
-    fresh thread for ``user-a``, POST one user message, and return the
+    """Stub ``chat_pipeline.run_turn`` with a canned response, create a
+    fresh thread for ``user-cascade``, POST one user message, and return the
     thread id. Used by the cascade-on-delete test.
 
     The stub keeps the DB boundary real (thread + both messages land in
     Postgres) while avoiding any dense-LLM or embedding HTTP calls.
     """
-    from src.graph import ask_pipeline
+    from src.graph import chat_pipeline
 
     async def _stub(*args, **kwargs):
         return {
@@ -335,10 +335,10 @@ async def seeded_assistant_turn(async_client, monkeypatch):
             "citations": [{"node_id": "n1", "name": "N", "type": "file"}],
         }
 
-    monkeypatch.setattr(ask_pipeline, "run_turn", _stub)
+    monkeypatch.setattr(chat_pipeline, "run_turn", _stub)
 
     r = await async_client.post(
-        "/api/ask/threads", json={"title": "cascade"},
+        "/api/chat/threads", json={"title": "cascade"},
         headers={"X-User-Sub": "user-cascade"},
     )
     assert r.status_code == 200, r.text
@@ -346,7 +346,7 @@ async def seeded_assistant_turn(async_client, monkeypatch):
 
     dummy_sync = str(uuid.uuid4())
     r = await async_client.post(
-        f"/api/ask/threads/{thread_id}/messages",
+        f"/api/chat/threads/{thread_id}/messages",
         json={"content": "hi", "sync_ids": [dummy_sync]},
         headers={"X-User-Sub": "user-cascade"},
     )
@@ -358,5 +358,5 @@ async def seeded_assistant_turn(async_client, monkeypatch):
     pool = store.get_pool()
     async with pool.acquire() as conn:
         await conn.execute(
-            "DELETE FROM ask_threads WHERE id = $1::uuid", thread_id,
+            "DELETE FROM chat_threads WHERE id = $1::uuid", thread_id,
         )

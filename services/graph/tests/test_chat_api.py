@@ -1,7 +1,7 @@
-"""Integration tests for /api/ask/* — thread CRUD, user isolation, and
+"""Integration tests for /api/chat/* — thread CRUD, user isolation, and
 the delete-cascades-to-messages guarantee. Runs against a real Postgres
 (no DB mocks, per monorepo rule); the dense LLM isn't available inside
-tests so we stub ``ask_pipeline.run_turn`` at the module level."""
+tests so we stub ``chat_pipeline.run_turn`` at the module level."""
 from __future__ import annotations
 
 import uuid
@@ -15,32 +15,32 @@ pytestmark = pytest.mark.asyncio(loop_scope="session")
 
 
 @pytest_asyncio.fixture(loop_scope="session", autouse=True)
-async def _cleanup_ask_threads(app_pool):
-    """Ask tests share a database across the session; trim stray threads
+async def _cleanup_chat_threads(app_pool):
+    """Chat tests share a database across the session; trim stray threads
     from prior runs (or from failed earlier tests in this session) up
     front so each test starts from an empty-per-user state."""
     pool = store.get_pool()
     async with pool.acquire() as conn:
         await conn.execute(
-            "DELETE FROM ask_threads WHERE user_sub = ANY($1::text[])",
+            "DELETE FROM chat_threads WHERE user_sub = ANY($1::text[])",
             ["user-a", "user-b", "user-cascade"],
         )
     yield
     async with pool.acquire() as conn:
         await conn.execute(
-            "DELETE FROM ask_threads WHERE user_sub = ANY($1::text[])",
+            "DELETE FROM chat_threads WHERE user_sub = ANY($1::text[])",
             ["user-a", "user-b", "user-cascade"],
         )
 
 
 async def test_missing_x_user_sub_is_401(async_client):
-    r = await async_client.get("/api/ask/threads")
+    r = await async_client.get("/api/chat/threads")
     assert r.status_code == 401, r.text
 
 
 async def test_list_threads_empty_for_fresh_user(async_client):
     r = await async_client.get(
-        "/api/ask/threads", headers={"X-User-Sub": "user-a"},
+        "/api/chat/threads", headers={"X-User-Sub": "user-a"},
     )
     assert r.status_code == 200, r.text
     assert r.json() == {"items": []}
@@ -48,7 +48,7 @@ async def test_list_threads_empty_for_fresh_user(async_client):
 
 async def test_create_and_list_threads(async_client):
     r = await async_client.post(
-        "/api/ask/threads", json={"title": "hello"},
+        "/api/chat/threads", json={"title": "hello"},
         headers={"X-User-Sub": "user-a"},
     )
     assert r.status_code == 200, r.text
@@ -57,7 +57,7 @@ async def test_create_and_list_threads(async_client):
     assert created["id"]
 
     r = await async_client.get(
-        "/api/ask/threads", headers={"X-User-Sub": "user-a"},
+        "/api/chat/threads", headers={"X-User-Sub": "user-a"},
     )
     assert r.status_code == 200, r.text
     items = r.json()["items"]
@@ -66,7 +66,7 @@ async def test_create_and_list_threads(async_client):
 
 async def test_thread_isolation_across_users(async_client):
     r = await async_client.post(
-        "/api/ask/threads", json={"title": "private"},
+        "/api/chat/threads", json={"title": "private"},
         headers={"X-User-Sub": "user-a"},
     )
     assert r.status_code == 200, r.text
@@ -74,28 +74,28 @@ async def test_thread_isolation_across_users(async_client):
 
     # user-b cannot list it ...
     r = await async_client.get(
-        "/api/ask/threads", headers={"X-User-Sub": "user-b"},
+        "/api/chat/threads", headers={"X-User-Sub": "user-b"},
     )
     assert r.status_code == 200
     assert all(it["id"] != thread_id for it in r.json()["items"])
 
     # ... cannot GET its messages (404, not 403 — don't leak existence)
     r = await async_client.get(
-        f"/api/ask/threads/{thread_id}/messages",
+        f"/api/chat/threads/{thread_id}/messages",
         headers={"X-User-Sub": "user-b"},
     )
     assert r.status_code == 404, r.text
 
     # ... cannot DELETE it (404)
     r = await async_client.delete(
-        f"/api/ask/threads/{thread_id}",
+        f"/api/chat/threads/{thread_id}",
         headers={"X-User-Sub": "user-b"},
     )
     assert r.status_code == 404, r.text
 
     # sanity: the owner still sees it
     r = await async_client.get(
-        f"/api/ask/threads/{thread_id}/messages",
+        f"/api/chat/threads/{thread_id}/messages",
         headers={"X-User-Sub": "user-a"},
     )
     assert r.status_code == 200, r.text
@@ -108,7 +108,7 @@ async def test_thread_delete_cascades_messages(
 
     # Pre-check: the seeded turn produced user + assistant messages.
     r = await async_client.get(
-        f"/api/ask/threads/{thread_id}/messages",
+        f"/api/chat/threads/{thread_id}/messages",
         headers={"X-User-Sub": "user-cascade"},
     )
     assert r.status_code == 200, r.text
@@ -116,7 +116,7 @@ async def test_thread_delete_cascades_messages(
 
     # Delete — owner has permission, cascades via FK.
     r = await async_client.delete(
-        f"/api/ask/threads/{thread_id}",
+        f"/api/chat/threads/{thread_id}",
         headers={"X-User-Sub": "user-cascade"},
     )
     assert r.status_code == 204, r.text
@@ -124,7 +124,7 @@ async def test_thread_delete_cascades_messages(
     # Subsequent GET on the now-missing thread is 404, and the FK cascade
     # means even if a race left dangling rows, they would already be gone.
     r = await async_client.get(
-        f"/api/ask/threads/{thread_id}/messages",
+        f"/api/chat/threads/{thread_id}/messages",
         headers={"X-User-Sub": "user-cascade"},
     )
     assert r.status_code == 404, r.text
@@ -132,7 +132,7 @@ async def test_thread_delete_cascades_messages(
     pool = store.get_pool()
     async with pool.acquire() as conn:
         remaining = await conn.fetchval(
-            "SELECT count(*) FROM ask_messages WHERE thread_id = $1::uuid",
+            "SELECT count(*) FROM chat_messages WHERE thread_id = $1::uuid",
             thread_id,
         )
     assert remaining == 0

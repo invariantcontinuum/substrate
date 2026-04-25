@@ -101,32 +101,32 @@ class _GraphSettings(BaseSettings):
     # Max rows deleted per SQL round inside one prune pass.
     sse_retention_batch_size: int = 5_000
 
-    # ── Ask (RAG chat) ───────────────────────────────────────────────
+    # ── Chat (RAG chat) ───────────────────────────────────────────────
     # Top-K retrieval count per turn. Higher = more context for the LLM,
     # longer prefill time. Retrieval scope is always the user-supplied
     # sync_ids (the client passes the active sync set at turn time).
-    ask_top_k: int = 10
+    chat_top_k: int = 10
     # Number of prior user+assistant turns to include in the prompt.
     # Higher = better conversational continuity, larger prompt cost.
-    ask_history_turns: int = 6
+    chat_history_turns: int = 6
     # Total prompt char budget. Keep ≤ ~3× dense LLM CONTEXT_SIZE (set in
     # ops/llm/lazy-lamacpp/config/models/dense.env). If the budget would
     # be exceeded the pipeline drops the oldest prior turns first, then
     # trims per-node context entries.
-    ask_total_budget_chars: int = 40_000
+    chat_total_budget_chars: int = 40_000
     # Decode cap for answers. Pre-MVP 1–3 short paragraphs → ~800 tokens.
-    ask_max_tokens: int = 800
+    chat_max_tokens: int = 800
     # Comma-separated retry scales on HTTP-400 context-window errors,
     # same shape as summary_context_retry_scales.
-    ask_context_retry_scales: str = "1.0,0.5,0.25"
-    # Sampling temperature for ask answers. Lower = more deterministic
+    chat_context_retry_scales: str = "1.0,0.5,0.25"
+    # Sampling temperature for chat answers. Lower = more deterministic
     # and grounded; higher = more varied phrasing. 0.2 matches the pre-MVP
     # baseline for RAG-grounded answers.
-    ask_temperature: float = 0.2
+    chat_temperature: float = 0.2
     # HTTP read timeout (seconds) for the dense LLM call from the pipeline.
     # Must stay ≤ the gateway's long-LLM timeout (115s) so the gateway
     # doesn't clip the request mid-flight.
-    ask_llm_timeout_s: float = 110.0
+    chat_llm_timeout_s: float = 110.0
 
     # ── Chat context (spec 2026-04-25-backend-foundations §4.1) ─────
     # Hard cap on tokens summed across included context files in a single
@@ -143,9 +143,9 @@ class _GraphSettings(BaseSettings):
     # better DX in monorepos but legitimately big graphs blocked.
     export_max_files: int = 10000
 
-    # System prompt for the ask pipeline. Changing this reshapes every
+    # System prompt for the chat pipeline. Changing this reshapes every
     # future answer — keep short, task-focused, and format-strict.
-    ask_system_instruction: str = (
+    chat_system_instruction: str = (
         "You are answering questions about a codebase knowledge graph. "
         "Use ONLY the node context provided below; if the answer is not "
         "supported by that context, say so plainly. Respond as a single "
@@ -161,8 +161,8 @@ class _GraphSettings(BaseSettings):
         return tuple(float(p) for p in parts) or (1.0,)
 
     @property
-    def ask_retry_scales_tuple(self) -> tuple[float, ...]:
-        parts = [p.strip() for p in self.ask_context_retry_scales.split(",") if p.strip()]
+    def chat_retry_scales_tuple(self) -> tuple[float, ...]:
+        parts = [p.strip() for p in self.chat_context_retry_scales.split(",") if p.strip()]
         return tuple(float(p) for p in parts) or (1.0,)
 
     # ── Active-set Leiden (spec §5.6) ────────────────────────────────

@@ -1,4 +1,4 @@
-"""Ask (RAG chat) — asyncpg queries for ask_threads and ask_messages, plus
+"""Chat (RAG chat) — asyncpg queries for chat_threads and chat_messages, plus
 a sync-set-scoped pgvector retrieval used by the turn pipeline."""
 from __future__ import annotations
 
@@ -15,10 +15,10 @@ async def list_threads(user_sub: str, limit: int = 100) -> list[dict]:
         rows = await conn.fetch(
             """
             SELECT t.id::text AS id, t.title, t.created_at, t.updated_at,
-                   (SELECT m.content FROM ask_messages m
+                   (SELECT m.content FROM chat_messages m
                      WHERE m.thread_id = t.id
                      ORDER BY m.created_at DESC LIMIT 1) AS last_message_preview
-            FROM ask_threads t
+            FROM chat_threads t
             WHERE t.user_sub = $1
             ORDER BY t.updated_at DESC
             LIMIT $2
@@ -33,7 +33,7 @@ async def create_thread(user_sub: str, title: str) -> dict:
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """
-            INSERT INTO ask_threads (user_sub, title)
+            INSERT INTO chat_threads (user_sub, title)
             VALUES ($1, $2)
             RETURNING id::text AS id, title, created_at, updated_at
             """,
@@ -47,7 +47,7 @@ async def rename_thread(user_sub: str, thread_id: UUID, title: str) -> dict | No
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """
-            UPDATE ask_threads SET title = $1, updated_at = now()
+            UPDATE chat_threads SET title = $1, updated_at = now()
             WHERE id = $2 AND user_sub = $3
             RETURNING id::text AS id, title, created_at, updated_at
             """,
@@ -60,7 +60,7 @@ async def delete_thread(user_sub: str, thread_id: UUID) -> bool:
     pool = store.get_pool()
     async with pool.acquire() as conn:
         status = await conn.execute(
-            "DELETE FROM ask_threads WHERE id = $1 AND user_sub = $2",
+            "DELETE FROM chat_threads WHERE id = $1 AND user_sub = $2",
             thread_id, user_sub,
         )
     return status.endswith(" 1")
@@ -72,7 +72,7 @@ async def get_thread(user_sub: str, thread_id: UUID) -> dict | None:
         row = await conn.fetchrow(
             """
             SELECT id::text AS id, title, created_at, updated_at
-            FROM ask_threads
+            FROM chat_threads
             WHERE id = $1 AND user_sub = $2
             """,
             thread_id, user_sub,
@@ -86,7 +86,7 @@ async def list_messages(thread_id: UUID) -> list[dict]:
         rows = await conn.fetch(
             """
             SELECT id::text AS id, role, content, citations, created_at
-            FROM ask_messages
+            FROM chat_messages
             WHERE thread_id = $1
             ORDER BY created_at ASC
             """,
@@ -103,7 +103,7 @@ async def insert_message(
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """
-            INSERT INTO ask_messages (thread_id, role, content, citations, sync_ids)
+            INSERT INTO chat_messages (thread_id, role, content, citations, sync_ids)
             VALUES ($1, $2, $3, $4::jsonb, $5::jsonb)
             RETURNING id::text AS id, role, content, citations, created_at
             """,
@@ -118,13 +118,13 @@ async def touch_thread(thread_id: UUID, maybe_title: str | None = None) -> None:
     async with pool.acquire() as conn:
         if maybe_title is None:
             await conn.execute(
-                "UPDATE ask_threads SET updated_at = now() WHERE id = $1",
+                "UPDATE chat_threads SET updated_at = now() WHERE id = $1",
                 thread_id,
             )
         else:
             await conn.execute(
                 """
-                UPDATE ask_threads
+                UPDATE chat_threads
                 SET updated_at = now(),
                     title = CASE WHEN title = 'New thread' THEN $2 ELSE title END
                 WHERE id = $1

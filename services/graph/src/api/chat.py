@@ -1,4 +1,4 @@
-"""Ask (RAG chat) — HTTP API. Every endpoint requires X-User-Sub (injected
+"""Chat (RAG chat) — HTTP API. Every endpoint requires X-User-Sub (injected
 by the gateway after JWT verification). Thread-scoped endpoints 404 when
 thread.user_sub does not match, to avoid leaking existence."""
 from __future__ import annotations
@@ -13,10 +13,10 @@ from pydantic import BaseModel, Field
 from substrate_common import NotFoundError, ValidationError
 
 from src.api.auth import require_user_sub_strict
-from src.graph import ask_pipeline, ask_store, chat_context_resolver, chat_context_store
+from src.graph import chat_pipeline, chat_store, chat_context_resolver, chat_context_store
 
 logger = structlog.get_logger()
-router = APIRouter(prefix="/api/ask")
+router = APIRouter(prefix="/api/chat")
 
 
 class ThreadCreate(BaseModel):
@@ -36,7 +36,7 @@ class MessagePost(BaseModel):
 @router.get("/threads")
 async def list_threads(x_user_sub: str | None = Header(default=None)) -> dict[str, Any]:
     sub = require_user_sub_strict(x_user_sub)
-    return {"items": await ask_store.list_threads(sub)}
+    return {"items": await chat_store.list_threads(sub)}
 
 
 @router.post("/threads")
@@ -45,7 +45,7 @@ async def create_thread(
 ) -> dict[str, Any]:
     sub = require_user_sub_strict(x_user_sub)
     title = (body.title or "New thread").strip()[:200] or "New thread"
-    thread = await ask_store.create_thread(sub, title)
+    thread = await chat_store.create_thread(sub, title)
 
     # If this user has applied a chat context in Sources Config, resolve it
     # to the per-file list NOW and freeze a context_summary on the thread.
@@ -78,7 +78,7 @@ async def rename_thread(
     x_user_sub: str | None = Header(default=None),
 ) -> dict[str, Any]:
     sub = require_user_sub_strict(x_user_sub)
-    row = await ask_store.rename_thread(sub, thread_id, body.title.strip()[:200])
+    row = await chat_store.rename_thread(sub, thread_id, body.title.strip()[:200])
     if not row:
         raise NotFoundError("thread not found")
     return row
@@ -89,7 +89,7 @@ async def delete_thread(
     thread_id: UUID, x_user_sub: str | None = Header(default=None),
 ) -> Response:
     sub = require_user_sub_strict(x_user_sub)
-    ok = await ask_store.delete_thread(sub, thread_id)
+    ok = await chat_store.delete_thread(sub, thread_id)
     if not ok:
         raise NotFoundError("thread not found")
     return Response(status_code=204)
@@ -100,10 +100,10 @@ async def list_messages(
     thread_id: UUID, x_user_sub: str | None = Header(default=None),
 ) -> dict[str, Any]:
     sub = require_user_sub_strict(x_user_sub)
-    thread = await ask_store.get_thread(sub, thread_id)
+    thread = await chat_store.get_thread(sub, thread_id)
     if not thread:
         raise NotFoundError("thread not found")
-    return {"items": await ask_store.list_messages(thread_id)}
+    return {"items": await chat_store.list_messages(thread_id)}
 
 
 @router.post("/threads/{thread_id}/messages")
@@ -112,33 +112,33 @@ async def post_message(
     x_user_sub: str | None = Header(default=None),
 ) -> dict[str, Any]:
     sub = require_user_sub_strict(x_user_sub)
-    thread = await ask_store.get_thread(sub, thread_id)
+    thread = await chat_store.get_thread(sub, thread_id)
     if not thread:
         raise NotFoundError("thread not found")
     if not body.sync_ids:
         raise ValidationError("sync_ids required")
 
-    user_msg = await ask_store.insert_message(
+    user_msg = await chat_store.insert_message(
         thread_id=thread_id, role="user",
         content=body.content, citations=[], sync_ids=body.sync_ids,
     )
 
-    prior = await ask_store.list_messages(thread_id)
+    prior = await chat_store.list_messages(thread_id)
     prior_turns = [m for m in prior if m["id"] != user_msg["id"]]
 
-    turn = await ask_pipeline.run_turn(
+    turn = await chat_pipeline.run_turn(
         user_sub=sub, user_content=body.content,
         sync_ids=body.sync_ids, prior_turns=prior_turns,
         graph_context=body.graph_context,
         thread_id=thread_id,
     )
-    assistant_msg = await ask_store.insert_message(
+    assistant_msg = await chat_store.insert_message(
         thread_id=thread_id, role="assistant",
         content=turn["content"], citations=turn["citations"],
         sync_ids=body.sync_ids,
     )
 
     derived_title = body.content.strip()[:60]
-    await ask_store.touch_thread(thread_id, maybe_title=derived_title)
+    await chat_store.touch_thread(thread_id, maybe_title=derived_title)
 
     return {"user_message": user_msg, "assistant_message": assistant_msg}

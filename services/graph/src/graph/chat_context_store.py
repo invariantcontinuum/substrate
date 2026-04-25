@@ -1,7 +1,7 @@
 """Asyncpg queries for the chat-context tables.
 
 Schema lives in V3 (`user_profiles.active_chat_context`,
-`ask_threads.context_summary`, `ask_thread_context_files`)."""
+`chat_threads.context_summary`, `chat_thread_context_files`)."""
 from __future__ import annotations
 
 import json
@@ -52,7 +52,7 @@ async def insert_thread_context_files(
     async with pool.acquire() as conn:
         await conn.executemany(
             """
-            INSERT INTO ask_thread_context_files
+            INSERT INTO chat_thread_context_files
               (thread_id, file_id, path, language, total_tokens)
             VALUES ($1, $2::uuid, $3, $4, $5)
             ON CONFLICT (thread_id, file_id) DO NOTHING
@@ -74,7 +74,7 @@ async def list_thread_context_files(thread_id: UUID) -> list[dict]:
             """
             SELECT file_id::text AS file_id, path, language,
                    total_tokens, included
-            FROM ask_thread_context_files
+            FROM chat_thread_context_files
             WHERE thread_id = $1
             ORDER BY total_tokens DESC, path
             """,
@@ -92,7 +92,7 @@ async def patch_thread_context_files(
     async with pool.acquire() as conn:
         await conn.executemany(
             """
-            UPDATE ask_thread_context_files
+            UPDATE chat_thread_context_files
             SET included = $3
             WHERE thread_id = $1 AND file_id = $2::uuid
             """,
@@ -104,7 +104,7 @@ async def write_context_summary(thread_id: UUID, summary: dict) -> None:
     pool = store.get_pool()
     async with pool.acquire() as conn:
         await conn.execute(
-            "UPDATE ask_threads SET context_summary = $2::jsonb WHERE id = $1",
+            "UPDATE chat_threads SET context_summary = $2::jsonb WHERE id = $1",
             thread_id, json.dumps(summary),
         )
 
@@ -113,7 +113,7 @@ async def get_thread_context_summary(thread_id: UUID) -> dict | None:
     pool = store.get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT context_summary FROM ask_threads WHERE id = $1",
+            "SELECT context_summary FROM chat_threads WHERE id = $1",
             thread_id,
         )
     if not row or row["context_summary"] is None:

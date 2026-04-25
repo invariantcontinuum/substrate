@@ -61,7 +61,7 @@ async def test_thread_create_resolves_active_context(
     assert r.status_code == 200, r.text
 
     r = await async_client.post(
-        "/api/ask/threads",
+        "/api/chat/threads",
         json={"title": "ctx test"},
         headers={"X-User-Sub": seed_one_file["user_sub"]},
     )
@@ -92,7 +92,7 @@ async def test_patch_context_files_toggles_included(
         headers={"X-User-Sub": seed_one_file["user_sub"]},
     )
     r = await async_client.post(
-        "/api/ask/threads",
+        "/api/chat/threads",
         json={"title": "patch test"},
         headers={"X-User-Sub": seed_one_file["user_sub"]},
     )

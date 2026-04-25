@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 from substrate_common import NotFoundError
 
 from src.api.auth import require_user_sub_strict
-from src.graph import ask_store, chat_context_store
+from src.graph import chat_store, chat_context_store
 
 logger = structlog.get_logger()
 router = APIRouter(prefix="/api/chat-context")
@@ -79,7 +79,7 @@ async def list_thread_context_files(
     x_user_sub: str | None = Header(default=None),
 ) -> dict[str, Any]:
     sub = require_user_sub_strict(x_user_sub)
-    thread = await ask_store.get_thread(sub, thread_id)
+    thread = await chat_store.get_thread(sub, thread_id)
     if not thread:
         raise NotFoundError("thread not found")
     files = await chat_context_store.list_thread_context_files(thread_id)
@@ -93,7 +93,7 @@ async def patch_thread_context_files(
     x_user_sub: str | None = Header(default=None),
 ) -> dict[str, Any]:
     sub = require_user_sub_strict(x_user_sub)
-    thread = await ask_store.get_thread(sub, thread_id)
+    thread = await chat_store.get_thread(sub, thread_id)
     if not thread:
         raise NotFoundError("thread not found")
     await chat_context_store.patch_thread_context_files(
