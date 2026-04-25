@@ -16,6 +16,7 @@ import { EnrichmentModal } from "./EnrichmentModal";
 const MODAL_COMPONENTS: Partial<Record<NonNullable<ModalName>, React.ComponentType>> = {
   enrichment: EnrichmentModal,
   user: UserModal,
+  settings: UserModal, // Task 12 replaces this with SettingsModal
   // Coming-soon stubs share a single component keyed on the modal name
   // so we render exactly one at a time with the right copy.
   policies: () => <ComingSoonModal name="policies" />,

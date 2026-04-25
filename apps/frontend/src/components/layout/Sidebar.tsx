@@ -4,6 +4,7 @@ import { ChevronLeft, MessageSquare, GitBranch, Plug, Plus, Search, ChevronDown 
 import { useAuth } from "react-oidc-context";
 import { ThreadGroup } from "./ThreadGroup";
 import { useUIStore } from "@/stores/ui";
+import { useResponsive } from "@/hooks/useResponsive";
 import { useChatThreads, type ChatThread } from "@/hooks/useChatThreads";
 import { useChatStore } from "@/stores/chat";
 import { useCreateThread } from "@/hooks/useChatMutations";
@@ -41,6 +42,7 @@ export function Sidebar() {
   const initial = auth.user?.profile?.name?.[0]?.toUpperCase() ?? "U";
   const userName = auth.user?.profile?.name ?? auth.user?.profile?.email ?? "Account";
 
+  const { isDesktop } = useResponsive();
   const sidebarOpen = useUIStore((s) => s.sidebarOpen);
   const toggleSidebar = useUIStore((s) => s.toggleSidebar);
   const openModal = useUIStore((s) => s.openModal);
@@ -63,20 +65,20 @@ export function Sidebar() {
   const onSelectThread = (id: string) => {
     setActiveId(id);
     navigate("/chat");
-    if (window.innerWidth < 768) toggleSidebar();
+    if (!isDesktop) toggleSidebar();
   };
 
   const onNewChat = async () => {
     const created = await createThread.mutateAsync(undefined);
     setActiveId(created.id);
     navigate("/chat");
-    if (window.innerWidth < 768) toggleSidebar();
+    if (!isDesktop) toggleSidebar();
   };
 
   useEffect(() => {
     if (!sidebarOpen) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && window.innerWidth < 768) toggleSidebar();
+      if (e.key === "Escape" && !isDesktop) toggleSidebar();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
