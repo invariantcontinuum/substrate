@@ -53,9 +53,31 @@ jobs:
       - name: Validate prod compose config
         run: ENV_FILE=.env.prod docker compose --env-file .env.prod -f compose.yaml config >/dev/null
 
-  python-fast:
+  # Per-service Python tests with coverage. Each service runs in its own
+  # job so failures are isolated and the matrix shows which one tripped.
+  # Coverage XML is uploaded per service so SonarCloud can ingest it.
+  python-tests:
     runs-on: ubuntu-latest
     needs: versioning
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: gateway
+            path: services/gateway
+            extra: --extra dev
+          - name: ingestion
+            path: services/ingestion
+            extra: --extra dev
+          - name: graph
+            path: services/graph
+            extra: --extra dev
+          - name: substrate-common
+            path: packages/substrate-common
+            extra: --extra dev
+          - name: substrate-graph-builder
+            path: packages/substrate-graph-builder
+            extra: --with pytest
     steps:
       - uses: actions/checkout@v4
 
@@ -66,19 +88,25 @@ jobs:
       - name: Sync workspace dependencies
         run: uv sync --frozen --dev
 
-      - name: Gateway tests
-        run: cd services/gateway && uv run --extra dev pytest tests
+      - name: Tests with coverage — ${{ matrix.name }}
+        run: |
+          cd ${{ matrix.path }}
+          uv run ${{ matrix.extra }} --with pytest-cov \
+            pytest tests \
+              --cov=src \
+              --cov-report=xml:coverage.xml \
+              --cov-report=term-missing
 
-      - name: Shared Python package tests
-        run: cd packages/substrate-common && uv run --extra dev pytest tests
+      - name: Upload coverage — ${{ matrix.name }}
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.name }}
+          path: ${{ matrix.path }}/coverage.xml
+          if-no-files-found: warn
+          retention-days: 7
 
-      - name: Graph builder tests
-        run: cd packages/substrate-graph-builder && uv run --with pytest pytest tests
-
-      - name: Ingestion sync-progress regression tests
-        run: cd services/ingestion && uv run --extra dev pytest tests/test_sync_progress.py
-
-  frontend-fast:
+  frontend-tests:
     runs-on: ubuntu-latest
     needs: versioning
     env:
@@ -100,12 +128,26 @@ jobs:
       - name: Install workspace dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Frontend typecheck, targeted tests, and production build
+      - name: Typecheck
+        run: cd apps/frontend && pnpm exec tsc -b --noEmit
+
+      - name: Full vitest with coverage
         run: |
           cd apps/frontend
-          pnpm exec tsc -b --noEmit
-          pnpm exec vitest run src/stores/syncSet.test.ts
-          pnpm build
+          pnpm add -D @vitest/coverage-v8
+          pnpm exec vitest run --coverage --coverage.reporter=lcov --coverage.reporter=text-summary
+
+      - name: Production build
+        run: cd apps/frontend && pnpm build
+
+      - name: Upload coverage — frontend
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-frontend
+          path: apps/frontend/coverage/lcov.info
+          if-no-files-found: warn
+          retention-days: 7
 
   docs-build:
     runs-on: ubuntu-latest
