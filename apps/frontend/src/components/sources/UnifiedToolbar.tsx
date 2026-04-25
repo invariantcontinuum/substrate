@@ -11,6 +11,7 @@ import { useSources } from "@/hooks/useSources";
 import { useSchedules } from "@/hooks/useSchedules";
 import { useSyncSetStore } from "@/stores/syncSet";
 import { useUIStore } from "@/stores/ui";
+import { useExportGraph } from "@/hooks/useExportGraph";
 import { SyncAlreadyActiveNotice } from "@/components/SyncAlreadyActiveNotice";
 import { ConfigDialog } from "./ConfigDialog";
 
@@ -41,6 +42,7 @@ export function UnifiedToolbar(props: Props) {
   const unload = useSyncSetStore((s) => s.unload);
   const loadedIds = useSyncSetStore((s) => s.syncIds);
   const openModal = useUIStore((s) => s.openModal);
+  const exportGraph = useExportGraph();
 
   const [interval, setInterval] = useState(60);
   const [alreadyActiveSyncId, setAlreadyActiveSyncId] = useState<string | null>(null);
@@ -204,6 +206,13 @@ export function UnifiedToolbar(props: Props) {
           )}
           <Button onClick={doClean}><Eraser size={12} /> Clean</Button>
           <Button onClick={doPurge} className="danger"><Trash2 size={12} /> Purge</Button>
+          <Button
+            onClick={() => { void exportGraph(loadedIds).catch(console.error); }}
+            disabled={loadedIds.length === 0}
+            title="Export the loaded graph + all source files as JSON"
+          >
+            <Download size={12} /> Export Graph
+          </Button>
         </div>
         {alreadyActiveSyncId && alreadyActiveSourceId && (
           <SyncAlreadyActiveNotice
