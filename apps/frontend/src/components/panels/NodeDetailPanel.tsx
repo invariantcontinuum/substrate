@@ -248,12 +248,12 @@ export function NodeDetailPanel() {
 
   return (
     <div className="node-detail-panel">
-      <div className="node-detail-header">
+      <div className="node-detail-header is-sticky">
         <h3 title={title}>{title}</h3>
         <Button onClick={close} title="Close"><X size={14} /></Button>
       </div>
 
-      <div className="node-detail-body">
+      <div className="node-detail-body is-scrollable">
         {loadedSyncIds.length > 0 && (
           <section className="node-detail-section">
             <h4 className="node-detail-section-title">Snapshot</h4>
