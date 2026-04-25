@@ -271,18 +271,26 @@ async def stream_turn(
     graph_context: dict[str, Any] | None,
     user_sub: str,
     prior_turns: list[dict],
+    assistant_id: UUID | None = None,
 ) -> None:
     """Stream an assistant turn. Caller returns 202 immediately; this
     coroutine runs in the background and writes events to sse_events as
     it goes. The final chat_messages row is inserted on success;
     chat.turn.failed event fires on any exception — including prompt-build
-    failures that would previously have left the client hanging forever."""
+    failures that would previously have left the client hanging forever.
+
+    The caller may supply ``assistant_id`` so it can be returned to the
+    client in the 202 response and used as the cancel-key (the client
+    posts ``DELETE /api/chat/streams/{assistant_id}`` to abort
+    mid-stream). When omitted, an id is minted internally for the
+    legacy fire-and-forget path."""
     from src.graph import chat_store
 
     # Initialise bus and assistant_id BEFORE the try so the except block can
     # always publish CHAT_TURN_FAILED, even when the prompt-build raises.
     bus = SseBus(store.get_pool())
-    assistant_id = uuid4()
+    if assistant_id is None:
+        assistant_id = uuid4()
 
     try:
         # Build the context-aware prompt (same path as run_turn used).
@@ -357,6 +365,27 @@ async def stream_turn(
                 "citations": citations,
             },
         ))
+    except asyncio.CancelledError:
+        # The streaming task was cancelled (user hit Stop in the
+        # composer). asyncio.CancelledError is a BaseException so
+        # the broader `except Exception` below would NOT catch it;
+        # we publish a terminal failed event with reason "cancelled"
+        # so the frontend reducer clears its streamingTurn slice,
+        # then re-raise so the task is properly marked cancelled.
+        logger.info("chat_stream_turn_cancelled", thread_id=str(thread_id))
+        try:
+            await bus.publish(Event(
+                type=CHAT_TURN_FAILED,
+                user_sub=user_sub,
+                payload={
+                    "thread_id": str(thread_id),
+                    "message_id": str(assistant_id),
+                    "error": "cancelled",
+                },
+            ))
+        except Exception:  # noqa: BLE001
+            pass
+        raise
     except Exception as exc:  # noqa: BLE001 — user-visible error boundary
         logger.exception("chat_stream_turn_failed", thread_id=str(thread_id))
         await bus.publish(Event(

@@ -2286,6 +2286,16 @@ html {
   align-items: center;
   justify-content: center;
 }
+.composer-send.is-stop {
+  background: var(--fg);
+  color: var(--bg);
+  border-color: var(--fg);
+}
+.composer-send.is-stop:hover:not(:disabled) {
+  background: #e07070;
+  border-color: #e07070;
+  color: white;
+}
 
 .chat-placeholder {
   display: flex;

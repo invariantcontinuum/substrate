@@ -1,21 +1,25 @@
 import { useEffect, useRef, type KeyboardEvent } from "react";
-import { Send } from "lucide-react";
+import { Send, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useChatStore } from "@/stores/chat";
 import { useSendTurn, useCreateThread } from "@/hooks/useChatMutations";
+import { useCancelStream } from "@/hooks/useCancelStream";
 
 export function Composer({ threadId }: { threadId: string | null }) {
   const draft = useChatStore((s) => s.composerDraft);
   const setDraft = useChatStore((s) => s.setComposerDraft);
   const streamingTurn = useChatStore((s) => s.streamingTurn);
+  const setStreamingTurn = useChatStore((s) => s.setStreamingTurn);
   const setActiveThreadId = useChatStore((s) => s.setActiveThreadId);
   const send = useSendTurn();
   const createThread = useCreateThread();
+  const cancel = useCancelStream();
   const taRef = useRef<HTMLTextAreaElement | null>(null);
 
   const isStreaming =
     streamingTurn != null && streamingTurn.threadId === threadId;
   const canSend = draft.trim().length > 0 && !isStreaming && !send.isPending;
+  const canStop = isStreaming && !cancel.isPending;
 
   // Auto-grow textarea up to ~8 rows
   useEffect(() => {
@@ -39,10 +43,23 @@ export function Composer({ threadId }: { threadId: string | null }) {
     taRef.current?.focus();
   };
 
+  const doStop = () => {
+    if (!streamingTurn) return;
+    const messageId = streamingTurn.messageId;
+    // Optimistic local clear so the composer re-enables immediately;
+    // the backend cancel races with the SSE chat.turn.failed event but
+    // the reducer's idempotent setStreamingTurn(null) makes either
+    // ordering safe.
+    setStreamingTurn(null);
+    cancel.mutate(messageId);
+    taRef.current?.focus();
+  };
+
   const onKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      void doSend();
+      if (isStreaming) doStop();
+      else void doSend();
     }
   };
 
@@ -53,19 +70,32 @@ export function Composer({ threadId }: { threadId: string | null }) {
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={onKey}
-        placeholder="Ask anything…"
+        placeholder={isStreaming ? "Streaming response — press Stop or Enter to cancel" : "Ask anything…"}
         disabled={isStreaming}
         className="composer-input"
         rows={1}
       />
-      <Button
-        onClick={() => { void doSend(); }}
-        disabled={!canSend}
-        className="composer-send"
-        aria-label="Send"
-      >
-        <Send size={14} />
-      </Button>
+      {isStreaming ? (
+        <Button
+          onClick={doStop}
+          disabled={!canStop}
+          className="composer-send is-stop"
+          aria-label="Stop streaming"
+          title="Stop streaming"
+        >
+          <Square size={12} fill="currentColor" />
+        </Button>
+      ) : (
+        <Button
+          onClick={() => { void doSend(); }}
+          disabled={!canSend}
+          className="composer-send"
+          aria-label="Send"
+          title="Send"
+        >
+          <Send size={14} />
+        </Button>
+      )}
     </div>
   );
 }

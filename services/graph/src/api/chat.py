@@ -6,7 +6,7 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import structlog
 from fastapi import APIRouter, Header, Response
@@ -20,9 +20,11 @@ from src.graph import chat_pipeline, chat_store, chat_context_resolver, chat_con
 logger = structlog.get_logger()
 router = APIRouter(prefix="/api/chat")
 
-# Strong references to background streaming tasks — prevents CPython GC from
-# silently discarding an in-flight Task whose only reference is the event loop.
-_background_tasks: set[asyncio.Task] = set()
+# Active streaming tasks keyed on the assistant message_id so the cancel
+# endpoint can find the right Task to .cancel(). The dict also holds a
+# strong reference (preventing CPython GC from silently dropping in-flight
+# tasks). Entries are removed on task done via add_done_callback below.
+_streaming_tasks: dict[str, asyncio.Task] = {}
 
 
 class ThreadCreate(BaseModel):
@@ -132,6 +134,11 @@ async def post_message(
     prior = await chat_store.list_messages(thread_id)
     prior_turns = [m for m in prior if m["id"] != user_msg["id"]]
 
+    # Mint the assistant_id here (not inside stream_turn) so we can
+    # return it to the client; the client uses this id to cancel
+    # mid-stream via DELETE /api/chat/streams/{message_id}.
+    assistant_id = uuid4()
+    key = str(assistant_id)
     t = asyncio.create_task(chat_pipeline.stream_turn(
         thread_id=thread_id,
         user_content=body.content,
@@ -139,8 +146,30 @@ async def post_message(
         graph_context=body.graph_context,
         user_sub=sub,
         prior_turns=prior_turns,
+        assistant_id=assistant_id,
     ))
-    _background_tasks.add(t)
-    t.add_done_callback(_background_tasks.discard)
+    _streaming_tasks[key] = t
+    t.add_done_callback(lambda _t: _streaming_tasks.pop(key, None))
 
-    return {"user_message": user_msg, "status": "streaming"}
+    return {
+        "user_message": user_msg,
+        "assistant_message_id": key,
+        "status": "streaming",
+    }
+
+
+@router.delete("/streams/{assistant_id}", status_code=204)
+async def cancel_stream(
+    assistant_id: UUID, x_user_sub: str | None = Header(default=None),
+) -> Response:
+    """Cancel an in-flight assistant turn. The streaming coroutine
+    catches asyncio.CancelledError, publishes a CHAT_TURN_FAILED event
+    with reason "cancelled", and exits — the frontend reducer then
+    clears its streamingTurn slice and re-enables the composer."""
+    require_user_sub_strict(x_user_sub)
+    task = _streaming_tasks.get(str(assistant_id))
+    if task is None or task.done():
+        # 204 either way — caller's intent (no longer streaming) is met.
+        return Response(status_code=204)
+    task.cancel()
+    return Response(status_code=204)

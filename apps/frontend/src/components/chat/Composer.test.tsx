@@ -14,6 +14,11 @@ vi.mock("@/hooks/useChatMutations", () => ({
   useCreateThread: () => ({ mutateAsync: vi.fn().mockResolvedValue({ id: "t1" }), isPending: false }),
 }));
 
+const cancelMock = vi.fn();
+vi.mock("@/hooks/useCancelStream", () => ({
+  useCancelStream: () => ({ mutate: cancelMock, isPending: false }),
+}));
+
 function renderC(ui: React.ReactElement) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>);
@@ -21,6 +26,7 @@ function renderC(ui: React.ReactElement) {
 
 beforeEach(() => {
   sendMock.mockClear();
+  cancelMock.mockClear();
   useChatStore.setState({ streamingTurn: null, composerDraft: "" });
 });
 
@@ -30,8 +36,18 @@ describe("Composer", () => {
     const ta = screen.getByPlaceholderText(/Ask anything/i) as HTMLTextAreaElement;
     fireEvent.change(ta, { target: { value: "hello" } });
     fireEvent.keyDown(ta, { key: "Enter" });
-    // mutateAsync is called inside an async closure; assert by next-tick microtask
     await Promise.resolve();
     expect(sendMock).toHaveBeenCalledWith(expect.objectContaining({ threadId: "t1", content: "hello" }));
+  });
+
+  it("renders Stop button while streaming and cancels on click", () => {
+    useChatStore.setState({
+      streamingTurn: { threadId: "t1", messageId: "m1", content: "partial" },
+    });
+    renderC(<Composer threadId="t1" />);
+    const stopBtn = screen.getByLabelText(/Stop streaming/i);
+    fireEvent.click(stopBtn);
+    expect(cancelMock).toHaveBeenCalledWith("m1");
+    expect(useChatStore.getState().streamingTurn).toBeNull();
   });
 });

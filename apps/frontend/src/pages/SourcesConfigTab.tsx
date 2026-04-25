@@ -25,6 +25,8 @@ export function SourcesConfigTab() {
   const driftCount = (Object.keys(active) as (keyof typeof active)[])
     .filter((k) => active[k] !== staged[k]).length;
 
+  const setLeiden = usePrefsStore((s) => s.setLeiden);
+
   const onRecompute = async () => {
     const token = (window as Window & { __authToken?: string }).__authToken;
     if (!token || syncIds.length === 0) return;
@@ -52,6 +54,12 @@ export function SourcesConfigTab() {
       configUsed: data.config_used,
       orphanPct: data.summary?.orphan_pct ?? 0,
     });
+    // Persist the staged knobs into the user prefs so `useCommunities`
+    // (which keys its query on `prefsLeiden`) re-fetches with the new
+    // config and the graph rerenders against the freshly-computed
+    // clusters. Without this the recompute updated the preview pane
+    // but the active graph kept showing the previous communities.
+    if (data.config_used) setLeiden(data.config_used);
   };
 
   return (
