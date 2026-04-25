@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LayoutGrid, Maximize2, ZoomIn, ZoomOut } from "lucide-react";
 import { useGraphStore } from "@/stores/graph";
-import { useUIStore } from "@/stores/ui";
 import { useThemeStore } from "@/stores/theme";
 import { useResponsive } from "@/hooks/useResponsive";
 import { loadCytoscape } from "@/lib/cytoscapeLoader";
@@ -349,8 +348,6 @@ export function GraphCanvas() {
   const setPan = useGraphStore((s) => s.setPan);
   const finalizeLoad = useGraphStore((s) => s.finalizeLoad);
 
-  const openModal = useUIStore((s) => s.openModal);
-
   const theme = useThemeStore((s) => s.theme);
 
   const filtered = useMemo(() => {
@@ -421,7 +418,6 @@ export function GraphCanvas() {
       cy.on("tap", "node", (evt) => {
         const id = evt.target.id() as string;
         setSelectedNodeId(id);
-        openModal("nodeDetail");
       });
 
       cy.on("tap", (evt) => {
@@ -444,7 +440,7 @@ export function GraphCanvas() {
     // tearing down and rebuilding the Cytoscape instance (which would wipe
     // the graph and be expensive).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [setSelectedNodeId, setZoom, setPan, openModal]);
+  }, [setSelectedNodeId, setZoom, setPan]);
 
   /* Re-apply the theme-keyed stylesheet whenever the global theme
    * changes. Cytoscape doesn't observe CSS variables, so we rebuild the

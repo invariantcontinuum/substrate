@@ -3011,6 +3011,62 @@ html {
   font-size: var(--text-sm);
 }
 
+/* GraphToolbar — single floating button in the top-right corner of
+ * the canvas wrapper. Pulses for ~800ms on each new node selection so
+ * the affordance is visible without auto-opening the modal. */
+.graph-toolbar {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 5;
+}
+.graph-toolbar-button {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: opacity 0.15s, color 0.15s;
+}
+.graph-toolbar-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.graph-toolbar-button:not(:disabled):hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+@keyframes graph-toolbar-pulse {
+  0%   { transform: scale(1);    box-shadow: 0 0 0 0 var(--accent-tint); }
+  30%  { transform: scale(1.15); box-shadow: 0 0 0 6px var(--accent-tint); }
+  60%  { transform: scale(1.05); box-shadow: 0 0 0 12px transparent; }
+  100% { transform: scale(1);    box-shadow: 0 0 0 0 transparent; }
+}
+.graph-toolbar-button.is-pulsing {
+  animation: graph-toolbar-pulse 800ms ease-out 1;
+}
+
+/* When NodeDetailPanel is mounted inside a Modal, drop its own outer
+ * frame and let the Modal's DialogContent provide the chrome. */
+.node-detail-modal .modal-body {
+  padding: 0;
+}
+.node-detail-modal .node-detail-panel {
+  position: static;
+  width: 100%;
+  height: auto;
+  max-height: min(80vh, 720px);
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  border-radius: 0;
+}
+
 /* ---- SnapshotExpandedDrawer ---- */
 .snapshot-drawer { padding: 10px 12px; border-top: 1px solid rgba(255,255,255,0.06); font-size: 12px; }
 .stats-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 4px 0; }
