@@ -5,6 +5,7 @@ import { useSyncs } from "@/hooks/useSyncs";
 import { useSyncSetStore } from "@/stores/syncSet";
 import { useResyncSnapshot } from "@/hooks/useResyncSnapshot";
 import { useExportSnapshot } from "@/hooks/useExportSnapshot";
+import { useCleanSnapshotWithUndo } from "@/hooks/useCleanSnapshotWithUndo";
 import { PurgeConfirmModal } from "./PurgeConfirmModal";
 
 interface Props {
@@ -15,7 +16,8 @@ export function SnapshotActionStrip({ run }: Props) {
   const isLoaded = useSyncSetStore((s) => s.syncIds.includes(run.id));
   const load = useSyncSetStore((s) => s.load);
   const unload = useSyncSetStore((s) => s.unload);
-  const { cleanSync, purgeSync } = useSyncs();
+  const { purgeSync } = useSyncs();
+  const cleanWithUndo = useCleanSnapshotWithUndo();
   const exportSnap = useExportSnapshot();
   const resync = useResyncSnapshot();
   const [purgeOpen, setPurgeOpen] = useState(false);
@@ -64,9 +66,7 @@ export function SnapshotActionStrip({ run }: Props) {
         className="snapshot-row-icon"
         title="Clean — drop embeddings, keep file rows"
         aria-label="Clean snapshot"
-        onClick={() => {
-          void cleanSync(run.id);
-        }}
+        onClick={() => cleanWithUndo(run.id)}
       >
         <Eraser size={12} />
       </button>
