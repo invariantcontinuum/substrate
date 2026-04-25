@@ -271,6 +271,54 @@ async def seeded_two_cluster_syncs(app_pool):
 
 
 @pytest_asyncio.fixture(loop_scope="session")
+async def seed_one_file(app_pool):
+    """Seed one source + sync_run + file_embeddings row + a single
+    content_chunks row, owned by ``user-files``. Used by the lazy
+    full-file loader tests (/api/files/{file_id}/content)."""
+    pool = store.get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "DELETE FROM sources WHERE user_sub='user-files' "
+            "AND source_type='github' AND owner='acme' AND name='demo'"
+        )
+        source_id = await conn.fetchval(
+            "INSERT INTO sources (user_sub, source_type, owner, name, url) "
+            "VALUES ('user-files', 'github', 'acme', 'demo', 'u') "
+            "RETURNING id"
+        )
+        sync_id = await conn.fetchval(
+            "INSERT INTO sync_runs (source_id, status) "
+            "VALUES ($1, 'completed') RETURNING id",
+            source_id,
+        )
+        file_id = await conn.fetchval(
+            "INSERT INTO file_embeddings "
+            "(source_id, sync_id, file_path, name, type, language, line_count) "
+            "VALUES ($1, $2, 'demo.txt', 'demo.txt', 'file', 'plain', 3) "
+            "RETURNING id",
+            source_id, sync_id,
+        )
+        await conn.execute(
+            "INSERT INTO content_chunks "
+            "(file_id, sync_id, chunk_index, content, start_line, end_line, "
+            " token_count) "
+            "VALUES ($1, $2, 0, 'alpha\nbeta\ngamma', 1, 3, 3)",
+            file_id, sync_id,
+        )
+
+    yield {
+        "user_sub": "user-files",
+        "source_id": str(source_id),
+        "sync_id": str(sync_id),
+        "file_id": str(file_id),
+        "path": "demo.txt",
+    }
+
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM sources WHERE id = $1", source_id)
+
+
+@pytest_asyncio.fixture(loop_scope="session")
 async def seeded_assistant_turn(async_client, monkeypatch):
     """Stub ``ask_pipeline.run_turn`` with a canned response, create a
     fresh thread for ``user-a``, POST one user message, and return the
