@@ -13,9 +13,8 @@ Reference guide for React components in the Substrate frontend.
 The root authenticated shell. Mounts global data hooks (`useSyncs`) so sync polling never stops. Validates persisted sync IDs on mount and initializes the sync set if empty.
 
 **Children:**
-- `TopBar`
-- `Sidebar` (desktop only)
-- `MobileNav` (mobile only)
+- `Sidebar` (the only piece of app chrome — desktop and mobile)
+- `dashboard-scrim` (mobile-only overlay scrim shown when sidebar is open)
 - `ModalRoot`
 - `SwapToast`
 - `Outlet` (renders current page)
@@ -26,30 +25,31 @@ The root authenticated shell. Mounts global data hooks (`useSyncs`) so sync poll
 
 **File:** `components/layout/Sidebar.tsx`
 
-Collapsible icon rail for desktop navigation. Opens modals for Graph, Sources, Enrichment, Search, and coming-soon items. Shows a badge with the count of currently loaded snapshots.
+Open-webui-style global sidebar. The only piece of app chrome — replaces the legacy `TopBar` + icon-rail Sidebar + bottom `MobileNav`. Sections:
 
-**Props:** None (reads from `uiStore` and `syncSetStore`)
+- **Header** — Substrate logo + sync indicator + collapse button (desktop)
+- **Actions** — `+ New chat` button + thread search input
+- **Primary nav** — `Chat` / `Graph` / `Sources` links (highlighted on the matching route)
+- **Threads** — date-bucketed scrolling list (Today / Yesterday / Last 7 days / Last 30 days / Older) sourced from `useChatThreads`
+- **Footer** — account avatar that opens `SettingsModal`
 
----
+On `<1024px` the sidebar is hidden by default and slides in as a 280px overlay when each page's `<PageHeader>` hamburger is tapped. Tap-scrim and Escape close it. Persists open/closed state in `useUIStore.sidebarOpen` (initialised to OS-matched on first load).
 
-### `TopBar`
-
-**File:** `components/layout/TopBar.tsx`
-
-Fixed header containing:
-- Substrate brand mark
-- Search input (disabled until graph loaded)
-- Live visible node/edge counts
-- Health heartbeat pill (polls `/api/graph/stats` every 10s)
-- Last graph load round-trip time
+**Props:** None (reads from `useUIStore`, `useChatThreads`, `useChatStore`, `useAuth`).
 
 ---
 
-### `MobileNav`
+### `PageHeader`
 
-**File:** `components/layout/MobileNav.tsx`
+**File:** `components/layout/PageHeader.tsx`
 
-Bottom tab bar for mobile with icons for Graph, Sources, Enrichment, Search, and Account.
+Reusable thin header (44px) mounted by every top-level page (`ChatPage`, `GraphPage`, `SourcesPage`). Shows:
+
+- A hamburger button on `<1024px` when the sidebar is closed (toggles `useUIStore.sidebarOpen`)
+- The page title
+- An optional `right` slot (used by Sources to host the tab strip + active-set pill)
+
+The hamburger is the sole entry point for opening the sidebar on mobile.
 
 ---
 

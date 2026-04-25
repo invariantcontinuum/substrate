@@ -76,9 +76,10 @@ apps/frontend/src/
 │   │   └── ViolationBadge.tsx      # Violation indicator
 │   ├── layout/
 │   │   ├── DashboardLayout.tsx     # Shell layout, mounts global hooks
-│   │   ├── Sidebar.tsx             # Icon navigation rail
-│   │   ├── TopBar.tsx              # Brand, search, stats, health
-│   │   └── MobileNav.tsx           # Bottom tab bar (mobile)
+│   │   ├── Sidebar.tsx             # Open-webui-style global sidebar (chat threads + nav + account)
+│   │   ├── PageHeader.tsx          # Reusable thin per-page header with mobile hamburger
+│   │   ├── ThreadGroup.tsx         # Date-bucketed thread group inside Sidebar
+│   │   └── ThreadListItem.tsx      # Single thread row (rename + delete on hover)
 │   ├── modals/
 │   │   ├── ModalRoot.tsx           # Routes active modal
 │   │   ├── SourcesModal.tsx        # Source + sync management
@@ -148,9 +149,8 @@ main.tsx
                 └── Routes
                     └── /callback -> CallbackPage
                     └── / -> RequireAuth -> DashboardLayout
-                         ├── TopBar
-                         ├── Sidebar (desktop)
-                         ├── MobileNav (mobile)
+                         ├── Sidebar (open-webui style, desktop+mobile-overlay)
+                         ├── dashboard-scrim (mobile, when sidebar open)
                          ├── ModalRoot (active modal only)
                          ├── SwapToast (auto-swap notification)
                          └── Outlet -> GraphPage
