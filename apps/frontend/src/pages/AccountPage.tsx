@@ -1,21 +1,15 @@
-import { Outlet } from "react-router-dom";
-import { TabStrip } from "@/components/common/TabStrip";
+import { useEffect } from "react";
+import { useUIStore } from "@/stores/ui";
 
-const TABS = [
-  { to: "/account", label: "Profile", end: true },
-  { to: "/account/devices", label: "Devices" },
-  { to: "/account/defaults", label: "Defaults" },
-  { to: "/account/integrations", label: "Integrations" },
-  { to: "/account/billing", label: "Billing" },
-];
-
+/**
+ * `/account/*` deep links auto-open the SettingsModal at the matching tab.
+ * The modal owns its own internal Routes; AccountPage renders nothing
+ * itself — it just opens the modal on mount.
+ */
 export function AccountPage() {
-  return (
-    <div className="account-page">
-      <TabStrip items={TABS} />
-      <div className="account-tab-body">
-        <Outlet />
-      </div>
-    </div>
-  );
+  const openModal = useUIStore((s) => s.openModal);
+  useEffect(() => {
+    openModal("settings");
+  }, [openModal]);
+  return null;
 }
