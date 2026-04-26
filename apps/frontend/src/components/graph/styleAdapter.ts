@@ -41,17 +41,25 @@ export interface GraphTheme {
   defaultEdgeStyle: EdgeTypeStyle;
 }
 
-const DARK_NODE_BORDERS: Record<string, string> = {
-  service: "#6fb5a7", source: "#5f88d8", database: "#d88a73", cache: "#e8aa99",
-  data: "#c9788f", policy: "#f3dfa2", adr: "#e6c866", incident: "#e6706b",
-  external: "#a19890", config: "#c5b8a8", script: "#c99be2", doc: "#8fa97e",
-  asset: "#a19890",
-};
-const LIGHT_NODE_BORDERS: Record<string, string> = {
-  service: "#1c554e", source: "#2f4f9d", database: "#a64a35", cache: "#7a3728",
-  data: "#9d3f63", policy: "#c59e3a", adr: "#b8882a", incident: "#a43b3b",
-  external: "#6b6866", config: "#8a7f74", script: "#7f4ea3", doc: "#49643e",
-  asset: "#6b6866",
+// Per-type accent palette (Phase 3.8). Single source of truth shared
+// with the cytoscape stylesheet in GraphCanvas (see ACCENT there). The
+// palette is theme-agnostic — accents are flat colors used identically
+// in both modes; node body contrast comes from the per-theme node
+// fill in GraphCanvas, not from the accent.
+const NODE_ACCENT: Record<string, string> = {
+  service:   "#6366f1", // indigo
+  source:    "#8b5cf6", // violet
+  database:  "#06b6d4", // cyan
+  cache:     "#0ea5e9", // sky
+  data:      "#3b82f6", // blue
+  policy:    "#f59e0b", // amber
+  adr:       "#10b981", // emerald
+  incident:  "#ef4444", // red
+  external:  "#a855f7", // purple
+  config:    "#f97316", // orange
+  script:    "#22c55e", // green
+  doc:       "#64748b", // slate
+  asset:     "#9ca3af", // gray
 };
 
 const TYPE_SHAPE: Record<string, Shape> = {
@@ -65,67 +73,59 @@ const TYPE_SIZE: Record<string, { w: number; h: number }> = {
   external: { w: 90, h: 34 },
 };
 
-function withAlpha(color: string, alpha: number): string {
-  const hex = color.replace(/^#/, "");
-  if (hex.length !== 6) return color;
-  const r = Number.parseInt(hex.slice(0, 2), 16);
-  const g = Number.parseInt(hex.slice(2, 4), 16);
-  const b = Number.parseInt(hex.slice(4, 6), 16);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
-
 export function buildGraphTheme(themeMode: "light" | "dark"): GraphTheme {
   const isDark = themeMode === "dark";
-  const borders = isDark ? DARK_NODE_BORDERS : LIGHT_NODE_BORDERS;
-  const fillAlpha = isDark ? 0.34 : 0.22;
-  const labelColor = isDark ? "#fff7ee" : "#1d1712";
+  // Node body matches GraphCanvas: solid navy on light, solid slate on
+  // dark. The label color flips so the body stays high-contrast.
+  const nodeBodyColor = isDark ? "#e6e9f0" : "#1c2c4e";
+  const labelColor    = isDark ? "#0f172a" : "#ffffff";
 
   const nodeTypes: Record<string, Partial<NodeTypeStyle>> = {};
-  for (const [type, borderColor] of Object.entries(borders)) {
+  for (const [type, accent] of Object.entries(NODE_ACCENT)) {
     const shape: Shape = TYPE_SHAPE[type] ?? "roundrectangle";
-    const sz = TYPE_SIZE[type] ?? { w: 110, h: 38 };
+    const sz = TYPE_SIZE[type] ?? { w: 220, h: 52 };
     nodeTypes[type] = {
       shape,
       halfWidth: sz.w / 2,
       halfHeight: sz.h / 2,
       cornerRadius: 8,
-      color: withAlpha(borderColor, fillAlpha),
-      borderColor,
-      borderWidth: isDark ? 2.2 : 2.0,
+      color: nodeBodyColor,
+      borderColor: accent,
+      borderWidth: 4,
       labelColor,
       labelFont: "'Manrope', -apple-system, sans-serif",
-      labelSize: 11,
-      labelWeight: 700,
+      labelSize: 18,
+      labelWeight: 400,
     };
   }
 
   const edgeTypes: Record<string, Partial<EdgeTypeStyle>> = {
-    depends:   { color: isDark ? "#79c5b6" : "#1c554e", width: 1.7, style: "solid",       arrow: "triangle" },
-    violation: { color: isDark ? "#ff7c76" : "#a43b3b", width: 2.6, style: "dashed",      arrow: "triangle" },
-    enforces:  { color: isDark ? "#f19b84" : "#a64a35", width: 1.9, style: "dotted",      arrow: "triangle" },
-    why:       { color: isDark ? "#f8e6a5" : "#c59e3a", width: 1.9, style: "short-dashed",arrow: "triangle" },
+    depends:   { color: isDark ? "rgba(99, 102, 241, 0.85)" : "#6366f1", width: 1.7, style: "solid",       arrow: "triangle" },
+    violation: { color: "#ef4444", width: 2.6, style: "dashed",      arrow: "triangle" },
+    enforces:  { color: "#f97316", width: 1.9, style: "dotted",      arrow: "triangle" },
+    why:       { color: "#f59e0b", width: 1.9, style: "short-dashed",arrow: "triangle" },
   };
 
   return {
     canvasBg: isDark ? "#101114" : "#f7f2ea",
     gridLineColor: isDark ? "rgba(239,230,221,0.06)" : "rgba(35,31,32,0.06)",
-    selectionBorder: isDark ? "#ffe4a8" : "#123f39",
-    selectionFill: isDark ? "rgba(243,223,162,0.24)" : "rgba(28,85,78,0.16)",
-    hullFill: isDark ? "rgba(111,181,167,0.08)" : "rgba(28,85,78,0.06)",
-    hullStroke: isDark ? "rgba(111,181,167,0.35)" : "rgba(28,85,78,0.35)",
+    selectionBorder: isDark ? "#c39b54" : "#1c2c4e",
+    selectionFill: isDark ? "rgba(195,155,84,0.24)" : "rgba(28,44,78,0.18)",
+    hullFill: isDark ? "rgba(99,102,241,0.08)" : "rgba(28,44,78,0.06)",
+    hullStroke: isDark ? "rgba(99,102,241,0.35)" : "rgba(28,44,78,0.35)",
     dimOpacity: 0.34,
     nodeTypes,
     edgeTypes,
     defaultNodeStyle: {
       shape: "roundrectangle",
-      halfWidth: 55, halfHeight: 19, cornerRadius: 8,
-      color: isDark ? "rgba(213,205,195,0.22)" : "rgba(41,35,30,0.14)",
-      borderColor: isDark ? "#d7cdc1" : "#2b221c",
-      borderWidth: isDark ? 2.0 : 1.8,
+      halfWidth: 110, halfHeight: 26, cornerRadius: 8,
+      color: nodeBodyColor,
+      borderColor: isDark ? "#9ca3af" : "#9ca3af",
+      borderWidth: 4,
       labelColor,
       labelFont: "'Manrope', -apple-system, sans-serif",
-      labelSize: 11,
-      labelWeight: 700,
+      labelSize: 18,
+      labelWeight: 400,
     },
     defaultEdgeStyle: {
       color: isDark ? "rgba(239,230,221,0.55)" : "rgba(35,31,32,0.45)",

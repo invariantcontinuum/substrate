@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useParams } from "react-router-dom";
 import { Info, LayoutGrid, Maximize2, ZoomIn, ZoomOut } from "lucide-react";
 import { useGraphStore } from "@/stores/graph";
 import { useThemeStore } from "@/stores/theme";
@@ -9,6 +10,7 @@ import { useSources } from "@/hooks/useSources";
 import { SignalsOverlay } from "./SignalsOverlay";
 import { ViolationBadge } from "./ViolationBadge";
 import { DynamicLegend } from "./DynamicLegend";
+import { useCarouselSlides } from "@/hooks/useCarouselSlides";
 
 const MAX_LABEL_CHARS = 32;
 // NODE_W/NODE_H mirror the base `node` selector's width/height in the
@@ -23,27 +25,26 @@ const CELL_H = NODE_H + GAP_Y;
 
 type GraphTheme = "light" | "dark";
 
-/* Glass-morphism palette.
+/* Solid-body palette (Phase 3 restyle).
  *
- * Nodes are neutral translucent glass panes — same fill and text color
- * per theme — and are distinguished by their border color, which encodes
- * the node's semantic type. That keeps the canvas from drowning in
- * fills yet still reading type at a glance. Edges follow the same
- * pattern: muted neutral default line, per-type accent on meaningful
- * relationships.
+ * Nodes are SOLID rectangles — navy on light, slate on dark — distinguished
+ * by a per-type accent rendered as a 4 px left-edge stripe via a CSS
+ * background-image gradient. Labels are flat 18 px / weight 400, white on
+ * navy / navy on slate. Edges keep the muted neutral default with per-
+ * type accents only on meaningful relationships. Per-type accents are
+ * sourced from a single palette block so the legend (styleAdapter.ts)
+ * and the canvas stay in sync.
  *
- * Dark theme uses brighter hues so borders pop against shadow-grey;
- * light theme uses deeper hues so borders have enough contrast to be
- * read against linen. Canvas background and grid lines come from
- * theme.css (--graph-canvas-bg, --graph-grid-line) and are not set
- * inside Cytoscape — they belong to the .graph-canvas-container div.
+ * Canvas background and grid lines come from theme.css
+ * (--graph-canvas-bg, --graph-grid-line) and are not set inside
+ * Cytoscape — they belong to the .graph-canvas-container div.
  */
 interface GraphPalette {
-  // Neutral node glass
-  nodeFill: string;             // translucent default — same for every type
-  nodeBorder: string;           // fallback border when type is unknown
-  nodeText: string;
-  nodeTextOutline: string;      // faint halo for label readability against grid
+  // Solid node body
+  nodeFill: string;             // solid background per theme
+  nodeBorder: string;           // soft 1px outline so the node detaches from its accent stripe
+  nodeText: string;             // label color
+  nodeTextOutline: string;      // 1px halo for readability over the accent stripe edge
   nodeSelectedBorder: string;
   nodeSelectedFill: string;
 
@@ -59,7 +60,9 @@ interface GraphPalette {
   sourceParentBorder: string;
   sourceParentText: string;
 
-  // Per-type borders (shiny, full-opacity)
+  // Per-type accents (used as a 4 px left stripe on each node, and as
+  // the legend dot color). Same palette across themes — node body
+  // contrast comes from nodeFill above, not the accent.
   typeService: string;
   typeSource: string;
   typeDatabase: string;
@@ -87,111 +90,154 @@ interface GraphPalette {
   edgeDrift: string;
 }
 
+// Per-type accent palette — single source of truth used by both the
+// canvas (rendered as the 4 px left stripe inside each node) and the
+// legend dot color in DynamicLegend (via styleAdapter.ts). Phase 3.8
+// retired the prior earthen palette; the new family is indigo /
+// slate / amber from the design system. Keep these and the matching
+// constants in styleAdapter.ts in lockstep.
+const ACCENT = {
+  service:   "#6366f1", // indigo
+  source:    "#8b5cf6", // violet
+  database:  "#06b6d4", // cyan
+  cache:     "#0ea5e9", // sky
+  data:      "#3b82f6", // blue
+  policy:    "#f59e0b", // amber
+  adr:       "#10b981", // emerald
+  incident:  "#ef4444", // red
+  external:  "#a855f7", // purple
+  config:    "#f97316", // orange
+  script:    "#22c55e", // green
+  doc:       "#64748b", // slate-500
+  asset:     "#9ca3af", // gray-400
+} as const;
+
 const DARK: GraphPalette = {
-  // Glass on shadow-grey: translucent linen shows the grid through
-  nodeFill:          "rgba(239, 230, 221, 0.14)",
-  nodeBorder:        "rgba(239, 230, 221, 0.32)",
-  nodeText:          "#efe6dd",
-  nodeTextOutline:   "rgba(35, 31, 32, 0.85)",
-  nodeSelectedBorder:"#f3dfa2",
-  nodeSelectedFill:  "rgba(111, 181, 167, 0.22)",
+  // Solid slate body, navy label
+  nodeFill:          "#e6e9f0",
+  nodeBorder:        "rgba(15, 23, 42, 0.18)",
+  nodeText:          "#0f172a",
+  nodeTextOutline:   "rgba(255, 255, 255, 0.65)",
+  nodeSelectedBorder:"#c39b54",
+  nodeSelectedFill:  "#e6e9f0",
 
-  edgeLine:          "rgba(239, 230, 221, 0.22)",
-  edgeArrow:         "rgba(239, 230, 221, 0.4)",
-  edgeLabelText:     "#efe6dd",
-  edgeLabelBg:       "rgba(35, 31, 32, 0.9)",
+  edgeLine:          "rgba(236, 228, 210, 0.28)",
+  edgeArrow:         "rgba(236, 228, 210, 0.5)",
+  edgeLabelText:     "#ece4d2",
+  edgeLabelBg:       "rgba(14, 22, 34, 0.9)",
 
-  spotlightFocusBorder: "#f3dfa2",
-  spotlightDimText:     "rgba(239, 230, 221, 0.7)",
-  sourceParentBorder:   "rgba(216, 138, 115, 0.4)",
-  sourceParentText:     "rgba(239, 230, 221, 0.55)",
+  spotlightFocusBorder: "#c39b54",
+  spotlightDimText:     "rgba(236, 228, 210, 0.7)",
+  sourceParentBorder:   "rgba(195, 155, 84, 0.45)",
+  sourceParentText:     "rgba(236, 228, 210, 0.55)",
 
-  // Lifted verdigris/clay hues against shadow-grey
-  typeService:   "#6fb5a7",
-  typeSource:    "#6fb5a7",
-  typeDatabase:  "#d88a73",
-  typeCache:     "#e8aa99",
-  typeData:      "#d88a73",
-  typePolicy:    "#f3dfa2",
-  typeAdr:       "#e6c866",
-  typeIncident:  "#e6706b",
-  typeViolation: "#e6706b",
-  typeExternal:  "#a19890",
-  typeConfig:    "#c5b8a8",
-  typeScript:    "#e6c866",
-  typeDoc:       "#d88a73",
-  typeAsset:     "#a19890",
+  typeService:   ACCENT.service,
+  typeSource:    ACCENT.source,
+  typeDatabase:  ACCENT.database,
+  typeCache:     ACCENT.cache,
+  typeData:      ACCENT.data,
+  typePolicy:    ACCENT.policy,
+  typeAdr:       ACCENT.adr,
+  typeIncident:  ACCENT.incident,
+  typeViolation: ACCENT.incident,
+  typeExternal:  ACCENT.external,
+  typeConfig:    ACCENT.config,
+  typeScript:    ACCENT.script,
+  typeDoc:       ACCENT.doc,
+  typeAsset:     ACCENT.asset,
 
-  edgeDepends:       "rgba(111, 181, 167, 0.58)",
-  edgeDependsArrow:  "rgba(111, 181, 167, 0.75)",
-  edgeViolation:     "#e6706b",
-  edgeEnforces:      "rgba(216, 138, 115, 0.58)",
-  edgeEnforcesArrow: "rgba(216, 138, 115, 0.75)",
-  edgeWhy:           "rgba(243, 223, 162, 0.62)",
-  edgeWhyArrow:      "rgba(243, 223, 162, 0.78)",
-  edgeWhyLabel:      "#f3dfa2",
-  edgeDrift:         "rgba(230, 112, 107, 0.4)",
+  edgeDepends:       "rgba(99, 102, 241, 0.62)",
+  edgeDependsArrow:  "rgba(99, 102, 241, 0.78)",
+  edgeViolation:     ACCENT.incident,
+  edgeEnforces:      "rgba(249, 115, 22, 0.6)",
+  edgeEnforcesArrow: "rgba(249, 115, 22, 0.78)",
+  edgeWhy:           "rgba(245, 158, 11, 0.6)",
+  edgeWhyArrow:      "rgba(245, 158, 11, 0.78)",
+  edgeWhyLabel:      ACCENT.policy,
+  edgeDrift:         "rgba(239, 68, 68, 0.4)",
 };
 
 const LIGHT: GraphPalette = {
-  // Glass on linen: near-white translucent shows the grid through
-  nodeFill:          "rgba(255, 255, 255, 0.62)",
-  nodeBorder:        "rgba(35, 31, 32, 0.28)",
-  nodeText:          "#231f20",
-  nodeTextOutline:   "rgba(255, 253, 250, 0.9)",
-  nodeSelectedBorder:"#1c554e",
-  nodeSelectedFill:  "rgba(47, 122, 111, 0.22)",
+  // Solid navy body, white label
+  nodeFill:          "#1c2c4e",
+  nodeBorder:        "rgba(255, 255, 255, 0.18)",
+  nodeText:          "#ffffff",
+  nodeTextOutline:   "rgba(15, 23, 42, 0.55)",
+  nodeSelectedBorder:"#1c2c4e",
+  nodeSelectedFill:  "#1c2c4e",
 
   edgeLine:          "rgba(35, 31, 32, 0.3)",
   edgeArrow:         "rgba(35, 31, 32, 0.45)",
   edgeLabelText:     "#231f20",
   edgeLabelBg:       "rgba(255, 253, 250, 0.95)",
 
-  spotlightFocusBorder: "#2f7a6f",
+  spotlightFocusBorder: "#1c2c4e",
   spotlightDimText:     "rgba(35, 31, 32, 0.55)",
-  sourceParentBorder:   "rgba(47, 122, 111, 0.45)",
+  sourceParentBorder:   "rgba(28, 44, 78, 0.45)",
   sourceParentText:     "rgba(35, 31, 32, 0.55)",
 
-  // Deeper verdigris/clay hues against linen
-  typeService:   "#1c554e",
-  typeSource:    "#1c554e",
-  typeDatabase:  "#a64a35",
-  typeCache:     "#7a3728",
-  typeData:      "#a64a35",
-  typePolicy:    "#c59e3a",
-  typeAdr:       "#b8882a",
-  typeIncident:  "#a43b3b",
-  typeViolation: "#a43b3b",
-  typeExternal:  "#6b6866",
-  typeConfig:    "#8a7f74",
-  typeScript:    "#b8882a",
-  typeDoc:       "#7a3728",
-  typeAsset:     "#6b6866",
+  typeService:   ACCENT.service,
+  typeSource:    ACCENT.source,
+  typeDatabase:  ACCENT.database,
+  typeCache:     ACCENT.cache,
+  typeData:      ACCENT.data,
+  typePolicy:    ACCENT.policy,
+  typeAdr:       ACCENT.adr,
+  typeIncident:  ACCENT.incident,
+  typeViolation: ACCENT.incident,
+  typeExternal:  ACCENT.external,
+  typeConfig:    ACCENT.config,
+  typeScript:    ACCENT.script,
+  typeDoc:       ACCENT.doc,
+  typeAsset:     ACCENT.asset,
 
-  edgeDepends:       "rgba(28, 85, 78, 0.55)",
-  edgeDependsArrow:  "rgba(28, 85, 78, 0.72)",
-  edgeViolation:     "#a43b3b",
-  edgeEnforces:      "rgba(116, 48, 31, 0.55)",
-  edgeEnforcesArrow: "rgba(116, 48, 31, 0.72)",
-  edgeWhy:           "rgba(184, 136, 42, 0.6)",
-  edgeWhyArrow:      "rgba(184, 136, 42, 0.75)",
-  edgeWhyLabel:      "#b8882a",
-  edgeDrift:         "rgba(164, 59, 59, 0.32)",
+  edgeDepends:       "rgba(99, 102, 241, 0.55)",
+  edgeDependsArrow:  "rgba(99, 102, 241, 0.72)",
+  edgeViolation:     ACCENT.incident,
+  edgeEnforces:      "rgba(249, 115, 22, 0.55)",
+  edgeEnforcesArrow: "rgba(249, 115, 22, 0.72)",
+  edgeWhy:           "rgba(245, 158, 11, 0.6)",
+  edgeWhyArrow:      "rgba(245, 158, 11, 0.75)",
+  edgeWhyLabel:      ACCENT.policy,
+  edgeDrift:         "rgba(239, 68, 68, 0.32)",
 };
+
+// Build a 4 px left-edge stripe via SVG background-image. Cytoscape
+// can't draw a one-sided border, so we layer a vertical accent column
+// over the solid node fill. The SVG is sized 4×1 and stretched across
+// the node via background-fit:none + background-position-x:0%, so it
+// renders as a flat left-side bar regardless of node width.
+function leftStripeSvg(color: string): string {
+  const c = color.replace("#", "%23");
+  return `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 1' preserveAspectRatio='none'><rect width='4' height='1' fill='${c}'/></svg>")`;
+}
 
 function buildCyStylesheet(theme: GraphTheme) {
   const t = theme === "light" ? LIGHT : DARK;
+  // Per-type stripe images keyed by type name. Each rule below sets
+  // `background-image` to one of these and Cytoscape repaints the
+  // stripe whenever the node redraws.
+  const stripe = (color: string) => ({
+    "background-image":             leftStripeSvg(color),
+    "background-fit":               "none" as any,
+    "background-image-opacity":     1,
+    "background-position-x":        "0%",
+    "background-position-y":        "50%",
+    "background-width":             "4px" as any,
+    "background-height":            "100%" as any,
+  });
   return [
     {
-      // Base node: glass pane. Background is a translucent linen / white
-      // so the grid reads through every node. Border is the neutral
-      // fallback — per-type rules below override it with the type-
-      // specific shiny accent.
+      // Base node: solid body (navy on light, slate on dark) with a
+      // soft 1 px outline. Per-type rules below add a 4 px left stripe
+      // via `background-image` so types read at a glance without the
+      // full-perimeter border the previous design used. Labels are
+      // flat 18 px / weight 400 for a calmer, more uniform canvas.
       selector: "node",
       style: {
         "background-color":     t.nodeFill,
         "background-opacity":   1,
-        "border-width":         2,
+        "border-width":         1,
         "border-color":         t.nodeBorder,
         "border-opacity":       1,
         label:                  "data(label)",
@@ -199,26 +245,13 @@ function buildCyStylesheet(theme: GraphTheme) {
         "text-outline-color":   t.nodeTextOutline,
         "text-outline-width":   1,
         "text-outline-opacity": 1,
-        // Auto-fit the label inside the node box: wrap long filenames onto
-        // two lines and shrink the font so it never spills over the border.
-        // Sizes scale with label length so short names use the full
-        // node width and stay easy to read at zoom-out distances. The
-        // 220×52 node box at text-max-width: 204px fits these comfortably.
-        "font-size":            ((ele: cytoscape.NodeSingular) => {
-          const raw = (ele.data("label") as string | undefined) ?? "";
-          const len = raw.length;
-          if (len <= 8)  return 18;
-          if (len <= 14) return 16;
-          if (len <= 22) return 14;
-          if (len <= 32) return 12;
-          return 11;
-        }) as any,
+        "font-size":            18,
         "font-family":          '"Manrope", -apple-system, BlinkMacSystemFont, sans-serif',
-        "font-weight":          500,
+        "font-weight":          400,
         "text-valign":          "center",
         "text-halign":          "center",
         "text-wrap":            "wrap",
-        "text-max-width":       "204px",
+        "text-max-width":       "200px",
         "text-overflow-wrap":   "anywhere",
         "line-height":          1.1,
         width:                  220,
@@ -229,23 +262,24 @@ function buildCyStylesheet(theme: GraphTheme) {
       },
     },
 
-    // Per-type colored borders. Fill stays the neutral glass; only the
-    // border and (for structural types) shape changes.
-    { selector: 'node[type="service"]',   style: { "border-color": t.typeService } },
-    { selector: 'node[type="source"]',    style: { "border-color": t.typeSource } },
-    { selector: 'node[type="database"]',  style: { "border-color": t.typeDatabase,  shape: "barrel" } },
-    { selector: 'node[type="cache"]',     style: { "border-color": t.typeCache,     shape: "barrel" } },
-    { selector: 'node[type="data"]',      style: { "border-color": t.typeData } },
-    { selector: 'node[type="policy"]',    style: { "border-color": t.typePolicy,    "border-width": 2.5, shape: "diamond", width: 110, height: 48 } },
-    { selector: 'node[type="adr"]',       style: { "border-color": t.typeAdr,       shape: "roundrectangle", width: 90, height: 34, "font-size": 10 } },
-    { selector: 'node[type="incident"]',  style: { "border-color": t.typeIncident,  "border-width": 2.5, shape: "roundrectangle", width: 90, height: 34, "font-size": 10 } },
-    { selector: 'node[type="external"]',  style: { "border-color": t.typeExternal,  shape: "roundrectangle", width: 100, height: 34, "font-size": 10 } },
-    { selector: 'node[type="config"]',    style: { "border-color": t.typeConfig } },
-    { selector: 'node[type="script"]',    style: { "border-color": t.typeScript } },
-    { selector: 'node[type="doc"]',       style: { "border-color": t.typeDoc } },
-    { selector: 'node[type="asset"]',     style: { "border-color": t.typeAsset } },
+    // Per-type accent stripes. Body stays the per-theme solid color from
+    // the base rule; only the left-edge stripe and (for structural
+    // types) shape and dimensions change.
+    { selector: 'node[type="service"]',   style: { ...stripe(t.typeService) } },
+    { selector: 'node[type="source"]',    style: { ...stripe(t.typeSource) } },
+    { selector: 'node[type="database"]',  style: { ...stripe(t.typeDatabase),  shape: "barrel" } },
+    { selector: 'node[type="cache"]',     style: { ...stripe(t.typeCache),     shape: "barrel" } },
+    { selector: 'node[type="data"]',      style: { ...stripe(t.typeData) } },
+    { selector: 'node[type="policy"]',    style: { ...stripe(t.typePolicy),    shape: "diamond", width: 110, height: 48 } },
+    { selector: 'node[type="adr"]',       style: { ...stripe(t.typeAdr),       shape: "roundrectangle", width: 90, height: 34, "font-size": 14 } },
+    { selector: 'node[type="incident"]',  style: { ...stripe(t.typeIncident),  shape: "roundrectangle", width: 90, height: 34, "font-size": 14 } },
+    { selector: 'node[type="external"]',  style: { ...stripe(t.typeExternal),  shape: "roundrectangle", width: 100, height: 34, "font-size": 14 } },
+    { selector: 'node[type="config"]',    style: { ...stripe(t.typeConfig) } },
+    { selector: 'node[type="script"]',    style: { ...stripe(t.typeScript) } },
+    { selector: 'node[type="doc"]',       style: { ...stripe(t.typeDoc) } },
+    { selector: 'node[type="asset"]',     style: { ...stripe(t.typeAsset) } },
     { selector: 'node[status="violation"]',
-      style: { "border-color": t.typeViolation, "border-width": 2.5 } },
+      style: { ...stripe(t.typeViolation), "border-width": 2 } },
 
     // Base edge: muted neutral line. z-index 1 keeps every default edge
     // BEHIND every node (which has z-index 10) — only spotlight-focus
@@ -357,6 +391,17 @@ export function GraphCanvas() {
   const finalizeLoad = useGraphStore((s) => s.finalizeLoad);
   const pendingZoomNodeId = useGraphStore((s) => s.pendingZoomNodeId);
   const clearPendingZoom = useGraphStore((s) => s.clearPendingZoom);
+
+  // Phase 3.6: gate the type legend to the "Other" carousel slide. On
+  // community slides the canvas already shows a homogeneous subgraph
+  // and the legend would just dilute the focus; on the Other slide the
+  // user is staring at every uncategorised node and the legend is the
+  // only way to spot type clusters at a glance.
+  const params = useParams<{ idx?: string }>();
+  const { slides } = useCarouselSlides();
+  const slideIdx = Number.parseInt(params.idx ?? "0", 10);
+  const currentSlide = Number.isFinite(slideIdx) ? slides[slideIdx] : undefined;
+  const showLegend = currentSlide?.kind === "other";
 
   const openModal = useUIStore((s) => s.openModal);
   const [pulsing, setPulsing] = useState(false);
@@ -857,7 +902,7 @@ export function GraphCanvas() {
       </div>
 
       <div className="graph-overlay-bottom-right">
-        <DynamicLegend />
+        {showLegend && <DynamicLegend />}
       </div>
 
       <div className="graph-toolbar">

@@ -17,7 +17,7 @@
  *     Text:        dark espresso-charcoal on warm muted gray
  *
  *   Dark theme (auth + system):
- *     Background:  deep midnight navy-charcoal w/ subtle teal glow
+ *     Background:  deep midnight navy-charcoal w/ subtle navy glow
  *     Surface:     dark blue-black panels
  *     Accent:      antique gold / brass
  *     Text:        warm off-white on muted gray
@@ -73,8 +73,8 @@
   --palette-stone:            #8c8474;   /* muted gray secondary text on dark */
   --palette-stone-soft:       #6a6357;   /* subtler stone */
 
-  /* ---- Subtle teal atmospheric tint (dark bg glow only) ---- */
-  --palette-teal-glow:        rgba(80, 134, 142, 0.18);
+  /* ---- Subtle navy atmospheric tint (dark bg glow only) ---- */
+  --palette-bg-glow:          rgba(58, 77, 114, 0.18);
 
   /* ---- Status semantics ---- */
   --palette-status-success-l: #4a7a5a;   /* mossy green for light */
@@ -251,7 +251,7 @@
 
 /* =================================================================
  * DARK — Midnight navy-charcoal ground, dark blue-black surfaces,
- *         antique gold accent, warm off-white text. Subtle teal
+ *         antique gold accent, warm off-white text. Subtle navy
  *         atmospheric glow lives only in the page backdrop.
  *         Premium, art-directed, never neon.
  * ============================================================== */
@@ -264,10 +264,10 @@
   --fg-subtle:    var(--palette-stone-soft);
   --fg-on-accent: var(--palette-midnight-deep);
 
-  /* ---- Background — midnight + subtle teal glow + brass kiss ---- */
+  /* ---- Background — midnight + subtle navy glow + brass kiss ---- */
   --bg:           var(--palette-midnight);
   --bg-gradient:
-    radial-gradient(ellipse 65% 55% at 12% 8%,   rgba(80, 134, 142, 0.18) 0%, transparent 60%),
+    radial-gradient(ellipse 65% 55% at 12% 8%,   rgba(58, 77, 114, 0.18) 0%, transparent 60%),
     radial-gradient(ellipse 55% 50% at 92% 18%,  rgba(195, 155, 84, 0.10) 0%, transparent 62%),
     radial-gradient(ellipse 90% 70% at 50% 100%, rgba(8, 13, 23, 0.92) 0%, transparent 70%),
     linear-gradient(180deg, #0e1622 0%, #080d17 100%);
