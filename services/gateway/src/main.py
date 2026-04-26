@@ -13,6 +13,7 @@ from substrate_common import (
     register_handlers,
 )
 
+from src.api.config import router as config_router
 from src.config import settings
 from src.proxy import close_client, init_client, proxy_request
 from src.sse_endpoint import close_pool as close_sse_pool
@@ -59,6 +60,7 @@ app.add_middleware(
 )
 register_handlers(app)
 app.include_router(sse_router)
+app.include_router(config_router)
 
 
 @app.get("/health")
