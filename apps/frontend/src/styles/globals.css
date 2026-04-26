@@ -3256,10 +3256,8 @@ html {
   background: var(--accent);
   transform: scale(1.25);
 }
-.carousel-dot.is-full { background: var(--accent-soft); }
-.carousel-dot.is-full.active { background: var(--accent); }
-.carousel-dot.is-orphan { background: var(--accent-highlight); opacity: 0.65; }
-.carousel-dot.is-orphan.active { background: var(--accent-highlight); opacity: 1; }
+.carousel-dot.is-other { background: var(--accent-highlight); opacity: 0.65; }
+.carousel-dot.is-other.active { background: var(--accent-highlight); opacity: 1; }
 .sr-only {
   position: absolute;
   width: 1px;
