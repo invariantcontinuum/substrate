@@ -3378,8 +3378,9 @@ html {
  * Shared chrome for the runtime-config tabs in SettingsModal.
  * `.conn-field` is a label+input row used by every tab; `.num-knob`
  * is the same row but explicitly two-column (and used in the Postgres
- * RECONNECT confirmation gate). `.llm-grid` lays out the four
- * connection cards; mobile collapses to a single column. */
+ * RECONNECT confirmation gate). The LLM Connections tab uses
+ * `.llm-role-tabs` (sub-tab strip) + `.llm-conn-panel` (one-role
+ * editor) instead of the old grid-of-cards layout. */
 .conn-field {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -3416,30 +3417,178 @@ html {
   padding: 4px 8px;
   font: inherit;
 }
-.llm-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 1rem;
-  margin-top: 0.5rem;
+
+/* LLM role sub-tab strip (Dense / Sparse / Embedding / Reranker). */
+.llm-role-tabs {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  padding: 6px 0 10px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 12px;
 }
-.llm-conn-card {
+.llm-role-tabs__tab {
+  padding: 5px 12px;
+  font-size: var(--text-sm);
+  border-radius: var(--radius-xs);
+  white-space: nowrap;
+  color: var(--fg-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+.llm-role-tabs__tab:hover {
+  background: var(--surface-hover);
+  color: var(--fg);
+}
+.llm-role-tabs__tab.is-active {
+  background: var(--accent-tint);
+  color: var(--accent);
+}
+
+/* Per-role connection panel (single visible at a time). */
+.llm-conn-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.llm-conn-panel__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+.llm-conn-panel__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+.llm-conn-panel__field-label {
+  color: var(--fg-muted);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+.llm-conn-panel__field input[type="text"],
+.llm-conn-panel__field input[type="url"],
+.llm-conn-panel__field input[type="password"],
+.llm-conn-panel__field input[type="number"] {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: inherit;
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 12px;
+}
+.llm-conn-panel__field-error {
+  color: #f87171;
+  font-size: 11px;
+}
+.llm-conn-panel__toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--fg-muted);
+  align-self: end;
+  padding-bottom: 4px;
+}
+.llm-conn-panel__toggle input[type="checkbox"] {
+  cursor: pointer;
+}
+.llm-conn-panel__probe {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 7px;
+  font-size: 12px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
-  padding: 1rem;
 }
-.llm-conn-card h4 {
-  margin: 0 0 0.5rem 0;
-  font-size: 14px;
+.llm-conn-panel__probe.is-ok {
+  background: rgba(34, 197, 94, 0.08);
+  border-color: rgba(34, 197, 94, 0.4);
 }
-.llm-conn-card .actions,
+.llm-conn-panel__probe.is-fail {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.4);
+}
+.llm-conn-panel__probe-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--fg-muted);
+}
+.llm-conn-panel__probe.is-ok .llm-conn-panel__probe-dot { background: #22c55e; }
+.llm-conn-panel__probe.is-fail .llm-conn-panel__probe-dot { background: #ef4444; }
+.llm-conn-panel__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+/* ---- Canonical settings-modal button styling ----
+ * Mirrors `.sidebar-new-chat` so the Save / Reset / Test buttons in
+ * every settings panel feel like the same action language. Three
+ * variants: primary (accent-tinted), secondary (neutral surface),
+ * ghost (transparent — used for destructive-but-cheap actions like
+ * Reset). The Postgres RECONNECT button keeps its bespoke gating but
+ * picks up the same primary look via the shared class. */
+.btn-primary,
+.btn-ghost,
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: var(--radius-xs);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+.btn-primary {
+  background: var(--accent-tint);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+.btn-secondary {
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  border-color: rgba(255, 255, 255, 0.1);
+}
+.btn-secondary:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+}
+.btn-ghost {
+  background: transparent;
+  color: var(--fg-muted);
+}
+.btn-ghost:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--fg);
+}
+.btn-primary:disabled,
+.btn-secondary:disabled,
+.btn-ghost:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .settings-postgres .actions {
   display: flex;
   gap: 8px;
   margin-top: 8px;
   flex-wrap: wrap;
 }
-.llm-conn-card .actions button,
 .settings-postgres .actions button {
   padding: 6px 12px;
   border-radius: 7px;
@@ -3449,7 +3598,6 @@ html {
   cursor: pointer;
   color: inherit;
 }
-.llm-conn-card .actions button:disabled,
 .settings-postgres .actions button:disabled {
   opacity: 0.4;
   cursor: not-allowed;
