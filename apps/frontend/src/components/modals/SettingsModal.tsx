@@ -3,15 +3,23 @@ import { Modal } from "@/components/ui/Modal";
 import { useUIStore } from "@/stores/ui";
 import { AccountProfileTab } from "@/pages/AccountProfileTab";
 import { AccountDevicesTab } from "@/pages/AccountDevicesTab";
-import { AccountDefaultsTab } from "@/pages/AccountDefaultsTab";
-import { AccountIntegrationsTab } from "@/pages/AccountIntegrationsTab";
 import { AccountBillingTab } from "@/pages/AccountBillingTab";
+import { SettingsGraphTab } from "@/pages/SettingsGraphTab";
+import { SettingsChatContextTab } from "@/pages/SettingsChatContextTab";
+import { SettingsLLMTab } from "@/pages/SettingsLLMTab";
+import { SettingsPostgresTab } from "@/pages/SettingsPostgresTab";
+import { SettingsAuthenticationTab } from "@/pages/SettingsAuthenticationTab";
+import { SettingsGitHubTab } from "@/pages/SettingsGitHubTab";
 
 const TABS: { path: string; label: string; end?: boolean }[] = [
   { path: "/account", label: "Profile", end: true },
   { path: "/account/devices", label: "Devices" },
-  { path: "/account/defaults", label: "Defaults" },
-  { path: "/account/integrations", label: "Integrations" },
+  { path: "/account/graph", label: "Graph" },
+  { path: "/account/chat-context", label: "Chat Context" },
+  { path: "/account/llm", label: "LLM Connections" },
+  { path: "/account/postgres", label: "Postgres" },
+  { path: "/account/authentication", label: "Authentication" },
+  { path: "/account/github", label: "GitHub" },
   { path: "/account/billing", label: "Billing" },
 ];
 
@@ -52,13 +60,19 @@ export function SettingsModal() {
           ))}
         </nav>
         <div className="settings-modal-body">
-          <Routes>
-            <Route path="/account" element={<AccountProfileTab />} />
-            <Route path="/account/devices" element={<AccountDevicesTab />} />
-            <Route path="/account/defaults" element={<AccountDefaultsTab />} />
-            <Route path="/account/integrations" element={<AccountIntegrationsTab />} />
-            <Route path="/account/billing" element={<AccountBillingTab />} />
-          </Routes>
+          <div className="settings-modal__content">
+            <Routes>
+              <Route path="/account" element={<AccountProfileTab />} />
+              <Route path="/account/devices" element={<AccountDevicesTab />} />
+              <Route path="/account/graph" element={<SettingsGraphTab />} />
+              <Route path="/account/chat-context" element={<SettingsChatContextTab />} />
+              <Route path="/account/llm" element={<SettingsLLMTab />} />
+              <Route path="/account/postgres" element={<SettingsPostgresTab />} />
+              <Route path="/account/authentication" element={<SettingsAuthenticationTab />} />
+              <Route path="/account/github" element={<SettingsGitHubTab />} />
+              <Route path="/account/billing" element={<AccountBillingTab />} />
+            </Routes>
+          </div>
         </div>
       </div>
     </Modal>

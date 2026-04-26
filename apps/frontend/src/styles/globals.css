@@ -1247,7 +1247,20 @@ html {
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
-  padding: 16px 24px;
+}
+.settings-modal__content {
+  padding: 1.5rem 2rem;
+  box-sizing: border-box;
+  max-height: calc(100vh - 8rem);
+  overflow-y: auto;
+}
+.settings-modal__content > section,
+.settings-modal__content > h3 {
+  margin-block: 0.75rem 0.5rem;
+}
+.settings-tab-placeholder .muted {
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
 }
 
 @media (max-width: 640px) {
@@ -1270,7 +1283,7 @@ html {
     border-bottom: 1px solid var(--border);
     padding: 6px 4px;
   }
-  .settings-modal-body {
+  .settings-modal__content {
     padding-bottom: max(16px, env(safe-area-inset-bottom));
   }
 }
@@ -2763,7 +2776,7 @@ html {
 .ctx-files-tokens-label { color: var(--fg-subtle); }
 
 /* GitHub token input + validate button — design-language pair used in
- * AccountIntegrationsTab. Token input gets a monospace font for `ghp_…`
+ * the Settings GitHub tab. Token input gets a monospace font for `ghp_…`
  * readability; the row collapses gracefully on narrow viewports. */
 .github-token-row {
   display: flex;
@@ -2778,7 +2791,7 @@ html {
   font-size: var(--text-sm);
 }
 
-/* Account-tab dropdowns (theme/layout selects in AccountDefaultsTab) —
+/* Account-tab dropdowns (selects inside Settings tabs) —
  * inherit the input chrome for visual parity. */
 .account-page select,
 .settings-modal-body select {

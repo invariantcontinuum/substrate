@@ -16,8 +16,8 @@ function authToken(): string | undefined {
  * Hydrates the prefs store from `/api/users/me/preferences` once per mount
  * and writes back every time the local store changes. The write is
  * fire-and-forget; failures surface only in the logger so the UI stays
- * responsive. Callers are the AccountDefaultsTab and any place that
- * reads prefs before the store has been hydrated.
+ * responsive. Callers are the Settings Graph tab (and follow-up tabs)
+ * and any place that reads prefs before the store has been hydrated.
  */
 export function usePreferences(): void {
   const replace = usePrefsStore((s) => s.replace);
