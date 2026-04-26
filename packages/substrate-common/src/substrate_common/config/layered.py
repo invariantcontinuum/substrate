@@ -15,7 +15,9 @@ from __future__ import annotations
 
 from typing import Any, ClassVar
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
+
+from substrate_common.config.yaml_source import YamlSource
 
 
 class LayeredSettings(BaseSettings):
@@ -30,3 +32,21 @@ class LayeredSettings(BaseSettings):
             for key, value in _runtime_overlay.items():
                 kwargs[key] = value
         super().__init__(**kwargs)
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        # Highest precedence first.
+        return (
+            init_settings,        # _runtime_overlay + explicit kwargs
+            env_settings,         # process env
+            dotenv_settings,      # .env file
+            YamlSource(settings_cls),
+            file_secret_settings,
+        )
