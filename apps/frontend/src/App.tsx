@@ -12,6 +12,7 @@ import { SourcesConfigTab } from "@/pages/SourcesConfigTab";
 import { SourcesActivityTab } from "@/pages/SourcesActivityTab";
 import { AccountPage } from "@/pages/AccountPage";
 import { useApplyTheme } from "@/hooks/useApplyTheme";
+import { useConfigSseInvalidate } from "@/hooks/useRuntimeConfig";
 import { useGraphStore } from "@/stores/graph";
 import { useSyncSetStore } from "@/stores/syncSet";
 import { useUIStore } from "@/stores/ui";
@@ -82,6 +83,13 @@ function RequireAuth({ children }: { children: ReactNode }) {
       (window as Window & { __authToken?: string }).__authToken = token;
     }
   }, [auth.user?.access_token]);
+
+  // Subscribe to SSE `config.updated` events. The hook itself no-ops
+  // until a token is present, but mounting it inside `RequireAuth`
+  // means the subscription opens at first sign-in and closes on
+  // signout — matching the lifetime of every other react-query cache
+  // we'd want to invalidate.
+  useConfigSseInvalidate();
 
   // Load the graph snapshot once the user is first signed in. We
   // intentionally fire this only on the *initial* successful auth, not
