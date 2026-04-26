@@ -1,11 +1,14 @@
 """Graph settings — schema only; loader lives in substrate_common.config."""
+from typing import ClassVar
+
 from pydantic import Field
-from pydantic_settings import BaseSettings
 
-from substrate_common.config import load_settings
+from substrate_common.config import LayeredSettings, load_settings
 
 
-class _GraphSettings(BaseSettings):
+class _GraphSettings(LayeredSettings):
+    SCOPE: ClassVar[str] = "graph"
+
     # ── Service ──────────────────────────────────────────────────────
     database_url: str = "postgresql+asyncpg://substrate_graph:change-me@postgres:5432/substrate_graph"
     app_port: int = 8082
