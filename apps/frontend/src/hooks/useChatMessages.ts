@@ -22,6 +22,10 @@ export interface ChatMessage {
   content: string;
   citations: Citation[];
   created_at: string;
+  /** When set, this message was superseded by another (edit/regenerate). */
+  superseded_by?: string | null;
+  /** When set, this message replaces an older one (edit only). */
+  supersedes?: string | null;
 }
 
 export function useChatMessages(threadId: string | null) {

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useChatThreads } from "@/hooks/useChatThreads";
 import { useChatMessages, type ChatMessage } from "@/hooks/useChatMessages";
 import { useChatStore } from "@/stores/chat";
@@ -27,7 +27,29 @@ export function ChatPage() {
     });
   }, [messages?.length, streamingTurn?.content]);
 
-  const showPlaceholder = !activeId || !messages || messages.length === 0;
+  // ── Visible-vs-superseded grouping ──────────────────────────────────
+  // Phase 7 introduces edit + regenerate. Both produce additional rows
+  // on chat_messages with ``superseded_by`` pointing at the new turn
+  // that replaced them. The chat list shows only active rows by default
+  // and groups every superseded predecessor under a `<details>`
+  // disclosure attached to the row that replaced them, so the user can
+  // still audit the history without it cluttering the live thread.
+  const { visible, supersededByOriginal } = useMemo(() => {
+    const all = messages ?? [];
+    const visibleArr: ChatMessage[] = [];
+    const grouped: Record<string, ChatMessage[]> = {};
+    for (const m of all) {
+      if (m.superseded_by) {
+        const key = m.superseded_by;
+        (grouped[key] ||= []).push(m);
+      } else {
+        visibleArr.push(m);
+      }
+    }
+    return { visible: visibleArr, supersededByOriginal: grouped };
+  }, [messages]);
+
+  const showPlaceholder = !activeId || !messages || visible.length === 0;
 
   return (
     <div className="chat-page">
@@ -37,7 +59,25 @@ export function ChatPage() {
           <ChatPlaceholder />
         ) : (
           <>
-            {messages.map((m) => <Message key={m.id} message={m} />)}
+            {visible.map((m) => {
+              const previous = supersededByOriginal[m.id] ?? [];
+              return (
+                <Fragment key={m.id}>
+                  <Message message={m} />
+                  {previous.length > 0 && (
+                    <details className="superseded-disclosure">
+                      <summary>
+                        Show {previous.length} previous{" "}
+                        {previous.length === 1 ? "version" : "versions"}
+                      </summary>
+                      {previous.map((sm) => (
+                        <Message key={sm.id} message={sm} muted />
+                      ))}
+                    </details>
+                  )}
+                </Fragment>
+              );
+            })}
             {streamingTurn && streamingTurn.threadId === activeId && (
               <Message
                 message={{

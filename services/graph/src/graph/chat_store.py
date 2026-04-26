@@ -85,7 +85,9 @@ async def list_messages(thread_id: UUID) -> list[dict]:
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT id::text AS id, role, content, citations, created_at
+            SELECT id::text AS id, role, content, citations, created_at,
+                   superseded_by::text AS superseded_by,
+                   supersedes::text AS supersedes
             FROM chat_messages
             WHERE thread_id = $1
             ORDER BY created_at ASC
@@ -107,7 +109,9 @@ async def list_active_messages_before(
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT id::text AS id, role, content, citations, created_at
+            SELECT id::text AS id, role, content, citations, created_at,
+                   superseded_by::text AS superseded_by,
+                   supersedes::text AS supersedes
             FROM chat_messages
             WHERE thread_id = $1
               AND superseded_by IS NULL

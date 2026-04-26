@@ -2250,7 +2250,9 @@ html {
   flex-direction: column;
   gap: 6px;
   max-width: min(720px, 100%);
+  position: relative;
 }
+.message[data-muted="true"] { opacity: 0.65; }
 .message.is-user { align-self: flex-end; }
 .message.is-user .message-content {
   background: var(--accent-tint);
@@ -2261,6 +2263,250 @@ html {
 .message.is-assistant { align-self: stretch; }
 .message-content { line-height: 1.5; word-wrap: break-word; }
 .message-cursor { animation: blink 1s steps(2) infinite; }
+
+/* Hover-revealed action bar above the user-bubble. The hit area sits
+ * just outside the bubble's top-right corner so it never overlaps the
+ * text; the parent ``.message:hover`` selector drives visibility, with
+ * ``:focus-within`` keeping keyboard users covered without bespoke JS. */
+.message-actions {
+  position: absolute;
+  top: -10px;
+  right: 4px;
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transform: translateY(2px);
+  transition: opacity 120ms ease, transform 120ms ease;
+  pointer-events: none;
+  z-index: 1;
+}
+.message:hover .message-actions,
+.message:focus-within .message-actions {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.message-actions button {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg-muted);
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.message-actions button:hover {
+  background: var(--accent-tint);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* Inline edit mode replaces the user content with a textarea + Save /
+ * Cancel actions. The textarea inherits the bubble's accent tint so the
+ * edit affordance still reads as "this is your prompt" — a plain
+ * textarea would visually break with the surrounding chat list. */
+.message-edit { display: flex; flex-direction: column; gap: 8px; }
+.message-edit textarea {
+  width: 100%;
+  min-height: 80px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+  resize: vertical;
+}
+.message-edit textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-tint);
+}
+.message-edit .actions { display: flex; gap: 8px; justify-content: flex-end; }
+.message-edit-save,
+.message-edit-cancel {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--fg);
+  border-radius: var(--radius-xs);
+  padding: 4px 10px;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.message-edit-save {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: var(--accent);
+}
+.message-edit-save:hover:not(:disabled) { filter: brightness(1.05); }
+.message-edit-cancel:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+.message-edit-save:disabled,
+.message-edit-cancel:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* Footer rendered under each completed assistant turn — token stats,
+ * inspector buttons (View context / System prompt), and a horizontal
+ * row of evidence chips. The flex container wraps so a long evidence
+ * list doesn't push the buttons off-screen. */
+.message-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+}
+.message-footer-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-variant-numeric: tabular-nums;
+}
+.message-footer-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  padding: 2px 8px;
+  font-size: var(--text-xs);
+  color: inherit;
+  cursor: pointer;
+  transition: border-color 120ms ease, color 120ms ease, background 120ms ease;
+}
+.message-footer-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-tint);
+}
+.evidence-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  flex-basis: 100%;
+  margin-top: 2px;
+}
+.evidence-chip {
+  background: var(--surface-hover);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: var(--text-xs);
+  font-family: var(--font-mono, monospace);
+  color: var(--fg);
+  cursor: pointer;
+  transition: border-color 120ms ease, color 120ms ease, background 120ms ease;
+}
+.evidence-chip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-tint);
+}
+
+/* ContextViewModal / SystemPromptModal — read-only inspector panes. */
+.context-section { margin: 8px 0; }
+.context-section > summary {
+  cursor: pointer;
+  padding: 4px 0;
+  font-weight: 600;
+  color: var(--fg);
+}
+.context-pre {
+  background: var(--surface-sunken);
+  padding: 10px 12px;
+  border-radius: var(--radius-xs);
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--font-mono, monospace);
+  font-size: var(--text-xs);
+  max-height: 320px;
+  overflow: auto;
+  margin: 6px 0;
+  color: var(--fg);
+}
+.context-history-item { margin: 8px 0; }
+.context-history-item header { margin-bottom: 4px; }
+.context-files {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.context-files li {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.context-files li:last-child { border-bottom: 0; }
+.context-files .muted {
+  color: var(--fg-muted);
+  font-size: var(--text-xs);
+}
+.context-files p {
+  margin: 4px 0 0;
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+}
+
+/* FileModal — read-only file content viewer with optional line-range
+ * highlighting for the chat-evidence flow. The grid template puts a
+ * narrow gutter for line numbers next to a flexible code column. */
+.file-modal-dialog .modal-body { padding: 0; }
+.file-modal-pre {
+  background: var(--surface-sunken);
+  padding: 0;
+  border-radius: var(--radius-xs);
+  font-family: var(--font-mono, monospace);
+  font-size: var(--text-xs);
+  max-height: 70vh;
+  overflow: auto;
+  margin: 0;
+}
+.file-modal-line {
+  display: grid;
+  grid-template-columns: 3rem 1fr;
+  padding: 0 8px;
+  line-height: 1.55;
+}
+.file-modal-line.is-highlighted {
+  background: rgba(245, 158, 11, 0.18);
+}
+.file-modal-lineno {
+  color: var(--fg-muted);
+  user-select: none;
+  text-align: right;
+  padding-right: 8px;
+}
+.file-modal-line code {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Superseded-message disclosure — collapses every previous edit /
+ * regenerate iteration into a `<details>` so the live thread stays
+ * uncluttered without losing history. */
+.superseded-disclosure {
+  align-self: stretch;
+  max-width: min(720px, 100%);
+  margin: 0;
+  padding: 4px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  opacity: 0.85;
+}
+.superseded-disclosure > summary {
+  cursor: pointer;
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+  padding: 2px 0;
+}
+.superseded-disclosure > summary:hover { color: var(--accent); }
 @keyframes blink { 0%, 50% { opacity: 1; } 51%, 100% { opacity: 0; } }
 
 .composer {

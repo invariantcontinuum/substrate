@@ -12,6 +12,7 @@ interface ChatTurnPayload {
   content?: string;
   citations?: unknown[];
   error?: string;
+  evidence?: unknown[];
 }
 
 export function useChatStream(threadId: string | null): void {
@@ -57,6 +58,12 @@ export function useChatStream(threadId: string | null): void {
         setStreamingTurn(null);
         qc.invalidateQueries({ queryKey: ["chat", "messages", payload.thread_id] });
         qc.invalidateQueries({ queryKey: ["chat", "threads"] });
+        // Footer stats (tokens-in/out, duration) are persisted at the
+        // tail of stream_turn so we always re-fetch the per-message
+        // context snapshot for this assistant id once the turn lands.
+        qc.invalidateQueries({
+          queryKey: ["chat", "message-context", payload.message_id],
+        });
       }),
     );
 
@@ -64,6 +71,20 @@ export function useChatStream(threadId: string | null): void {
       "chat.turn.failed",
       filterAndDispatch(() => {
         setStreamingTurn(null);
+      }),
+    );
+
+    // Evidence is persisted asynchronously after chat.turn.completed; we
+    // listen separately so the chip flow doesn't depend on receiving the
+    // evidence payload inside the completed event itself. Invalidate
+    // both the per-message and per-thread caches so chips light up
+    // without the user having to re-open the thread.
+    client.on(
+      "chat.evidence.collected",
+      filterAndDispatch((payload) => {
+        qc.invalidateQueries({
+          queryKey: ["chat", "message-evidence", payload.message_id],
+        });
       }),
     );
 
