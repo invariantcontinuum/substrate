@@ -9,7 +9,7 @@ MODE     ?= local
 ENV_FILE := .env.$(MODE)
 COMPOSE  := ENV_FILE=$(ENV_FILE) docker compose --env-file $(ENV_FILE)
 
-.PHONY: help up down restart nuke nuke-keycloak ps logs doctor test test-e2e lint check-contracts
+.PHONY: help up down restart nuke nuke-keycloak ps logs doctor test test-e2e lint
 
 help: ## Show this help
 	@awk 'BEGIN{FS=":.*##"; printf "\nUsage: make <target> [MODE=local|prod]\n\nTargets:\n"} /^[a-zA-Z_-]+:.*##/ {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -56,6 +56,3 @@ test-e2e: ## Playwright smoke against the live stack
 
 lint: ## ruff + mypy + vulture + tsc + eslint + knip + banned-token gate
 	bash scripts/run-lint.sh
-
-check-contracts: ## Diff pydantic JSON schemas vs zod JSON schemas
-	bash scripts/check-contracts.sh

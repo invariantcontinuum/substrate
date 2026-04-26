@@ -89,8 +89,8 @@ async def test_handle_sync_writes_file_and_symbol_nodes(
         jobs_sync, "CONNECTORS", {"github_repo": _StubConnector()}
     )
 
-    # Point embeddings at localhost since we run outside Docker; lazy-lamacpp
-    # on the host exposes 8101 directly and is already up per the task context.
+    # Point embeddings at localhost since we run outside Docker; the host
+    # LLM stack exposes 8101 directly and is already up per the task context.
     monkeypatch.setattr(
         settings, "embedding_url", "http://localhost:8101/v1/embeddings"
     )

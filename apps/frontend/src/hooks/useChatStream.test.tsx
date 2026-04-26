@@ -11,7 +11,7 @@ vi.mock("react-oidc-context", () => ({
 
 const handlers: Record<string, ((ev: unknown) => void)[]> = {};
 const mockClose = vi.fn();
-vi.mock("substrate-web-common", () => ({
+vi.mock("@/lib/sse", () => ({
   openSseClient: () => ({
     on: (type: string, h: (ev: unknown) => void) => {
       (handlers[type] ||= []).push(h);

@@ -28,7 +28,7 @@
     "react-router-dom": "^7.14.0",
     "react-virtuoso": "^4.18.6",
     "shiki": "^4.0.2",
-    "substrate-web-common": "workspace:*",
+    "zod": "^4.1.13",
     "zustand": "^5.0.12"
   },
   "devDependencies": {

@@ -3,7 +3,7 @@ import { useAuth } from "react-oidc-context";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import type { SyncRun } from "./useSyncs";
-import { openSseClient } from "substrate-web-common";
+import { openSseClient } from "@/lib/sse";
 
 interface SyncsPage {
   items: SyncRun[];

@@ -45,7 +45,7 @@ From the repository root, use the full stack when you want the real application 
 
 ```bash
 cd /home/dany/Desktop/substrate
-cd ops/llm/lazy-lamacpp && make start MODEL=embeddings && make start MODEL=dense && cd -
+# Start the host LLM stack (embeddings on :8101, dense on :8102) before bringing up substrate.
 make up
 ```
 

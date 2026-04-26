@@ -33,7 +33,7 @@ class _GraphSettings(LayeredSettings):
     # ── Dense LLM (summary generation) ───────────────────────────────
     # lazy-lamacpp serves the Qwen3.5-2B Q8_0 GGUF on port 8102 with a
     # 60 k-token context slot by default. Changing the served model or
-    # its CONTEXT_SIZE (in ops/llm/lazy-lamacpp/config/models/dense.env)
+    # its CONTEXT_SIZE (in <llm-stack>/config/models/dense.env)
     # MUST be reflected in SUMMARY_TOTAL_BUDGET_CHARS below, otherwise
     # prompts will either overflow or waste context.
     dense_llm_url: str = "http://host.docker.internal:8102/v1/chat/completions"
@@ -46,7 +46,7 @@ class _GraphSettings(LayeredSettings):
     # Memory: ~1 GB VRAM. Latency: ~50ms per query expansion.
     sparse_llm_url: str = "http://host.docker.internal:8103/v1/chat/completions"
     sparse_llm_model: str = "sparse"
-    # ≤ ops/llm/lazy-lamacpp/config/models/sparse.env CONTEXT_SIZE.
+    # ≤ <llm-stack>/config/models/sparse.env CONTEXT_SIZE.
     sparse_llm_context_size: int = 16384
     sparse_llm_timeout_s: float = 20.0
     # Top-K candidates returned by the sparse keyword retriever.
@@ -141,7 +141,7 @@ class _GraphSettings(LayeredSettings):
     # Higher = better conversational continuity, larger prompt cost.
     chat_history_turns: int = 6
     # Total prompt char budget. Keep ≤ ~3× dense LLM CONTEXT_SIZE (set in
-    # ops/llm/lazy-lamacpp/config/models/dense.env). If the budget would
+    # <llm-stack>/config/models/dense.env). If the budget would
     # be exceeded the pipeline drops the oldest prior turns first, then
     # trims per-node context entries.
     chat_total_budget_chars: int = 40_000
@@ -163,7 +163,7 @@ class _GraphSettings(LayeredSettings):
     # Hard cap on tokens summed across included context files in a single
     # thread. The pipeline returns 413 when the active set exceeds this;
     # the user must drop files in the modal to fit. Must be ≤ the dense
-    # LLM CONTEXT_SIZE in ops/llm/lazy-lamacpp/config/models/dense.env.
+    # LLM CONTEXT_SIZE in <llm-stack>/config/models/dense.env.
     # Trade-off: larger = richer context, more VRAM + slower per-message
     # build; smaller = users must drop more files to fit.
     chat_context_token_budget: int = 24000

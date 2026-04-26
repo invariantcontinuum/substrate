@@ -6,7 +6,7 @@ import { apiFetch } from "@/lib/api";
 import { logger } from "@/lib/logger";
 import { useGraphStore } from "@/stores/graph";
 import { useSyncSetStore, type SyncRunSummary } from "@/stores/syncSet";
-import { openSseClient } from "substrate-web-common";
+import { openSseClient } from "@/lib/sse";
 
 // Tagged outcome type for the startSync mutation.
 // 409 sync_already_active is NOT an error — it returns `kind: "already_active"`.

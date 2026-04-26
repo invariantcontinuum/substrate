@@ -60,18 +60,14 @@ else
   pass "infra containers not running (skipping infra probes)"
 fi
 
-[[ -f ops/llm/lazy-lamacpp/Makefile ]] \
-  && pass "lazy-lamacpp imported" \
-  || fail "lazy-lamacpp imported"
-
 probe_llm_embed() {
   curl -sf -o /dev/null -w "%{http_code}\n" http://localhost:8101/v1/models 2>/dev/null \
-    | grep -qx 200 && pass "llm :8101 embeddings" || fail "llm embeddings (start: cd ops/llm/lazy-lamacpp && make start MODEL=embeddings)"
+    | grep -qx 200 && pass "llm :8101 embeddings" || fail "llm embeddings (host LLM stack must be started separately)"
 }
 
 probe_llm_dense() {
   curl -sf -o /dev/null -w "%{http_code}\n" http://localhost:8102/v1/models 2>/dev/null \
-    | grep -qx 200 && pass "llm :8102 dense" || fail "llm dense (start: cd ops/llm/lazy-lamacpp && make start MODEL=dense)"
+    | grep -qx 200 && pass "llm :8102 dense" || fail "llm dense (host LLM stack must be started separately)"
 }
 
 probe_llm_embed

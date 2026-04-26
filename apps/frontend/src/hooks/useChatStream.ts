@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useAuth } from "react-oidc-context";
 import { useQueryClient } from "@tanstack/react-query";
-import { openSseClient } from "substrate-web-common";
+import { openSseClient } from "@/lib/sse";
 import { useChatStore } from "@/stores/chat";
 
 interface ChatTurnPayload {

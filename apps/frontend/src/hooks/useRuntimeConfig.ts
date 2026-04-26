@@ -29,7 +29,7 @@ import {
 } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { useAuth } from "react-oidc-context";
-import { openSseClient } from "substrate-web-common";
+import { openSseClient } from "@/lib/sse";
 import { apiFetch } from "@/lib/api";
 import { useAuthToken } from "@/hooks/useAuthToken";
 import { useAuthedQuery } from "@/hooks/useAuthedQuery";

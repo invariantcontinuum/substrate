@@ -7,7 +7,7 @@ Substrate governance platform — monorepo.
 ```bash
 gh repo clone invariantcontinuum/substrate
 cd substrate
-cd ops/llm/lazy-lamacpp && make start MODEL=embeddings && make start MODEL=dense && cd -
+# Start the host-managed LLM stack (lives outside this repo) — embeddings on :8101, dense on :8102.
 make up              # defaults to MODE=local (.env.local)
 # open http://localhost:3535
 ```
@@ -74,9 +74,8 @@ Every target accepts `MODE=local` (default) or `MODE=prod`, which selects `.env.
 | `make test` | Unit + integration tests (testcontainers). |
 | `make test-e2e` | Playwright smoke against the live stack. |
 | `make lint` | ruff + mypy + vulture + tsc + eslint + knip + banned-token gate. |
-| `make check-contracts` | Diff pydantic JSON schemas vs zod JSON schemas. |
 
-LLM models live in `ops/llm/lazy-lamacpp/` and are managed by their own Makefile (`make start MODEL=<name>`, `make stop MODEL=<name>`, `make status-all`). They're intentionally not re-exposed here.
+The LLM stack lives outside this repo. Substrate services connect to it over HTTP — embeddings on `:8101`, dense on `:8102`. Start it via its own systemd units before running `make up`; the substrate doctor probes those endpoints to confirm reachability.
 
 ## GitHub Actions
 
@@ -133,12 +132,10 @@ substrate/
 │   └── graph/              # FastAPI — read API + AGE + pgvector
 ├── packages/
 │   ├── substrate-common/
-│   ├── substrate-web-common/
 │   ├── substrate-graph-builder/
 │   └── graph-ui/
 ├── ops/
-│   ├── infra/{postgres,keycloak,pgadmin}/
-│   └── llm/lazy-lamacpp/
+│   └── infra/{postgres,keycloak,pgadmin}/
 ├── scripts/                # configure, render-realm, doctor, tests, lint
 └── docs/                   # developer guide, architecture, system design
 ```
@@ -150,7 +147,7 @@ substrate/
 - **Single data boundary:** `substrate_graph` (Apache AGE + pgvector).
 - **Realtime transport:** `GET /api/events` (SSE) only. No WebSockets, no polling, no Redis — `make lint` fails if those tokens appear in application code.
 - **Internal service DNS:** Container-to-container traffic uses `substrate_internal`. `host.docker.internal` is only legal for reaching the host-local LLM endpoints.
-- **Shared code:** `packages/substrate-common` (Python) and `packages/substrate-web-common` (TS) own shared concerns.
+- **Shared code:** `packages/substrate-common` (Python) owns shared backend concerns; the frontend keeps its TS helpers in `apps/frontend/src/lib/` (no separate package).
 - **Testing:** Integration tests use `testcontainers-python` for real Postgres + AGE + pgvector. No DB mocks.
 
 ## Docs
