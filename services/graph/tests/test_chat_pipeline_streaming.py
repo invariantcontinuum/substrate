@@ -132,21 +132,25 @@ async def test_stream_turn_event_order_and_persistence(
 
     monkeypatch.setattr(chat_pipeline, "_hydrate_citations", _fake_hydrate)
 
-    # Also stub _embed_query and search_scoped to avoid real LLM embed call.
-    # chat_pipeline imports _embed_query at module level from src.api.routes,
-    # so we patch the name in the chat_pipeline module's own namespace.
+    # Stub the Phase-6 retrieval helpers so the streaming test never hits
+    # the embedding service, the reranker, or pgvector. The retrieve path
+    # short-circuits to no candidates which still produces a valid prompt.
     async def _fake_embed(text: str) -> list[float]:
         return [0.0] * 768
 
-    async def _fake_search(**kwargs) -> list[dict]:
+    async def _fake_retrieve(**kwargs) -> list[dict]:
         return []
 
-    monkeypatch.setattr(
-        chat_pipeline, "_embed_query", _fake_embed,
-    )
-    monkeypatch.setattr(
-        chat_pipeline, "search_scoped", _fake_search,
-    )
+    async def _no_ctx_ids(thread_id) -> list[str]:
+        return []
+
+    async def _no_snapshot_files(snapshot_ids) -> list[str]:
+        return []
+
+    monkeypatch.setattr(chat_pipeline, "_embed_query", _fake_embed)
+    monkeypatch.setattr(chat_pipeline, "retrieve_context_files", _fake_retrieve)
+    monkeypatch.setattr(chat_pipeline, "_thread_context_file_ids", _no_ctx_ids)
+    monkeypatch.setattr(chat_pipeline, "_all_files_for_snapshots", _no_snapshot_files)
 
     # Set up a subscriber BEFORE running stream_turn.
     bus = SseBus(store.get_pool())
@@ -252,8 +256,8 @@ def fake_bus_class(monkeypatch):
 def _patch_no_db_helpers(monkeypatch):
     """Stub all helpers that would hit a real DB or LLM so unit tests stay pure.
 
-    Also stubs ``store.get_pool`` used by ``SseBus(store.get_pool())`` at the
-    top of ``stream_turn`` so tests work without a running Postgres instance.
+    Also stubs ``store.get_pool`` used downstream so tests work without a
+    running Postgres instance.
     """
     from src.graph import store as _store
 
@@ -262,18 +266,22 @@ def _patch_no_db_helpers(monkeypatch):
     async def _fake_embed(text: str) -> list[float]:
         return [0.0] * 768
 
-    async def _fake_search(**kwargs) -> list[dict]:
+    async def _fake_retrieve(**kwargs) -> list[dict]:
         return []
 
-    async def _no_ctx_files(thread_id) -> None:
-        return None
+    async def _no_ctx_ids(thread_id) -> list[str]:
+        return []
+
+    async def _no_snapshot_files(snapshot_ids) -> list[str]:
+        return []
 
     async def _fake_hydrate(node_ids: list[str]) -> list[dict]:
         return []
 
     monkeypatch.setattr(chat_pipeline, "_embed_query", _fake_embed)
-    monkeypatch.setattr(chat_pipeline, "search_scoped", _fake_search)
-    monkeypatch.setattr(chat_pipeline, "_build_thread_context_files", _no_ctx_files)
+    monkeypatch.setattr(chat_pipeline, "retrieve_context_files", _fake_retrieve)
+    monkeypatch.setattr(chat_pipeline, "_thread_context_file_ids", _no_ctx_ids)
+    monkeypatch.setattr(chat_pipeline, "_all_files_for_snapshots", _no_snapshot_files)
     monkeypatch.setattr(chat_pipeline, "_hydrate_citations", _fake_hydrate)
 
 
@@ -323,10 +331,13 @@ async def test_stream_turn_prompt_build_error_emits_failed_no_raise(monkeypatch,
     The client must never hang after receiving 202."""
     _patch_no_db_helpers(monkeypatch)
 
-    async def _exploding_embed(text: str) -> list[float]:
+    # The Phase-6 retrieval pipeline runs first; failing it surfaces as the
+    # prompt-build error path because nothing downstream of CHAT_TURN_STARTED
+    # has fired yet.
+    async def _exploding_retrieve(**kwargs) -> list[dict]:
         raise RuntimeError("embed service unavailable")
 
-    monkeypatch.setattr(chat_pipeline, "_embed_query", _exploding_embed)
+    monkeypatch.setattr(chat_pipeline, "retrieve_context_files", _exploding_retrieve)
 
     # stream_turn must NOT raise
     await chat_pipeline.stream_turn(

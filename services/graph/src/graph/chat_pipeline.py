@@ -2,7 +2,18 @@
 stream chunks -> extract citations. Each call to stream_turn instantiates
 its own SseBus from the shared pool (per-call pattern; no module-level
 singleton). The HTTP handler returns 202 immediately and calls stream_turn
-via asyncio.create_task."""
+via asyncio.create_task.
+
+Phase 6 retrieval pipeline:
+    dense (pgvector) ─┐
+                      ├─► RRF fuse ─► reranker ─► top-N descriptions
+    sparse (tsv)   ───┘
+
+The full-content reconstruction path that previously fed entire file
+bodies into the prompt has been removed (pre-MVP "no back-compat" rule).
+The pipeline now hands the LLM ranked file *descriptions + metadata*
+only; the LLM cites by node id and the UI hydrates excerpts on demand.
+"""
 from __future__ import annotations
 
 import asyncio
@@ -15,14 +26,14 @@ import asyncpg
 import httpx
 import structlog
 
-from substrate_common import ValidationError
 from substrate_common.sse import Event, safe_publish
 
 from src.api.routes import _embed_query
 from src.config import settings
-from src.graph import chat_context_store, store
-from src.graph.chat_store import search_scoped
-from src.graph.file_reconstruct import reconstruct_chunks
+from src.graph import store
+from src.graph.reranker import rerank
+from src.graph.rrf import rrf_fuse
+from src.graph.sparse_retrieval import sparse_top_k
 
 logger = structlog.get_logger()
 
@@ -57,81 +68,204 @@ def extract_citation_markers(text: str) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
-# Context helpers
+# Phase-6 retrieval pipeline
 # ---------------------------------------------------------------------------
 
 
-async def _build_thread_context_files(
-    thread_id: UUID,
-) -> list[dict] | None:
-    """Returns the included context files for a thread, or None if the
-    thread has no context_summary (legacy path)."""
-    summary = await chat_context_store.get_thread_context_summary(thread_id)
-    if summary is None:
-        return None
-    rows = await chat_context_store.list_thread_context_files(thread_id)
-    return [r for r in rows if r["included"]]
+async def _thread_context_file_ids(thread_id: UUID) -> list[str]:
+    """Read the per-thread file selection from ``chat_threads.context_files``.
 
-
-async def _build_thread_context_prompt(
-    *, user_content: str, prior_turns: list[dict], files: list[dict],
-) -> list[dict]:
-    total_tokens = sum(f["total_tokens"] for f in files)
-    if total_tokens > settings.chat_context_token_budget:
-        raise ValidationError(
-            f"context exceeds token budget ({total_tokens} > "
-            f"{settings.chat_context_token_budget}); drop files in the "
-            "context modal to fit",
-        )
+    V8 added the JSONB column as the canonical per-thread file picker. An
+    empty array (or NULL row) means "no explicit selection" — the caller
+    falls back to the full sync scope so existing threads still work.
+    """
     pool = store.get_pool()
-    blocks: list[str] = []
     async with pool.acquire() as conn:
-        for f in files:
-            chunks = await conn.fetch(
-                """SELECT chunk_index, content, start_line, end_line
-                   FROM content_chunks
-                   WHERE file_id = $1::uuid
-                   ORDER BY chunk_index""",
-                f["file_id"],
-            )
-            meta_row = await conn.fetchrow(
-                "SELECT line_count FROM file_embeddings WHERE id = $1::uuid",
-                f["file_id"],
-            )
-            rebuilt = reconstruct_chunks(
-                [dict(c) for c in chunks],
-                cap_bytes=settings.file_reconstruct_max_bytes,
-                total_lines=meta_row["line_count"] if meta_row else None,
-            )
-            lang = f.get("language") or ""
-            blocks.append(
-                f"### {f['path']} ({lang or 'unknown'})\n"
-                f"```{lang}\n{rebuilt['content']}\n```"
-            )
-    history_section = ""
-    if prior_turns:
-        snippets = []
-        for t in prior_turns[-settings.chat_history_turns :]:
-            role = t.get("role", "user")
-            snippets.append(f"[{role}] {t.get('content', '')}")
-        history_section = "\n\n## Prior turns\n" + "\n".join(snippets)
-    files_section = "\n\n".join(blocks)
-    user_msg = (
-        "## Files in scope\n\n"
-        f"{files_section}{history_section}\n\n"
-        f"## Question\n{user_content}"
-    )
-    return [
-        {"role": "system", "content": settings.chat_system_instruction},
-        {"role": "user", "content": user_msg},
+        row = await conn.fetchrow(
+            "SELECT context_files FROM chat_threads WHERE id = $1::uuid",
+            thread_id,
+        )
+    if not row or row["context_files"] is None:
+        return []
+    raw = row["context_files"]
+    items = raw if isinstance(raw, list) else json.loads(raw)
+    out: list[str] = []
+    for it in items:
+        if isinstance(it, str):
+            out.append(it)
+        elif isinstance(it, dict):
+            fid = it.get("file_id") or it.get("id")
+            if fid:
+                out.append(str(fid))
+    return out
+
+
+async def _all_files_for_snapshots(snapshot_ids: list[str]) -> list[str]:
+    """Return every ``file_embeddings.id`` for the given sync_ids.
+
+    Used as the fall-back when ``chat_threads.context_files`` is empty.
+    """
+    if not snapshot_ids:
+        return []
+    pool = store.get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT id::text AS id FROM file_embeddings "
+            "WHERE sync_id = ANY($1::uuid[])",
+            snapshot_ids,
+        )
+    return [r["id"] for r in rows]
+
+
+async def retrieve_context_files(
+    *,
+    query: str,
+    selected_file_ids: list[str],
+    snapshot_ids: list[str],
+) -> list[dict]:
+    """Return ranked file dicts (description + metadata only) sized to top-N.
+
+    Steps:
+      1. Dense pgvector search over ``selected_file_ids`` (cosine similarity
+         to the embedded query).
+      2. Optional sparse keyword search over ``snapshot_ids`` filtered down
+         to ``selected_file_ids``; fused with dense via RRF.
+      3. Optional cross-encoder rerank over the fused set.
+
+    Both the sparse step and the reranker are toggleable via settings; on
+    upstream failure the reranker degrades to original-order top-N (see
+    ``reranker.rerank``). The sparse fuse silently falls back to the dense
+    list when ``settings.retrieval_use_sparse`` is false.
+    """
+    if not selected_file_ids:
+        return []
+
+    # 1. Dense retrieval (pgvector cosine).
+    query_emb = await _embed_query(query)
+    pool = store.get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT id::text AS file_id, file_path, name, type, domain,
+                   language, size_bytes, description,
+                   1 - (embedding <=> $1::vector) AS dense_score
+              FROM file_embeddings
+             WHERE id = ANY($2::uuid[])
+               AND embedding IS NOT NULL
+             ORDER BY embedding <=> $1::vector ASC
+             LIMIT $3
+            """,
+            str(query_emb), selected_file_ids, settings.retrieval_dense_top_k,
+        )
+    dense_candidates = [dict(r) for r in rows]
+
+    # 2. Optional sparse keyword retrieval scoped to the snapshot set, then
+    #    intersected with the explicit file selection so the user's modal
+    #    decisions still win over a noisy keyword hit.
+    if settings.retrieval_use_sparse:
+        sparse = await sparse_top_k(
+            snapshot_ids=snapshot_ids,
+            query=query,
+            k=settings.sparse_keyword_top_k,
+        )
+        selected_set = set(selected_file_ids)
+        sparse = [c for c in sparse if c["file_id"] in selected_set]
+        fused = rrf_fuse([dense_candidates, sparse], k=settings.reranker_rrf_k)
+    else:
+        fused = dense_candidates
+
+    # 3. Optional reranker. Hydrate descriptions for items the dense step
+    #    didn't include (they came from sparse top-K only) so the reranker
+    #    has real text to score against.
+    if settings.retrieval_use_reranker and fused:
+        fused = await _hydrate_descriptions(fused)
+        ranked = await rerank(
+            query=query,
+            candidates=fused,
+            top_n=settings.reranker_top_n,
+        )
+    else:
+        ranked = fused[: settings.reranker_top_n]
+
+    return ranked
+
+
+async def _hydrate_descriptions(items: list[dict]) -> list[dict]:
+    """Populate description + metadata for items that came from sparse-only.
+
+    Sparse hits arrive with just ``file_id``, ``file_path``, ``score`` —
+    the reranker needs description text to score, and the prompt
+    formatter needs language/size/etc for display. One batch SELECT
+    fills both.
+    """
+    missing = [
+        it["file_id"]
+        for it in items
+        if not (it.get("description") or it.get("language") or it.get("type"))
     ]
+    if not missing:
+        return items
+    pool = store.get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT id::text AS file_id, file_path, name, type, domain,
+                   language, size_bytes, description
+              FROM file_embeddings
+             WHERE id = ANY($1::uuid[])
+            """,
+            missing,
+        )
+    by_id = {r["file_id"]: dict(r) for r in rows}
+    out: list[dict] = []
+    for it in items:
+        fid = it.get("file_id")
+        if fid and fid in by_id:
+            out.append({**by_id[fid], **it})
+        else:
+            out.append(it)
+    return out
+
+
+def _format_files_section(files: list[dict]) -> str:
+    """Render the ranked file list as a markdown bullet section.
+
+    Empty input collapses to "" so the prompt builder can drop the
+    section header without leaving an awkward "Files in scope:" with
+    nothing under it.
+    """
+    if not files:
+        return ""
+    lines = ["### Files in scope (ranked by relevance):"]
+    for f in files:
+        size_kb = (f.get("size_bytes") or 0) / 1024
+        desc = (f.get("description") or "").strip() or "(no description)"
+        lang = f.get("language") or "plain"
+        path = f.get("file_path") or f.get("name") or f.get("file_id") or ""
+        lines.append(
+            f"- **{path}** ({lang}, {size_kb:.1f} KB) — node_id={f.get('file_id')} — {desc}"
+        )
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Prompt assembly
+# ---------------------------------------------------------------------------
 
 
 def _build_prompt(
     *, user_content: str, prior_turns: list[dict], retrieved: list[dict] | None = None,
     graph_context: dict[str, Any] | None = None,
     sync_ids: list | None = None,
+    files_section: str | None = None,
 ) -> list[dict]:
+    """Assemble the system + history + user prompt under ``chat_total_budget_chars``.
+
+    ``files_section`` (Phase 6) is a pre-rendered markdown block summarising
+    the ranked context files; when present it replaces the legacy
+    "Node context" header. The file list still trims oldest history /
+    lowest-ranked items if the budget is exceeded.
+    """
     budget = settings.chat_total_budget_chars
     retrieved = retrieved or []
 
@@ -144,14 +278,20 @@ def _build_prompt(
     # safe — it only loosens the worst-case where we *had* room.
     def _node_block(n: dict) -> str:
         desc = (n.get("description") or "").strip().replace("\n", " ")
+        # Phase 6 candidates carry `file_id`; legacy callers carry `id`.
+        node_id = n.get("file_id") or n.get("id") or ""
         return (
-            f"- node_id={n['id']} name={n.get('name') or ''} "
+            f"- node_id={node_id} name={n.get('name') or ''} "
             f"type={n.get('type') or ''} desc={desc[:1500]}"
         )
 
-    nodes_section = "\n".join(_node_block(n) for n in retrieved)
+    if files_section is not None:
+        nodes_section = files_section
+        header = ""
+    else:
+        nodes_section = "\n".join(_node_block(n) for n in retrieved)
+        header = "### Node context (from the user's active sync set):\n"
     system = settings.chat_system_instruction
-    header = "### Node context (from the user's active sync set):\n"
     graph_section = ""
     if graph_context:
         gc_nodes = graph_context.get("nodes") or []
@@ -293,31 +433,31 @@ async def stream_turn(
         assistant_id = uuid4()
 
     try:
-        # Build the context-aware prompt (same path as run_turn used).
-        # Any exception here (ValidationError, DB timeout, embed failure, …)
-        # is now caught below and published as a CHAT_TURN_FAILED event so
-        # the client is never left hanging after the 202 response.
-        ctx_files = await _build_thread_context_files(thread_id)
-        if ctx_files is not None:
-            messages = await _build_thread_context_prompt(
-                user_content=user_content,
-                prior_turns=prior_turns,
-                files=ctx_files,
-            )
-        else:
-            query_embedding = await _embed_query(user_content)
-            retrieved = await search_scoped(
-                query_embedding=query_embedding,
-                sync_ids=sync_ids,
-                limit=settings.chat_top_k,
-            )
-            messages = _build_prompt(
-                user_content=user_content,
-                prior_turns=prior_turns,
-                retrieved=retrieved,
-                graph_context=graph_context,
-                sync_ids=sync_ids,
-            )
+        # Build the context-aware prompt. Any exception here (DB timeout,
+        # embed failure, …) is caught below and published as CHAT_TURN_FAILED
+        # so the client is never left hanging after the 202 response.
+        sync_ids_str = [str(s) for s in (sync_ids or [])]
+        selected_ids = await _thread_context_file_ids(thread_id)
+        # When the per-thread context_files JSONB is empty (legacy threads,
+        # or threads created before the user opened the picker), fall back
+        # to every file in the resolved snapshot scope so retrieval still
+        # has candidates to score.
+        if not selected_ids:
+            selected_ids = await _all_files_for_snapshots(sync_ids_str)
+        chat_files = await retrieve_context_files(
+            query=user_content,
+            selected_file_ids=selected_ids,
+            snapshot_ids=sync_ids_str,
+        )
+        files_section = _format_files_section(chat_files)
+        messages = _build_prompt(
+            user_content=user_content,
+            prior_turns=prior_turns,
+            retrieved=chat_files,
+            graph_context=graph_context,
+            sync_ids=sync_ids,
+            files_section=files_section,
+        )
 
         await safe_publish(Event(
             type=CHAT_TURN_STARTED,
