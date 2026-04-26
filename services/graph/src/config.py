@@ -42,6 +42,34 @@ class _GraphSettings(LayeredSettings):
     # Empty string skips the Authorization header entirely.
     llm_api_key: str = "test"
 
+    # ── Sparse LLM (BM25-like keyword retrieval helper) ──────────────
+    # Memory: ~1 GB VRAM. Latency: ~50ms per query expansion.
+    sparse_llm_url: str = "http://host.docker.internal:8103/v1/chat/completions"
+    sparse_llm_model: str = "sparse"
+    # ≤ ops/llm/lazy-lamacpp/config/models/sparse.env CONTEXT_SIZE.
+    sparse_llm_context_size: int = 16384
+    sparse_llm_timeout_s: float = 20.0
+    # Top-K candidates returned by the sparse keyword retriever.
+    sparse_keyword_top_k: int = 20
+
+    # ── Reranker (cross-encoder reranking) ───────────────────────────
+    # Memory: ~2 GB VRAM. Latency: ~200ms for 20 candidates.
+    reranker_url: str = "http://host.docker.internal:8104/reranking"
+    reranker_model: str = "reranker"
+    reranker_top_n: int = 5
+    reranker_timeout_s: float = 30.0
+    # Reciprocal rank fusion constant; higher = flatter score curve.
+    reranker_rrf_k: int = 60
+
+    # ── Retrieval pipeline ───────────────────────────────────────────
+    # Dense pgvector candidate count fed into the optional sparse fuse + reranker.
+    retrieval_dense_top_k: int = 20
+    # When false, skip sparse retrieval and RRF fusion — dense candidates feed
+    # the reranker directly.
+    retrieval_use_sparse: bool = True
+    # When false, skip the reranker — RRF/dense top-N is used directly.
+    retrieval_use_reranker: bool = True
+
     # Max tokens the model is allowed to produce for a summary. Keep in
     # sync with the system-prompt length guidance (2-3 sentences → ~400
     # tokens max). Raising this costs decode-time latency; lowering
