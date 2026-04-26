@@ -2,8 +2,8 @@
 content will be attached to a chat thread.
 
 Scope rules:
-- source_id: required.
-- snapshot_ids: required, non-empty.
+- sync_ids: required, non-empty. Each sync_id carries its own source_id,
+  so a context may span multiple sources.
 - community_ids: optional. When present, files must additionally appear
   in the leiden_cache.assignments JSONB blob for the matching cache_key
   with one of the listed community indices.
@@ -27,8 +27,8 @@ async def resolve(ctx: dict, user_sub: str) -> list[dict]:
     in fall-back mode until the user expands scope)."""
     if ctx is None:
         return []
-    snapshot_ids = ctx.get("snapshot_ids") or []
-    if not snapshot_ids:
+    sync_ids = ctx.get("sync_ids") or []
+    if not sync_ids:
         return []
     community_refs = ctx.get("community_ids") or []
     pool = store.get_pool()
@@ -43,10 +43,9 @@ async def resolve(ctx: dict, user_sub: str) -> list[dict]:
             FROM file_embeddings f
             JOIN sources s ON s.id = f.source_id
             WHERE s.user_sub = $1
-              AND s.id = $2::uuid
-              AND f.sync_id = ANY($3::uuid[])
+              AND f.sync_id = ANY($2::uuid[])
             """,
-            user_sub, ctx["source_id"], snapshot_ids,
+            user_sub, sync_ids,
         )
         # Optional: post-filter by leiden community membership. Assignments
         # live in `leiden_cache.assignments` as a JSONB blob keyed by node_id;

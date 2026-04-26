@@ -41,13 +41,6 @@ export interface SnapshotEntry {
   status: string;
 }
 
-export interface SourceWithSnapshots {
-  id: string;
-  owner: string;
-  name: string;
-  snapshots: SnapshotEntry[];
-}
-
 export interface SourceSnapshotMultiSelectProps {
   /** Selected snapshot ids; controlled. */
   value: string[];

@@ -30,8 +30,10 @@ class CommunityRef(BaseModel):
 
 
 class ActiveContext(BaseModel):
-    source_id: str
-    snapshot_ids: list[str] = Field(default_factory=list)
+    """Pre-MVP shape: sync_ids is the canonical scope. Each sync row carries
+    its own source_id, so the UI no longer pins to a single source — a chat
+    context may span snapshots from multiple sources."""
+    sync_ids: list[str] = Field(default_factory=list)
     community_ids: list[CommunityRef] = Field(default_factory=list)
 
 

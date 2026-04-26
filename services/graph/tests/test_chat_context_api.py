@@ -17,8 +17,10 @@ async def test_get_active_returns_null_for_fresh_user(async_client):
 
 async def test_put_then_get_active_round_trip(async_client):
     payload = {
-        "source_id": "11111111-1111-1111-1111-111111111111",
-        "snapshot_ids": ["22222222-2222-2222-2222-222222222222"],
+        "sync_ids": [
+            "22222222-2222-2222-2222-222222222222",
+            "33333333-3333-3333-3333-333333333333",
+        ],
         "community_ids": [{"cache_key": "abc", "community_index": 7}],
     }
     r = await async_client.put(
@@ -49,8 +51,7 @@ async def test_thread_create_resolves_active_context(
     async_client, seed_one_file,
 ):
     payload = {
-        "source_id": seed_one_file["source_id"],
-        "snapshot_ids": [seed_one_file["sync_id"]],
+        "sync_ids": [seed_one_file["sync_id"]],
         "community_ids": [],
     }
     r = await async_client.put(
@@ -85,8 +86,7 @@ async def test_patch_context_files_toggles_included(
     await async_client.put(
         "/api/chat-context/active",
         json={
-            "source_id": seed_one_file["source_id"],
-            "snapshot_ids": [seed_one_file["sync_id"]],
+            "sync_ids": [seed_one_file["sync_id"]],
             "community_ids": [],
         },
         headers={"X-User-Sub": seed_one_file["user_sub"]},

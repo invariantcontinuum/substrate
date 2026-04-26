@@ -1,7 +1,6 @@
 import { Link } from "react-router-dom";
 import { useChatStore } from "@/stores/chat";
 import { useChatContextStore } from "@/stores/chatContext";
-import { useSources } from "@/hooks/useSources";
 
 const EXAMPLE_PROMPTS = [
   "What are the largest communities?",
@@ -12,8 +11,7 @@ const EXAMPLE_PROMPTS = [
 export function ChatPlaceholder() {
   const setDraft = useChatStore((s) => s.setComposerDraft);
   const active = useChatContextStore((s) => s.active);
-  const { sources } = useSources();
-  const ctxSource = active ? sources?.find((s) => s.id === active.source_id) : null;
+  const snapCount = active?.sync_ids.length ?? 0;
 
   return (
     <div className="chat-placeholder">
@@ -28,9 +26,9 @@ export function ChatPlaceholder() {
           ))}
         </ul>
         <p className="chat-placeholder-context muted">
-          {active && ctxSource
-            ? <>This thread will use the active context: <strong>{ctxSource.owner}/{ctxSource.name}</strong>.</>
-            : <>No chat context applied. <Link to="/sources/config">Set one up</Link>.</>
+          {snapCount > 0
+            ? <>This thread will use the active context: <strong>{snapCount} snapshot{snapCount === 1 ? "" : "s"}</strong>.</>
+            : <>No chat context applied. <Link to="/account/chat-context">Set one up</Link>.</>
           }
         </p>
       </div>
