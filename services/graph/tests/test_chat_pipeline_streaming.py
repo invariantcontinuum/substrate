@@ -58,6 +58,134 @@ def test_extract_citation_markers_multiple_on_same_line():
 
 
 # ---------------------------------------------------------------------------
+# _decode_evidence_calls — tool-call accumulation + [CITE …] regex fallback
+# ---------------------------------------------------------------------------
+
+
+def test_decode_evidence_calls_concatenates_streamed_arguments():
+    """The dense LLM streams tool_call arguments as a series of partial
+    JSON-string deltas. _decode_evidence_calls must accumulate them per
+    index, JSON-decode the whole, and surface one entry per cite_evidence
+    call — preserving stream-index order when there are multiple."""
+    collected = {
+        0: {
+            "name": "cite_evidence",
+            "arguments": (
+                '{"filepath": "src/foo.py", '
+                '"start_line": 12, "end_line": 20, '
+                '"reason": "first call"}'
+            ),
+        },
+        1: {
+            "name": "cite_evidence",
+            "arguments": (
+                '{"filepath": "src/bar.py", '
+                '"start_line": 1, "end_line": 4, '
+                '"reason": "second call"}'
+            ),
+        },
+    }
+    out = chat_pipeline._decode_evidence_calls(collected, "")
+    assert out == [
+        {
+            "filepath": "src/foo.py",
+            "start_line": 12,
+            "end_line": 20,
+            "reason": "first call",
+        },
+        {
+            "filepath": "src/bar.py",
+            "start_line": 1,
+            "end_line": 4,
+            "reason": "second call",
+        },
+    ]
+
+
+def test_decode_evidence_calls_skips_invalid_arguments():
+    """A tool call whose arguments fail JSON-decode (e.g. interrupted
+    stream) must not abort the whole batch — every other valid call
+    continues to land."""
+    collected = {
+        0: {"name": "cite_evidence", "arguments": "{not-json"},
+        1: {
+            "name": "cite_evidence",
+            "arguments": (
+                '{"filepath": "ok.py", "start_line": 1, '
+                '"end_line": 2, "reason": "ok"}'
+            ),
+        },
+        2: {"name": "other_tool", "arguments": '{"x": 1}'},
+    }
+    out = chat_pipeline._decode_evidence_calls(collected, "")
+    assert len(out) == 1
+    assert out[0]["filepath"] == "ok.py"
+
+
+def test_decode_evidence_calls_falls_back_to_inline_markers():
+    """When no tool calls were emitted, the regex fallback parses
+    `[CITE path:start-end "reason"]` markers out of the assistant text.
+    Used for llama.cpp builds that ignore the ``tools`` request body."""
+    text = (
+        'See [CITE src/foo.py:1-3 "imports the right thing"] and '
+        '[CITE src/bar.py:42-45 "computes the answer"].'
+    )
+    out = chat_pipeline._decode_evidence_calls({}, text)
+    assert out == [
+        {
+            "filepath": "src/foo.py",
+            "start_line": 1,
+            "end_line": 3,
+            "reason": "imports the right thing",
+        },
+        {
+            "filepath": "src/bar.py",
+            "start_line": 42,
+            "end_line": 45,
+            "reason": "computes the answer",
+        },
+    ]
+
+
+def test_decode_evidence_calls_caps_emit_count(monkeypatch):
+    """``chat_evidence_max_per_turn`` is the floor on output; a flood
+    of inline markers should never blow past it."""
+    from src.config import settings
+
+    monkeypatch.setattr(settings, "chat_evidence_max_per_turn", 2)
+    text = " ".join(
+        f'[CITE f.py:{i}-{i+1} "r{i}"]' for i in range(10)
+    )
+    out = chat_pipeline._decode_evidence_calls({}, text)
+    assert len(out) == 2
+
+
+def test_decode_evidence_calls_dedupes_identical_entries():
+    """Tool-call + inline marker for the same range should collapse —
+    the tool-call path is authoritative and the regex fallback only
+    runs when the tool list is empty, so identical tool-call pairs
+    (same range twice) is the only way to trip dedup. Verify."""
+    collected = {
+        0: {
+            "name": "cite_evidence",
+            "arguments": (
+                '{"filepath": "x.py", "start_line": 1, '
+                '"end_line": 2, "reason": "r"}'
+            ),
+        },
+        1: {
+            "name": "cite_evidence",
+            "arguments": (
+                '{"filepath": "x.py", "start_line": 1, '
+                '"end_line": 2, "reason": "r"}'
+            ),
+        },
+    }
+    out = chat_pipeline._decode_evidence_calls(collected, "")
+    assert len(out) == 1
+
+
+# ---------------------------------------------------------------------------
 # Integration test — stubbed LLM, real DB
 # ---------------------------------------------------------------------------
 
@@ -117,11 +245,15 @@ async def test_stream_turn_event_order_and_persistence(
 
     chunks = ["Hello ", "world", " [ref:node-1]"]
 
-    async def _fake_stream(messages: list[dict]) -> AsyncIterator[str]:
+    async def _fake_stream(messages: list[dict]) -> AsyncIterator[tuple[str, object]]:
+        # Phase 7 widened the streaming surface to (kind, payload) tuples
+        # so cite_evidence tool calls can flow alongside content. The
+        # pipeline calls _stream_dense_llm_with_tools as the inner loop;
+        # the legacy _stream_dense_llm is now a thin content-only wrapper.
         for c in chunks:
-            yield c
+            yield "content", c
 
-    monkeypatch.setattr(chat_pipeline, "_stream_dense_llm", _fake_stream)
+    monkeypatch.setattr(chat_pipeline, "_stream_dense_llm_with_tools", _fake_stream)
 
     # Also stub _hydrate_citations so we don't need real AGE nodes.
     async def _fake_hydrate(node_ids: list[str]) -> list[dict]:
@@ -292,11 +424,11 @@ async def test_stream_turn_llm_connect_error_emits_failed_no_raise(monkeypatch, 
     — preceded by CHAT_TURN_STARTED because the prompt build succeeded."""
     _patch_no_db_helpers(monkeypatch)
 
-    async def _failing_stream(messages: list[dict]) -> AsyncIterator[str]:
+    async def _failing_stream(messages: list[dict]) -> AsyncIterator[tuple[str, object]]:
         raise httpx.ConnectError("oops")
         yield  # noqa: RET505 — unreachable yield makes this an async generator
 
-    monkeypatch.setattr(chat_pipeline, "_stream_dense_llm", _failing_stream)
+    monkeypatch.setattr(chat_pipeline, "_stream_dense_llm_with_tools", _failing_stream)
 
     # stream_turn must NOT raise
     await chat_pipeline.stream_turn(

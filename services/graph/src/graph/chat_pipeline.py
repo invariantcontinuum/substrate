@@ -9,6 +9,16 @@ Phase 6 retrieval pipeline:
                       ├─► RRF fuse ─► reranker ─► top-N descriptions
     sparse (tsv)   ───┘
 
+Phase 7 additions:
+- Persists a ``chat_message_context`` row per assistant turn (system_prompt,
+  history, files, tokens_in/out, duration_ms) so the UI can show "what was
+  sent to the LLM for this turn".
+- Advertises a ``cite_evidence`` tool to the dense LLM and persists any
+  emitted tool calls into ``chat_message_evidence``. When the served
+  llama.cpp build does not honour the ``tools`` request body, the pipeline
+  falls back to parsing ``[CITE filepath:start-end "reason"]`` markers
+  out of the assistant text via regex so evidence still lands.
+
 The full-content reconstruction path that previously fed entire file
 bodies into the prompt has been removed (pre-MVP "no back-compat" rule).
 The pipeline now hands the LLM ranked file *descriptions + metadata*
@@ -19,6 +29,7 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+from time import monotonic
 from typing import Any, AsyncIterator
 from uuid import UUID, uuid4
 
@@ -45,8 +56,47 @@ CHAT_TURN_STARTED = "chat.turn.started"
 CHAT_TURN_CHUNK = "chat.turn.chunk"
 CHAT_TURN_COMPLETED = "chat.turn.completed"
 CHAT_TURN_FAILED = "chat.turn.failed"
+CHAT_EVIDENCE_COLLECTED = "chat.evidence.collected"
 
 _CITATION_MARKER_RE = re.compile(r"\[ref:([A-Za-z0-9_\-]+)\]")
+
+# Fallback regex for builds that ignore the ``tools`` request body. Matches
+# `[CITE path/to/file.py:12-20 "reason text"]` — quoted reason, optional
+# inner backslash-escapes are not supported (LLMs rarely emit them).
+_CITE_FALLBACK_RE = re.compile(
+    r'\[CITE\s+(?P<path>[^:\]]+):(?P<start>\d+)-(?P<end>\d+)\s+"(?P<reason>[^"]+)"\s*\]'
+)
+
+# ---------------------------------------------------------------------------
+# Tool spec advertised to the dense LLM. llama.cpp's OpenAI-compatible
+# /v1/chat/completions accepts the OpenAI ``tools`` array with
+# ``tool_choice = "auto"``; servers that ignore it simply stream content
+# unchanged and the regex fallback above picks up any inline markers.
+# ---------------------------------------------------------------------------
+
+_CITE_EVIDENCE_TOOL: dict[str, Any] = {
+    "type": "function",
+    "function": {
+        "name": "cite_evidence",
+        "description": (
+            "Cite a file and line range as evidence for a claim in your reply. "
+            "Use precise line numbers; call multiple times to cite multiple ranges."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "filepath": {"type": "string"},
+                "start_line": {"type": "integer", "minimum": 1},
+                "end_line": {"type": "integer", "minimum": 1},
+                "reason": {
+                    "type": "string",
+                    "description": "Why this range is evidence for the answer.",
+                },
+            },
+            "required": ["filepath", "start_line", "end_line", "reason"],
+        },
+    },
+}
 
 
 # ---------------------------------------------------------------------------
@@ -292,6 +342,10 @@ def _build_prompt(
         nodes_section = "\n".join(_node_block(n) for n in retrieved)
         header = "### Node context (from the user's active sync set):\n"
     system = settings.chat_system_instruction
+    if settings.chat_tools_enabled:
+        evidence_addendum = (settings.chat_evidence_instruction or "").strip()
+        if evidence_addendum:
+            system = f"{system}\n\n{evidence_addendum}"
     graph_section = ""
     if graph_context:
         gc_nodes = graph_context.get("nodes") or []
@@ -363,17 +417,50 @@ def _char_cost(messages: list[dict]) -> int:
 
 async def _stream_dense_llm(messages: list[dict]) -> AsyncIterator[str]:
     """Yield successive content deltas from the dense LLM's
-    OpenAI-compatible streaming endpoint. Skips non-content chunks."""
+    OpenAI-compatible streaming endpoint. Skips non-content chunks.
+
+    Kept content-only for backwards compatibility with tests/monkeypatches
+    that stub this generator with a content-string iterator. Tool-call
+    handling lives in :func:`_stream_dense_llm_with_tools` below; the
+    pipeline default uses that wider stream so cite_evidence calls land,
+    but stubbing this function still produces a working content-only run.
+    """
+    async for kind, payload in _stream_dense_llm_with_tools(messages):
+        if kind == "content":
+            yield payload  # type: ignore[misc]
+
+
+async def _stream_dense_llm_with_tools(
+    messages: list[dict],
+) -> AsyncIterator[tuple[str, Any]]:
+    """Yield ("content", str) deltas and ("tool_call", dict) chunks from
+    the dense LLM's OpenAI-compatible streaming endpoint.
+
+    Each ``tool_call`` payload has shape::
+
+        {"index": int, "name": str | None, "arguments": str | None}
+
+    The caller accumulates ``arguments`` per index and JSON-decodes after
+    streaming completes — OpenAI/llama.cpp emit the arguments string in
+    chunks. ``name`` arrives once at the start of the call.
+
+    The ``tools`` + ``tool_choice`` keys are only sent when
+    ``settings.chat_tools_enabled`` is true; this gives operators a single
+    env-flag escape hatch for llama.cpp builds that 400 on the keys.
+    """
     headers: dict[str, str] = {"Accept": "text/event-stream"}
     if settings.llm_api_key:
         headers["Authorization"] = f"Bearer {settings.llm_api_key}"
-    payload = {
+    payload: dict[str, Any] = {
         "model": settings.dense_llm_model,
         "messages": messages,
         "max_tokens": settings.chat_max_tokens,
         "temperature": settings.chat_temperature,
         "stream": True,
     }
+    if settings.chat_tools_enabled:
+        payload["tools"] = [_CITE_EVIDENCE_TOOL]
+        payload["tool_choice"] = "auto"
     async with httpx.AsyncClient(timeout=settings.chat_llm_timeout_s) as client:
         async with client.stream(
             "POST", settings.dense_llm_url, headers=headers, json=payload,
@@ -390,13 +477,18 @@ async def _stream_dense_llm(messages: list[dict]) -> AsyncIterator[str]:
                 except json.JSONDecodeError:
                     logger.warning("chat_stream_parse_failed", line=data)
                     continue
-                delta = (
-                    (chunk.get("choices") or [{}])[0]
-                    .get("delta", {})
-                    .get("content", "")
-                )
-                if delta:
-                    yield delta
+                delta = (chunk.get("choices") or [{}])[0].get("delta", {})
+                content = delta.get("content") or ""
+                if content:
+                    yield "content", content
+                tool_calls = delta.get("tool_calls") or []
+                for tc in tool_calls:
+                    fn = tc.get("function") or {}
+                    yield "tool_call", {
+                        "index": tc.get("index", 0),
+                        "name": fn.get("name"),
+                        "arguments": fn.get("arguments"),
+                    }
 
 
 # ---------------------------------------------------------------------------
@@ -432,6 +524,7 @@ async def stream_turn(
     if assistant_id is None:
         assistant_id = uuid4()
 
+    turn_start = monotonic()
     try:
         # Build the context-aware prompt. Any exception here (DB timeout,
         # embed failure, …) is caught below and published as CHAT_TURN_FAILED
@@ -470,17 +563,36 @@ async def stream_turn(
         ))
 
         buffer: list[str] = []
-        async for delta in _stream_dense_llm(messages):
-            buffer.append(delta)
-            await safe_publish(Event(
-                type=CHAT_TURN_CHUNK,
-                user_sub=user_sub,
-                payload={
-                    "thread_id": str(thread_id),
-                    "message_id": str(assistant_id),
-                    "delta": delta,
-                },
-            ))
+        # Tool-call accumulation buffer, keyed on the streaming index (a
+        # single tool call may arrive across multiple chunks; OpenAI sends
+        # `name` first, then `arguments` as one or more JSON-string deltas).
+        collected_tool_calls: dict[int, dict[str, Any]] = {}
+        async for kind, payload in _stream_dense_llm_with_tools(messages):
+            if kind == "content":
+                delta_text = payload  # type: ignore[assignment]
+                if not delta_text:
+                    continue
+                buffer.append(delta_text)
+                await safe_publish(Event(
+                    type=CHAT_TURN_CHUNK,
+                    user_sub=user_sub,
+                    payload={
+                        "thread_id": str(thread_id),
+                        "message_id": str(assistant_id),
+                        "delta": delta_text,
+                    },
+                ))
+            elif kind == "tool_call":
+                tc = payload  # type: ignore[assignment]
+                idx = int(tc.get("index", 0))
+                slot = collected_tool_calls.setdefault(
+                    idx, {"name": None, "arguments": ""}
+                )
+                if tc.get("name"):
+                    slot["name"] = tc["name"]
+                args_chunk = tc.get("arguments")
+                if args_chunk:
+                    slot["arguments"] += args_chunk
         full_content = "".join(buffer)
         node_ids = extract_citation_markers(full_content)
         citations = await _hydrate_citations(node_ids)
@@ -494,6 +606,76 @@ async def stream_turn(
             id=assistant_id,
         )
         await chat_store.touch_thread(thread_id, maybe_title=user_content.strip()[:60])
+
+        # ── Persist chat_message_context (system_prompt, history, files,
+        #    tokens_in/out, duration_ms). Treat persistence as a side
+        #    channel: a write failure here must not break the user-visible
+        #    turn (it would leave the client without a "context" panel
+        #    but the assistant content is already in chat_messages). ──
+        duration_ms = int((monotonic() - turn_start) * 1000)
+        try:
+            history_for_storage = [
+                {"role": m.get("role"), "content": m.get("content")}
+                for m in messages
+                if m.get("role") in ("user", "assistant")
+            ]
+            files_for_storage = [
+                {
+                    "file_id": f.get("file_id") or f.get("id"),
+                    "filepath": f.get("file_path"),
+                    "language": f.get("language"),
+                    "type": f.get("type"),
+                    "size_bytes": f.get("size_bytes"),
+                    # Cap descriptions so a single long block can't blow
+                    # the JSONB row size if a description ever grows wild.
+                    "description": (f.get("description") or "")[:2000],
+                }
+                for f in (chat_files or [])
+            ]
+            # Naive 4-char ≈ 1-token estimate matches the rest of the
+            # pipeline's char-budgeting heuristic; swapping in tiktoken
+            # later only affects the displayed numbers.
+            tokens_in = sum(
+                len(m.get("content", "")) for m in messages
+            ) // 4
+            tokens_out = len(full_content) // 4
+            await _persist_message_context(
+                message_id=assistant_id,
+                system_prompt=messages[0].get("content", "") if messages else "",
+                history=history_for_storage,
+                files=files_for_storage,
+                tokens_in=tokens_in,
+                tokens_out=tokens_out,
+                duration_ms=duration_ms,
+            )
+        except Exception as exc:  # noqa: BLE001 — telemetry side-channel
+            logger.warning(
+                "chat_message_context_persist_failed",
+                message_id=str(assistant_id), error=str(exc),
+            )
+
+        # ── Persist cite_evidence tool calls and any [CITE …] inline
+        #    fallback markers parsed from the final assistant text. ──
+        evidence_calls = _decode_evidence_calls(
+            collected_tool_calls, full_content,
+        )
+        if evidence_calls:
+            try:
+                await _persist_evidence(assistant_id, evidence_calls)
+            except Exception as exc:  # noqa: BLE001 — side-channel
+                logger.warning(
+                    "chat_evidence_persist_failed",
+                    message_id=str(assistant_id), error=str(exc),
+                )
+            await safe_publish(Event(
+                type=CHAT_EVIDENCE_COLLECTED,
+                user_sub=user_sub,
+                payload={
+                    "thread_id": str(thread_id),
+                    "message_id": str(assistant_id),
+                    "evidence": evidence_calls,
+                },
+            ))
 
         await safe_publish(Event(
             type=CHAT_TURN_COMPLETED,
@@ -638,3 +820,165 @@ async def _hydrate_citations(node_ids: list[str]) -> list[dict]:
 
     # Return in the LLM-supplied order; drop unresolved ids.
     return [resolved[nid] for nid in valid_ids if nid in resolved]
+
+
+# ---------------------------------------------------------------------------
+# Evidence (cite_evidence tool calls + [CITE …] regex fallback)
+# ---------------------------------------------------------------------------
+
+
+def _decode_evidence_calls(
+    collected_tool_calls: dict[int, dict[str, Any]],
+    full_content: str,
+) -> list[dict[str, Any]]:
+    """Materialise the per-turn evidence list.
+
+    Combines:
+      1. Streaming tool_call slots whose ``name == "cite_evidence"`` and
+         whose accumulated ``arguments`` JSON-decodes to an object with
+         the four required fields.
+      2. Inline ``[CITE path:start-end "reason"]`` markers parsed from the
+         final assistant text. These are the fallback for llama.cpp builds
+         that ignore the ``tools`` request body — the LLM still emits the
+         markers in its prose because the system prompt asks for them.
+
+    Output entries are deduped on (filepath, start_line, end_line, reason)
+    preserving first-seen order. Capped at
+    ``settings.chat_evidence_max_per_turn`` to bound the worst case.
+    """
+    out: list[dict[str, Any]] = []
+    seen: set[tuple[str, int, int, str]] = set()
+
+    def _push(filepath: str, start: int, end: int, reason: str) -> None:
+        key = (filepath, int(start), int(end), reason)
+        if key in seen:
+            return
+        seen.add(key)
+        out.append({
+            "filepath": filepath,
+            "start_line": int(start),
+            "end_line": int(end),
+            "reason": reason,
+        })
+
+    # 1. Tool-call slots — sorted by stream index so output is stable.
+    for idx in sorted(collected_tool_calls.keys()):
+        slot = collected_tool_calls[idx]
+        if slot.get("name") != "cite_evidence":
+            continue
+        raw = slot.get("arguments") or ""
+        try:
+            args = json.loads(raw) if raw else {}
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(args, dict):
+            continue
+        try:
+            _push(
+                str(args["filepath"]),
+                int(args["start_line"]),
+                int(args["end_line"]),
+                str(args["reason"]),
+            )
+        except (KeyError, ValueError, TypeError):
+            continue
+
+    # 2. Inline-marker fallback — only consulted if the tool path produced
+    #    nothing (some builds emit BOTH; preferring tool calls keeps the
+    #    schema-validated path authoritative).
+    if not out:
+        for m in _CITE_FALLBACK_RE.finditer(full_content):
+            try:
+                _push(
+                    m.group("path").strip(),
+                    int(m.group("start")),
+                    int(m.group("end")),
+                    m.group("reason").strip(),
+                )
+            except (ValueError, TypeError):
+                continue
+
+    cap = max(0, int(settings.chat_evidence_max_per_turn))
+    if cap and len(out) > cap:
+        out = out[:cap]
+    return out
+
+
+async def _persist_evidence(
+    message_id: UUID, evidence: list[dict[str, Any]],
+) -> None:
+    """Insert one row per evidence entry into ``chat_message_evidence``.
+
+    Bad rows (negative ranges, end < start) are dropped silently rather
+    than aborting the whole batch — an LLM emitting a single bogus call
+    must not lose every other valid call alongside it.
+    """
+    if not evidence:
+        return
+    pool = store.get_pool()
+    rows = []
+    for ev in evidence:
+        try:
+            filepath = str(ev["filepath"])
+            start = int(ev["start_line"])
+            end = int(ev["end_line"])
+            reason = str(ev["reason"])
+        except (KeyError, ValueError, TypeError):
+            continue
+        if start < 1 or end < start or not filepath:
+            continue
+        rows.append((message_id, filepath, start, end, reason))
+    if not rows:
+        return
+    async with pool.acquire() as conn:
+        await conn.executemany(
+            """
+            INSERT INTO chat_message_evidence
+                (message_id, filepath, start_line, end_line, reason)
+            VALUES ($1::uuid, $2, $3, $4, $5)
+            """,
+            rows,
+        )
+
+
+async def _persist_message_context(
+    *,
+    message_id: UUID,
+    system_prompt: str,
+    history: list[dict[str, Any]],
+    files: list[dict[str, Any]],
+    tokens_in: int,
+    tokens_out: int,
+    duration_ms: int,
+) -> None:
+    """Write/replace the ``chat_message_context`` row for an assistant turn.
+
+    Uses ``ON CONFLICT (message_id) DO UPDATE`` so a regenerate that
+    re-uses an existing assistant id replaces its context snapshot
+    rather than tripping the PK. The columns are stored as raw JSONB so
+    the GET context route can return them straight to the UI.
+    """
+    pool = store.get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO chat_message_context
+                (message_id, system_prompt, history, files,
+                 tokens_in, tokens_out, duration_ms)
+            VALUES ($1::uuid, $2, $3::jsonb, $4::jsonb, $5, $6, $7)
+            ON CONFLICT (message_id) DO UPDATE SET
+                system_prompt = EXCLUDED.system_prompt,
+                history       = EXCLUDED.history,
+                files         = EXCLUDED.files,
+                tokens_in     = EXCLUDED.tokens_in,
+                tokens_out    = EXCLUDED.tokens_out,
+                duration_ms   = EXCLUDED.duration_ms
+            """,
+            message_id,
+            system_prompt,
+            json.dumps(history),
+            json.dumps(files),
+            int(tokens_in),
+            int(tokens_out),
+            int(duration_ms),
+        )

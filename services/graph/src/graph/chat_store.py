@@ -95,6 +95,30 @@ async def list_messages(thread_id: UUID) -> list[dict]:
     return [_row_to_message(r) for r in rows]
 
 
+async def list_active_messages_before(
+    thread_id: UUID, before_created_at: Any,
+) -> list[dict]:
+    """Return non-superseded messages on this thread strictly older than
+    ``before_created_at`` — the prior_turns history fed to ``stream_turn``
+    by the edit/regenerate routes. Superseded rows are excluded so a
+    re-run never echoes the message it is replacing back at the LLM.
+    """
+    pool = store.get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT id::text AS id, role, content, citations, created_at
+            FROM chat_messages
+            WHERE thread_id = $1
+              AND superseded_by IS NULL
+              AND created_at < $2
+            ORDER BY created_at ASC
+            """,
+            thread_id, before_created_at,
+        )
+    return [_row_to_message(r) for r in rows]
+
+
 async def insert_message(
     *, thread_id: UUID, role: str, content: str,
     citations: list[dict[str, Any]], sync_ids: list[str],
