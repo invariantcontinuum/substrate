@@ -3993,3 +3993,141 @@ html {
 .message.is-assistant .message-content h2 { font-size: 1.2em; margin: 14px 0 6px; }
 .message.is-assistant .message-content h3 { font-size: 1.05em; margin: 12px 0 6px; }
 .message.is-assistant .message-content a { color: var(--accent); text-decoration: underline; }
+
+/* ---- SourceSnapshotMultiSelect ----
+ * Tree-shaped picker for selecting source/snapshot pairs. Shared between
+ * SettingsChatContextTab (multi-source chat context loader) and
+ * SettingsGraphTab (Leiden recompute / preview / drift).
+ */
+.snapshot-multiselect {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 6px;
+  background: rgba(255, 255, 255, 0.02);
+}
+.snapshot-multiselect-source { display: flex; flex-direction: column; }
+.snapshot-multiselect-source-row {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 4px; border-radius: 6px;
+}
+.snapshot-multiselect-source-row.is-expanded {
+  background: rgba(255, 255, 255, 0.03);
+}
+.snapshot-multiselect-disclosure {
+  background: none; border: none; color: var(--fg-muted, #aaa);
+  cursor: pointer; padding: 2px; display: inline-flex; align-items: center;
+}
+.snapshot-multiselect-disclosure:hover { color: var(--fg, #fff); }
+.snapshot-multiselect-checkbox {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 16px; height: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 3px; background: transparent;
+  cursor: pointer; padding: 0; flex-shrink: 0;
+  color: var(--fg, #fff);
+}
+.snapshot-multiselect-checkbox:disabled {
+  cursor: not-allowed; opacity: 0.4;
+}
+.snapshot-multiselect-checkbox-glyph {
+  font-size: 11px; line-height: 1;
+}
+.snapshot-multiselect-checkbox-all,
+.snapshot-multiselect-checkbox-checked {
+  background: var(--accent, #5ab4ff);
+  border-color: var(--accent, #5ab4ff);
+  color: #000;
+}
+.snapshot-multiselect-checkbox-partial {
+  background: color-mix(in srgb, var(--accent, #5ab4ff) 35%, transparent);
+  border-color: var(--accent, #5ab4ff);
+  color: var(--fg, #fff);
+}
+.snapshot-multiselect-source-label {
+  flex: 1; display: flex; align-items: center; gap: 8px;
+  background: none; border: none; color: inherit;
+  text-align: left; cursor: pointer; padding: 0; font: inherit;
+}
+.snapshot-multiselect-source-name { font-weight: 600; }
+.snapshot-multiselect-source-count {
+  margin-left: auto; opacity: 0.55; font-size: 11px;
+}
+.snapshot-multiselect-snapshots {
+  display: flex; flex-direction: column;
+  margin: 2px 0 4px 22px;
+  padding-left: 8px;
+  border-left: 1px solid rgba(255, 255, 255, 0.06);
+}
+.snapshot-multiselect-snapshot {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 4px; border-radius: 4px;
+}
+.snapshot-multiselect-snapshot:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+.snapshot-multiselect-snapshot.is-disabled { opacity: 0.45; }
+.snapshot-multiselect-snapshot.is-selected {
+  background: color-mix(in srgb, var(--accent, #5ab4ff) 8%, transparent);
+}
+.snapshot-multiselect-snapshot-body {
+  flex: 1; display: flex; align-items: center; gap: 12px;
+  background: none; border: none; color: inherit;
+  text-align: left; cursor: pointer; padding: 0; font: inherit;
+}
+.snapshot-multiselect-snapshot-body:disabled { cursor: not-allowed; }
+.snapshot-multiselect-snapshot-time {
+  min-width: 80px; opacity: 0.85;
+}
+.snapshot-multiselect-snapshot-time-abs { opacity: 0.55; font-size: 11px; }
+.snapshot-multiselect-snapshot-ref {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  opacity: 0.85; font-size: 11px;
+}
+.snapshot-multiselect-snapshot-status {
+  margin-left: auto; padding: 1px 6px; border-radius: 3px;
+  font-size: 10px; letter-spacing: 0.04em; text-transform: uppercase;
+}
+.snapshot-multiselect-status-completed {
+  background: color-mix(in srgb, var(--success, #5cffa1) 18%, transparent);
+  color: var(--success, #a0f0c0);
+}
+.snapshot-multiselect-status-running {
+  background: color-mix(in srgb, var(--info, #5ab4ff) 18%, transparent);
+  color: var(--info, #a8d8ff);
+}
+.snapshot-multiselect-status-failed {
+  background: color-mix(in srgb, var(--danger, #ff6464) 18%, transparent);
+  color: var(--danger, #ffaaaa);
+}
+.snapshot-multiselect-status-cancelled,
+.snapshot-multiselect-status-cleaned,
+.snapshot-multiselect-status-pending {
+  background: rgba(180, 180, 180, 0.12); color: #ccc;
+}
+.snapshot-multiselect-empty {
+  padding: 8px 4px; opacity: 0.6;
+}
+.snapshot-multiselect-load-more {
+  background: none; border: none; color: var(--accent, #5ab4ff);
+  padding: 6px 4px; cursor: pointer; font-size: 11px;
+  text-align: left; display: inline-flex; align-items: center; gap: 4px;
+}
+.snapshot-multiselect-load-more:hover { text-decoration: underline; }
+.snapshot-multiselect-load-more:disabled { opacity: 0.5; cursor: default; }
+.snapshot-multiselect-spinner { animation: spin 1s linear infinite; }
+.snapshot-multiselect-skeleton {
+  display: flex; flex-direction: column; gap: 4px; padding: 8px 4px;
+}
+.snapshot-multiselect-skeleton-row {
+  height: 16px; background: rgba(255, 255, 255, 0.04);
+  border-radius: 4px; animation: pulse 1.6s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.95; }
+}
+
