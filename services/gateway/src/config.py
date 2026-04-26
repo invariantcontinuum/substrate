@@ -24,6 +24,16 @@ class _GatewaySettings(LayeredSettings):
     # (e.g. ``https://account.example.com/realms/substrate/account/``).
     keycloak_account_console_url: str = ""
     kc_gateway_client_secret: str = ""
+    # Service-account wiring used by the account API for admin-level
+    # operations (PATCH /api/users/me, 2FA credential write/delete).
+    # Empty client_secret => any endpoint that needs admin access
+    # returns 501 so a misconfigured deploy fails loudly.
+    keycloak_admin_url: str = "http://keycloak:8080/admin/realms/substrate"
+    keycloak_token_url: str = (
+        "http://keycloak:8080/realms/substrate/protocol/openid-connect/token"
+    )
+    keycloak_admin_client_id: str = "substrate-admin"
+    keycloak_admin_client_secret: str = ""
     graph_service_url: str = "http://graph:8082"
     ingestion_service_url: str = "http://ingestion:8081"
     database_url: str = "postgresql+asyncpg://substrate_graph:change-me@postgres:5432/substrate_graph"
@@ -44,6 +54,11 @@ class _GatewaySettings(LayeredSettings):
     # in the UI list. Balances enough disambiguation with not leaking too
     # much of the secret.
     api_token_display_prefix_len: int = 8
+
+    # ── 2FA TOTP ─────────────────────────────────────────────────────
+    # Issuer label embedded in the otpauth:// URL — what the authenticator
+    # app shows next to the account name. Keep short.
+    totp_issuer: str = "Substrate"
 
     auth_disabled: bool = False
     cors_origins: list[str] = []

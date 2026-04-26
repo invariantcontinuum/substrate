@@ -4,8 +4,6 @@ from fastapi import APIRouter, Depends, Header
 from pydantic import BaseModel, Field
 from ua_parser import user_agent_parser
 
-from substrate_common import ValidationError
-
 from src.api.auth import require_user_sub
 from src.graph import store
 
@@ -53,12 +51,6 @@ def _role_from_header(x_user_roles: str | None) -> str:
     if "engineer" in roles:
         return "engineer"
     return "viewer"
-
-
-class UserMePatch(BaseModel):
-    display_name: str | None = Field(default=None, max_length=120)
-    preferred_username: str | None = Field(default=None, max_length=120)
-    email: str | None = Field(default=None, max_length=254)
 
 
 class DeviceUpsert(BaseModel):
@@ -156,40 +148,6 @@ async def get_me(
                 user_sub,
             )
     return {"profile": dict(profile), "devices": [_device_row(d) for d in devices]}
-
-
-@router.patch("/me")
-async def patch_me(
-    patch: UserMePatch,
-    user_sub: str = Depends(require_user_sub),
-):
-    if (
-        patch.display_name is None
-        and patch.preferred_username is None
-        and patch.email is None
-    ):
-        raise ValidationError("no fields to update")
-    pool = store.get_pool()
-    async with pool.acquire() as conn:
-        row = await conn.fetchrow(
-            """
-            UPDATE user_profiles
-            SET display_name = COALESCE($2, display_name),
-                preferred_username = COALESCE($3, preferred_username),
-                email = COALESCE($4, email),
-                updated_at = now()
-            WHERE user_sub = $1
-            RETURNING user_sub, preferred_username, email, display_name, role,
-                      created_at::text, updated_at::text, last_seen_at::text
-            """,
-            user_sub,
-            patch.display_name,
-            patch.preferred_username,
-            patch.email,
-        )
-    if row is None:
-        raise ValidationError("user profile missing; call GET /api/users/me first")
-    return dict(row)
 
 
 @router.put("/me/devices/{device_id}")
