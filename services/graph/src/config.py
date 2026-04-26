@@ -186,6 +186,38 @@ class _GraphSettings(LayeredSettings):
         "support the answer, say so plainly."
     )
 
+    # Appended to the chat system prompt when the cite_evidence tool is
+    # advertised. The LLM is asked to call cite_evidence whenever it
+    # quotes or paraphrases a specific code range so the UI can show a
+    # collapsible "Evidence" affordance under each turn.
+    # Shell-quote in .env examples — scripts/configure.sh sources them.
+    chat_evidence_instruction: str = (
+        "When you reference specific code or content from a file, also call "
+        "the cite_evidence function with the precise line range that "
+        "supports your claim. Call it once per distinct evidence range. "
+        "If you cannot identify a precise range, omit the call rather than "
+        "fabricating one."
+    )
+
+    # Toggle for advertising the cite_evidence tool to the dense LLM. Some
+    # llama.cpp builds reject unknown request keys; flip this off to fall
+    # back to the [CITE …] inline-marker regex without touching code.
+    chat_tools_enabled: bool = True
+
+    # Hard cap on inline [CITE …] markers parsed from the assistant text
+    # when the LLM ignores the tools request body. Caps the worst-case
+    # write storm if a hallucinating model emits hundreds of markers.
+    chat_evidence_max_per_turn: int = 25
+
+    # Bound on the regenerate background polling loop that links a
+    # superseded assistant row to its replacement once stream_turn has
+    # inserted the new chat_messages row. Must be ≥ chat_llm_timeout_s
+    # so a slow-but-successful stream still gets linked; the headroom
+    # above the LLM read budget absorbs gateway round-trips. Trade-off:
+    # higher = correct linking even on the slowest streams; lower = a
+    # task hung by a stuck pool releases its memory faster.
+    chat_regenerate_link_timeout_s: float = 130.0
+
     @property
     def summary_retry_scales_tuple(self) -> tuple[float, ...]:
         """Parse the comma-separated env value into a tuple of floats."""

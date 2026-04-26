@@ -82,11 +82,14 @@ async def proxy_request(
 
     # Summary endpoints and Chat turn endpoints both call the local dense
     # LLM, which routinely takes 30-90s; grant them a 115s read timeout
-    # instead of the default 60s.
+    # instead of the default 60s. Edit/regenerate land on the same
+    # streaming pipeline so they need the same headroom.
     path = request.url.path
     is_long_llm_call = (
         path.endswith("/summary")
         or (path.startswith("/api/chat/threads/") and path.endswith("/messages"))
+        or path == "/api/chat/messages/edit"
+        or path == "/api/chat/messages/regenerate"
     )
     per_request_timeout = (
         httpx.Timeout(connect=5.0, read=115.0, write=10.0, pool=10.0)
