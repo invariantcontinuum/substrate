@@ -19,6 +19,7 @@ from src.api.communities import router as communities_router
 from src.api.deletion import router as deletion_router
 from src.api.export import router as export_router
 from src.api.files import router as files_router
+from src.api.graph_search import router as graph_search_router
 from src.api.integrations import router as integrations_router
 from src.api.internal_config import router as internal_config_router
 from src.api.preferences import router as preferences_router
@@ -84,6 +85,7 @@ app.include_router(integrations_router)
 app.include_router(usage_router)
 app.include_router(deletion_router)
 app.include_router(files_router)
+app.include_router(graph_search_router)
 app.include_router(chat_context_router)
 app.include_router(export_router)
 app.include_router(internal_config_router)

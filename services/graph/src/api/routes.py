@@ -9,7 +9,7 @@ from src.config import settings
 from src.graph import store
 from src.graph.file_reconstruct import reconstruct_chunks
 from src.graph.snapshot_query import GraphQueryTimeout, get_merged_graph, get_node_detail
-from src.graph.store import ensure_node_summary, get_stats, search
+from src.graph.store import ensure_node_summary, get_stats
 
 logger = structlog.get_logger()
 router = APIRouter(prefix="/api/graph")
@@ -223,19 +223,3 @@ async def get_node(
 @router.get("/stats")
 async def graph_stats(user_sub: str = Depends(require_user_sub)):
     return await get_stats(user_sub=user_sub)
-
-
-@router.get("/search")
-async def search_graph(
-    q: str = "",
-    type: str = "",
-    limit: int = 10,
-    user_sub: str = Depends(require_user_sub),
-):
-    if not q:
-        return {"results": []}
-    try:
-        embedding = await _embed_query(q)
-    except httpx.ConnectError:
-        return {"results": []}
-    return {"results": await search(embedding, limit=limit, type_filter=type, user_sub=user_sub)}
