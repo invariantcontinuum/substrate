@@ -37,3 +37,10 @@ def test_runtime_overlay_partial(monkeypatch):
     s = _DemoSettings(_runtime_overlay=overlay)
     assert s.chat_top_k == 15
     assert s.summary_total_budget_chars == 80000
+
+
+def test_runtime_overlay_beats_kwargs():
+    """Overlay is highest precedence, above explicit kwargs (CLI args land as kwargs)."""
+    overlay = {"chat_top_k": 99}
+    s = _DemoSettings(chat_top_k=11, _runtime_overlay=overlay)
+    assert s.chat_top_k == 99

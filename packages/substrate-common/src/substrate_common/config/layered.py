@@ -28,5 +28,5 @@ class LayeredSettings(BaseSettings):
     def __init__(self, *, _runtime_overlay: dict[str, Any] | None = None, **kwargs: Any) -> None:
         if _runtime_overlay:
             for key, value in _runtime_overlay.items():
-                kwargs.setdefault(key, value)
+                kwargs[key] = value
         super().__init__(**kwargs)
