@@ -20,8 +20,9 @@ COPY services/ingestion/pyproject.toml /workspace/services/ingestion/pyproject.t
 WORKDIR /workspace/services/ingestion
 RUN uv sync --frozen --no-dev
 
-# Service source + entrypoint
+# Service source + canonical default config + entrypoint
 COPY services/ingestion/src /workspace/services/ingestion/src
+COPY services/ingestion/config.yaml /workspace/services/ingestion/config.yaml
 COPY services/ingestion/entrypoint.sh /workspace/services/ingestion/entrypoint.sh
 RUN chmod +x entrypoint.sh
 

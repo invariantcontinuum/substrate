@@ -66,6 +66,26 @@ async def upsert_runtime_section(
                 )
 
 
+async def reset_runtime_section(*, section: str) -> int:
+    """Clear every runtime override for ``section``.
+
+    Returns the number of rows removed. After this call the effective
+    settings revert to yaml < env < pydantic-defaults; the next
+    ``GET /api/config/{section}`` call reads the new merged shape.
+    Callers MUST emit a ``config.updated`` event afterward so the
+    owning service refreshes its overlay.
+    """
+    pool = _pool()
+    async with pool.acquire() as conn:
+        result = await conn.execute(
+            "DELETE FROM runtime_config WHERE scope = $1",
+            section,
+        )
+    # asyncpg returns the command tag, e.g. "DELETE 7".
+    parts = result.split()
+    return int(parts[-1]) if parts and parts[-1].isdigit() else 0
+
+
 def _internal_base_url(owner: str) -> str:
     """Resolve ``owner`` (compose hostname) to the in-cluster base URL.
 

@@ -24,7 +24,11 @@ from substrate_common import Event, UnauthorizedError, safe_publish
 
 from src.config import settings
 from src.config_registry import lookup_section
-from src.config_runtime import fetch_effective_section, upsert_runtime_section
+from src.config_runtime import (
+    fetch_effective_section,
+    reset_runtime_section,
+    upsert_runtime_section,
+)
 
 log = structlog.get_logger()
 
@@ -129,3 +133,52 @@ async def put_section(
         updated_by=sub,
     )
     return {"applied": payload, "scope": owner}
+
+
+@router.delete("/{section}")
+async def reset_section(
+    section: str,
+    user: dict[str, Any] = Depends(current_user),
+    confirm_risk: str | None = Header(default=None, alias="X-Substrate-Confirm-Risk"),
+) -> dict[str, Any]:
+    """Clear all runtime overrides for ``section`` so the effective config
+    falls back to ``services/<svc>/config.yaml`` defaults (then env, then
+    Pydantic class defaults). Same risk gate as PUT for the postgres
+    section because resetting it can change the active database URL.
+    """
+    try:
+        owner, _schema = lookup_section(section)
+    except KeyError as exc:
+        raise HTTPException(
+            status_code=404, detail=f"unknown section {section!r}"
+        ) from exc
+
+    if section == "postgres" and confirm_risk != "postgres":
+        raise HTTPException(
+            status_code=status.HTTP_428_PRECONDITION_REQUIRED,
+            detail="postgres section reset requires X-Substrate-Confirm-Risk: postgres header",
+        )
+
+    sub = _user_sub(user)
+    rows_cleared = await reset_runtime_section(section=section)
+    await safe_publish(
+        Event(
+            type="config.updated",
+            user_sub=sub,
+            payload={
+                "scope": owner,
+                "section": section,
+                "reset": True,
+                "rows_cleared": rows_cleared,
+                "updated_by": sub,
+            },
+        )
+    )
+    log.info(
+        "config_section_reset",
+        section=section,
+        owner=owner,
+        rows_cleared=rows_cleared,
+        updated_by=sub,
+    )
+    return {"section": section, "scope": owner, "rows_cleared": rows_cleared}

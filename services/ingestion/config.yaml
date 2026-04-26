@@ -1,0 +1,72 @@
+# Ingestion service — canonical default configuration.
+#
+# Layered precedence (highest first):
+#   1. runtime overlay (Postgres runtime_config table — set via Settings UI)
+#   2. CLI args
+#   3. Process env (.env.local, .env.prod, INGESTION_* env vars)
+#   4. This file (services/ingestion/config.yaml)
+#   5. Pydantic field defaults
+#
+# All keys mirror _IngestionSettings in services/ingestion/src/config.py.
+# Container WORKDIR is /workspace/services/ingestion → YamlSource finds
+# "config.yaml" automatically at startup.
+
+# ── Service ──────────────────────────────────────────────────────────
+database_url: "postgresql+asyncpg://substrate_graph:change-me@postgres:5432/substrate_graph"
+app_port: 8081
+service_name: "ingestion"
+github_token: ""
+
+# ── Embedding endpoint (host LLM stack) ──────────────────────────────
+embedding_url: "http://host.docker.internal:8101/v1/embeddings"
+embedding_model: "embeddings"
+# Must match the served model's vector dimension.
+embedding_dim: 768
+llm_api_key: "test"
+embedding_document_prefix: "search_document: "
+# Hard cap on per-input payload sent to the embedding server.
+embedding_max_input_chars: 1400
+embed_batch_size: 32
+embedding_http_timeout_connect_s: 5.0
+embedding_http_timeout_read_s: 120.0
+embedding_http_timeout_write_s: 10.0
+embedding_http_timeout_pool_s: 10.0
+
+# ── Chunker ──────────────────────────────────────────────────────────
+chunk_size: 512
+chunk_overlap: 64
+file_summary_preview_lines: 100
+
+# ── AGE batching ─────────────────────────────────────────────────────
+age_batch_size: 500
+
+# ── Runner / scheduler loops ─────────────────────────────────────────
+runner_poll_interval_s: 2.0
+runner_claim_batch_size: 5
+runner_shutdown_timeout_s: 30.0
+sync_cancellation_poll_every_n: 50
+scheduler_poll_interval_s: 30
+
+# ── GitHub API client ────────────────────────────────────────────────
+github_api_max_connections: 30
+github_api_max_keepalive_connections: 20
+github_api_timeout_connect_s: 5.0
+github_api_timeout_read_s: 30.0
+github_api_timeout_write_s: 10.0
+github_api_timeout_pool_s: 10.0
+
+# ── Retention ────────────────────────────────────────────────────────
+retention_enabled: true
+retention_age_days: 30
+retention_per_source_cap: 10
+retention_tick_interval_s: 3600
+
+# ── Per-sync Leiden ──────────────────────────────────────────────────
+per_sync_leiden_enabled: true
+per_sync_leiden_resolution: 1.0
+per_sync_leiden_beta: 0.01
+per_sync_leiden_iterations: 10
+per_sync_leiden_min_cluster_size: 4
+per_sync_leiden_seed: 42
+per_sync_leiden_timeout_s: 30
+finalize_stats_timeout_s: 15

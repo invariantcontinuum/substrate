@@ -124,6 +124,49 @@ export function useApplyConfig(
   });
 }
 
+export interface ResetConfigResponse {
+  section: string;
+  scope: string;
+  rows_cleared: number;
+}
+
+/**
+ * Reset every runtime override for `section` so the effective config
+ * falls back to the service's `config.yaml` (then env, then Pydantic
+ * defaults). The same risk-header surface as `useApplyConfig` —
+ * caller passes `{ headers }` only when the gateway requires the
+ * `X-Substrate-Confirm-Risk` header (postgres section).
+ */
+export function useResetConfig(
+  section: string,
+): UseMutationResult<
+  ResetConfigResponse,
+  Error,
+  void | { headers?: Record<string, string> }
+> {
+  const token = useAuthToken();
+  const qc = useQueryClient();
+  return useMutation<
+    ResetConfigResponse,
+    Error,
+    void | { headers?: Record<string, string> }
+  >({
+    mutationFn: async (vars) => {
+      const extraHeaders =
+        typeof vars === "object" && vars !== null && "headers" in vars
+          ? ((vars as { headers?: Record<string, string> }).headers ?? {})
+          : {};
+      return apiFetch<ResetConfigResponse>(`/api/config/${section}`, token, {
+        method: "DELETE",
+        headers: extraHeaders as HeadersInit,
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["config", section] });
+    },
+  });
+}
+
 /**
  * Subscribe to SSE `config.updated` events and invalidate the matching
  * `["config", section]` cache. Mount once at the app shell — the tabs

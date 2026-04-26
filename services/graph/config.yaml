@@ -1,0 +1,107 @@
+# Graph service — canonical default configuration.
+#
+# Layered precedence (highest first):
+#   1. runtime overlay (Postgres runtime_config table — set via Settings UI)
+#   2. CLI args
+#   3. Process env (.env.local, .env.prod, GRAPH_* env vars)
+#   4. This file (services/graph/config.yaml)
+#   5. Pydantic field defaults
+#
+# All keys mirror _GraphSettings in services/graph/src/config.py.
+# Container WORKDIR is /workspace/services/graph → YamlSource finds
+# "config.yaml" automatically at startup.
+
+# ── Service ──────────────────────────────────────────────────────────
+database_url: "postgresql+asyncpg://substrate_graph:change-me@postgres:5432/substrate_graph"
+app_port: 8082
+service_name: "graph"
+
+# ── Embedding endpoint (host LLM stack) ──────────────────────────────
+embedding_url: "http://host.docker.internal:8101/v1/embeddings"
+embedding_model: "embeddings"
+embedding_dim: 768
+embedding_query_prefix: "search_query: "
+embedding_max_input_chars: 1400
+
+# ── Dense LLM (chat + summary generation) ────────────────────────────
+dense_llm_url: "http://host.docker.internal:8102/v1/chat/completions"
+dense_llm_model: "dense"
+llm_api_key: "test"
+
+# ── Sparse LLM (BM25-like keyword retrieval helper) ──────────────────
+sparse_llm_url: "http://host.docker.internal:8103/v1/chat/completions"
+sparse_llm_model: "sparse"
+sparse_llm_context_size: 16384
+sparse_llm_timeout_s: 20.0
+sparse_keyword_top_k: 20
+
+# ── Reranker (cross-encoder reranking) ───────────────────────────────
+reranker_url: "http://host.docker.internal:8104/reranking"
+reranker_model: "reranker"
+reranker_top_n: 5
+reranker_timeout_s: 30.0
+reranker_rrf_k: 60
+
+# ── Retrieval pipeline ───────────────────────────────────────────────
+retrieval_dense_top_k: 20
+retrieval_use_sparse: true
+retrieval_use_reranker: true
+
+# ── Summary generation ───────────────────────────────────────────────
+summary_max_tokens: 400
+summary_total_budget_chars: 100000
+summary_edge_neighbors: 10
+summary_neighbor_chars: 1200
+summary_file_budget_ratio: 0.88
+summary_neighbor_budget_ratio: 0.10
+summary_context_retry_scales: "1.0,0.5,0.25"
+summary_instruction: "You are summarizing a source-code node in a project graph. Write 2-3 precise sentences: what this file does and how it connects to its neighbors. No speculation beyond the excerpts."
+
+# ── File reconstruction ──────────────────────────────────────────────
+file_reconstruct_max_bytes: 5242880
+
+# ── AGE reads ────────────────────────────────────────────────────────
+graph_query_timeout_s: 60
+
+# ── SSE event retention ──────────────────────────────────────────────
+sse_retention_enabled: true
+sse_retention_hours: 24
+sse_retention_tick_s: 3600
+sse_retention_batch_size: 5000
+
+# ── Chat (RAG) ───────────────────────────────────────────────────────
+chat_top_k: 10
+chat_history_turns: 6
+chat_total_budget_chars: 40000
+chat_max_tokens: 800
+chat_context_retry_scales: "1.0,0.5,0.25"
+chat_temperature: 0.2
+chat_llm_timeout_s: 110.0
+chat_context_token_budget: 24000
+export_max_files: 10000
+chat_system_instruction: "You are a code-aware assistant grounded in a knowledge graph of source files. Answer the user's question using markdown. Cite source nodes inline with [ref:UUID] markers, where UUID is exactly one of the candidate node IDs supplied in the user message context. Do not output JSON. Do not invent UUIDs. If the context doesn't support the answer, say so plainly."
+chat_evidence_instruction: "When you reference specific code or content from a file, also call the cite_evidence function with the precise line range that supports your claim. Call it once per distinct evidence range. If you cannot identify a precise range, omit the call rather than fabricating one."
+chat_tools_enabled: true
+chat_evidence_max_per_turn: 25
+chat_regenerate_link_timeout_s: 130.0
+
+# ── Active-set Leiden ────────────────────────────────────────────────
+active_set_leiden_enabled: true
+active_set_leiden_timeout_s: 15
+active_set_leiden_labeling_enabled: true
+active_set_leiden_label_model: "dense"
+
+# ── Leiden cache lifecycle ───────────────────────────────────────────
+leiden_cache_ttl_hours: 24
+leiden_cache_sweep_interval_s: 900
+leiden_cache_max_rows_per_user: 20
+leiden_community_sample_size: 20
+
+# ── Keycloak admin ───────────────────────────────────────────────────
+keycloak_admin_url: "http://keycloak:8080/admin/realms/substrate"
+keycloak_token_url: "http://keycloak:8080/realms/substrate/protocol/openid-connect/token"
+keycloak_admin_client_id: "substrate-admin"
+keycloak_admin_client_secret: ""
+
+# ── GitHub integration validation ────────────────────────────────────
+github_validate_timeout_s: 10

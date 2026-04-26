@@ -15,8 +15,9 @@ COPY services/gateway/pyproject.toml /workspace/services/gateway/pyproject.toml
 WORKDIR /workspace/services/gateway
 RUN uv sync --frozen --no-dev
 
-# Service source
+# Service source + canonical default config
 COPY services/gateway/src /workspace/services/gateway/src
+COPY services/gateway/config.yaml /workspace/services/gateway/config.yaml
 
 EXPOSE 8080
 

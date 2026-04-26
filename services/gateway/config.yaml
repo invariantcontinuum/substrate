@@ -1,0 +1,47 @@
+# Gateway service — canonical default configuration.
+#
+# Layered precedence (highest first):
+#   1. runtime overlay (Postgres runtime_config table — set via Settings UI)
+#   2. CLI args
+#   3. Process env (.env.local, .env.prod, GATEWAY_* env vars at process level)
+#   4. This file (services/gateway/config.yaml)
+#   5. Pydantic field defaults
+#
+# All keys here mirror fields on _GatewaySettings in services/gateway/src/config.py.
+# The container's WORKDIR is /workspace/services/gateway, so the YamlSource
+# resolves "config.yaml" → this file at startup.
+#
+# Override examples:
+#   - .env: KEYCLOAK_URL=http://keycloak.internal:8080
+#   - CLI:  --override keycloak_url=http://keycloak.internal:8080
+#   - UI:   Settings → Authentication (writes to runtime_config; takes effect
+#           on next config.updated SSE event without container restart)
+
+# ── Keycloak ─────────────────────────────────────────────────────────
+keycloak_url: "http://keycloak:8080"
+keycloak_realm: "substrate"
+# Browser-facing issuer; must match KC_HOSTNAME on the Keycloak side.
+# Empty falls back to keycloak_url via the issuer property.
+keycloak_issuer: ""
+keycloak_public_client_id: "substrate-frontend"
+# Optional override for the account console URL. Empty derives one from
+# keycloak_url + keycloak_realm.
+keycloak_account_console_url: ""
+kc_gateway_client_secret: ""
+
+# ── Internal service routing ─────────────────────────────────────────
+graph_service_url: "http://graph:8082"
+ingestion_service_url: "http://ingestion:8081"
+
+# ── Database ─────────────────────────────────────────────────────────
+database_url: "postgresql+asyncpg://substrate_graph:change-me@postgres:5432/substrate_graph"
+
+# ── SSE pool sizing ──────────────────────────────────────────────────
+# Gateway holds one LISTEN connection per active SSE client.
+sse_pool_min_size: 1
+sse_pool_max_size: 64
+
+# ── Misc ─────────────────────────────────────────────────────────────
+auth_disabled: false
+cors_origins: []
+service_name: "gateway"

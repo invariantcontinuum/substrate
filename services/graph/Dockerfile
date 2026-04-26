@@ -27,6 +27,7 @@ RUN uv sync --frozen --no-dev
 
 COPY services/graph/migrations /workspace/services/graph/migrations
 COPY services/graph/src /workspace/services/graph/src
+COPY services/graph/config.yaml /workspace/services/graph/config.yaml
 COPY services/graph/entrypoint.sh /workspace/services/graph/entrypoint.sh
 RUN chmod +x entrypoint.sh
 
