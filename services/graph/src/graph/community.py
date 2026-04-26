@@ -603,16 +603,40 @@ async def _label_communities(
             by_idx.get(idx, []), key=lambda n: -degree.get(n, 0),
         )[:10]
         if not nodes:
+            logger.info(
+                "community_label_no_nodes",
+                idx=idx,
+                reason="empty_or_orphan_community",
+            )
             return idx, f"Community {idx}"
         try:
             label = await _label_community(nodes)
         except Exception as exc:  # noqa: BLE001 — LLM failure is non-fatal
-            logger.warning(
-                "community_label_failed", idx=idx, error=str(exc),
+            # Logged at ERROR with exc_info so a misconfigured dense LLM URL,
+            # auth failure, model-name mismatch, or transport timeout shows
+            # the full traceback in container logs. Previously WARNING-only
+            # which made silent fallback to "Community N" hard to diagnose.
+            logger.error(
+                "community_label_failed",
+                idx=idx,
+                error=str(exc),
+                error_type=type(exc).__name__,
+                dense_llm_url=settings.dense_llm_url,
+                label_model=settings.active_set_leiden_label_model,
+                exc_info=True,
             )
             return idx, f"Community {idx}"
         cleaned = (label or "").strip().strip('"\'').strip()
-        return idx, (cleaned[:40] or f"Community {idx}")
+        if not cleaned:
+            logger.warning(
+                "community_label_empty",
+                idx=idx,
+                raw_label=repr(label),
+                dense_llm_url=settings.dense_llm_url,
+                label_model=settings.active_set_leiden_label_model,
+            )
+            return idx, f"Community {idx}"
+        return idx, cleaned[:40]
 
     results = await asyncio.gather(*(label_one(i) for i in range(len(sizes))))
     return dict(results)
@@ -660,7 +684,21 @@ async def _label_community(node_ids: list[str]) -> str:
                 "temperature": 0.2,
             },
         )
-        resp.raise_for_status()
+        if resp.status_code >= 400:
+            # Surface the body in the log so a deployer can see exactly
+            # what llama.cpp / the upstream LLM rejected (model-name
+            # mismatch, context overflow, malformed JSON, …). The body
+            # is bounded by max_tokens=16 on success so it stays short
+            # on error paths too.
+            body = resp.text[:1000]
+            logger.warning(
+                "community_label_http_error",
+                status_code=resp.status_code,
+                body=body,
+                dense_llm_url=settings.dense_llm_url,
+                label_model=settings.active_set_leiden_label_model,
+            )
+            resp.raise_for_status()
         payload = resp.json()
     text = payload["choices"][0]["message"]["content"]
     return (text or "").strip().strip('"\'').strip() or "Community"
