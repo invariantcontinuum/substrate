@@ -96,6 +96,7 @@ nav:
     - system-design/graph-edge-symbols.md
   - Deployment & Ops:
     - deployment: architecture/deployment.md
+    - Operations: developer-guide/operations.md
     - Troubleshooting: developer-guide/troubleshooting.md
     - Local LLM Setup: developer-guide/llm-setup.md
 

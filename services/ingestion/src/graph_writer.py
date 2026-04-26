@@ -74,8 +74,17 @@ async def insert_file(
     exports: list[str] | None = None,
     last_commit_sha: str | None = None,
     last_commit_at: str | None = None,
+    description: str = "",
 ) -> str:
-    """Insert one file row tagged with sync_id; immutable per-snapshot."""
+    """Insert one file row tagged with sync_id; immutable per-snapshot.
+
+    ``description`` is the ingestion-side preview text used by sparse
+    retrieval (description_tsv) and chat-store reads. The richer
+    on-demand LLM summary is written separately by the graph service
+    via enriched_summary; that path stamps description_generated_at
+    while the preview leaves it NULL so a cache-hit check never
+    short-circuits the upgrade.
+    """
     if not _pool:
         raise RuntimeError("graph_writer not connected")
     async with _pool.acquire() as conn:
@@ -86,14 +95,14 @@ async def insert_file(
                 INSERT INTO file_embeddings
                     (sync_id, source_id, file_path, name, type, domain, language,
                      size_bytes, line_count, imports_count, embedding, content_hash,
-                     exports, last_commit_sha, last_commit_at)
+                     exports, last_commit_sha, last_commit_at, description)
                 VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11::vector,
-                        $12, $13, $14, $15::timestamptz)
+                        $12, $13, $14, $15::timestamptz, $16)
                 RETURNING id::text
                 """,
                 sync_id, source_id, file_path, name, file_type, domain, language,
                 size_bytes, line_count, imports_count, str(embedding), content_hash,
-                exports or [], last_commit_sha, last_commit_at,
+                exports or [], last_commit_sha, last_commit_at, description,
             )
         else:
             row = await conn.fetchrow(
@@ -101,14 +110,14 @@ async def insert_file(
                 INSERT INTO file_embeddings
                     (sync_id, source_id, file_path, name, type, domain, language,
                      size_bytes, line_count, imports_count, content_hash,
-                     exports, last_commit_sha, last_commit_at)
+                     exports, last_commit_sha, last_commit_at, description)
                 VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11,
-                        $12, $13, $14::timestamptz)
+                        $12, $13, $14::timestamptz, $15)
                 RETURNING id::text
                 """,
                 sync_id, source_id, file_path, name, file_type, domain, language,
                 size_bytes, line_count, imports_count, content_hash,
-                exports or [], last_commit_sha, last_commit_at,
+                exports or [], last_commit_sha, last_commit_at, description,
             )
         return row["id"]
 
@@ -133,8 +142,22 @@ async def update_source_meta(source_id: str, meta: dict, default_branch: str | N
         )
 
 
-async def update_file_embedding(file_id: str, embedding: list[float], sync_id: str = "") -> None:
-    """Fill in the summary embedding on an already-written file row."""
+async def update_file_embedding(
+    file_id: str,
+    embedding: list[float],
+    sync_id: str = "",
+    description: str | None = None,
+) -> None:
+    """Fill in the summary embedding (and optionally description text) on an
+    already-written file row.
+
+    When ``description`` is provided, the preview text is persisted alongside
+    the vector so sparse retrieval (description_tsv) and chat-store reads
+    have non-empty content. ``description_generated_at`` is intentionally
+    left NULL — the on-demand enriched-summary pipeline owns that flag
+    and uses its NULL state to know it still needs to upgrade the row
+    with a richer LLM-generated summary.
+    """
     if not _pool:
         raise RuntimeError("graph_writer not connected")
     assert_embedding_dim(
@@ -143,10 +166,17 @@ async def update_file_embedding(file_id: str, embedding: list[float], sync_id: s
         expected=settings.embedding_dim,
     )
     async with _pool.acquire() as conn:
-        await conn.execute(
-            "UPDATE file_embeddings SET embedding = $2::vector WHERE id = $1::uuid",
-            file_id, str(embedding),
-        )
+        if description is not None:
+            await conn.execute(
+                "UPDATE file_embeddings SET embedding = $2::vector, description = $3 "
+                "WHERE id = $1::uuid",
+                file_id, str(embedding), description,
+            )
+        else:
+            await conn.execute(
+                "UPDATE file_embeddings SET embedding = $2::vector WHERE id = $1::uuid",
+                file_id, str(embedding),
+            )
 
 
 async def update_chunk_embedding(file_id: str, chunk_index: int, embedding: list[float], sync_id: str = "") -> None:

@@ -299,6 +299,7 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
                 exports=exports_by_file.get(node.id),
                 last_commit_sha=tree.ref or None,
                 last_commit_at=last_commit_at,
+                description=fi["summary"],
             )
             file_id_map[node.id] = file_db_id
 
