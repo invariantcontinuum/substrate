@@ -9,12 +9,17 @@ export type ModalName =
   | "query"
   | "nodeDetail"
   | "settings"
+  | "search"
   | null;
 
 interface UIState {
   sidebarOpen: boolean;
   activeModal: ModalName;
   openModal: (modal: ModalName) => void;
+  /** Convenience action — same as ``openModal("search")``. Provided so
+   *  global keyboard hotkey handlers (Ctrl+K / Cmd+K) and the topbar
+   *  search button stay decoupled from the ModalName string literal. */
+  openSearch: () => void;
   closeModal: () => void;
   toggleSidebar: () => void;
   setSidebarOpen: (open: boolean) => void;
@@ -30,6 +35,7 @@ export const useUIStore = create<UIState>((set) => ({
   sidebarOpen: typeof window !== "undefined" ? window.matchMedia("(min-width: 1024px)").matches : true,
   activeModal: null,
   openModal: (activeModal) => set({ activeModal }),
+  openSearch: () => set({ activeModal: "search" }),
   closeModal: () => set({ activeModal: null }),
   toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
   setSidebarOpen: (sidebarOpen) => set({ sidebarOpen }),

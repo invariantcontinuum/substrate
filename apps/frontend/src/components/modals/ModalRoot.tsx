@@ -3,6 +3,7 @@ import { ComingSoonModal } from "./ComingSoonModal";
 import { UserModal } from "./UserModal";
 import { EnrichmentModal } from "./EnrichmentModal";
 import { SettingsModal } from "./SettingsModal";
+import { SearchModal } from "./SearchModal";
 
 // Only mount the modal that matches the active name. Previously every
 // modal component rendered as long as ANY modal was open, which meant
@@ -18,6 +19,7 @@ const MODAL_COMPONENTS: Partial<Record<NonNullable<ModalName>, React.ComponentTy
   enrichment: EnrichmentModal,
   user: UserModal,
   settings: SettingsModal,
+  search: SearchModal,
   // Coming-soon stubs share a single component keyed on the modal name
   // so we render exactly one at a time with the right copy.
   policies: () => <ComingSoonModal name="policies" />,

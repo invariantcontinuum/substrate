@@ -355,6 +355,8 @@ export function GraphCanvas() {
   const setLayoutName = useGraphStore((s) => s.setLayoutName);
   const setPan = useGraphStore((s) => s.setPan);
   const finalizeLoad = useGraphStore((s) => s.finalizeLoad);
+  const pendingZoomNodeId = useGraphStore((s) => s.pendingZoomNodeId);
+  const clearPendingZoom = useGraphStore((s) => s.clearPendingZoom);
 
   const openModal = useUIStore((s) => s.openModal);
   const [pulsing, setPulsing] = useState(false);
@@ -764,6 +766,31 @@ export function GraphCanvas() {
       { duration: 400, easing: "ease-out" },
     );
   }, [selectedNodeId]);
+
+  /* Search-driven focus zoom.
+   *
+   * The Ctrl+K SearchModal sets ``pendingZoomNodeId`` via
+   * ``useGraphStore.focusNode``. The selection effect above handles the
+   * spotlight + neighborhood fit when ``selectedNodeId`` *changes*, but
+   * if the user picks the same node twice in a row (or arrives here via
+   * a slide switch where the canvas just remounted) we still want to
+   * re-fit on the node. This effect runs each time ``pendingZoomNodeId``
+   * is non-null and clears the flag immediately so the next click
+   * re-triggers it.
+   */
+  useEffect(() => {
+    if (!ready || !cyRef.current || !pendingZoomNodeId) return;
+    const cy = cyRef.current;
+    const node = cy.getElementById(pendingZoomNodeId);
+    if (node && node.length > 0) {
+      cy.stop(true, true);
+      cy.animate(
+        { fit: { eles: node, padding: 100 } },
+        { duration: 320, easing: "ease-out" },
+      );
+    }
+    clearPendingZoom();
+  }, [pendingZoomNodeId, clearPendingZoom, ready]);
 
   /* signals pulse */
   useEffect(() => {

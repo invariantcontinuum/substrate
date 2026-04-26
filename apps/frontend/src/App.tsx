@@ -14,6 +14,7 @@ import { AccountPage } from "@/pages/AccountPage";
 import { useApplyTheme } from "@/hooks/useApplyTheme";
 import { useGraphStore } from "@/stores/graph";
 import { useSyncSetStore } from "@/stores/syncSet";
+import { useUIStore } from "@/stores/ui";
 import { logger } from "@/lib/logger";
 import { ToastDock } from "@/components/common/ToastDock";
 
@@ -116,6 +117,21 @@ function RequireAuth({ children }: { children: ReactNode }) {
 
 function App() {
   useApplyTheme();
+  // Global Ctrl+K / Cmd+K hotkey opens the search modal. Lives at app
+  // top-level so the binding works regardless of which page or panel
+  // currently holds focus (the listener does NOT swallow keystrokes
+  // inside the search input — the modal is the only focused element
+  // when it's open, and the handler only fires on the K combo).
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        useUIStore.getState().openSearch();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
   return (
     <>
       <ToastDock />

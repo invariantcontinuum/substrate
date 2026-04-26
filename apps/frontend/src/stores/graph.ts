@@ -107,6 +107,18 @@ interface GraphState {
   selectedNodeData: Record<string, unknown> | null;
   selectNode: (id: string | null, data?: Record<string, unknown>) => void;
   setSelectedNodeId: (id: string | null) => void;
+  /**
+   * Search-driven focus action. Sets ``selectedNodeId`` AND queues a
+   * one-shot zoom request that the canvas effect consumes — the current
+   * spotlight effect already animates to the selected node's
+   * neighborhood, but a search hit may belong to a community whose
+   * carousel slide just switched in, so the canvas needs an explicit
+   * trigger to re-fit on the new node id even when the underlying
+   * ``selectedNodeId`` value matches what was already selected.
+   */
+  pendingZoomNodeId: string | null;
+  focusNode: (nodeId: string) => void;
+  clearPendingZoom: () => void;
 
   /* Filters */
   filters: GraphFilters;
@@ -211,6 +223,12 @@ export const useGraphStore = create<GraphState>((set) => ({
     set({ selectedNodeId: id, selectedNodeData: data ?? null });
   },
   setSelectedNodeId: (id) => set({ selectedNodeId: id }),
+  pendingZoomNodeId: null,
+  focusNode: (nodeId) => {
+    logger.debug("node_focus_requested", { nodeId });
+    set({ selectedNodeId: nodeId, pendingZoomNodeId: nodeId });
+  },
+  clearPendingZoom: () => set({ pendingZoomNodeId: null }),
 
   filters: initialFilters(),
   toggleTypeFilter: (type) =>
