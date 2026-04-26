@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { LeidenKnob } from "@/components/common/LeidenKnob";
 import { Row } from "@/components/common/Row";
 import { CommunityHistogram } from "@/components/common/CommunityHistogram";
 import { SectionHeader } from "@/components/common/SectionHeader";
+import { SourceSnapshotMultiSelect } from "@/components/select/SourceSnapshotMultiSelect";
 import { useCarouselStore, type LeidenConfig } from "@/stores/carousel";
 import { usePrefsStore } from "@/stores/prefs";
 import { useSyncSetStore } from "@/stores/syncSet";
@@ -40,9 +42,22 @@ function authToken(): string | undefined {
 }
 
 export function SettingsGraphTab() {
+  const storeSyncIds = useSyncSetStore((s) => s.syncIds);
+  // Re-mount the inner editor when the global active set identity changes
+  // so the local draft re-seeds without an effect-driven setState.
+  const seedKey = storeSyncIds.slice().sort().join(",");
+  return <GraphSettingsEditor key={seedKey || "empty"} seed={storeSyncIds} />;
+}
+
+interface EditorProps {
+  seed: string[];
+}
+
+function GraphSettingsEditor({ seed }: EditorProps) {
   const { config: graphCfg } = useEffectiveConfig<GraphConfig>("graph");
   const apply = useApplyConfig("graph");
 
+  const setActiveSet = useSyncSetStore((s) => s.setActiveSet);
   const staged = useCarouselStore((s) => s.stagedConfig);
   const active = useCarouselStore((s) => s.activeConfig);
   const setStaged = useCarouselStore((s) => s.setStaged);
@@ -52,17 +67,31 @@ export function SettingsGraphTab() {
   const expiresAt = useCarouselStore((s) => s.expiresAt);
   const setResult = useCarouselStore((s) => s.setResult);
   const discard = useCarouselStore((s) => s.discardStaged);
-  const syncIds = useSyncSetStore((s) => s.syncIds);
   const prefsLeiden = usePrefsStore((s) => s.leiden);
   const setLeiden = usePrefsStore((s) => s.setLeiden);
+
+  // Single source of truth for which (source, snapshot) pairs feed the
+  // recompute / preview / drift sections on this tab. Seeded from the
+  // global active-set store; "Apply selection" pushes the local choice
+  // back into the store so the canvas + carousel re-render against it.
+  const [selectedSyncIds, setSelectedSyncIds] = useState<string[]>(seed);
+  const selectionDirty = !arraysEqual(selectedSyncIds, seed);
+
+  // Preview/drift sections below read selectedSyncIds directly so they
+  // always reflect the local draft until the user explicitly applies it
+  // via "Apply selection" or "Recompute".
 
   const driftCount = (Object.keys(active) as Array<keyof typeof active>).filter(
     (k) => active[k] !== staged[k],
   ).length;
 
+  const onApplySelection = () => {
+    setActiveSet(selectedSyncIds);
+  };
+
   const onRecompute = async () => {
     const token = authToken();
-    if (!token || syncIds.length === 0) return;
+    if (!token || selectedSyncIds.length === 0) return;
     try {
       const data = await apiFetch<RecomputeResponse>(
         "/api/communities/recompute",
@@ -70,7 +99,7 @@ export function SettingsGraphTab() {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sync_ids: syncIds, config: staged }),
+          body: JSON.stringify({ sync_ids: selectedSyncIds, config: staged }),
         },
       );
       setResult({
@@ -85,8 +114,11 @@ export function SettingsGraphTab() {
       });
       // Persist the staged knobs into the user prefs so the graph-store's
       // subscriber refetches with the new config and rerenders against
-      // the freshly-computed clusters. Mirrors SourcesConfigTab.
+      // the freshly-computed clusters.
       if (data.config_used) setLeiden(data.config_used);
+      // Apply the selection to the global active set so the on-screen
+      // graph + carousel reflect the just-recomputed cache_key.
+      setActiveSet(selectedSyncIds);
     } catch (err) {
       logger.warn("settings_graph_recompute_failed", { error: String(err) });
     }
@@ -101,6 +133,26 @@ export function SettingsGraphTab() {
   return (
     <section className="settings-graph">
       <h3>Graph</h3>
+
+      <SectionHeader
+        title="Active selection"
+        aux={`${selectedSyncIds.length} snapshot${selectedSyncIds.length === 1 ? "" : "s"} selected`}
+      />
+      <SourceSnapshotMultiSelect
+        value={selectedSyncIds}
+        onChange={setSelectedSyncIds}
+        completedOnly
+      />
+      <div className="config-actions">
+        <button
+          type="button"
+          className="cta-ghost"
+          onClick={onApplySelection}
+          disabled={!selectionDirty}
+        >
+          Apply selection to graph
+        </button>
+      </div>
 
       <SectionHeader
         title="Default Leiden"
@@ -153,7 +205,7 @@ export function SettingsGraphTab() {
 
       <SectionHeader
         title="Active-set Leiden"
-        aux={`${syncIds.length} syncs loaded`}
+        aux={`${selectedSyncIds.length} snapshot${selectedSyncIds.length === 1 ? "" : "s"} selected`}
       />
       <LeidenKnob
         label="Resolution"
@@ -199,7 +251,7 @@ export function SettingsGraphTab() {
         <button
           className="cta-primary"
           onClick={onRecompute}
-          disabled={!drift || syncIds.length === 0}
+          disabled={selectedSyncIds.length === 0}
         >
           {drift
             ? `Recompute (${driftCount} knob${driftCount === 1 ? "" : "s"} changed)`
@@ -214,7 +266,11 @@ export function SettingsGraphTab() {
       </div>
 
       <SectionHeader title="Preview" aux="active-set result" />
-      {summary ? (
+      {selectedSyncIds.length === 0 ? (
+        <div className="muted">
+          Select one or more snapshots above to preview Leiden communities.
+        </div>
+      ) : summary ? (
         <div className="preview">
           <Row
             k="Current"
@@ -225,12 +281,24 @@ export function SettingsGraphTab() {
           <Row k="Expires" v={expiresAt ?? "—"} />
         </div>
       ) : (
-        <div className="muted">No result yet. Load syncs on the Snapshots tab.</div>
+        <div className="muted">No result yet — click Recompute to run.</div>
       )}
 
       <SectionHeader title="Drift" />
       <Row
-        k="Staged vs cached"
+        k="Selection vs applied"
+        v={
+          selectionDirty ? (
+            <span style={{ color: "#ffd197" }}>
+              Selection changed — Apply or Recompute to update graph
+            </span>
+          ) : (
+            <span style={{ color: "#a0f0c0" }}>in sync</span>
+          )
+        }
+      />
+      <Row
+        k="Knobs vs cached"
         v={
           drift ? (
             <span style={{ color: "#ffd197" }}>
@@ -252,4 +320,11 @@ export function SettingsGraphTab() {
       </select>
     </section>
   );
+}
+
+function arraysEqual(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  const setB = new Set(b);
+  for (const x of a) if (!setB.has(x)) return false;
+  return true;
 }
