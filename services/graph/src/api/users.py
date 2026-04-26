@@ -2,6 +2,7 @@ import json
 
 from fastapi import APIRouter, Depends, Header
 from pydantic import BaseModel, Field
+from ua_parser import user_agent_parser
 
 from substrate_common import ValidationError
 
@@ -9,6 +10,38 @@ from src.api.auth import require_user_sub
 from src.graph import store
 
 router = APIRouter(prefix="/api/users")
+
+
+def parse_device_name(user_agent: str | None) -> str:
+    """Render a human-readable device label from a User-Agent header.
+
+    ``ua-parser`` returns family/major-version triples for browser, OS,
+    and (sometimes) device. We collapse to ``"<browser> <major> on <os>"``
+    — short enough for the Devices list, recognisable enough that the
+    user can pick the right row when they want to forget a session.
+
+    Returns an empty string when the UA is missing or unparseable so the
+    caller can decide how to handle "label still unknown".
+    """
+    if not user_agent:
+        return ""
+    parsed = user_agent_parser.Parse(user_agent)
+    browser_family = parsed.get("user_agent", {}).get("family") or ""
+    browser_major = parsed.get("user_agent", {}).get("major") or ""
+    os_family = parsed.get("os", {}).get("family") or ""
+    parts: list[str] = []
+    if browser_family and browser_family.lower() != "other":
+        parts.append(
+            f"{browser_family} {browser_major}".strip()
+            if browser_major
+            else browser_family
+        )
+    if os_family and os_family.lower() != "other":
+        if parts:
+            parts.append(f"on {os_family}")
+        else:
+            parts.append(os_family)
+    return " ".join(parts).strip()
 
 
 def _role_from_header(x_user_roles: str | None) -> str:
@@ -164,9 +197,17 @@ async def upsert_device(
     device_id: str,
     body: DeviceUpsert,
     user_sub: str = Depends(require_user_sub),
+    user_agent: str | None = Header(default=None, alias="User-Agent"),
 ):
     pool = store.get_pool()
     context = {"last_loaded_sync_ids": body.last_loaded_sync_ids}
+    # When the caller didn't ship an explicit label (the auto-tracking
+    # PUT in DashboardLayout omits it), derive a friendly default from
+    # the User-Agent header so the Devices tab shows something recognisable
+    # instead of the raw device_id slug. The COALESCE/NULLIF in the
+    # INSERT below preserves a previously-set label across subsequent
+    # auto-tracking PUTs that don't carry one.
+    derived_label = body.label or parse_device_name(user_agent)
     async with pool.acquire() as conn:
         async with conn.transaction():
             await _touch_profile(
@@ -195,7 +236,7 @@ async def upsert_device(
                 """,
                 user_sub,
                 device_id,
-                body.label,
+                derived_label,
                 context,
             )
     return _device_row(row)

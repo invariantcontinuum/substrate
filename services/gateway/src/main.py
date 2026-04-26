@@ -15,6 +15,7 @@ from substrate_common import (
 
 from src.api.config import router as config_router
 from src.api.internal_config import router as internal_config_router
+from src.api.profile_idps import router as profile_idps_router
 from src.config import settings
 from src.proxy import close_client, init_client, proxy_request
 from src.sse_endpoint import close_pool as close_sse_pool
@@ -76,6 +77,7 @@ register_handlers(app)
 app.include_router(sse_router)
 app.include_router(config_router)
 app.include_router(internal_config_router)
+app.include_router(profile_idps_router)
 
 
 @app.get("/health")

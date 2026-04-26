@@ -7,6 +7,16 @@ import { useSyncSetStore } from "@/stores/syncSet";
 import { apiFetch } from "@/lib/api";
 import { logger } from "@/lib/logger";
 
+/**
+ * Settings · Devices tab.
+ *
+ * Renders the (scrollable) list of `user_devices` rows for the current
+ * user. Each row supports inline rename and a confirmable forget action
+ * — both backed by `PUT/DELETE /api/users/me/devices/{id}`. The display
+ * label is whatever the backend persisted, which Phase 4.4 derives from
+ * the User-Agent header (`parse_device_name`) on first PUT so users see
+ * "Chrome 120 on Linux" instead of a raw device_id slug.
+ */
 export function AccountDevicesTab() {
   const auth = useAuth();
   const token = auth.user?.access_token;
@@ -18,9 +28,6 @@ export function AccountDevicesTab() {
     return <div className="muted">Loading devices…</div>;
   }
   const devices: DeviceShape[] = me.devices ?? [];
-  if (devices.length === 0) {
-    return <div className="muted">No devices registered yet.</div>;
-  }
 
   const rename = async (deviceId: string, name: string) => {
     const device = devices.find((d) => d.device_id === deviceId);
@@ -52,15 +59,21 @@ export function AccountDevicesTab() {
         title="Devices on this account"
         aux={`${devices.length} active`}
       />
-      {devices.map((d) => (
-        <DeviceRow
-          key={d.device_id}
-          device={d}
-          isCurrent={d.device_id === currentDeviceId}
-          onRename={(n) => rename(d.device_id, n)}
-          onForget={() => forget(d.device_id)}
-        />
-      ))}
+      {devices.length === 0 ? (
+        <div className="muted">No devices registered yet.</div>
+      ) : (
+        <div className="devices-list" role="list">
+          {devices.map((d) => (
+            <DeviceRow
+              key={d.device_id}
+              device={d}
+              isCurrent={d.device_id === currentDeviceId}
+              onRename={(n) => rename(d.device_id, n)}
+              onForget={() => forget(d.device_id)}
+            />
+          ))}
+        </div>
+      )}
     </>
   );
 }

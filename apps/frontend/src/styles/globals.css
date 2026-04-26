@@ -2790,6 +2790,10 @@ html {
   font-family: var(--font-mono, ui-monospace, monospace);
   font-size: var(--text-sm);
 }
+.github-status { font-size: 12px; }
+.github-status-ok { color: var(--success, #a0f0c0); }
+.github-status-err { color: var(--danger, #ffaaaa); }
+.github-coming-soon { font-size: 12px; line-height: 1.5; max-width: 60ch; }
 
 /* Account-tab dropdowns (selects inside Settings tabs) —
  * inherit the input chrome for visual parity. */
@@ -3238,6 +3242,27 @@ html {
 .chip-this-device {
   font-size: 9px; padding: 1px 4px; border-radius: 3px;
   background: rgba(80,220,140,0.15); color: #a0f0c0;
+}
+.idp-chip-row { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+.idp-chip {
+  display: inline-block;
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--accent-tint, rgba(90, 180, 255, 0.18));
+  color: var(--accent, #a8d8ff);
+  letter-spacing: 0.02em;
+}
+.devices-list {
+  max-height: 400px;
+  overflow-y: auto;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+  border-radius: 8px;
+  padding: 4px;
+}
+.devices-list .ui-row { padding: 8px 10px; }
+.devices-list .ui-row + .ui-row {
+  border-top: 1px solid var(--border, rgba(255, 255, 255, 0.06));
 }
 .billing-placeholder {
   padding: 18px; border: 1px dashed rgba(255,255,255,0.12);
