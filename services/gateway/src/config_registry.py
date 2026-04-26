@@ -40,17 +40,45 @@ class _ChatConfigSchema(BaseModel):
     chat_context_token_budget: int | None = None
 
 
-class _LlmConnSchema(BaseModel):
-    url: str | None = None
-    model: str | None = None
-    context_size: int | None = None
-    timeout_s: float | None = None
-    document_prefix: str | None = None
-    query_prefix: str | None = None
-    max_input_chars: int | None = None
-    batch_size: int | None = None
-    top_k: int | None = None
-    top_n: int | None = None
+class _LlmDenseSchema(BaseModel):
+    """Dense LLM connection — matches the keys exposed by graph
+    ``/internal/config/llm_dense``. Pydantic drops unknown fields so a
+    field-renamed key (e.g. swapping ``dense_llm_url`` for ``url``)
+    would silently land as a no-op PUT; declaring the same names here
+    forces a 422 instead.
+    """
+
+    dense_llm_url: str | None = None
+    dense_llm_model: str | None = None
+    dense_llm_context_size: int | None = None
+    chat_llm_timeout_s: float | None = None
+
+
+class _LlmSparseSchema(BaseModel):
+    sparse_llm_url: str | None = None
+    sparse_llm_model: str | None = None
+    sparse_llm_context_size: int | None = None
+    sparse_llm_timeout_s: float | None = None
+    sparse_keyword_top_k: int | None = None
+
+
+class _LlmEmbeddingSchema(BaseModel):
+    embedding_url: str | None = None
+    embedding_model: str | None = None
+    # embedding_dim is read-only (changing it would break the pgvector
+    # column dim); keep it absent from the schema so PUT can never set it.
+    embedding_max_input_chars: int | None = None
+    embed_batch_size: int | None = None
+    embedding_document_prefix: str | None = None
+    embedding_query_prefix: str | None = None
+
+
+class _LlmRerankerSchema(BaseModel):
+    reranker_url: str | None = None
+    reranker_model: str | None = None
+    reranker_top_n: int | None = None
+    reranker_timeout_s: float | None = None
+    reranker_rrf_k: int | None = None
 
 
 class _PostgresConfigSchema(BaseModel):
@@ -76,10 +104,10 @@ class _GithubConfigSchema(BaseModel):
 REGISTRY: dict[str, tuple[str, type[BaseModel]]] = {
     "graph":         ("graph",   _GraphConfigSchema),
     "chat":          ("graph",   _ChatConfigSchema),
-    "llm_dense":     ("graph",   _LlmConnSchema),
-    "llm_sparse":    ("graph",   _LlmConnSchema),
-    "llm_embedding": ("graph",   _LlmConnSchema),
-    "llm_reranker":  ("graph",   _LlmConnSchema),
+    "llm_dense":     ("graph",   _LlmDenseSchema),
+    "llm_sparse":    ("graph",   _LlmSparseSchema),
+    "llm_embedding": ("graph",   _LlmEmbeddingSchema),
+    "llm_reranker":  ("graph",   _LlmRerankerSchema),
     "postgres":      ("graph",   _PostgresConfigSchema),
     "auth":          ("gateway", _AuthConfigSchema),
     "github":        ("gateway", _GithubConfigSchema),

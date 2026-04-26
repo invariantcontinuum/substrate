@@ -41,4 +41,13 @@ async def get_internal_section(section: str) -> dict[str, Any]:
             status_code=404, detail=f"unknown section {section!r}",
         )
     s = _cfg.settings
-    return {k: getattr(s, k, None) for k in _SECTIONS[section]}
+    payload: dict[str, Any] = {k: getattr(s, k, None) for k in _SECTIONS[section]}
+    # The Settings → Authentication tab links to the Keycloak account
+    # console; surface the effective URL (empty override falls back to
+    # ``<keycloak_url>/realms/<realm>/account/``) so the frontend can
+    # render the link without re-deriving it from the issuer + realm.
+    if section == "auth" and not payload.get("keycloak_account_console_url"):
+        derived = getattr(s, "keycloak_account_console_url_effective", "")
+        if derived:
+            payload["keycloak_account_console_url"] = derived
+    return payload
