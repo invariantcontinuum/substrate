@@ -2648,10 +2648,12 @@ html {
  * marks the previously-loaded list as stale until the user reloads. */
 /* ContextBudgetPill — small clickable pill above the composer showing
  * "X / Y tokens · N files". Goes amber at 80% of budget, red over.
- * Click opens the ContextFilesModal so the user can drop files. */
+ * Click opens the ContextFilesModal so the user can drop files. The
+ * 12px bottom margin keeps it visually separated from the composer
+ * border-top — without it the pill butts against the composer chrome. */
 .context-budget-pill {
   align-self: center;
-  margin: 6px auto 0;
+  margin: 6px auto 12px;
   padding: 4px 12px;
   background: var(--accent-tint);
   border: 1px solid var(--accent);
