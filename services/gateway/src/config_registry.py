@@ -6,9 +6,11 @@ schema, writes to runtime_config, and emits SSE so owning services
 refresh their overlay.
 
 The mapping is intentionally per-section (not per-service): a single
-service may own several sections (graph owns ``graph``, ``chat``,
-``llm_*``, ``postgres``), and the same schema (``_LlmConnSchema``) is
-reused across the four ``llm_*`` sections.
+service may own several sections. The four ``llm_*`` sections share a
+single ``_LlmConnSchema`` (``name`` / ``url`` / ``api_key`` /
+``context_window_tokens`` / ``timeout_s`` / ``ssl_verify``); the panel
+sends those keys, and the gateway translates them to per-role storage
+keys via ``LLM_FIELD_MAP`` before writing.
 """
 from __future__ import annotations
 
@@ -40,45 +42,65 @@ class _ChatConfigSchema(BaseModel):
     chat_context_token_budget: int | None = None
 
 
-class _LlmDenseSchema(BaseModel):
-    """Dense LLM connection — matches the keys exposed by graph
-    ``/internal/config/llm_dense``. Pydantic drops unknown fields so a
-    field-renamed key (e.g. swapping ``dense_llm_url`` for ``url``)
-    would silently land as a no-op PUT; declaring the same names here
-    forces a 422 instead.
+class _LlmConnSchema(BaseModel):
+    """Wire shape for the LLM Connections panel.
+
+    All four roles (``dense`` / ``sparse`` / ``embedding`` / ``reranker``)
+    expose the same six fields. The panel never sends a "type" field —
+    the role is implicit from the section path (``llm_<role>``).
+
+    Storage uses role-prefixed keys (e.g. ``dense_llm_url``,
+    ``embedding_api_key``) so the four roles coexist inside the single
+    runtime overlay scope owned by the service. The gateway translates
+    here-shaped bodies to storage keys via ``LLM_FIELD_MAP`` before the
+    PUT lands in ``runtime_config``.
     """
 
-    dense_llm_url: str | None = None
-    dense_llm_model: str | None = None
-    dense_llm_context_size: int | None = None
-    chat_llm_timeout_s: float | None = None
+    name: str | None = None
+    url: str | None = None
+    api_key: str | None = None
+    context_window_tokens: int | None = None
+    timeout_s: float | None = None
+    ssl_verify: bool | None = None
 
 
-class _LlmSparseSchema(BaseModel):
-    sparse_llm_url: str | None = None
-    sparse_llm_model: str | None = None
-    sparse_llm_context_size: int | None = None
-    sparse_llm_timeout_s: float | None = None
-    sparse_keyword_top_k: int | None = None
-
-
-class _LlmEmbeddingSchema(BaseModel):
-    embedding_url: str | None = None
-    embedding_model: str | None = None
-    # embedding_dim is read-only (changing it would break the pgvector
-    # column dim); keep it absent from the schema so PUT can never set it.
-    embedding_max_input_chars: int | None = None
-    embed_batch_size: int | None = None
-    embedding_document_prefix: str | None = None
-    embedding_query_prefix: str | None = None
-
-
-class _LlmRerankerSchema(BaseModel):
-    reranker_url: str | None = None
-    reranker_model: str | None = None
-    reranker_top_n: int | None = None
-    reranker_timeout_s: float | None = None
-    reranker_rrf_k: int | None = None
+# Per-role field map: panel field → storage key on the owning service.
+# Mirrored on the read path inside ``services/<svc>/src/api/internal_config.py``
+# so ``GET /api/config/llm_<role>`` returns simple panel keys.
+LLM_FIELD_MAP: dict[str, dict[str, str]] = {
+    "llm_dense": {
+        "name": "dense_llm_model",
+        "url": "dense_llm_url",
+        "api_key": "dense_llm_api_key",
+        "context_window_tokens": "dense_llm_context_size",
+        "timeout_s": "dense_llm_timeout_s",
+        "ssl_verify": "dense_llm_ssl_verify",
+    },
+    "llm_sparse": {
+        "name": "sparse_llm_model",
+        "url": "sparse_llm_url",
+        "api_key": "sparse_llm_api_key",
+        "context_window_tokens": "sparse_llm_context_size",
+        "timeout_s": "sparse_llm_timeout_s",
+        "ssl_verify": "sparse_llm_ssl_verify",
+    },
+    "llm_embedding": {
+        "name": "embedding_model",
+        "url": "embedding_url",
+        "api_key": "embedding_api_key",
+        "context_window_tokens": "embedding_context_window_tokens",
+        "timeout_s": "embedding_timeout_s",
+        "ssl_verify": "embedding_ssl_verify",
+    },
+    "llm_reranker": {
+        "name": "reranker_model",
+        "url": "reranker_url",
+        "api_key": "reranker_api_key",
+        "context_window_tokens": "reranker_context_window_tokens",
+        "timeout_s": "reranker_timeout_s",
+        "ssl_verify": "reranker_ssl_verify",
+    },
+}
 
 
 class _PostgresConfigSchema(BaseModel):
@@ -102,15 +124,15 @@ class _GithubConfigSchema(BaseModel):
 # Owning service name is the docker-compose hostname (matches
 # ``http://<owner>:<port>`` for internal calls).
 REGISTRY: dict[str, tuple[str, type[BaseModel]]] = {
-    "graph":         ("graph",   _GraphConfigSchema),
-    "chat":          ("graph",   _ChatConfigSchema),
-    "llm_dense":     ("graph",   _LlmDenseSchema),
-    "llm_sparse":    ("graph",   _LlmSparseSchema),
-    "llm_embedding": ("graph",   _LlmEmbeddingSchema),
-    "llm_reranker":  ("graph",   _LlmRerankerSchema),
-    "postgres":      ("graph",   _PostgresConfigSchema),
-    "auth":          ("gateway", _AuthConfigSchema),
-    "github":        ("gateway", _GithubConfigSchema),
+    "graph":         ("graph",     _GraphConfigSchema),
+    "chat":          ("graph",     _ChatConfigSchema),
+    "llm_dense":     ("graph",     _LlmConnSchema),
+    "llm_sparse":    ("graph",     _LlmConnSchema),
+    "llm_embedding": ("ingestion", _LlmConnSchema),
+    "llm_reranker":  ("graph",     _LlmConnSchema),
+    "postgres":      ("graph",     _PostgresConfigSchema),
+    "auth":          ("gateway",   _AuthConfigSchema),
+    "github":        ("gateway",   _GithubConfigSchema),
 }
 
 

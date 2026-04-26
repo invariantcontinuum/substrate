@@ -1,10 +1,10 @@
 """Internal-only route: ``GET /internal/config/{section}``.
 
-Mirrors the contract in graph/gateway. Ingestion does not yet own any
-config sections in the gateway registry — the per-sync Leiden knobs and
-chunker tunables are exposed via the graph service for now — but the
-route is wired so future sections (e.g. ``ingestion`` for retention /
-runner cadence) can land without re-touching ingestion's lifespan.
+Mirrors the contract in graph/gateway. Ingestion owns the
+``llm_embedding`` section because the embedding endpoint is the
+ingestion service's primary upstream (file-level embeddings for
+indexing). Other LLM roles (dense, sparse, reranker) live on the graph
+service.
 """
 from __future__ import annotations
 
@@ -18,9 +18,19 @@ from src import config as _cfg
 router = APIRouter(prefix="/internal/config", tags=["internal-config"])
 
 
-# Sections owned by the ingestion service. Empty until a section in the
-# gateway's REGISTRY routes to ``ingestion`` as its owner.
-_SECTIONS: dict[str, list[str]] = {}
+# Storage keys exposed under each section. The gateway translates the
+# role-prefixed keys back to the panel's simple field names on the read
+# path (see ``services/gateway/src/api/config.py``).
+_SECTIONS: dict[str, list[str]] = {
+    "llm_embedding": [
+        "embedding_url",
+        "embedding_model",
+        "embedding_api_key",
+        "embedding_context_window_tokens",
+        "embedding_timeout_s",
+        "embedding_ssl_verify",
+    ],
+}
 
 
 @router.get("/{section}")

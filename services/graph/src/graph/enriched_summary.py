@@ -209,10 +209,11 @@ async def _post_llm(*, url: str, payload: dict) -> dict:
     retry path instead of the edge proxy closing the socket with 504.
     """
     headers: dict[str, str] = {}
-    if settings.llm_api_key:
-        headers["Authorization"] = f"Bearer {settings.llm_api_key}"
+    if settings.dense_llm_api_key:
+        headers["Authorization"] = f"Bearer {settings.dense_llm_api_key}"
     async with httpx.AsyncClient(
         timeout=httpx.Timeout(connect=5.0, read=90.0, write=10.0, pool=10.0),
+        verify=settings.dense_llm_ssl_verify,
     ) as client:
         r = await client.post(url, json=payload, headers=headers)
         r.raise_for_status()

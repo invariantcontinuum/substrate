@@ -25,9 +25,12 @@ async def _embed_query(query: str) -> list[float]:
     cap = settings.embedding_max_input_chars - len(prefix)
     prefixed = prefix + (query[:cap] if len(query) > cap else query)
     headers: dict[str, str] = {}
-    if settings.llm_api_key:
-        headers["Authorization"] = f"Bearer {settings.llm_api_key}"
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    if settings.embedding_api_key:
+        headers["Authorization"] = f"Bearer {settings.embedding_api_key}"
+    async with httpx.AsyncClient(
+        timeout=settings.embedding_timeout_s,
+        verify=settings.embedding_ssl_verify,
+    ) as client:
         resp = await client.post(
             settings.embedding_url,
             headers=headers,

@@ -671,9 +671,11 @@ async def _label_community(node_ids: list[str]) -> str:
     )
     timeout = httpx.Timeout(connect=5.0, read=30.0, write=10.0, pool=10.0)
     headers: dict[str, str] = {}
-    if settings.llm_api_key:
-        headers["Authorization"] = f"Bearer {settings.llm_api_key}"
-    async with httpx.AsyncClient(timeout=timeout) as client:
+    if settings.dense_llm_api_key:
+        headers["Authorization"] = f"Bearer {settings.dense_llm_api_key}"
+    async with httpx.AsyncClient(
+        timeout=timeout, verify=settings.dense_llm_ssl_verify,
+    ) as client:
         resp = await client.post(
             settings.dense_llm_url,
             headers=headers,

@@ -36,10 +36,17 @@ async def rerank(
         for c in candidates
     ]
     payload: dict[str, Any]
+    headers: dict[str, str] = {}
+    if settings.reranker_api_key:
+        headers["Authorization"] = f"Bearer {settings.reranker_api_key}"
     try:
-        async with httpx.AsyncClient(timeout=settings.reranker_timeout_s) as client:
+        async with httpx.AsyncClient(
+            timeout=settings.reranker_timeout_s,
+            verify=settings.reranker_ssl_verify,
+        ) as client:
             r = await client.post(
                 settings.reranker_url,
+                headers=headers,
                 json={
                     "query": query,
                     "documents": documents,

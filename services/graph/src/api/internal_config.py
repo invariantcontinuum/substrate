@@ -5,9 +5,9 @@ publicly; relies on the ``substrate_internal`` docker network being
 non-routable from outside.
 
 The map below names every settings field exposed under each section.
-Fields the service does not yet define resolve to ``None`` so the gateway
-can advertise a new section ahead of the field actually landing on the
-schema (Tasks 4.x add the missing ones).
+Storage uses role-prefixed keys for the LLM sections; the gateway
+translates them back to the panel's simple field names on the read
+path (see ``services/gateway/src/api/config.py``).
 """
 from __future__ import annotations
 
@@ -21,9 +21,9 @@ from src import config as _cfg
 router = APIRouter(prefix="/internal/config", tags=["internal-config"])
 
 
-# Owning service: ``graph`` owns ``graph``, ``chat``, every ``llm_*`` flavour,
-# and ``postgres``. The frontend consumes these via the gateway's
-# ``GET /api/config/{section}`` proxy.
+# Owning service: ``graph`` owns ``graph``, ``chat``, the dense / sparse /
+# reranker LLM sections, and ``postgres``. The frontend consumes these
+# via the gateway's ``GET /api/config/{section}`` proxy.
 _SECTIONS: dict[str, list[str]] = {
     "graph": [
         "per_sync_leiden_resolution",
@@ -50,31 +50,26 @@ _SECTIONS: dict[str, list[str]] = {
     "llm_dense": [
         "dense_llm_url",
         "dense_llm_model",
+        "dense_llm_api_key",
         "dense_llm_context_size",
-        "chat_llm_timeout_s",
+        "dense_llm_timeout_s",
+        "dense_llm_ssl_verify",
     ],
     "llm_sparse": [
         "sparse_llm_url",
         "sparse_llm_model",
+        "sparse_llm_api_key",
         "sparse_llm_context_size",
         "sparse_llm_timeout_s",
-        "sparse_keyword_top_k",
-    ],
-    "llm_embedding": [
-        "embedding_url",
-        "embedding_model",
-        "embedding_dim",
-        "embedding_max_input_chars",
-        "embed_batch_size",
-        "embedding_document_prefix",
-        "embedding_query_prefix",
+        "sparse_llm_ssl_verify",
     ],
     "llm_reranker": [
         "reranker_url",
         "reranker_model",
-        "reranker_top_n",
+        "reranker_api_key",
+        "reranker_context_window_tokens",
         "reranker_timeout_s",
-        "reranker_rrf_k",
+        "reranker_ssl_verify",
     ],
     "postgres": [
         "database_url",

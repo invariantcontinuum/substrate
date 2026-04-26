@@ -67,8 +67,8 @@ def _truncate(text: str) -> str:
 
 
 def _auth_headers() -> dict[str, str]:
-    if settings.llm_api_key:
-        return {"Authorization": f"Bearer {settings.llm_api_key}"}
+    if settings.embedding_api_key:
+        return {"Authorization": f"Bearer {settings.embedding_api_key}"}
     return {}
 
 

@@ -449,8 +449,8 @@ async def _stream_dense_llm_with_tools(
     env-flag escape hatch for llama.cpp builds that 400 on the keys.
     """
     headers: dict[str, str] = {"Accept": "text/event-stream"}
-    if settings.llm_api_key:
-        headers["Authorization"] = f"Bearer {settings.llm_api_key}"
+    if settings.dense_llm_api_key:
+        headers["Authorization"] = f"Bearer {settings.dense_llm_api_key}"
     payload: dict[str, Any] = {
         "model": settings.dense_llm_model,
         "messages": messages,
@@ -461,7 +461,10 @@ async def _stream_dense_llm_with_tools(
     if settings.chat_tools_enabled:
         payload["tools"] = [_CITE_EVIDENCE_TOOL]
         payload["tool_choice"] = "auto"
-    async with httpx.AsyncClient(timeout=settings.chat_llm_timeout_s) as client:
+    async with httpx.AsyncClient(
+        timeout=settings.dense_llm_timeout_s,
+        verify=settings.dense_llm_ssl_verify,
+    ) as client:
         async with client.stream(
             "POST", settings.dense_llm_url, headers=headers, json=payload,
         ) as resp:

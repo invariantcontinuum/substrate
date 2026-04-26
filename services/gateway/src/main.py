@@ -17,6 +17,7 @@ from src.api.account import hash_token as _hash_pat
 from src.api.account import router as account_router
 from src.api.config import router as config_router
 from src.api.internal_config import router as internal_config_router
+from src.api.llm_test import router as llm_test_router
 from src.api.profile_idps import router as profile_idps_router
 from src.config import settings
 from src.proxy import close_client, init_client, proxy_request
@@ -81,6 +82,7 @@ app.include_router(config_router)
 app.include_router(internal_config_router)
 app.include_router(profile_idps_router)
 app.include_router(account_router)
+app.include_router(llm_test_router)
 
 
 @app.get("/health")

@@ -15,9 +15,24 @@ class _GraphSettings(LayeredSettings):
     service_name: str = "graph"
 
     # ── Embedding endpoint ───────────────────────────────────────────
+    # Per-role connection knobs (matches the LLM Connections panel
+    # surface). Each role owns its own URL, name, api_key, context
+    # window, timeout, and ssl_verify so deployers can point each role
+    # at a different endpoint / different bearer token without sharing
+    # a single global `llm_api_key`. The Settings → LLM Connections tab
+    # writes these via `PUT /api/config/llm_<role>` with simple field
+    # names (`name`, `url`, `api_key`, …); the gateway translates back
+    # to the storage keys below.
     embedding_url: str = "http://host.docker.internal:8101/v1/embeddings"
     # lazy-lamacpp exposes models by systemd-unit name, not HF path.
     embedding_model: str = "embeddings"
+    embedding_api_key: str = "test"
+    embedding_ssl_verify: bool = True
+    # Read budget (seconds) for the embedding HTTP call. Must fit one
+    # query-time embedding round-trip on the host LLM stack.
+    embedding_timeout_s: float = 30.0
+    # ≤ <llm-stack>/config/models/embeddings.env CONTEXT_SIZE.
+    embedding_context_window_tokens: int = 8192
     # Must match the pgvector column dim (migrations V4/V7/V8/V9/V10).
     # The startup guard fails fast on mismatch.
     embedding_dim: int = 768
@@ -30,7 +45,7 @@ class _GraphSettings(LayeredSettings):
     # context window after the prefix.
     embedding_max_input_chars: int = 1400
 
-    # ── Dense LLM (summary generation) ───────────────────────────────
+    # ── Dense LLM (summary generation + chat answers) ────────────────
     # lazy-lamacpp serves the Qwen3.5-2B Q8_0 GGUF on port 8102 with a
     # 60 k-token context slot by default. Changing the served model or
     # its CONTEXT_SIZE (in <llm-stack>/config/models/dense.env)
@@ -38,14 +53,21 @@ class _GraphSettings(LayeredSettings):
     # prompts will either overflow or waste context.
     dense_llm_url: str = "http://host.docker.internal:8102/v1/chat/completions"
     dense_llm_model: str = "dense"
-    # Bearer token shared by both the embedding and chat endpoints.
-    # Empty string skips the Authorization header entirely.
-    llm_api_key: str = "test"
+    dense_llm_api_key: str = "test"
+    dense_llm_ssl_verify: bool = True
+    # ≤ <llm-stack>/config/models/dense.env CONTEXT_SIZE.
+    dense_llm_context_size: int = 60000
+    # HTTP read timeout (seconds) for the dense LLM call. Must stay ≤
+    # the gateway's long-LLM timeout (115s) so the gateway doesn't clip
+    # the request mid-flight.
+    dense_llm_timeout_s: float = 110.0
 
     # ── Sparse LLM (BM25-like keyword retrieval helper) ──────────────
     # Memory: ~1 GB VRAM. Latency: ~50ms per query expansion.
     sparse_llm_url: str = "http://host.docker.internal:8103/v1/chat/completions"
     sparse_llm_model: str = "sparse"
+    sparse_llm_api_key: str = "test"
+    sparse_llm_ssl_verify: bool = True
     # ≤ <llm-stack>/config/models/sparse.env CONTEXT_SIZE.
     sparse_llm_context_size: int = 16384
     sparse_llm_timeout_s: float = 20.0
@@ -56,6 +78,9 @@ class _GraphSettings(LayeredSettings):
     # Memory: ~2 GB VRAM. Latency: ~200ms for 20 candidates.
     reranker_url: str = "http://host.docker.internal:8104/reranking"
     reranker_model: str = "reranker"
+    reranker_api_key: str = "test"
+    reranker_ssl_verify: bool = True
+    reranker_context_window_tokens: int = 8192
     reranker_top_n: int = 5
     reranker_timeout_s: float = 30.0
     # Reciprocal rank fusion constant; higher = flatter score curve.
@@ -154,10 +179,6 @@ class _GraphSettings(LayeredSettings):
     # and grounded; higher = more varied phrasing. 0.2 matches the pre-MVP
     # baseline for RAG-grounded answers.
     chat_temperature: float = 0.2
-    # HTTP read timeout (seconds) for the dense LLM call from the pipeline.
-    # Must stay ≤ the gateway's long-LLM timeout (115s) so the gateway
-    # doesn't clip the request mid-flight.
-    chat_llm_timeout_s: float = 110.0
 
     # ── Chat context (spec 2026-04-25-backend-foundations §4.1) ─────
     # Hard cap on tokens summed across included context files in a single
@@ -211,7 +232,7 @@ class _GraphSettings(LayeredSettings):
 
     # Bound on the regenerate background polling loop that links a
     # superseded assistant row to its replacement once stream_turn has
-    # inserted the new chat_messages row. Must be ≥ chat_llm_timeout_s
+    # inserted the new chat_messages row. Must be ≥ dense_llm_timeout_s
     # so a slow-but-successful stream still gets linked; the headroom
     # above the LLM read budget absorbs gateway round-trips. Trade-off:
     # higher = correct linking even on the slowest streams; lower = a

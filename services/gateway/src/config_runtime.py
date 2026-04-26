@@ -39,12 +39,15 @@ def _pool() -> Any:
 
 
 async def upsert_runtime_section(
-    *, section: str, payload: dict[str, Any], updated_by: str,
+    *, scope: str, payload: dict[str, Any], updated_by: str,
 ) -> None:
-    """Upsert each ``payload`` entry as a (scope=section, key, value) row.
+    """Upsert each ``payload`` entry as a (scope, key, value) row.
 
-    ``value`` is stored as JSONB so the column can hold scalars, lists,
-    or nested objects without per-section schema migration.
+    ``scope`` is the owning service's ``LayeredSettings.SCOPE`` (e.g.
+    ``"graph"`` / ``"ingestion"``) — matching the scope the service
+    reads via ``RuntimeOverlay`` at startup. ``value`` is stored as
+    JSONB so the column can hold scalars, lists, or nested objects
+    without per-section schema migration.
     """
     pool = _pool()
     async with pool.acquire() as conn:
@@ -59,15 +62,22 @@ async def upsert_runtime_section(
                         updated_by = EXCLUDED.updated_by,
                         updated_at = now()
                     """,
-                    section,
+                    scope,
                     key,
                     json.dumps(value),
                     updated_by,
                 )
 
 
-async def reset_runtime_section(*, section: str) -> int:
-    """Clear every runtime override for ``section``.
+async def reset_runtime_section(
+    *, scope: str, keys: list[str] | None = None,
+) -> int:
+    """Clear runtime overrides for ``scope``.
+
+    When ``keys`` is None every row in the scope is removed (full reset
+    of the section). When ``keys`` is given only those columns are
+    deleted — used by the LLM sections, which share an owner's scope
+    but only own a slice of its keys (one prefix per role).
 
     Returns the number of rows removed. After this call the effective
     settings revert to yaml < env < pydantic-defaults; the next
@@ -77,10 +87,18 @@ async def reset_runtime_section(*, section: str) -> int:
     """
     pool = _pool()
     async with pool.acquire() as conn:
-        result = await conn.execute(
-            "DELETE FROM runtime_config WHERE scope = $1",
-            section,
-        )
+        if keys is None:
+            result = await conn.execute(
+                "DELETE FROM runtime_config WHERE scope = $1",
+                scope,
+            )
+        else:
+            result = await conn.execute(
+                "DELETE FROM runtime_config "
+                "WHERE scope = $1 AND key = ANY($2::text[])",
+                scope,
+                keys,
+            )
     # asyncpg returns the command tag, e.g. "DELETE 7".
     parts = result.split()
     return int(parts[-1]) if parts and parts[-1].isdigit() else 0

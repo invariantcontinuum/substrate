@@ -19,6 +19,10 @@ service_name: "graph"
 # ── Embedding endpoint (host LLM stack) ──────────────────────────────
 embedding_url: "http://host.docker.internal:8101/v1/embeddings"
 embedding_model: "embeddings"
+embedding_api_key: "test"
+embedding_ssl_verify: true
+embedding_timeout_s: 30.0
+embedding_context_window_tokens: 8192
 embedding_dim: 768
 embedding_query_prefix: "search_query: "
 embedding_max_input_chars: 1400
@@ -26,11 +30,16 @@ embedding_max_input_chars: 1400
 # ── Dense LLM (chat + summary generation) ────────────────────────────
 dense_llm_url: "http://host.docker.internal:8102/v1/chat/completions"
 dense_llm_model: "dense"
-llm_api_key: "test"
+dense_llm_api_key: "test"
+dense_llm_ssl_verify: true
+dense_llm_context_size: 60000
+dense_llm_timeout_s: 110.0
 
 # ── Sparse LLM (BM25-like keyword retrieval helper) ──────────────────
 sparse_llm_url: "http://host.docker.internal:8103/v1/chat/completions"
 sparse_llm_model: "sparse"
+sparse_llm_api_key: "test"
+sparse_llm_ssl_verify: true
 sparse_llm_context_size: 16384
 sparse_llm_timeout_s: 20.0
 sparse_keyword_top_k: 20
@@ -38,6 +47,9 @@ sparse_keyword_top_k: 20
 # ── Reranker (cross-encoder reranking) ───────────────────────────────
 reranker_url: "http://host.docker.internal:8104/reranking"
 reranker_model: "reranker"
+reranker_api_key: "test"
+reranker_ssl_verify: true
+reranker_context_window_tokens: 8192
 reranker_top_n: 5
 reranker_timeout_s: 30.0
 reranker_rrf_k: 60
@@ -76,7 +88,6 @@ chat_total_budget_chars: 40000
 chat_max_tokens: 800
 chat_context_retry_scales: "1.0,0.5,0.25"
 chat_temperature: 0.2
-chat_llm_timeout_s: 110.0
 chat_context_token_budget: 24000
 export_max_files: 10000
 chat_system_instruction: "You are a code-aware assistant grounded in a knowledge graph of source files. Answer the user's question using markdown. Cite source nodes inline with [ref:UUID] markers, where UUID is exactly one of the candidate node IDs supplied in the user message context. Do not output JSON. Do not invent UUIDs. If the context doesn't support the answer, say so plainly."

@@ -23,7 +23,7 @@ from pydantic import ValidationError
 from substrate_common import Event, UnauthorizedError, safe_publish
 
 from src.config import settings
-from src.config_registry import lookup_section
+from src.config_registry import LLM_FIELD_MAP, lookup_section
 from src.config_runtime import (
     fetch_effective_section,
     reset_runtime_section,
@@ -79,7 +79,15 @@ async def get_section(
         raise HTTPException(
             status_code=404, detail=f"unknown section {section!r}"
         ) from exc
-    return await fetch_effective_section(section=section, owner=owner)
+    raw = await fetch_effective_section(section=section, owner=owner)
+    # Translate role-prefixed storage keys back to the panel's simple
+    # field names so the frontend never has to know about per-role
+    # storage prefixes. Each `llm_<role>` section reads the same
+    # six-field shape; the section is the only thing that varies.
+    llm_map = LLM_FIELD_MAP.get(section)
+    if llm_map is not None:
+        return {wire_key: raw.get(storage_key) for wire_key, storage_key in llm_map.items()}
+    return raw
 
 
 @router.put("/{section}")
@@ -111,8 +119,22 @@ async def put_section(
     if not payload:
         raise HTTPException(status_code=400, detail="empty body")
 
+    # Translate per-role wire keys ("name", "url", …) into the owning
+    # service's storage keys ("dense_llm_url", …) so the runtime overlay
+    # — keyed by the owner's SCOPE — picks them up directly. The four
+    # `llm_*` sections share storage with the rest of the owner's
+    # settings, but use disjoint role-prefixed keys to avoid collisions.
+    llm_map = LLM_FIELD_MAP.get(section)
+    if llm_map is not None:
+        payload = {llm_map[k]: v for k, v in payload.items() if k in llm_map}
+
     sub = _user_sub(user)
-    await upsert_runtime_section(section=section, payload=payload, updated_by=sub)
+    # Scope = owner service so the rows merge into the same overlay the
+    # service reads at startup (graph.SCOPE = "graph", ingestion.SCOPE =
+    # "ingestion"). Sections are a UI/wire partition only — once the
+    # body is validated and translated, every key is just a field on the
+    # owner's settings instance.
+    await upsert_runtime_section(scope=owner, payload=payload, updated_by=sub)
     await safe_publish(
         Event(
             type="config.updated",
@@ -160,7 +182,17 @@ async def reset_section(
         )
 
     sub = _user_sub(user)
-    rows_cleared = await reset_runtime_section(section=section)
+    # For LLM sections, drop only the storage keys that this role owns —
+    # the four `llm_*` sections share the owning service's overlay scope
+    # but use role-prefixed keys, so a global delete-by-scope would wipe
+    # peer roles' overrides too.
+    llm_map = LLM_FIELD_MAP.get(section)
+    if llm_map is not None:
+        rows_cleared = await reset_runtime_section(
+            scope=owner, keys=list(llm_map.values()),
+        )
+    else:
+        rows_cleared = await reset_runtime_section(scope=owner)
     await safe_publish(
         Event(
             type="config.updated",

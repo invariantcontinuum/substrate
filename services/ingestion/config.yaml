@@ -20,9 +20,12 @@ github_token: ""
 # ── Embedding endpoint (host LLM stack) ──────────────────────────────
 embedding_url: "http://host.docker.internal:8101/v1/embeddings"
 embedding_model: "embeddings"
+embedding_api_key: "test"
+embedding_ssl_verify: true
+embedding_timeout_s: 30.0
+embedding_context_window_tokens: 8192
 # Must match the served model's vector dimension.
 embedding_dim: 768
-llm_api_key: "test"
 embedding_document_prefix: "search_document: "
 # Hard cap on per-input payload sent to the embedding server.
 embedding_max_input_chars: 1400

@@ -14,13 +14,26 @@ class _IngestionSettings(LayeredSettings):
     github_token: str = ""
 
     # ── Embedding endpoint ───────────────────────────────────────────
+    # Per-role connection knobs (matches the LLM Connections panel
+    # surface). The embedding role is owned by ingestion (not graph),
+    # so PUT /api/config/llm_embedding from the frontend lands here.
+    # The same keys live with the same defaults on the graph side so
+    # the two services agree on the canonical values; the gateway
+    # routes the section's reads + writes to ingestion.
     embedding_url: str = "http://host.docker.internal:8101/v1/embeddings"
     # lazy-lamacpp exposes the model by its systemd-unit name ("embeddings"),
     # not the underlying HF path. Dim must match the served model
     # (nomic-embed-text-v2-moe → 768).
     embedding_model: str = "embeddings"
+    embedding_api_key: str = "test"
+    embedding_ssl_verify: bool = True
+    # Read budget (seconds) for the embedding HTTP call. Independently
+    # tunable from `embedding_http_timeout_read_s` below — that knob is
+    # the per-batch ingestion-side budget; this one is the panel-facing
+    # connection timeout used by the test endpoint.
+    embedding_timeout_s: float = 30.0
+    embedding_context_window_tokens: int = 8192
     embedding_dim: int = 768
-    llm_api_key: str = "test"
 
     # Prefix scheme for clustering corpus vs query vectors. jina-code-
     # embeddings recognises "search_document: " / "search_query: ".
