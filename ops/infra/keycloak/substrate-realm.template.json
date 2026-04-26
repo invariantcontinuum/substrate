@@ -15,6 +15,12 @@
   "permanentLockout": false,
   "maxFailureWaitSeconds": 900,
   "failureFactor": 5,
+  "otpPolicyType": "totp",
+  "otpPolicyAlgorithm": "HmacSHA1",
+  "otpPolicyDigits": 6,
+  "otpPolicyLookAheadWindow": 1,
+  "otpPolicyPeriod": 30,
+  "otpPolicyCodeReusable": false,
   "roles": {
     "realm": [
       { "name": "admin", "description": "Full access to Substrate" },
