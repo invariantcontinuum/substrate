@@ -1,10 +1,12 @@
 """Gateway settings — schema only; loader lives in substrate_common.config."""
-from pydantic_settings import BaseSettings
+from typing import ClassVar
 
-from substrate_common.config import load_settings
+from substrate_common.config import LayeredSettings, load_settings
 
 
-class _GatewaySettings(BaseSettings):
+class _GatewaySettings(LayeredSettings):
+    SCOPE: ClassVar[str] = "gateway"
+
     keycloak_url: str = "http://keycloak:8080"
     keycloak_realm: str = "substrate"
     # Browser-facing issuer — must match KC_HOSTNAME on the Keycloak side.
