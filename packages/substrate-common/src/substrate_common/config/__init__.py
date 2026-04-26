@@ -2,7 +2,15 @@
 from substrate_common.config.cli import parse_overrides
 from substrate_common.config.layered import LayeredSettings
 from substrate_common.config.loader import load_settings  # back-compat re-export
+from substrate_common.config.refresh import ConfigRefresher
 from substrate_common.config.runtime_overlay import RuntimeOverlay
 from substrate_common.config.yaml_source import YamlSource
 
-__all__ = ["LayeredSettings", "RuntimeOverlay", "YamlSource", "load_settings", "parse_overrides"]
+__all__ = [
+    "ConfigRefresher",
+    "LayeredSettings",
+    "RuntimeOverlay",
+    "YamlSource",
+    "load_settings",
+    "parse_overrides",
+]

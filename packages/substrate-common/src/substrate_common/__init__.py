@@ -1,6 +1,6 @@
 """Substrate shared library — config, logging, errors, auth, db, sse, middleware."""
 from substrate_common.auth import KeycloakJwtVerifier
-from substrate_common.config import load_settings
+from substrate_common.config import ConfigRefresher, load_settings
 from substrate_common.db import asyncpg_dsn, create_pool
 from substrate_common.errors import (
     ConflictError,
@@ -28,6 +28,7 @@ from substrate_common.sse import (
 __version__ = "0.1.0"
 
 __all__ = [
+    "ConfigRefresher",
     "ConflictError",
     "EdgeAffected",
     "Event",

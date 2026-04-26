@@ -52,3 +52,32 @@ async def test_refresh_replaces_snapshot():
     pool._rows = [{"key": "chat_top_k", "value": 99}]
     await ro.refresh()
     assert ro.snapshot() == {"chat_top_k": 99}
+
+
+@pytest.mark.asyncio
+async def test_string_jsonb_values_are_decoded():
+    """Pools without a JSONB codec return raw JSON text in `value`. The
+    overlay loader decodes it so consumers always see Python values.
+    """
+    pool = _FakePool([
+        {"key": "chat_top_k", "value": "25"},
+        {"key": "summary_instruction", "value": '"from-runtime"'},
+        {"key": "active_set_leiden_labeling_enabled", "value": "true"},
+    ])
+    ro = RuntimeOverlay(scope="graph", pool=pool)
+    await ro.refresh()
+    assert ro.snapshot() == {
+        "chat_top_k": 25,
+        "summary_instruction": "from-runtime",
+        "active_set_leiden_labeling_enabled": True,
+    }
+
+
+@pytest.mark.asyncio
+async def test_unparseable_string_value_is_passed_through():
+    """A non-JSON string (legacy data, deliberate plaintext) becomes the
+    Python string itself rather than crashing the loader."""
+    pool = _FakePool([{"key": "raw", "value": "not-json"}])
+    ro = RuntimeOverlay(scope="graph", pool=pool)
+    await ro.refresh()
+    assert ro.snapshot() == {"raw": "not-json"}

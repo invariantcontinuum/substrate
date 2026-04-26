@@ -14,11 +14,17 @@ from substrate_common import (
 )
 
 from src.api.config import router as config_router
+from src.api.internal_config import router as internal_config_router
 from src.config import settings
 from src.proxy import close_client, init_client, proxy_request
 from src.sse_endpoint import close_pool as close_sse_pool
 from src.sse_endpoint import init_pool as init_sse_pool
 from src.sse_endpoint import router as sse_router
+from src.startup import (
+    init_config_overlay,
+    start_config_listener,
+    stop_config_listener,
+)
 
 configure_logging(service=settings.service_name)
 logger = structlog.get_logger()
@@ -35,6 +41,13 @@ async def lifespan(app: FastAPI):
     )
     await init_client()
     await init_sse_pool()
+    # Layered config overlay piggybacks on the SSE LISTEN pool — same
+    # database, same lifecycle. Init AFTER init_sse_pool so the pool is
+    # available; the listener task picks it up via late import.
+    from src import sse_endpoint
+    if sse_endpoint._pool is not None:
+        await init_config_overlay(sse_endpoint._pool)
+    await start_config_listener()
     if settings.auth_disabled:
         logger.warning(
             "gateway_auth_disabled",
@@ -43,6 +56,7 @@ async def lifespan(app: FastAPI):
         )
     logger.info("gateway_started", keycloak=settings.keycloak_url)
     yield
+    await stop_config_listener()
     await close_sse_pool()
     await close_client()
     logger.info("gateway_stopped")
@@ -61,6 +75,7 @@ app.add_middleware(
 register_handlers(app)
 app.include_router(sse_router)
 app.include_router(config_router)
+app.include_router(internal_config_router)
 
 
 @app.get("/health")

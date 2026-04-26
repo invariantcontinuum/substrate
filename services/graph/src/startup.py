@@ -5,7 +5,10 @@ from typing import Any
 import asyncpg
 import structlog
 
-from src.config import settings
+from substrate_common.config import ConfigRefresher
+
+from src import config as _config_module
+from src.config import _GraphSettings, settings
 from src.graph import community as community_mod
 from src.graph import store
 
@@ -45,6 +48,27 @@ _INVALIDATING_STATUSES = {"completed", "cleaned", "failed"}
 
 _listener_task: asyncio.Task[None] | None = None
 _sweeper_task: asyncio.Task[None] | None = None
+
+# Module-global config refresher. Initialised by ``init_config_overlay``
+# during the FastAPI lifespan and consumed by the SSE LISTEN loop when
+# a ``config.updated`` event arrives. Held at module scope because the
+# graph service has exactly one settings instance per process.
+_config_refresher: ConfigRefresher | None = None
+
+
+async def init_config_overlay(pool: asyncpg.Pool) -> None:
+    """Open the runtime overlay against ``pool``, load the initial snapshot,
+    and rebind ``src.config.settings`` so the merged values are visible
+    to subsequent reads. Called from the FastAPI lifespan after the
+    asyncpg pool is open."""
+    global _config_refresher
+    _config_refresher = ConfigRefresher(
+        scope=settings.SCOPE,
+        settings_cls=_GraphSettings,
+        config_module=_config_module,
+    )
+    await _config_refresher.init(pool)
+    _log.info("graph_config_overlay_initialised", scope=settings.SCOPE)
 
 
 async def start_leiden_cache_tasks() -> None:
@@ -115,7 +139,7 @@ async def _listen_loop_once(pool: asyncpg.Pool) -> None:
     try:
         while True:
             event_id = await queue.get()
-            await _maybe_invalidate(pool, event_id)
+            await _dispatch_event(pool, event_id)
     finally:
         try:
             await conn.remove_listener(_SSE_CHANNEL, _on_notify)
@@ -123,17 +147,21 @@ async def _listen_loop_once(pool: asyncpg.Pool) -> None:
             await pool.release(conn)
 
 
-async def _maybe_invalidate(pool: asyncpg.Pool, event_id: str) -> None:
-    """Fetch the event body, filter to terminal sync_lifecycle events,
-    and invalidate cache rows overlapping that sync_id."""
+async def _dispatch_event(pool: asyncpg.Pool, event_id: str) -> None:
+    """Fetch one ``sse_events`` row and dispatch by ``type``.
+
+    Two consumers share the same listener: the Leiden-cache invalidator
+    (terminal sync_lifecycle events) and the runtime-config refresher
+    (config.updated events). Multiplexing them avoids holding a second
+    LISTEN connection just for config refresh. Unknown event types are
+    silently ignored.
+    """
     async with pool.acquire() as c:
         row = await c.fetchrow(
             "SELECT type, sync_id, payload FROM sse_events WHERE id = $1",
             event_id,
         )
     if not row:
-        return
-    if row["type"] != "sync_lifecycle":
         return
     payload = row["payload"]
     if isinstance(payload, str):
@@ -143,10 +171,35 @@ async def _maybe_invalidate(pool: asyncpg.Pool, event_id: str) -> None:
             return
     if not isinstance(payload, dict):
         return
+
+    if row["type"] == "config.updated":
+        await _maybe_refresh_config(payload)
+        return
+    if row["type"] == "sync_lifecycle":
+        await _maybe_invalidate(pool, row["sync_id"], payload)
+        return
+
+
+async def _maybe_refresh_config(payload: dict[str, Any]) -> None:
+    """Forward to the runtime overlay refresher. Defensive: swallow
+    overlay errors so a transient DB hiccup during refresh cannot crash
+    the listener loop and break Leiden cache invalidation."""
+    if _config_refresher is None:
+        return
+    try:
+        await _config_refresher.on_event(payload)
+    except Exception as exc:  # noqa: BLE001 — listener resilience
+        _log.warning("config_overlay_refresh_failed", error=str(exc))
+
+
+async def _maybe_invalidate(
+    pool: asyncpg.Pool, sync_id: Any, payload: dict[str, Any],
+) -> None:
+    """Invalidate cache rows whose sync_ids array overlaps ``sync_id`` when
+    a sync_lifecycle event reaches a terminal status."""
     status = payload.get("status")
     if status not in _INVALIDATING_STATUSES:
         return
-    sync_id = row["sync_id"]
     if sync_id is None:
         return
     try:

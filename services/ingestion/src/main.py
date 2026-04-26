@@ -12,6 +12,7 @@ from substrate_common import (
 )
 
 from src import events, graph_writer, sync_issues, sync_runs, sync_schedules
+from src.api.internal_config import router as internal_config_router
 from src.config import settings
 from src.connectors.github import close_client as close_github_client
 from src.jobs.runner import start_runner, stop_runner
@@ -21,6 +22,11 @@ from src.scheduler import (
     start_scheduler,
     stop_retention_loop,
     stop_scheduler,
+)
+from src.startup import (
+    init_config_overlay,
+    start_config_listener,
+    stop_config_listener,
 )
 from substrate_common.schema import ScheduleRequest, ScheduleUpdateRequest, SyncRequest
 from src.json_utils import json_object
@@ -63,6 +69,11 @@ async def _reap_zombies() -> None:
 async def lifespan(app: FastAPI):
     await graph_writer.connect(settings.database_url)
     events.init_bus()
+    # Layered config overlay must come up before any worker observes
+    # ``settings.*`` values — a tuned chunk_size or runner cadence should
+    # take effect on the first poll, not on the second restart.
+    await init_config_overlay(graph_writer.get_pool())
+    await start_config_listener()
     await _reap_zombies()
     await start_runner()
     await start_scheduler()
@@ -72,6 +83,7 @@ async def lifespan(app: FastAPI):
     await stop_retention_loop()
     await stop_scheduler()
     await stop_runner()
+    await stop_config_listener()
     await close_github_client()
     await close_llm_client()
     await graph_writer.disconnect()
@@ -82,6 +94,7 @@ app = FastAPI(title="Substrate Ingestion", lifespan=lifespan)
 app.add_middleware(RequestIdMiddleware)
 app.add_middleware(ExceptionLoggingMiddleware)
 register_handlers(app)
+app.include_router(internal_config_router)
 
 
 @app.get("/health")

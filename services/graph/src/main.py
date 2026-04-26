@@ -20,6 +20,7 @@ from src.api.deletion import router as deletion_router
 from src.api.export import router as export_router
 from src.api.files import router as files_router
 from src.api.integrations import router as integrations_router
+from src.api.internal_config import router as internal_config_router
 from src.api.preferences import router as preferences_router
 from src.api.routes import router
 from src.api.schedules import router as schedules_router
@@ -33,6 +34,7 @@ from src.graph import store
 from src.sse_retention import start_sse_retention_loop, stop_sse_retention_loop
 from src.startup import (
     check_embedding_dim,
+    init_config_overlay,
     start_leiden_cache_tasks,
     stop_leiden_cache_tasks,
 )
@@ -46,6 +48,10 @@ async def lifespan(app: FastAPI):
     await store.connect()
     pool = store.get_pool()
     init_bus(pool)
+    # Load runtime overlay BEFORE any settings-coupled startup checks
+    # (embedding_dim guard, retention loop, Leiden tasks) so an operator-
+    # tuned value already takes effect on the first request after restart.
+    await init_config_overlay(pool)
     async with pool.acquire() as conn:
         await check_embedding_dim(conn, expected_dim=settings.embedding_dim)
     await start_sse_retention_loop()
@@ -80,6 +86,7 @@ app.include_router(deletion_router)
 app.include_router(files_router)
 app.include_router(chat_context_router)
 app.include_router(export_router)
+app.include_router(internal_config_router)
 
 
 @app.get("/health")
