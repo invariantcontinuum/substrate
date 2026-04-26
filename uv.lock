@@ -1847,6 +1847,7 @@ dev = [
     { name = "httpx" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
+    { name = "testcontainers" },
 ]
 
 [package.metadata]
@@ -1862,6 +1863,7 @@ requires-dist = [
     { name = "sse-starlette", specifier = ">=2.1" },
     { name = "structlog", specifier = ">=24.4.0" },
     { name = "substrate-common", editable = "packages/substrate-common" },
+    { name = "testcontainers", extras = ["postgres"], marker = "extra == 'dev'", specifier = ">=4.8" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32.0" },
 ]
 provides-extras = ["dev"]

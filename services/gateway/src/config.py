@@ -32,6 +32,19 @@ class _GatewaySettings(LayeredSettings):
     sse_pool_min_size: int = 1
     sse_pool_max_size: int = 64
 
+    # ── API tokens ─────────────────────────────────────────────────────
+    # Personal access token plaintext format: ``<prefix>_<random>``. The
+    # plaintext prefix lives at the head of the secret and is also stored
+    # standalone for UI listing ("subs_a1b2c3d4 …"). Trade-off: shorter
+    # random portion => faster brute-force; longer => more clipboard
+    # awkward. 32 url-safe chars ≈ 192 bits of entropy, comfortable.
+    api_token_plaintext_prefix: str = "subs_"
+    api_token_random_bytes: int = 24  # secrets.token_urlsafe(N) -> ~⌈4N/3⌉ chars
+    # Length of the plaintext-prefix slice (after the scheme prefix) shown
+    # in the UI list. Balances enough disambiguation with not leaking too
+    # much of the secret.
+    api_token_display_prefix_len: int = 8
+
     auth_disabled: bool = False
     cors_origins: list[str] = []
     service_name: str = "gateway"

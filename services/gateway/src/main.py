@@ -13,6 +13,8 @@ from substrate_common import (
     register_handlers,
 )
 
+from src.api.account import hash_token as _hash_pat
+from src.api.account import router as account_router
 from src.api.config import router as config_router
 from src.api.internal_config import router as internal_config_router
 from src.api.profile_idps import router as profile_idps_router
@@ -78,6 +80,7 @@ app.include_router(sse_router)
 app.include_router(config_router)
 app.include_router(internal_config_router)
 app.include_router(profile_idps_router)
+app.include_router(account_router)
 
 
 @app.get("/health")
@@ -86,23 +89,99 @@ async def health():
 
 
 async def _authenticate(request: Request) -> dict:
-    """Extract and validate JWT from Authorization header.
+    """Extract and validate the bearer credential on the request.
 
-    Raises UnauthorizedError on any failure; the error handler returns the
-    canonical 401 envelope.
+    Two flavours are supported:
+
+    * A Keycloak-issued JWT — verified via the JWKS-cached
+      ``KeycloakJwtVerifier``. The full claim set is returned and the
+      JWT itself is stashed on ``request.state.bearer_jwt`` so account
+      API routes that need to forward it (password change) can.
+    * A personal access token (PAT) issued via
+      ``POST /api/users/me/api-tokens`` — recognised by its
+      ``api_token_plaintext_prefix`` (``subs_`` by default). The plaintext
+      is sha256-hashed and looked up in ``api_tokens`` WHERE
+      ``revoked_at IS NULL AND (expires_at IS NULL OR expires_at > now())``.
+      On hit a synthetic claim dict is returned with just ``sub`` and a
+      fixed ``viewer`` role so downstream code that expects role tokens
+      keeps working. ``last_used_at`` is bumped fire-and-forget.
+
+    Both paths populate ``request.state.user_sub`` for FastAPI handlers
+    that read it directly. Raises ``UnauthorizedError`` on any failure
+    so the canonical 401 envelope is returned.
     """
     if settings.auth_disabled:
-        return {
+        claims = {
             "sub": "dev",
             "preferred_username": "dev",
             "realm_access": {"roles": ["admin", "engineer", "viewer"]},
         }
+        request.state.user_sub = "dev"
+        request.state.claims = claims
+        return claims
     auth_header = request.headers.get("Authorization", "")
     if not auth_header.startswith("Bearer "):
         raise UnauthorizedError("missing bearer token")
+    raw = auth_header[7:].strip()
+    if raw.startswith(settings.api_token_plaintext_prefix):
+        return await _authenticate_pat(request, raw)
     if jwt_verifier is None:
         raise UnauthorizedError("verifier not initialised")
-    return await jwt_verifier.verify(auth_header[7:])
+    claims = await jwt_verifier.verify(raw)
+    request.state.user_sub = _extract_sub(claims)
+    request.state.claims = claims
+    request.state.bearer_jwt = raw
+    return claims
+
+
+async def _authenticate_pat(request: Request, plaintext: str) -> dict:
+    """Resolve a personal access token to its owner.
+
+    Uses the SSE asyncpg pool that the gateway already maintains for
+    LISTEN/NOTIFY. A miss on lookup or an expired/revoked row both
+    produce the same opaque 401 — no token-existence oracle.
+    """
+    from src import sse_endpoint
+
+    pool = sse_endpoint._pool
+    if pool is None:
+        raise UnauthorizedError("gateway db pool not ready")
+    token_hash = _hash_pat(plaintext)
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT id::text AS id, user_sub
+            FROM api_tokens
+            WHERE token_hash = $1
+              AND revoked_at IS NULL
+              AND (expires_at IS NULL OR expires_at > now())
+            """,
+            token_hash,
+        )
+        if row is None:
+            raise UnauthorizedError("invalid or expired API token")
+        # Fire-and-forget last_used_at bump. We don't await the second
+        # statement to keep request latency at one round-trip, and the
+        # acquire() context already serialises both statements on the
+        # same connection.
+        await conn.execute(
+            "UPDATE api_tokens SET last_used_at = now() WHERE id = $1::uuid",
+            row["id"],
+        )
+    user_sub = row["user_sub"]
+    claims = {
+        "sub": user_sub,
+        "preferred_username": user_sub,
+        # PAT-issued requests carry the same baseline role as a
+        # freshly-bootstrapped user. This intentionally does NOT inherit
+        # the issuer's realm roles — escalating beyond viewer requires a
+        # real JWT.
+        "realm_access": {"roles": ["viewer"]},
+    }
+    request.state.user_sub = user_sub
+    request.state.claims = claims
+    request.state.bearer_jwt = None
+    return claims
 
 
 def _route_to_ingestion(method: str, path: str) -> bool:
