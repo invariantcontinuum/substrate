@@ -140,7 +140,7 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
     await _publish_progress(sync_id, meta, done=0, total=0)
 
     tree: MaterializedTree | None = None
-    last_commit_at: str | None = None
+    last_commit_at: datetime | None = None
     # Resume-cursor state (Task 7). When the sync row carries a cursor from
     # a prior failed/cancelled run, we pin the commit_sha the parent was
     # working against and skip files the parent already finished. The cursor
@@ -183,8 +183,12 @@ async def handle_sync(sync_id: str, source: dict, config_snapshot: dict) -> None
                     )
                     if commit_date:
                         last_commit_at = commit_date
-                except Exception:
-                    pass
+                except Exception as e:  # noqa: BLE001 — metadata enrichment is non-fatal; log loudly so failures aren't silent.
+                    logger.warning(
+                        "github_metadata_enrichment_failed",
+                        owner=source["owner"], repo=source["name"],
+                        ref=tree.ref, error=str(e), exc_info=True,
+                    )
         await _check_cancelled(sync_id)
 
         meta["phase"] = "discovering"

@@ -1,4 +1,6 @@
 import time
+from datetime import datetime
+
 import asyncpg
 import structlog
 from substrate_common.db import create_pool
@@ -73,7 +75,7 @@ async def insert_file(
     embedding: list[float] | None = None,
     exports: list[str] | None = None,
     last_commit_sha: str | None = None,
-    last_commit_at: str | None = None,
+    last_commit_at: datetime | None = None,
     description: str = "",
 ) -> str:
     """Insert one file row tagged with sync_id; immutable per-snapshot.

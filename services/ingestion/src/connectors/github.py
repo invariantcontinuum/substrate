@@ -3,6 +3,7 @@ import os
 import shutil
 import tempfile
 import time
+from datetime import datetime
 
 import httpx
 import structlog
@@ -44,13 +45,33 @@ async def close_client() -> None:
         await _client.aclose()
         _client = None
 
+def _gh_headers(token: str) -> dict[str, str]:
+    """Build headers for a GitHub REST API request.
+
+    When ``token`` is empty, the Authorization header is omitted so that
+    public endpoints fall back to anonymous access. Sending the literal
+    ``Authorization: Bearer `` is what causes GitHub to 401 even for
+    public repos — that bug previously wiped ``file_embeddings.last_commit_at``
+    and ``sources.meta`` for every sync.
+    """
+    headers = {"Accept": "application/vnd.github+json"}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
+
+
 async def fetch_repo_metadata(owner: str, repo: str, token: str) -> dict:
-    """Fetch public metadata from the GitHub REST API. Returns an empty dict on failure."""
+    """Fetch public metadata from the GitHub REST API.
+
+    Returns an empty dict on a transient failure (network, 5xx, parse
+    error). API failures are logged at WARN with status + url so the
+    operator can spot a misconfigured token or upstream outage —
+    callers must not assume a `{}` response is normal steady state.
+    """
     client = await get_client()
     url = f"{GITHUB_API}/repos/{owner}/{repo}"
-    headers = {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"}
     try:
-        resp = await client.get(url, headers=headers)
+        resp = await client.get(url, headers=_gh_headers(token))
         resp.raise_for_status()
         data = resp.json()
         return {
@@ -66,21 +87,53 @@ async def fetch_repo_metadata(owner: str, repo: str, token: str) -> dict:
             "updated_at": data.get("updated_at") or "",
             "pushed_at": data.get("pushed_at") or "",
         }
-    except Exception:
+    except httpx.HTTPStatusError as e:
+        logger.warning(
+            "github_repo_metadata_status_error",
+            url=url, status=e.response.status_code,
+            body=e.response.text[:200], with_token=bool(token),
+        )
+        return {}
+    except httpx.HTTPError as e:
+        logger.warning("github_repo_metadata_http_error", url=url, error=str(e))
         return {}
 
 
-async def fetch_commit_date(owner: str, repo: str, ref: str, token: str) -> str | None:
-    """Fetch the committer date for a given ref. Returns None on failure."""
+async def fetch_commit_date(owner: str, repo: str, ref: str, token: str) -> datetime | None:
+    """Fetch the committer date for a given ref as an aware ``datetime``.
+
+    Returns None on transient failure with a logged warning. See
+    ``fetch_repo_metadata`` docstring for the silent-401 history.
+
+    The GitHub API returns RFC 3339 with a literal ``Z`` suffix
+    (e.g. ``2026-04-17T08:56:42Z``); ``datetime.fromisoformat`` only
+    accepts that suffix on Python 3.11+, which is the runtime Substrate
+    pins. Asyncpg requires a ``datetime`` (not a string) for any
+    ``timestamptz`` parameter, so parsing happens here at the I/O
+    boundary rather than in every caller.
+    """
     client = await get_client()
     url = f"{GITHUB_API}/repos/{owner}/{repo}/commits/{ref}"
-    headers = {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"}
     try:
-        resp = await client.get(url, headers=headers)
+        resp = await client.get(url, headers=_gh_headers(token))
         resp.raise_for_status()
         data = resp.json()
-        return data.get("commit", {}).get("committer", {}).get("date")
-    except Exception:
+        raw = data.get("commit", {}).get("committer", {}).get("date")
+        if not raw:
+            return None
+        return datetime.fromisoformat(raw)
+    except httpx.HTTPStatusError as e:
+        logger.warning(
+            "github_commit_date_status_error",
+            url=url, status=e.response.status_code,
+            body=e.response.text[:200], with_token=bool(token),
+        )
+        return None
+    except httpx.HTTPError as e:
+        logger.warning("github_commit_date_http_error", url=url, error=str(e))
+        return None
+    except ValueError as e:
+        logger.warning("github_commit_date_parse_error", url=url, raw=raw, error=str(e))
         return None
 
 
