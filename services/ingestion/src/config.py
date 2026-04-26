@@ -1,10 +1,12 @@
 """Ingestion settings — schema only; loader lives in substrate_common.config."""
-from pydantic_settings import BaseSettings
+from typing import ClassVar
 
-from substrate_common.config import load_settings
+from substrate_common.config import LayeredSettings, load_settings
 
 
-class _IngestionSettings(BaseSettings):
+class _IngestionSettings(LayeredSettings):
+    SCOPE: ClassVar[str] = "ingestion"
+
     # ── Service ──────────────────────────────────────────────────────
     database_url: str = "postgresql+asyncpg://substrate_graph:change-me@postgres:5432/substrate_graph"
     app_port: int = 8081
