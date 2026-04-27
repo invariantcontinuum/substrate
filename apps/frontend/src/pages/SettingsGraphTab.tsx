@@ -15,11 +15,6 @@ import { apiFetch } from "@/lib/api";
 import { logger } from "@/lib/logger";
 
 interface GraphConfig {
-  per_sync_leiden_resolution?: number;
-  per_sync_leiden_beta?: number;
-  per_sync_leiden_iterations?: number;
-  per_sync_leiden_min_cluster_size?: number;
-  per_sync_leiden_seed?: number;
   layout?: string;
 }
 
@@ -155,56 +150,7 @@ function GraphSettingsEditor({ seed }: EditorProps) {
       </div>
 
       <SectionHeader
-        title="Default Leiden"
-        aux="applied to per-sync clustering"
-      />
-      <LeidenKnob
-        label="Resolution"
-        min={0.1}
-        max={5}
-        step={0.1}
-        value={graphCfg.per_sync_leiden_resolution ?? 1.0}
-        onChange={(v) => apply.mutate({ per_sync_leiden_resolution: v })}
-      />
-      <LeidenKnob
-        label="Beta"
-        min={0}
-        max={0.1}
-        step={0.005}
-        value={graphCfg.per_sync_leiden_beta ?? 0.01}
-        onChange={(v) => apply.mutate({ per_sync_leiden_beta: v })}
-      />
-      <LeidenKnob
-        label="Iterations"
-        min={1}
-        max={50}
-        step={1}
-        value={graphCfg.per_sync_leiden_iterations ?? 10}
-        onChange={(v) =>
-          apply.mutate({ per_sync_leiden_iterations: Math.round(v) })
-        }
-      />
-      <LeidenKnob
-        label="Min cluster size"
-        min={1}
-        max={100}
-        step={1}
-        value={graphCfg.per_sync_leiden_min_cluster_size ?? 4}
-        onChange={(v) =>
-          apply.mutate({ per_sync_leiden_min_cluster_size: Math.round(v) })
-        }
-      />
-      <LeidenKnob
-        label="Seed"
-        min={0}
-        max={9999}
-        step={1}
-        value={graphCfg.per_sync_leiden_seed ?? 42}
-        onChange={(v) => apply.mutate({ per_sync_leiden_seed: Math.round(v) })}
-      />
-
-      <SectionHeader
-        title="Active-set Leiden"
+        title="Leiden"
         aux={`${selectedSyncIds.length} snapshot${selectedSyncIds.length === 1 ? "" : "s"} selected`}
       />
       <LeidenKnob
