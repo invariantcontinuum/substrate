@@ -149,7 +149,11 @@ function SourceNode({
   expandedDefault = false,
 }: SourceNodeProps) {
   const [expanded, setExpanded] = useState(expandedDefault);
-  const sourceSyncs = useSourceSyncs(expanded ? source.id : null);
+  // Fetch the first page eagerly (regardless of expansion) so the
+  // collapsed source row knows whether any of its snapshots are in the
+  // current selection — without it the tri-state checkbox always read
+  // "none" until the user opened the accordion.
+  const sourceSyncs = useSourceSyncs(source.id);
   const items: SyncRun[] = sourceSyncs.items;
 
   const eligibleIds = useMemo(

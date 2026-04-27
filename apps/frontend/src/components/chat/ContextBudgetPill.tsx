@@ -55,8 +55,11 @@ export function ContextBudgetPill({
     return fileTokens + historyTokens;
   }, [data, messages]);
 
-  if (!threadId || !data) return null;
-  if (data.totals.file_count === 0) return null;
+  // Always render so the user sees the ceiling before sending a turn —
+  // even on a brand-new thread (threadId still null) or when no files
+  // have been attached yet (file_count = 0). The pill is the single
+  // affordance into the context-files modal.
+  const fileCount = data?.totals.file_count ?? 0;
   const ratio = used / BUDGET;
   const cls = ratio > 1 ? "is-over" : ratio > 0.8 ? "is-warn" : "";
   return (
@@ -64,10 +67,14 @@ export function ContextBudgetPill({
       type="button"
       className={`context-budget-pill ${cls}`}
       onClick={onOpenModal}
-      title="Open context files"
+      title={
+        threadId
+          ? "Open context files"
+          : "Start a chat to attach files; the budget below is the ceiling."
+      }
     >
       {used.toLocaleString()} / {BUDGET.toLocaleString()} tokens ·{" "}
-      {data.totals.file_count} files
+      {fileCount} file{fileCount === 1 ? "" : "s"}
     </button>
   );
 }
