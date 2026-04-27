@@ -25,6 +25,7 @@ from src.api.export import router as export_router
 from src.api.files import router as files_router
 from src.api.graph_search import router as graph_search_router
 from src.api.integrations import router as integrations_router
+from src.api.internal_chat_preview import router as internal_chat_preview_router
 from src.api.internal_config import router as internal_config_router
 from src.api.preferences import router as preferences_router
 from src.api.routes import router
@@ -95,6 +96,7 @@ app.include_router(chat_context_user_router)
 app.include_router(chat_context_thread_router)
 app.include_router(export_router)
 app.include_router(internal_config_router)
+app.include_router(internal_chat_preview_router)
 
 
 @app.get("/health")

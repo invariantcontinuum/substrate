@@ -81,6 +81,12 @@ class _GatewaySettings(LayeredSettings):
     # browser doesn't re-request on every page nav.
     avatar_cache_max_age_s: int = 60
 
+    # Dense LLM OpenAI-compatible endpoint base URL.
+    # Tokenize endpoint /tokenize must be reachable from gateway.
+    # Trade-off: shared with chat completion path; changing this URL affects
+    # both the tokenize proxy and any future gateway-level LLM calls.
+    llm_dense_url: str = "http://host.docker.internal:8102/v1"
+
     auth_disabled: bool = False
     cors_origins: list[str] = []
     service_name: str = "gateway"
