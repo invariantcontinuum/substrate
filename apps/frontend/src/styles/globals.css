@@ -244,20 +244,32 @@ html {
   position: absolute;
   inset: 0;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: var(--space-3);
   pointer-events: none;
   z-index: 5;
-  /* Give the overlay a large painted surface so LCP lands here — a
-   * faint gradient keeps it visually quiet but big enough to qualify
-   * as a meaningful Largest Contentful Paint element instead of the
-   * ~40×13px loading text span. */
-  background:
-    radial-gradient(
-      ellipse at center,
-      color-mix(in srgb, var(--accent) 4%, transparent) 0%,
-      transparent 60%
-    );
+  /* Opaque enough to actually mask the canvas during the brief window
+   * between Cytoscape mounting all elements and the Leiden community
+   * subset filter being applied. Without this the user briefly sees
+   * the full unfiltered graph before it collapses into communities. */
+  background: var(--graph-canvas-bg);
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity var(--dur-md, 220ms) var(--ease-out),
+    visibility 0s linear var(--dur-md, 220ms);
+}
+.graph-loading-overlay.is-visible {
+  opacity: 1;
+  visibility: visible;
+  /* When fading IN, drop the visibility delay so the overlay paints
+   * immediately. The delayed visibility above only applies on fade-out
+   * to keep the overlay accessible until the opacity transition ends. */
+  transition:
+    opacity var(--dur-md, 220ms) var(--ease-out),
+    visibility 0s linear 0s;
 }
 
 /* Block interactions with the Cytoscape canvas while chunked add +
@@ -266,12 +278,21 @@ html {
  * > 10s in Chrome devtools. `pointer-events: auto` on the overlay
  * absorbs the click at a no-op target so the browser can dispatch it
  * immediately instead of waiting for Cytoscape's canvas to be free. */
-.graph-loading-overlay.is-blocking {
+.graph-loading-overlay.is-blocking.is-visible {
   pointer-events: auto;
   cursor: progress;
 }
 .graph-canvas-container.is-loading {
   pointer-events: none;
+}
+
+.graph-loading-spinner {
+  color: var(--accent);
+  animation: graph-loading-spin 0.9s linear infinite;
+}
+@keyframes graph-loading-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
 }
 
 .graph-loading-text {

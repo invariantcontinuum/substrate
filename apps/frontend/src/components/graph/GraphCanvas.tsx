@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Info, LayoutGrid, Maximize2, ZoomIn, ZoomOut } from "lucide-react";
+import { Info, LayoutGrid, Loader2, Maximize2, ZoomIn, ZoomOut } from "lucide-react";
 import { useGraphStore } from "@/stores/graph";
 import { useThemeStore } from "@/stores/theme";
 import { useUIStore } from "@/stores/ui";
@@ -398,7 +398,7 @@ export function GraphCanvas() {
   // user is staring at every uncategorised node and the legend is the
   // only way to spot type clusters at a glance.
   const params = useParams<{ idx?: string }>();
-  const { slides } = useCarouselSlides();
+  const { slides, loading: communitiesLoading } = useCarouselSlides();
   const slideIdx = Number.parseInt(params.idx ?? "0", 10);
   const currentSlide = Number.isFinite(slideIdx) ? slides[slideIdx] : undefined;
   const showLegend = currentSlide?.kind === "other";
@@ -905,15 +905,36 @@ export function GraphCanvas() {
     return () => window.removeEventListener("keydown", onKey);
   }, [layoutName, setLayoutName, setSelectedNodeId, runRelayout]);
 
+  // Overlay stays up until BOTH the graph engine has finished mounting
+  // its first batch AND the carousel slides (i.e. the Leiden cache that
+  // drives community visibility) have resolved. Without the second
+  // gate, the user briefly sees the entire graph before
+  // ``setVisibleSubset`` filters it down to the active community.
+  const showOverlay = loading || communitiesLoading;
   return (
     <div className="graph-canvas">
       <div className="graph-canvas-inner">
-        <div ref={containerRef} className="graph-canvas-container" />
-        {loading && (
-          <div className="graph-loading-overlay">
-            <span className="graph-loading-text">initialising graph engine...</span>
-          </div>
-        )}
+        <div
+          ref={containerRef}
+          className={`graph-canvas-container${showOverlay ? " is-loading" : ""}`}
+        />
+        <div
+          className={`graph-loading-overlay is-blocking${showOverlay ? " is-visible" : ""}`}
+          aria-busy={showOverlay}
+          aria-live="polite"
+        >
+          <Loader2
+            className="graph-loading-spinner"
+            size={32}
+            strokeWidth={1.75}
+            aria-hidden
+          />
+          <span className="graph-loading-text">
+            {communitiesLoading
+              ? "loading communities…"
+              : "initialising graph engine…"}
+          </span>
+        </div>
       </div>
 
       <div className="graph-overlay-bottom-left">
