@@ -64,7 +64,12 @@ async def test_fetch_effective_section_uses_inprocess_call_for_gateway_owner(
     calls: list[str] = []
 
     class _RecordingClient:
+        """Faithful httpx.AsyncClient stand-in. If the in-process path
+        regresses and HTTP gets called, this records the URL so the
+        `assert calls == []` post-await fires meaningfully."""
         def __init__(self, *args, **kwargs):
+            # Pre-MVP: ignore timeout/auth args — this client is only
+            # used to detect that a regression made it back to httpx.
             pass
         async def __aenter__(self):
             return self
@@ -72,8 +77,15 @@ async def test_fetch_effective_section_uses_inprocess_call_for_gateway_owner(
             return False
         async def get(self, url, *args, **kwargs):
             calls.append(url)
-            raise AssertionError(
-                f"in-process path regressed: HTTP GET attempted for {url}",
+            # Return a real httpx.Response so fetch_effective_section's
+            # downstream `.raise_for_status()` doesn't AttributeError —
+            # the regression guard is `assert calls == []`, not exception
+            # type.
+            return httpx.Response(
+                status_code=599,  # impossible status; would raise_for_status
+                content=b'{"_test": "should never reach here"}',
+                headers={"content-type": "application/json"},
+                request=httpx.Request("GET", url),
             )
 
     monkeypatch.setattr(httpx, "AsyncClient", _RecordingClient)

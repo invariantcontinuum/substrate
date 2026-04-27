@@ -126,6 +126,14 @@ async def fetch_effective_section(*, section: str, owner: str) -> dict[str, Any]
     the gateway listens on APP_PORT (8080), not the hardcoded 8000 the
     old loopback URL pointed at — and removes a redundant network
     round-trip from a hot UI path.
+
+    Error contract: for unknown ``section``, the gateway-owner branch
+    raises ``fastapi.HTTPException(404)`` (raised by
+    ``get_internal_section`` directly), while the remote-owner branch
+    raises ``httpx.HTTPStatusError(404)`` from ``raise_for_status``.
+    Callers that directly invoke this function (instead of going
+    through ``services/gateway/src/api/config.py:get_section`` which
+    pre-validates via ``lookup_section``) must handle both.
     """
     if owner == "gateway":
         # Late import keeps src.api.internal_config out of this
