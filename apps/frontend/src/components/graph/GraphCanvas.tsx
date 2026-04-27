@@ -116,6 +116,11 @@ const ACCENT = {
 // on the dark theme. Black text reads cleanly on every hue. Light
 // theme keeps its existing navy-body / white-text shape — the spec
 // only called out dark theme legibility.
+//
+// Related node types intentionally share a hue family for visual
+// grouping: (cache/config → yellow), (database/script → green),
+// (data/asset → peach), (source/doc → blue). External is distinct
+// from all of these and from policy (lavender) — it uses warm peach.
 const PASTEL_BY_TYPE: Record<string, string> = {
   service:   "#fce4ec",
   source:    "#dde7f5",
@@ -125,7 +130,7 @@ const PASTEL_BY_TYPE: Record<string, string> = {
   policy:    "#e8d4f1",
   adr:       "#d8f0f0",
   incident:  "#f0e0d0",
-  external:  "#e8d4f1",
+  external:  "#fde4d3",  // warm peach — distinct from policy lavender
   config:    "#fff5cc",
   script:    "#e3f2e3",
   doc:       "#dde7f5",
@@ -331,7 +336,7 @@ function buildCyStylesheet(theme: GraphTheme) {
       { selector: 'node[type="adr"]',       style: { shape: "roundrectangle", width: 90, height: 34, "font-size": 14 } },
       { selector: 'node[type="incident"]',  style: { shape: "roundrectangle", width: 90, height: 34, "font-size": 14 } },
       { selector: 'node[type="external"]',  style: { shape: "roundrectangle", width: 100, height: 34, "font-size": 14 } },
-      { selector: 'node[status="violation"]', style: { "border-width": 2 } },
+      { selector: 'node[status="violation"]', style: { "border-width": 2, "border-color": t.typeViolation } },
     ]),
 
     // Base edge: muted neutral line. z-index 1 keeps every default edge
