@@ -1102,6 +1102,7 @@ html {
   color: var(--fg);
   font-variation-settings: "opsz" 36, "SOFT" 80;
   line-height: var(--leading-tight);
+  padding: var(--space-4) var(--space-5);
   /* File paths and other long unbroken strings (e.g.
    * "adapters/saml/core/src/main/java/.../HttpClientBuilder.java")
    * otherwise push the modal width past `maxWidth`. `anywhere` wraps
