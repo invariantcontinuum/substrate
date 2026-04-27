@@ -384,6 +384,35 @@ class TotpVerifyRequest(BaseModel):
     code: str = Field(min_length=6, max_length=10)
 
 
+class TotpStatusResponse(BaseModel):
+    enabled: bool
+
+
+@router.get("/2fa/status", response_model=TotpStatusResponse)
+async def totp_status(request: Request):
+    """Whether the user has at least one OTP credential registered.
+
+    Reads the user's credentials list from the Keycloak admin API and
+    returns ``enabled = any(cred.type == "otp" for cred in creds)``.
+    Used by the Authentication settings tab to decide whether to render
+    the "Set up 2FA" or "Disable 2FA" branch.
+    """
+    user_sub = _user_sub_from_request(request)
+    base = settings.keycloak_admin_url.rstrip("/")
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        admin = await _admin_token(client)
+        resp = await client.get(
+            f"{base}/users/{user_sub}/credentials",
+            headers={"Authorization": f"Bearer {admin}"},
+        )
+    if resp.status_code != 200:
+        raise HTTPException(resp.status_code, resp.text[:200])
+    creds = resp.json() or []
+    return TotpStatusResponse(
+        enabled=any(c.get("type") == "otp" for c in creds),
+    )
+
+
 @router.post("/2fa/verify")
 async def totp_verify(body: TotpVerifyRequest, request: Request):
     if not pyotp.TOTP(body.secret).verify(body.code, valid_window=1):

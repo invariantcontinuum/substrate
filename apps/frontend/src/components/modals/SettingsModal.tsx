@@ -1,8 +1,8 @@
 import { Routes, Route, NavLink, useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "react-oidc-context";
 import { Modal } from "@/components/ui/Modal";
 import { useUIStore } from "@/stores/ui";
 import { AccountProfileTab } from "@/pages/AccountProfileTab";
-import { AccountDevicesTab } from "@/pages/AccountDevicesTab";
 import { AccountBillingTab } from "@/pages/AccountBillingTab";
 import { SettingsGraphTab } from "@/pages/SettingsGraphTab";
 import { SettingsChatContextTab } from "@/pages/SettingsChatContextTab";
@@ -13,7 +13,6 @@ import { SettingsGitHubTab } from "@/pages/SettingsGitHubTab";
 
 const TABS: { path: string; label: string; end?: boolean }[] = [
   { path: "/account", label: "Profile", end: true },
-  { path: "/account/devices", label: "Devices" },
   { path: "/account/graph", label: "Graph" },
   { path: "/account/chat-context", label: "Chat Context" },
   { path: "/account/llm", label: "LLM Connections" },
@@ -28,6 +27,7 @@ export function SettingsModal() {
   const closeModal = useUIStore((s) => s.closeModal);
   const navigate = useNavigate();
   const location = useLocation();
+  const auth = useAuth();
 
   const close = () => {
     closeModal();
@@ -58,12 +58,18 @@ export function SettingsModal() {
               {t.label}
             </NavLink>
           ))}
+          <button
+            type="button"
+            className="settings-modal-tab settings-modal__signout btn-ghost"
+            onClick={() => auth.signoutRedirect()}
+          >
+            Sign out
+          </button>
         </nav>
         <div className="settings-modal-body">
           <div className="settings-modal__content">
             <Routes>
               <Route path="/account" element={<AccountProfileTab />} />
-              <Route path="/account/devices" element={<AccountDevicesTab />} />
               <Route path="/account/graph" element={<SettingsGraphTab />} />
               <Route path="/account/chat-context" element={<SettingsChatContextTab />} />
               <Route path="/account/llm" element={<SettingsLLMTab />} />

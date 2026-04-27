@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "react-oidc-context";
-import { LogOut, Moon, Save, Sun } from "lucide-react";
+import { Moon, Save, Sun } from "lucide-react";
 
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { Button } from "@/components/ui/button";
@@ -95,22 +95,13 @@ export function UserModal() {
             User ID: {userSub || "unknown"}
           </div>
 
-          <div className="settings-modal-themes" style={{ justifyContent: "space-between" }}>
+          <div className="settings-modal-themes">
             <Button
               disabled={patchMeState.isPending}
               onClick={() => patchMe({ display_name: displayNameDraft.trim() || username })}
             >
               <Save size={14} />
               Save Profile
-            </Button>
-            <Button
-              onClick={() => {
-                closeModal();
-                auth.signoutRedirect();
-              }}
-            >
-              <LogOut size={14} />
-              Sign Out
             </Button>
           </div>
         </div>

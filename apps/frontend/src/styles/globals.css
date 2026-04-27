@@ -1231,6 +1231,7 @@ html {
   padding: 8px 4px;
   gap: 2px;
   background: var(--surface-sunken);
+  min-height: 100%;
 }
 .settings-modal-tab {
   display: block;
@@ -1242,6 +1243,15 @@ html {
 }
 .settings-modal-tab:hover { background: var(--surface-hover); }
 .settings-modal-tab.is-active { background: var(--accent-tint); font-weight: 500; }
+.settings-modal__signout {
+  margin-top: auto;
+  border-top: 1px solid var(--border);
+  text-align: left;
+  width: calc(100% - 8px);
+  margin-inline: 4px;
+  padding: 10px 12px;
+  cursor: pointer;
+}
 .settings-modal-body {
   flex: 1;
   min-width: 0;
@@ -3610,6 +3620,16 @@ html {
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+
+.settings-auth__subhead {
+  margin-top: var(--space-3);
+  margin-bottom: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 /* ---- SourcesActivityTab ---- */
