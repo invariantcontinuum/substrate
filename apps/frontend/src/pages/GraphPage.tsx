@@ -1,3 +1,4 @@
+import { Search } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { useUIStore } from "@/stores/ui";
 import { useGraphStore } from "@/stores/graph";
@@ -15,6 +16,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 export function GraphPage() {
   const activeModal = useUIStore((s) => s.activeModal);
   const closeModal = useUIStore((s) => s.closeModal);
+  const openSearch = useUIStore((s) => s.openSearch);
   const setSelectedNodeId = useGraphStore((s) => s.setSelectedNodeId);
   const isOpen = activeModal === "nodeDetail";
   const close = () => {
@@ -23,7 +25,20 @@ export function GraphPage() {
   };
   return (
     <div className="graph-page">
-      <PageHeader title="Graph" />
+      <PageHeader
+        title="Graph"
+        right={
+          <button
+            type="button"
+            className="btn-ghost graph-header-search-btn"
+            onClick={() => openSearch()}
+            aria-label="Search nodes (Ctrl+K)"
+            title="Search nodes (Ctrl+K)"
+          >
+            <Search size={14} /> Search
+          </button>
+        }
+      />
       <div className="graph-canvas-wrapper">
         <GraphCanvas />
       </div>
