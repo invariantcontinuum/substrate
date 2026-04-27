@@ -112,6 +112,26 @@ const ACCENT = {
   asset:     "#9ca3af", // gray-400
 } as const;
 
+// Pastel categorical palette — 8 hues, used as solid node body fills
+// on the dark theme. Black text reads cleanly on every hue. Light
+// theme keeps its existing navy-body / white-text shape — the spec
+// only called out dark theme legibility.
+const PASTEL_BY_TYPE: Record<string, string> = {
+  service:   "#fce4ec",
+  source:    "#dde7f5",
+  database:  "#e3f2e3",
+  cache:     "#fff5cc",
+  data:      "#f3e5d8",
+  policy:    "#e8d4f1",
+  adr:       "#d8f0f0",
+  incident:  "#f0e0d0",
+  external:  "#e8d4f1",
+  config:    "#fff5cc",
+  script:    "#e3f2e3",
+  doc:       "#dde7f5",
+  asset:     "#f3e5d8",
+};
+
 const DARK: GraphPalette = {
   // Solid slate body, navy label
   nodeFill:          "#e6e9f0",
@@ -226,6 +246,20 @@ function buildCyStylesheet(theme: GraphTheme) {
     "background-width":             "4px" as any,
     "background-height":            "100%" as any,
   });
+  // Per-type pastel body fills for dark theme only. Black text reads
+  // cleanly on every pastel hue; the body colour is now the type
+  // indicator so the left stripe is suppressed on dark theme.
+  const pastelOverrides = theme === "dark"
+    ? Object.entries(PASTEL_BY_TYPE).map(([type, color]) => ({
+        selector: `node[type = "${type}"]`,
+        style: {
+          "background-color": color,
+          "border-color":     "rgba(15, 23, 42, 0.18)",
+          color:              "#0f172a",
+        },
+      }))
+    : [];
+
   return [
     {
       // Base node: solid body (navy on light, slate on dark) with a
@@ -262,24 +296,43 @@ function buildCyStylesheet(theme: GraphTheme) {
       },
     },
 
-    // Per-type accent stripes. Body stays the per-theme solid color from
-    // the base rule; only the left-edge stripe and (for structural
-    // types) shape and dimensions change.
-    { selector: 'node[type="service"]',   style: { ...stripe(t.typeService) } },
-    { selector: 'node[type="source"]',    style: { ...stripe(t.typeSource) } },
-    { selector: 'node[type="database"]',  style: { ...stripe(t.typeDatabase),  shape: "barrel" } },
-    { selector: 'node[type="cache"]',     style: { ...stripe(t.typeCache),     shape: "barrel" } },
-    { selector: 'node[type="data"]',      style: { ...stripe(t.typeData) } },
-    { selector: 'node[type="policy"]',    style: { ...stripe(t.typePolicy),    shape: "diamond", width: 110, height: 48 } },
-    { selector: 'node[type="adr"]',       style: { ...stripe(t.typeAdr),       shape: "roundrectangle", width: 90, height: 34, "font-size": 14 } },
-    { selector: 'node[type="incident"]',  style: { ...stripe(t.typeIncident),  shape: "roundrectangle", width: 90, height: 34, "font-size": 14 } },
-    { selector: 'node[type="external"]',  style: { ...stripe(t.typeExternal),  shape: "roundrectangle", width: 100, height: 34, "font-size": 14 } },
-    { selector: 'node[type="config"]',    style: { ...stripe(t.typeConfig) } },
-    { selector: 'node[type="script"]',    style: { ...stripe(t.typeScript) } },
-    { selector: 'node[type="doc"]',       style: { ...stripe(t.typeDoc) } },
-    { selector: 'node[type="asset"]',     style: { ...stripe(t.typeAsset) } },
-    { selector: 'node[status="violation"]',
-      style: { ...stripe(t.typeViolation), "border-width": 2 } },
+    // Per-type pastel fills (dark theme) — override the neutral base fill
+    // with a type-coded pastel. Applied before the stripe rules so that
+    // light-theme stripe rules (which set background-image) remain correct.
+    ...pastelOverrides,
+
+    // Per-type accent stripes (light theme only). Body stays the per-theme
+    // solid color from the base rule; only the left-edge stripe and (for
+    // structural types) shape and dimensions change. On dark theme the
+    // pastel body fill already acts as the type indicator — no stripe needed.
+    ...(theme !== "dark" ? [
+      { selector: 'node[type="service"]',   style: { ...stripe(t.typeService) } },
+      { selector: 'node[type="source"]',    style: { ...stripe(t.typeSource) } },
+      { selector: 'node[type="database"]',  style: { ...stripe(t.typeDatabase),  shape: "barrel" } },
+      { selector: 'node[type="cache"]',     style: { ...stripe(t.typeCache),     shape: "barrel" } },
+      { selector: 'node[type="data"]',      style: { ...stripe(t.typeData) } },
+      { selector: 'node[type="policy"]',    style: { ...stripe(t.typePolicy),    shape: "diamond", width: 110, height: 48 } },
+      { selector: 'node[type="adr"]',       style: { ...stripe(t.typeAdr),       shape: "roundrectangle", width: 90, height: 34, "font-size": 14 } },
+      { selector: 'node[type="incident"]',  style: { ...stripe(t.typeIncident),  shape: "roundrectangle", width: 90, height: 34, "font-size": 14 } },
+      { selector: 'node[type="external"]',  style: { ...stripe(t.typeExternal),  shape: "roundrectangle", width: 100, height: 34, "font-size": 14 } },
+      { selector: 'node[type="config"]',    style: { ...stripe(t.typeConfig) } },
+      { selector: 'node[type="script"]',    style: { ...stripe(t.typeScript) } },
+      { selector: 'node[type="doc"]',       style: { ...stripe(t.typeDoc) } },
+      { selector: 'node[type="asset"]',     style: { ...stripe(t.typeAsset) } },
+      { selector: 'node[status="violation"]',
+        style: { ...stripe(t.typeViolation), "border-width": 2 } },
+    ] : [
+      // Dark theme: shape/dimension overrides only — no stripe. The pastel
+      // overrides above already set background-color; we just need the
+      // structural shape changes that normally come with the stripe rules.
+      { selector: 'node[type="database"]',  style: { shape: "barrel" } },
+      { selector: 'node[type="cache"]',     style: { shape: "barrel" } },
+      { selector: 'node[type="policy"]',    style: { shape: "diamond", width: 110, height: 48 } },
+      { selector: 'node[type="adr"]',       style: { shape: "roundrectangle", width: 90, height: 34, "font-size": 14 } },
+      { selector: 'node[type="incident"]',  style: { shape: "roundrectangle", width: 90, height: 34, "font-size": 14 } },
+      { selector: 'node[type="external"]',  style: { shape: "roundrectangle", width: 100, height: 34, "font-size": 14 } },
+      { selector: 'node[status="violation"]', style: { "border-width": 2 } },
+    ]),
 
     // Base edge: muted neutral line. z-index 1 keeps every default edge
     // BEHIND every node (which has z-index 10) — only spotlight-focus

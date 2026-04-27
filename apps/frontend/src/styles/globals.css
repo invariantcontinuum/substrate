@@ -2445,23 +2445,17 @@ html {
  * text; the parent ``.message:hover`` selector drives visibility, with
  * ``:focus-within`` keeping keyboard users covered without bespoke JS. */
 .message-actions {
-  /* Sit beneath the message content row, right-aligned, with a small
-   * gap above so the controls don't overlap the bubble. Hover reveals
-   * them via opacity (kept invisible-but-laid-out so the bubble's
-   * height doesn't jitter when actions toggle in/out). */
   display: flex;
   justify-content: flex-end;
   gap: var(--space-1);
-  margin-top: var(--space-2);
+  margin-top: var(--space-3);
   opacity: 0;
-  transform: translateY(-2px);
-  transition: opacity 120ms ease, transform 120ms ease;
+  transition: opacity 120ms ease;
   pointer-events: none;
 }
 .message:hover .message-actions,
 .message:focus-within .message-actions {
   opacity: 1;
-  transform: translateY(0);
   pointer-events: auto;
 }
 .message-actions button {
@@ -2688,7 +2682,7 @@ html {
 
 .composer {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: var(--space-2);
   padding: var(--space-3) var(--space-5);
   border-top: 1px solid var(--border);
@@ -2721,13 +2715,16 @@ html {
 .composer-input:focus { border-color: var(--accent); }
 .composer-send {
   flex: 0 0 auto;
-  border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  align-self: center;
+  align-self: flex-end;
+  margin-bottom: 4px;
+  border-radius: var(--radius-md);
+  height: 36px;
+  width: auto;
+  padding: 0 14px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
 }
 .composer-send.is-stop {
   background: var(--fg);
@@ -4563,6 +4560,7 @@ html {
   -webkit-backdrop-filter: blur(var(--blur-sm)) saturate(140%);
   box-shadow: var(--glass-shadow);
   overflow: hidden;
+  z-index: var(--z-sidebar);
 }
 .sidebar-header {
   display: flex;
@@ -4802,7 +4800,7 @@ html {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.4);
-  z-index: 40;
+  z-index: var(--z-sidebar-scrim);
   border: 0;
   cursor: pointer;
 }

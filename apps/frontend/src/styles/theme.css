@@ -156,6 +156,10 @@
   --z-nav: 10;
   --z-overlay-panel: 20;
   --z-side-tooltip: 30;
+  /* Sidebar/scrim pair sits between side-tooltip and modal-scrim,
+   * so an open modal renders above an open sidebar. */
+  --z-sidebar-scrim: 40;
+  --z-sidebar:       45;
   --z-modal-scrim: 50;
   --z-modal: 51;
   --z-tooltip: 60;
