@@ -209,7 +209,7 @@ async def _fetch_edge_neighbors(
         seen.add(nid)
         out.append({
             "neighbor_id": str(nid),
-            "edge_type": str(etype) or "depends_on",
+            "edge_type": str(etype) or "DEPENDS_ON",
             "direction": str(direction) or "undirected",
         })
     return out
@@ -256,6 +256,7 @@ async def resolve_entries(
                 raw_neighbors = await _fetch_edge_neighbors(
                     conn, str(e.node_id), depth=e.depth, edge_types=list(e.edge_types),
                 )
+            ns: list[Neighbor] = []
             for nd in raw_neighbors:
                 try:
                     nid = UUID(nd["neighbor_id"])
@@ -264,15 +265,16 @@ async def resolve_entries(
                 direction = nd.get("direction", "undirected")
                 if direction not in ("in", "out", "undirected"):
                     direction = "undirected"
-                out.neighbors.append(
+                ns.append(
                     Neighbor(
                         seed_id=e.node_id,
                         neighbor_id=nid,
-                        edge_type=nd.get("edge_type", "depends_on"),
+                        edge_type=nd.get("edge_type", "DEPENDS_ON"),
                         direction=direction,  # type: ignore[arg-type]
                     )
                 )
-            ids = [e.node_id, *(n.neighbor_id for n in out.neighbors)]
+            out.neighbors.extend(ns)
+            ids = [e.node_id, *(n.neighbor_id for n in ns)]
 
         for fid in ids:
             if fid not in seen:

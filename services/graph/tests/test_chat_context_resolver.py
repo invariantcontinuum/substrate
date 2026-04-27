@@ -7,12 +7,14 @@ AGE DETACH DELETE for any :File nodes created.
 """
 from __future__ import annotations
 
+import json
 from uuid import UUID, uuid4
 
 import pytest
 
 from src.graph import store
 from src.graph.chat_context_resolver import (
+    CommunityEntry,
     DirectoryEntry,
     FileEntry,
     NodeNeighborhoodEntry,
@@ -286,3 +288,38 @@ async def test_resolve_source_entry(app_pool):
         [SourceEntry(type="source", source_id=src_id)], pool, user_sub="u-1",
     )
     assert len(out.file_ids) == 2, f"Expected 2 files from latest sync, got {len(out.file_ids)}"
+
+
+async def _seed_leiden(pool, assignments: dict[str, int]) -> str:
+    """Insert a leiden_cache row with the given assignments. Returns cache_key."""
+    cache_key = f"test-leiden-{uuid4().hex[:12]}"
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO leiden_cache ("
+            "  cache_key, user_sub, sync_ids, config, community_count, "
+            "  modularity, orphan_pct, community_sizes, assignments, labels, "
+            "  compute_ms, expires_at"
+            ") VALUES ("
+            "  $1, 'u-1', ARRAY[]::uuid[], '{}'::jsonb, 0, 0, 0, "
+            "  ARRAY[]::int[], $2::jsonb, '{}'::jsonb, 0, "
+            "  now() + interval '1 day'"
+            ")",
+            cache_key,
+            json.dumps(assignments),
+        )
+    return cache_key
+
+
+async def test_resolve_community_entry(app_pool):
+    pool = store.get_pool()
+    fid_a = await _seed_file(pool, path="a.py")
+    fid_b = await _seed_file(pool, path="b.py")
+    fid_c = await _seed_file(pool, path="c.py")
+    cache_key = await _seed_leiden(pool, assignments={
+        str(fid_a): 1, str(fid_b): 1, str(fid_c): 2,
+    })
+    out = await resolve_entries(
+        [CommunityEntry(type="community", cache_key=cache_key, community_index=1)],
+        pool, user_sub="u-1",
+    )
+    assert set(out.file_ids) == {fid_a, fid_b}
