@@ -3,6 +3,7 @@ import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
 import type { ChatMessage } from "@/hooks/useChatMessages";
 import { useEditMessage, useRegenerateMessage } from "@/hooks/useChatMessage";
+import { useChatStore } from "@/stores/chat";
 import { Citations } from "./Citations";
 import { CodeBlock } from "./CodeBlock";
 import { MessageActions } from "./MessageActions";
@@ -58,11 +59,20 @@ export function Message({
   const [draft, setDraft] = useState(message.content);
   const editMutation = useEditMessage();
   const regenMutation = useRegenerateMessage();
+  const setComposerDraft = useChatStore((s) => s.setComposerDraft);
   const isOptimistic = message.id.startsWith("optimistic-");
 
   const onEdit = () => {
-    setDraft(message.content);
-    setEditing(true);
+    // "Edit and resend" — copy this turn's content into the bottom
+    // composer so the user can tweak before re-sending. Focus moves
+    // to the composer textarea so they can type immediately.
+    setComposerDraft(message.content);
+    const ta = document.querySelector<HTMLTextAreaElement>(".composer-input");
+    if (ta) {
+      ta.focus();
+      ta.setSelectionRange(message.content.length, message.content.length);
+      ta.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
   };
   const onCancelEdit = () => {
     setDraft(message.content);
@@ -87,13 +97,6 @@ export function Message({
       className={`message ${isUser ? "is-user" : "is-assistant"}`}
       data-muted={muted ? "true" : undefined}
     >
-      {!editing && !isStreaming && !isOptimistic && (
-        <MessageActions
-          isUser={isUser}
-          onEdit={onEdit}
-          onRegenerate={onRegenerate}
-        />
-      )}
       <div className="message-content">
         {editing && isUser ? (
           <div className="message-edit">
@@ -135,6 +138,13 @@ export function Message({
       )}
       {!isUser && !isStreaming && !isOptimistic && (
         <MessageFooter messageId={message.id} />
+      )}
+      {!editing && !isStreaming && !isOptimistic && (
+        <MessageActions
+          isUser={isUser}
+          onEdit={onEdit}
+          onRegenerate={onRegenerate}
+        />
       )}
     </div>
   );

@@ -2445,16 +2445,18 @@ html {
  * text; the parent ``.message:hover`` selector drives visibility, with
  * ``:focus-within`` keeping keyboard users covered without bespoke JS. */
 .message-actions {
-  position: absolute;
-  top: -10px;
-  right: 4px;
+  /* Sit beneath the message content row, right-aligned, with a small
+   * gap above so the controls don't overlap the bubble. Hover reveals
+   * them via opacity (kept invisible-but-laid-out so the bubble's
+   * height doesn't jitter when actions toggle in/out). */
   display: flex;
-  gap: 2px;
+  justify-content: flex-end;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
   opacity: 0;
-  transform: translateY(2px);
+  transform: translateY(-2px);
   transition: opacity 120ms ease, transform 120ms ease;
   pointer-events: none;
-  z-index: 1;
 }
 .message:hover .message-actions,
 .message:focus-within .message-actions {
