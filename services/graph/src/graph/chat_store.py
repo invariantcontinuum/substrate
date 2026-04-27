@@ -9,17 +9,20 @@ from uuid import UUID
 from src.graph import store
 
 
-async def list_threads(user_sub: str, limit: int = 100) -> list[dict]:
+async def list_threads(user_sub: str, limit: int = 100, archived: bool = False) -> list[dict]:
     pool = store.get_pool()
+    archive_filter = "t.archived_at IS NOT NULL" if archived else "t.archived_at IS NULL"
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            """
+            f"""
             SELECT t.id::text AS id, t.title, t.created_at, t.updated_at,
+                   t.archived_at,
                    (SELECT m.content FROM chat_messages m
                      WHERE m.thread_id = t.id
                      ORDER BY m.created_at DESC LIMIT 1) AS last_message_preview
             FROM chat_threads t
             WHERE t.user_sub = $1
+              AND {archive_filter}
             ORDER BY t.updated_at DESC
             LIMIT $2
             """,

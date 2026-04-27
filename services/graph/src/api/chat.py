@@ -11,10 +11,11 @@ import structlog
 from fastapi import APIRouter, Header, Response
 from pydantic import BaseModel, Field
 
-from substrate_common import NotFoundError, ValidationError
+from substrate_common import ConflictError, NotFoundError, ValidationError
 
 from src.api.auth import require_user_sub_strict
-from src.graph import chat_context_store, chat_pipeline, chat_store, store
+from src.graph import chat_pipeline, chat_store, store
+from src.graph.chat_context_resolver import _parse_entry
 
 logger = structlog.get_logger()
 router = APIRouter(prefix="/api/chat")
@@ -40,10 +41,22 @@ class MessagePost(BaseModel):
     graph_context: dict[str, Any] | None = None
 
 
+class EntriesPayload(BaseModel):
+    entries: list[dict]
+
+
+class ThreadContextResponse(BaseModel):
+    entries: list[dict]
+    frozen_at: str | None
+
+
 @router.get("/threads")
-async def list_threads(x_user_sub: str | None = Header(default=None)) -> dict[str, Any]:
+async def list_threads(
+    archived: bool = False,
+    x_user_sub: str | None = Header(default=None),
+) -> dict[str, Any]:
     sub = require_user_sub_strict(x_user_sub)
-    return {"items": await chat_store.list_threads(sub)}
+    return {"items": await chat_store.list_threads(sub, archived=archived)}
 
 
 @router.post("/threads")
@@ -52,34 +65,7 @@ async def create_thread(
 ) -> dict[str, Any]:
     sub = require_user_sub_strict(x_user_sub)
     title = (body.title or "New thread").strip()[:200] or "New thread"
-    thread = await chat_store.create_thread(sub, title)
-
-    # Freeze the user's active seed onto this thread. Per spec D-1,
-    # threads are independent of settings after creation.
-    seed = await chat_context_store.get_active_seed(sub)
-    if seed is not None:
-        sync_ids = list(seed.get("sync_ids") or [])
-        source_ids = list(seed.get("source_ids") or [])
-        # Expand source_ids to their child sync_ids at create-time so
-        # the frozen scope is the resolved set, not a soft reference.
-        if source_ids:
-            pool = store.get_pool()
-            async with pool.acquire() as conn:
-                rows = await conn.fetch(
-                    """
-                    SELECT id::text AS sync_id
-                    FROM sync_runs
-                    WHERE source_id = ANY($1::uuid[])
-                    """,
-                    source_ids,
-                )
-            extra = [r["sync_id"] for r in rows]
-            sync_ids = sorted(set(sync_ids).union(extra))
-        if sync_ids or source_ids:
-            await chat_context_store.set_thread_context_scope(
-                UUID(thread["id"]), sync_ids, source_ids,
-            )
-    return thread
+    return await chat_store.create_thread(sub, title)
 
 
 @router.patch("/threads/{thread_id}")
@@ -128,6 +114,20 @@ async def post_message(
     if not body.sync_ids:
         raise ValidationError("sync_ids required")
 
+    # Freeze thread context on first message send so context entries are
+    # immutable for the lifetime of the conversation.
+    pool = store.get_pool()
+    async with pool.acquire() as conn:
+        ctx_row = await conn.fetchrow(
+            "SELECT context FROM chat_threads WHERE id = $1", thread_id,
+        )
+        if ctx_row and not (ctx_row["context"] or {}).get("frozen_at"):
+            await conn.execute(
+                "UPDATE chat_threads SET context = jsonb_set(context, '{frozen_at}', "
+                "to_jsonb(now()::text)) WHERE id = $1",
+                thread_id,
+            )
+
     user_msg = await chat_store.insert_message(
         thread_id=thread_id, role="user",
         content=body.content, citations=[], sync_ids=body.sync_ids,
@@ -175,3 +175,100 @@ async def cancel_stream(
         return Response(status_code=204)
     task.cancel()
     return Response(status_code=204)
+
+
+# ---------------------------------------------------------------------------
+# Entries (V12 context shape)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/threads/{thread_id}/entries", response_model=ThreadContextResponse)
+async def get_entries(
+    thread_id: UUID,
+    x_user_sub: str | None = Header(default=None),
+) -> ThreadContextResponse:
+    sub = require_user_sub_strict(x_user_sub)
+    pool = store.get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT context FROM chat_threads WHERE id = $1 AND user_sub = $2",
+            thread_id, sub,
+        )
+    if row is None:
+        raise NotFoundError("thread_not_found")
+    ctx = row["context"] or {}
+    return ThreadContextResponse(
+        entries=ctx.get("entries", []),
+        frozen_at=ctx.get("frozen_at"),
+    )
+
+
+@router.put("/threads/{thread_id}/entries", response_model=ThreadContextResponse)
+async def put_entries(
+    thread_id: UUID,
+    payload: EntriesPayload,
+    x_user_sub: str | None = Header(default=None),
+) -> ThreadContextResponse:
+    sub = require_user_sub_strict(x_user_sub)
+    pool = store.get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT context FROM chat_threads WHERE id = $1 AND user_sub = $2",
+            thread_id, sub,
+        )
+        if row is None:
+            raise NotFoundError("thread_not_found")
+        ctx = row["context"] or {}
+        if ctx.get("frozen_at"):
+            raise ConflictError("thread context is frozen")
+
+        # Validate every entry shape before persisting.
+        for raw in payload.entries:
+            try:
+                _parse_entry(raw)
+            except Exception as exc:
+                raise ValidationError(f"invalid entry: {exc}")
+
+        new_context = {"entries": payload.entries, "frozen_at": None}
+        await conn.execute(
+            "UPDATE chat_threads SET context = $1 WHERE id = $2",
+            new_context, thread_id,
+        )
+    return ThreadContextResponse(entries=payload.entries, frozen_at=None)
+
+
+# ---------------------------------------------------------------------------
+# Per-thread archive / unarchive
+# ---------------------------------------------------------------------------
+
+
+@router.post("/threads/{thread_id}/archive")
+async def archive_thread(
+    thread_id: UUID,
+    x_user_sub: str | None = Header(default=None),
+) -> dict[str, Any]:
+    sub = require_user_sub_strict(x_user_sub)
+    pool = store.get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE chat_threads SET archived_at = NOW() "
+            "WHERE id = $1 AND user_sub = $2",
+            thread_id, sub,
+        )
+    return {"ok": True}
+
+
+@router.post("/threads/{thread_id}/unarchive")
+async def unarchive_thread(
+    thread_id: UUID,
+    x_user_sub: str | None = Header(default=None),
+) -> dict[str, Any]:
+    sub = require_user_sub_strict(x_user_sub)
+    pool = store.get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE chat_threads SET archived_at = NULL "
+            "WHERE id = $1 AND user_sub = $2",
+            thread_id, sub,
+        )
+    return {"ok": True}
