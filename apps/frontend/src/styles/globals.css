@@ -33,7 +33,7 @@ html, body, #root {
 @media (hover: none) and (pointer: coarse) {
   button, .ui-button,
   .dynamic-legend-item, .node-detail-neighbor-btn,
-  .search-result-item {
+  .graph-search-dropdown__item {
     min-height: 38px;
   }
 }
@@ -90,7 +90,7 @@ html {
 .node-detail-body,
 .node-detail-neighbors,
 .dialog-content,
-.search-modal-results,
+.graph-search-dropdown__list,
 .sources-schedules,
 .modal-body,
 .sources-sidebar-list,
@@ -1198,7 +1198,6 @@ html {
 }
 
 .enrichment-modal,
-.search-modal,
 .sources-modal {
   display: flex;
   flex-direction: column;
@@ -1303,7 +1302,6 @@ html {
 }
 
 .enrichment-modal-row,
-.search-modal-row,
 .sources-modal-row {
   display: flex;
   gap: var(--space-2);
@@ -1321,7 +1319,6 @@ html {
   font-size: var(--text-sm);
 }
 
-.search-modal-results,
 .sources-schedules {
   display: flex;
   flex-direction: column;
@@ -1330,29 +1327,114 @@ html {
   overflow-y: auto;
 }
 
-.search-result-item {
-  width: 100%;
-  text-align: left;
-  padding: var(--space-2) var(--space-3);
+/* ── Graph search dropdown ────────────────────────────────────────
+ * Header-anchored popover that replaces the centred SearchModal. Fixed
+ * positioning so it follows the trigger on scroll/resize. Surface +
+ * border match the rest of the editorial palette so it doesn't read
+ * as a separate modal layer. */
+.graph-search-dropdown {
+  position: fixed;
+  width: 360px;
+  max-width: calc(100vw - 16px);
+  max-height: 420px;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  background: var(--surface);
-  cursor: pointer;
-  font-family: var(--font-sans);
+  box-shadow: var(--glass-shadow);
+  z-index: var(--z-tooltip);
+  overflow: hidden;
 }
-
-.search-result-item:hover { background: var(--surface-hover); }
-
-.search-result-header {
+.graph-search-dropdown__row {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  margin-bottom: 2px;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border-soft);
+  background: var(--surface-elevated);
 }
-
-.search-result-name { font-weight: var(--fw-semibold); color: var(--fg); }
-.search-result-desc { font-size: var(--text-xs); color: var(--fg-muted); margin-bottom: 2px; }
-.search-result-id   { font-size: var(--text-xs); color: var(--fg-subtle); font-family: var(--font-mono); }
+.graph-search-dropdown__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg-muted);
+  flex: 0 0 auto;
+}
+.graph-search-dropdown__input {
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--fg);
+  padding: 4px 0;
+}
+.graph-search-dropdown__input::placeholder {
+  color: var(--fg-subtle);
+}
+.graph-search-dropdown__list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2);
+  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.graph-search-dropdown__item {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+.graph-search-dropdown__item:hover,
+.graph-search-dropdown__item.is-highlighted {
+  background: var(--surface-hover);
+  border-color: var(--border-soft);
+}
+.graph-search-dropdown__item-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.graph-search-dropdown__item-name {
+  font-weight: var(--fw-semibold);
+  font-size: var(--text-sm);
+  color: var(--fg);
+}
+.graph-search-dropdown__chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-tint);
+  color: var(--accent);
+  font-size: var(--text-2xs);
+  letter-spacing: 0.02em;
+}
+.graph-search-dropdown__item-path {
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  word-break: break-all;
+}
+.graph-search-dropdown__empty {
+  padding: var(--space-3);
+  color: var(--fg-subtle);
+  font-size: var(--text-xs);
+  text-align: center;
+}
 
 .sources-schedule-item {
   display: flex;

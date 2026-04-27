@@ -125,16 +125,17 @@ function RequireAuth({ children }: { children: ReactNode }) {
 
 function App() {
   useApplyTheme();
-  // Global Ctrl+K / Cmd+K hotkey opens the search modal. Lives at app
-  // top-level so the binding works regardless of which page or panel
-  // currently holds focus (the listener does NOT swallow keystrokes
-  // inside the search input — the modal is the only focused element
-  // when it's open, and the handler only fires on the K combo).
+  // Global Ctrl+K / Cmd+K hotkey opens the graph search dropdown when
+  // the user is on /graph. Lives at app top-level so the binding works
+  // regardless of which page or panel currently holds focus. Outside
+  // the graph view there is no equivalent surface today, so the hotkey
+  // is a no-op there (rather than forcibly navigating).
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        if (!window.location.pathname.startsWith("/graph")) return;
         e.preventDefault();
-        useUIStore.getState().openSearch();
+        useUIStore.getState().triggerGraphSearch();
       }
     };
     window.addEventListener("keydown", handler);

@@ -3,7 +3,6 @@ import { ComingSoonModal } from "./ComingSoonModal";
 import { UserModal } from "./UserModal";
 import { EnrichmentModal } from "./EnrichmentModal";
 import { SettingsModal } from "./SettingsModal";
-import { SearchModal } from "./SearchModal";
 
 // Only mount the modal that matches the active name. Previously every
 // modal component rendered as long as ANY modal was open, which meant
@@ -15,11 +14,12 @@ import { SearchModal } from "./SearchModal";
 // so it's not in this map.
 // `sources` is now a full-page view toggled via useUIStore.activeView —
 // removed from this modal map in Task 8; SourcesModal deleted in Task 9.
+// `search` was a centred modal too; replaced with the header-anchored
+// GraphSearchAnchor/Dropdown, so no entry here.
 const MODAL_COMPONENTS: Partial<Record<NonNullable<ModalName>, React.ComponentType>> = {
   enrichment: EnrichmentModal,
   user: UserModal,
   settings: SettingsModal,
-  search: SearchModal,
   // Coming-soon stubs share a single component keyed on the modal name
   // so we render exactly one at a time with the right copy.
   policies: () => <ComingSoonModal name="policies" />,

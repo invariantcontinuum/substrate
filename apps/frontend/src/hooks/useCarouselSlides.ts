@@ -27,9 +27,10 @@ export type Slide =
       nodeIds: Set<string> };
 
 /**
- * Slide-derivation hook. Two consumers (GraphCanvas legend gating and
- * SearchModal slide routing) need the same slide list the carousel
- * renders, so we publish it through a hook that takes the active sync
+ * Slide-derivation hook. Three consumers (GraphCanvas legend gating,
+ * the GraphSearchDropdown slide routing, and the carousel itself) need
+ * the same slide list, so we publish it through a hook that takes the
+ * active sync
  * set + Leiden config from the global stores. The carousel itself uses
  * the same hook so all three views agree on slot order.
  *

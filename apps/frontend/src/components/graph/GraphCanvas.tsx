@@ -824,7 +824,7 @@ export function GraphCanvas() {
 
   /* Search-driven focus zoom.
    *
-   * The Ctrl+K SearchModal sets ``pendingZoomNodeId`` via
+   * The Ctrl+K GraphSearchDropdown sets ``pendingZoomNodeId`` via
    * ``useGraphStore.focusNode``. The selection effect above handles the
    * spotlight + neighborhood fit when ``selectedNodeId`` *changes*, but
    * if the user picks the same node twice in a row (or arrives here via

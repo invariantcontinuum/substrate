@@ -9,17 +9,12 @@ export type ModalName =
   | "query"
   | "nodeDetail"
   | "settings"
-  | "search"
   | null;
 
 interface UIState {
   sidebarOpen: boolean;
   activeModal: ModalName;
   openModal: (modal: ModalName) => void;
-  /** Convenience action — same as ``openModal("search")``. Provided so
-   *  global keyboard hotkey handlers (Ctrl+K / Cmd+K) and the topbar
-   *  search button stay decoupled from the ModalName string literal. */
-  openSearch: () => void;
   closeModal: () => void;
   toggleSidebar: () => void;
   setSidebarOpen: (open: boolean) => void;
@@ -29,13 +24,22 @@ interface UIState {
   setSourcesPageTarget: (target: { sourceId: string; expandSyncId: string | null } | null) => void;
   activeView: "graph" | "sources" | "chat" | "account";
   setActiveView: (v: "graph" | "sources" | "chat" | "account") => void;
+  /**
+   * Bump-counter consumed by the GraphSearchAnchor to open its
+   * header-anchored dropdown. Kept as a sequence (not a boolean)
+   * so successive Ctrl+K presses always trigger an open even if
+   * the dropdown is mounted; the anchor owns its own open flag.
+   * Starts at 0 so the initial mount doesn't auto-open the popover.
+   */
+  graphSearchOpenSeq: number;
+  /** Bump ``graphSearchOpenSeq`` so any mounted GraphSearchAnchor opens. */
+  triggerGraphSearch: () => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
   sidebarOpen: typeof window !== "undefined" ? window.matchMedia("(min-width: 1024px)").matches : true,
   activeModal: null,
   openModal: (activeModal) => set({ activeModal }),
-  openSearch: () => set({ activeModal: "search" }),
   closeModal: () => set({ activeModal: null }),
   toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
   setSidebarOpen: (sidebarOpen) => set({ sidebarOpen }),
@@ -45,4 +49,6 @@ export const useUIStore = create<UIState>((set) => ({
   setSourcesPageTarget: (sourcesPageTarget) => set({ sourcesPageTarget }),
   activeView: "graph",
   setActiveView: (activeView) => set({ activeView }),
+  graphSearchOpenSeq: 0,
+  triggerGraphSearch: () => set((s) => ({ graphSearchOpenSeq: s.graphSearchOpenSeq + 1 })),
 }));
