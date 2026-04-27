@@ -162,6 +162,15 @@ services:
       FLYWAY_USER: ${GRAPH_DB_USER}
       FLYWAY_PASSWORD: ${GRAPH_DB_PASSWORD}
       DATABASE_URL: postgresql+asyncpg://${GRAPH_DB_USER}:${GRAPH_DB_PASSWORD}@postgres:5432/${GRAPH_DB_NAME}
+      # Discrete connection knobs surfaced via Settings → Postgres
+      # (PG_PASSWORD intentionally never logged). The graph service
+      # composes its DSN from these at startup; DATABASE_URL above is
+      # retained as a fallback for one-shot Flyway migrations.
+      PG_HOST: postgres
+      PG_PORT: "5432"
+      PG_DATABASE: ${GRAPH_DB_NAME}
+      PG_USER: ${GRAPH_DB_USER}
+      PG_PASSWORD: ${GRAPH_DB_PASSWORD}
       APP_PORT: "8082"
     ports: ["8182:8082"]
     extra_hosts:

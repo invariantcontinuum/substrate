@@ -104,12 +104,44 @@ LLM_FIELD_MAP: dict[str, dict[str, str]] = {
 
 
 class _PostgresConfigSchema(BaseModel):
-    database_url: str | None = None
+    """Wire shape for the Settings → Postgres panel.
+
+    The panel sends six discrete connection knobs (``host`` / ``port``
+    / ``database`` / ``user`` / ``password`` / ``ssl_verify``) plus the
+    standard pool tunables. The gateway translates these to the
+    ``pg_*`` storage keys via ``POSTGRES_FIELD_MAP`` before writing
+    into ``runtime_config``; the graph service composes a DSN from
+    the discrete fields at startup.
+    """
+
+    host: str | None = None
+    port: int | None = None
+    database: str | None = None
+    user: str | None = None
+    password: str | None = None
+    ssl_verify: bool | None = None
     pool_min_size: int | None = None
     pool_max_size: int | None = None
     pool_recycle_seconds: int | None = None
     statement_timeout_ms: int | None = None
     lock_timeout_ms: int | None = None
+
+
+# Postgres-section panel-key → storage-key map. Mirrors
+# ``LLM_FIELD_MAP`` so the gateway's read/write paths stay symmetrical.
+POSTGRES_FIELD_MAP: dict[str, str] = {
+    "host": "pg_host",
+    "port": "pg_port",
+    "database": "pg_database",
+    "user": "pg_user",
+    "password": "pg_password",
+    "ssl_verify": "pg_ssl_verify",
+    "pool_min_size": "pg_pool_min_size",
+    "pool_max_size": "pg_pool_max_size",
+    "pool_recycle_seconds": "pg_pool_recycle_seconds",
+    "statement_timeout_ms": "pg_statement_timeout_ms",
+    "lock_timeout_ms": "pg_lock_timeout_ms",
+}
 
 
 class _AuthConfigSchema(BaseModel):

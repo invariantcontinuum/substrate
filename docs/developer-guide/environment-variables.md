@@ -68,6 +68,12 @@ These keys apply in both modes:
 - `GRAPH_DB_USER`
 - `GRAPH_DB_PASSWORD`
 - `GRAPH_DB_NAME`
+- `PG_POOL_MIN_SIZE` (Settings → Postgres surfaces)
+- `PG_POOL_MAX_SIZE` (Settings → Postgres surfaces)
+- `PG_POOL_RECYCLE_SECONDS` (Settings → Postgres surfaces)
+- `PG_STATEMENT_TIMEOUT_MS` (Settings → Postgres surfaces)
+- `PG_LOCK_TIMEOUT_MS` (Settings → Postgres surfaces)
+- `PG_SSL_VERIFY` (Settings → Postgres surfaces)
 
 ### Keycloak
 

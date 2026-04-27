@@ -61,21 +61,53 @@ async def _init_connection(conn: asyncpg.Connection) -> None:
     await _init_age(conn)
 
 
+def _resolve_dsn() -> str:
+    """Compose the asyncpg DSN from the discrete ``pg_*`` settings.
+
+    The Settings → Postgres panel writes six discrete fields (host,
+    port, database, user, password, ssl_verify); the `database_url`
+    legacy field is kept only for backwards-compat with the bare-DSN
+    layout some env files still use. We prefer the discrete fields
+    when host/database/user are populated, otherwise we fall back to
+    parsing ``database_url``. The bare DSN is stripped of the
+    ``+asyncpg`` SQLAlchemy hint so asyncpg accepts it.
+    """
+    return (
+        f"postgresql://"
+        f"{settings.pg_user}:{settings.pg_password}"
+        f"@{settings.pg_host}:{settings.pg_port}"
+        f"/{settings.pg_database}"
+    )
+
+
 async def connect() -> None:
     global _pool
+    dsn = _resolve_dsn()
+    server_settings = {
+        "search_path": "ag_catalog,public",
+        # pg_*_timeout_ms are exposed via the panel so a deployer can
+        # tighten or loosen request budgets without redeploying. Apply
+        # them as connection-level GUCs so they're inherited by every
+        # session check-out from the pool.
+        "statement_timeout": str(settings.pg_statement_timeout_ms),
+        "lock_timeout": str(settings.pg_lock_timeout_ms),
+    }
     _pool = await asyncpg.create_pool(
-        settings.database_url.replace("postgresql+asyncpg://", "postgresql://"),
-        min_size=2,
-        max_size=25,
+        dsn,
+        min_size=settings.pg_pool_min_size,
+        max_size=settings.pg_pool_max_size,
+        max_inactive_connection_lifetime=float(settings.pg_pool_recycle_seconds),
         init=_init_connection,
-        server_settings={"search_path": "ag_catalog,public"},
+        server_settings=server_settings,
     )
-    parsed = urlsplit(settings.database_url)
+    parsed = urlsplit(dsn)
     logger.info(
         "pg_pool_connected",
         host=parsed.hostname,
         port=parsed.port,
         database=parsed.path.lstrip("/"),
+        min_size=settings.pg_pool_min_size,
+        max_size=settings.pg_pool_max_size,
     )
 
 

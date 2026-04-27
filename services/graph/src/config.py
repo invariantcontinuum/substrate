@@ -14,6 +14,30 @@ class _GraphSettings(LayeredSettings):
     app_port: int = 8082
     service_name: str = "graph"
 
+    # ── Postgres connection (discrete, panel-editable) ───────────────
+    # The Settings → Postgres tab edits these six fields directly. When
+    # any of them is non-default the service composes ``database_url``
+    # from them at startup (overriding the bare DSN above). Storing
+    # discretely lets the deployer rotate one credential at a time
+    # without re-pasting the full DSN, and matches the panel's wire
+    # shape (no DSN parsing in the frontend).
+    pg_host: str = "postgres"
+    pg_port: int = 5432
+    pg_database: str = "substrate_graph"
+    pg_user: str = "substrate_graph"
+    pg_password: str = "change-me"
+    pg_ssl_verify: bool = True
+
+    # Connection-pool tunables. Trade-off: higher max sizes absorb
+    # request bursts but eat connections at the database; recycle
+    # bounds idle pinned conns (mostly relevant when Postgres rotates
+    # credentials or restarts behind a connection-pool proxy).
+    pg_pool_min_size: int = 2
+    pg_pool_max_size: int = 25
+    pg_pool_recycle_seconds: int = 1800
+    pg_statement_timeout_ms: int = 60000
+    pg_lock_timeout_ms: int = 5000
+
     # ── Embedding endpoint ───────────────────────────────────────────
     # Per-role connection knobs (matches the LLM Connections panel
     # surface). Each role owns its own URL, name, api_key, context

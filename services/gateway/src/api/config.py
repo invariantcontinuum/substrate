@@ -23,7 +23,11 @@ from pydantic import ValidationError
 from substrate_common import Event, UnauthorizedError, safe_publish
 
 from src.config import settings
-from src.config_registry import LLM_FIELD_MAP, lookup_section
+from src.config_registry import (
+    LLM_FIELD_MAP,
+    POSTGRES_FIELD_MAP,
+    lookup_section,
+)
 from src.config_runtime import (
     fetch_effective_section,
     reset_runtime_section,
@@ -87,6 +91,17 @@ async def get_section(
     llm_map = LLM_FIELD_MAP.get(section)
     if llm_map is not None:
         return {wire_key: raw.get(storage_key) for wire_key, storage_key in llm_map.items()}
+    if section == "postgres":
+        # Mirror image of the PUT translation — read the `pg_*` storage
+        # keys back into the panel's bare field shape (host/port/…).
+        # The `password` value is intentionally returned verbatim;
+        # the panel re-renders it into a `<input type="password">` so
+        # the credential is masked in the DOM rather than scrubbed on
+        # the wire (the gateway already authenticates the read).
+        return {
+            wire_key: raw.get(storage_key)
+            for wire_key, storage_key in POSTGRES_FIELD_MAP.items()
+        }
     return raw
 
 
@@ -127,6 +142,15 @@ async def put_section(
     llm_map = LLM_FIELD_MAP.get(section)
     if llm_map is not None:
         payload = {llm_map[k]: v for k, v in payload.items() if k in llm_map}
+    elif section == "postgres":
+        # Postgres uses the same panel-key/storage-key pattern as the
+        # LLM sections, but lives in its own field map so the wire shape
+        # stays explicit in the registry (host/port/database/… → pg_*).
+        payload = {
+            POSTGRES_FIELD_MAP[k]: v
+            for k, v in payload.items()
+            if k in POSTGRES_FIELD_MAP
+        }
 
     sub = _user_sub(user)
     # Scope = owner service so the rows merge into the same overlay the
@@ -185,11 +209,18 @@ async def reset_section(
     # For LLM sections, drop only the storage keys that this role owns —
     # the four `llm_*` sections share the owning service's overlay scope
     # but use role-prefixed keys, so a global delete-by-scope would wipe
-    # peer roles' overrides too.
+    # peer roles' overrides too. Same applies to postgres: the
+    # ``pg_*`` keys live in the graph scope, but the section only
+    # owns those — a scope-wide delete would also drop graph + chat
+    # tunables.
     llm_map = LLM_FIELD_MAP.get(section)
     if llm_map is not None:
         rows_cleared = await reset_runtime_section(
             scope=owner, keys=list(llm_map.values()),
+        )
+    elif section == "postgres":
+        rows_cleared = await reset_runtime_section(
+            scope=owner, keys=list(POSTGRES_FIELD_MAP.values()),
         )
     else:
         rows_cleared = await reset_runtime_section(scope=owner)

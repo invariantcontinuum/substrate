@@ -71,13 +71,24 @@ _SECTIONS: dict[str, list[str]] = {
         "reranker_timeout_s",
         "reranker_ssl_verify",
     ],
+    # Postgres section: six discrete connection knobs + five pool/timeout
+    # tunables. Storage uses `pg_*` prefix on the settings class so the
+    # column space stays disjoint from the rest of the graph scope; the
+    # gateway's POSTGRES_FIELD_MAP translates the panel's bare keys
+    # (`host`, `port`, …) to these storage keys before writing, and back
+    # to the bare panel shape on the read path.
     "postgres": [
-        "database_url",
-        "pool_min_size",
-        "pool_max_size",
-        "pool_recycle_seconds",
-        "statement_timeout_ms",
-        "lock_timeout_ms",
+        "pg_host",
+        "pg_port",
+        "pg_database",
+        "pg_user",
+        "pg_password",
+        "pg_ssl_verify",
+        "pg_pool_min_size",
+        "pg_pool_max_size",
+        "pg_pool_recycle_seconds",
+        "pg_statement_timeout_ms",
+        "pg_lock_timeout_ms",
     ],
 }
 

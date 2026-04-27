@@ -16,6 +16,21 @@ database_url: "postgresql+asyncpg://substrate_graph:change-me@postgres:5432/subs
 app_port: 8082
 service_name: "graph"
 
+# ── Postgres connection (Settings → Postgres surfaces these) ────────
+# Discrete fields composed into the asyncpg DSN at startup; the panel
+# round-trips them via runtime_config so a UI edit survives restart.
+pg_host: "postgres"
+pg_port: 5432
+pg_database: "substrate_graph"
+pg_user: "substrate_graph"
+pg_password: "change-me"
+pg_ssl_verify: true
+pg_pool_min_size: 2
+pg_pool_max_size: 25
+pg_pool_recycle_seconds: 1800
+pg_statement_timeout_ms: 60000
+pg_lock_timeout_ms: 5000
+
 # ── Embedding endpoint (host LLM stack) ──────────────────────────────
 embedding_url: "http://host.docker.internal:8101/v1/embeddings"
 embedding_model: "embeddings"

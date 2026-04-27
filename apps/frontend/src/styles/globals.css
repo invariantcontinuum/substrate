@@ -3536,6 +3536,38 @@ html {
 }
 .llm-conn-panel__probe.is-ok .llm-conn-panel__probe-dot { background: #22c55e; }
 .llm-conn-panel__probe.is-fail .llm-conn-panel__probe-dot { background: #ef4444; }
+
+/* Postgres tab probe — same shape as the LLM panel probe so the visual
+ * language stays consistent across Settings tabs. Re-using the same
+ * markup pattern (probe + probe-dot) keeps the CSS local to its
+ * tab namespace; the dot recolours via the is-ok / is-fail modifier. */
+.postgres-probe {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 7px;
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  margin-block: 6px;
+}
+.postgres-probe.is-ok {
+  background: rgba(34, 197, 94, 0.08);
+  border-color: rgba(34, 197, 94, 0.4);
+}
+.postgres-probe.is-fail {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.4);
+}
+.postgres-probe__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--fg-muted);
+}
+.postgres-probe.is-ok .postgres-probe__dot { background: #22c55e; }
+.postgres-probe.is-fail .postgres-probe__dot { background: #ef4444; }
 .llm-conn-panel__actions {
   display: flex;
   gap: 8px;
