@@ -247,4 +247,31 @@ describe("SourceSnapshotMultiSelect", () => {
     expect(screen.queryByText("alpha/alpha-repo")).toBeNull();
     expect(screen.getByText("beta/beta-repo")).toBeInTheDocument();
   });
+
+  it("pinning whole source purges ALL source-belonging sync_ids, not just last_sync_id", () => {
+    // Start with both a-1 and a-2 individually pinned.
+    const onChange = vi.fn();
+    renderWithProviders(
+      <SourceSnapshotMultiSelect
+        syncIds={["a-1", "a-2"]}
+        sourceIds={[]}
+        onChange={onChange}
+      />,
+    );
+    // Expand source-a so its items are rendered and the snapshot ids are known.
+    fireEvent.click(screen.getByText("alpha/alpha-repo"));
+    const sourceRow = screen
+      .getByText("alpha/alpha-repo")
+      .closest(".snapshot-multiselect-source-row") as HTMLElement;
+    const sourceCheckbox = within(sourceRow).getAllByRole("checkbox")[0];
+    fireEvent.click(sourceCheckbox);
+
+    expect(onChange).toHaveBeenCalledTimes(1);
+    const call = onChange.mock.calls[0][0] as { sync_ids: string[]; source_ids: string[] };
+    // source-a must be in source_ids now
+    expect(call.source_ids).toContain("src-a");
+    // Neither a-1 nor a-2 should remain in sync_ids
+    expect(call.sync_ids).not.toContain("a-1");
+    expect(call.sync_ids).not.toContain("a-2");
+  });
 });

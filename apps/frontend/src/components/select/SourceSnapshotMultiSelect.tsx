@@ -163,7 +163,7 @@ interface SourceNodeProps {
   selectedSyncs: Set<string>;
   selectedSources: Set<string>;
   onToggleSnapshot: (id: string) => void;
-  onToggleWholeSource: (sourceId: string) => void;
+  onToggleWholeSource: (sourceId: string, allSnapshotIds: string[]) => void;
   completedOnly: boolean;
   expandedDefault?: boolean;
 }
@@ -229,7 +229,7 @@ function SourceNode({
         <TriCheckbox
           state={triState}
           disabled={sourceSyncs.isLoading}
-          onClick={() => onToggleWholeSource(source.id)}
+          onClick={() => onToggleWholeSource(source.id, items.map((r) => r.id))}
           ariaLabel={ariaLabelSource}
         />
         <button
@@ -379,19 +379,18 @@ export function SourceSnapshotMultiSelect(
     });
   };
 
-  const toggleWholeSource = (sourceId: string) => {
+  const toggleWholeSource = (sourceId: string, allSnapshotIds: string[]) => {
     const nextSources = new Set(selectedSources);
     const nextSyncs = new Set(selectedSyncs);
     if (nextSources.has(sourceId)) {
       nextSources.delete(sourceId);
     } else {
       // Pinning a whole source supersedes any specific snapshots from
-      // the same source — drop them so the wire payload stays minimal
-      // and the UI reads as "this source is all-pinned, no fragments".
+      // the same source — drop ALL of them so the wire payload stays
+      // minimal and the UI reads as "this source is all-pinned, no fragments".
       nextSources.add(sourceId);
-      const src = sources?.find((s) => s.id === sourceId);
-      if (src?.last_sync_id && nextSyncs.has(src.last_sync_id)) {
-        nextSyncs.delete(src.last_sync_id);
+      for (const id of allSnapshotIds) {
+        nextSyncs.delete(id);
       }
     }
     onChange({

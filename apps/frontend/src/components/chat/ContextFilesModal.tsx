@@ -212,8 +212,8 @@ function Body({
 
       {tab === "all" && (
         <AllFilesTab
-          files={filteredFiles}
-          totalFiles={files.length}
+          files={files}
+          filteredFiles={filteredFiles}
           checked={allFileIds}
           setChecked={setAllFileIds}
         />
@@ -263,15 +263,18 @@ function Body({
 
 function AllFilesTab({
   files,
-  totalFiles,
+  filteredFiles,
   checked,
   setChecked,
 }: {
+  /** Full unfiltered file list — drives allOn / toggleAll. */
   files: ThreadContextFile[];
-  totalFiles: number;
+  /** Search-filtered subset — drives the rendered rows. */
+  filteredFiles: ThreadContextFile[];
   checked: Set<string>;
   setChecked: React.Dispatch<React.SetStateAction<Set<string>>>;
 }) {
+  const totalFiles = files.length;
   const allOn = checked.size === totalFiles && totalFiles > 0;
   const toggleAll = () => {
     if (allOn) setChecked(new Set());
@@ -300,7 +303,7 @@ function AllFilesTab({
           </span>
         </label>
       </li>
-      {files.map((f) => (
+      {filteredFiles.map((f) => (
         <li key={f.file_id} className="ctx-files-item">
           <label className="ctx-files-row">
             <input

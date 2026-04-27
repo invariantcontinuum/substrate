@@ -47,7 +47,7 @@ export function useApplyChatContext() {
     mutationFn: (next: ActiveChatContext | null) =>
       apiFetch<ActiveResponse>("/api/chat-context/active", token, {
         method: "PUT",
-        body: next === null ? "" : JSON.stringify(next),
+        body: next === null ? "null" : JSON.stringify(next),
       }),
     onSuccess: (data) => {
       qc.setQueryData(QK, data);
