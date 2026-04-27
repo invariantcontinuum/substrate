@@ -549,6 +549,16 @@ export function GraphCanvas() {
     const cy = cyRef.current;
     let cancelled = false;
 
+    // Full unload: when the active set is cleared (no syncs loaded), the
+    // store flushes nodes/edges to []. Strip every element from cytoscape
+    // and bail before doing layout work \u2014 leaving stale nodes here is
+    // what produced the "ghost graph" on back-navigation.
+    if (elementsWithParents.length === 0) {
+      cy.elements().remove();
+      setLoading(false);
+      return;
+    }
+
     let childIdx = 0;
     const mapped = elementsWithParents.map((el) => {
       if (el.group === "nodes") {
@@ -851,6 +861,19 @@ export function GraphCanvas() {
       }, 260);
     });
   }, [signals]);
+
+  /* Unmount cleanup. Explicit teardown of the Cytoscape instance so
+   * navigating away (e.g. /graph -> /sources -> back) frees the engine
+   * and prevents stale renders against a dead container. The init
+   * effect already destroys on dep change; this guarantees teardown
+   * even if React schedules unmount without re-running init's cleanup
+   * (e.g. StrictMode double-invocation, hot reload). */
+  useEffect(() => {
+    return () => {
+      cyRef.current?.destroy();
+      cyRef.current = null;
+    };
+  }, []);
 
   /* keyboard shortcuts */
   useEffect(() => {
