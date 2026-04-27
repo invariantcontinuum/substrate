@@ -1,7 +1,6 @@
 import { Outlet } from "react-router-dom";
 import { TabStrip } from "@/components/common/TabStrip";
 import { ActiveSetPill } from "@/components/sources/ActiveSetPill";
-import { useGraphStore } from "@/stores/graph";
 import { PageHeader } from "@/components/layout/PageHeader";
 
 const TABS = [
@@ -12,18 +11,9 @@ const TABS = [
 ];
 
 export function SourcesPage() {
-  const stats = useGraphStore((s) => s.stats);
   return (
     <div className="sources-page">
-      <PageHeader
-        title="Sources"
-        right={
-          <ActiveSetPill
-            nodeCount={stats.nodeCount || undefined}
-            edgeCount={stats.edgeCount || undefined}
-          />
-        }
-      />
+      <PageHeader title="Sources" right={<ActiveSetPill />} />
       <TabStrip items={TABS} />
       <div className="sources-tab-body">
         <Outlet />

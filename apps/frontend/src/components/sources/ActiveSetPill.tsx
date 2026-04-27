@@ -1,22 +1,28 @@
 import { useState } from "react";
 import { useSyncSetStore } from "@/stores/syncSet";
+import { useGraphStore } from "@/stores/graph";
 
 const numFmt = new Intl.NumberFormat("en-US");
 
-interface Props {
-  nodeCount?: number;
-  edgeCount?: number;
-}
-
-export function ActiveSetPill({ nodeCount, edgeCount }: Props) {
+/**
+ * Top-bar chip showing the live size of the rendered graph slice.
+ *
+ * Subscribes directly to `useGraphStore.stats` so node/edge counts
+ * react to load/unload/active-set changes without the parent having
+ * to re-render. Earlier prop-driven design caused stale counts when
+ * the canvas reloaded but the parent layout did not.
+ */
+export function ActiveSetPill() {
   const ids = useSyncSetStore((s) => s.syncIds);
   const remove = useSyncSetStore((s) => s.removeSyncId);
+  const nodeCount = useGraphStore((s) => s.stats.nodeCount);
+  const edgeCount = useGraphStore((s) => s.stats.edgeCount);
   const [open, setOpen] = useState(false);
 
   const summary = [
     `${ids.length} sync${ids.length === 1 ? "" : "s"}`,
-    nodeCount !== undefined ? `${numFmt.format(nodeCount)} nodes` : null,
-    edgeCount !== undefined ? `${numFmt.format(edgeCount)} edges` : null,
+    nodeCount > 0 ? `${numFmt.format(nodeCount)} nodes` : null,
+    edgeCount > 0 ? `${numFmt.format(edgeCount)} edges` : null,
   ].filter(Boolean).join(" · ");
 
   return (
