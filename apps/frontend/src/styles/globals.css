@@ -2686,9 +2686,9 @@ html {
 
 .composer {
   display: flex;
-  align-items: flex-end;
-  gap: 8px;
-  padding: 12px 24px;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-5);
   border-top: 1px solid var(--border);
   background: var(--surface);
   position: sticky;
@@ -2697,25 +2697,32 @@ html {
   flex-shrink: 0;
 }
 .composer-input {
-  flex: 1;
+  flex: 1 1 auto;
   resize: none;
   padding: 10px 14px;
   border: 1px solid var(--border);
-  border-radius: 18px;
-  background: var(--surface);
+  border-radius: var(--radius-md);
+  background: var(--surface-input, var(--surface));
   font: inherit;
   color: inherit;
   outline: 0;
   max-height: 192px;
   min-height: 40px;
   line-height: 1.4;
+  /* Hide the native vertical scrollbar — content still scrolls when
+   * it exceeds max-height, but the chrome stays clean (the auto-grow
+   * effect already gives the user feedback that the box is filling).
+   * scrollbar-width covers Firefox; the pseudo handles Chromium/Safari. */
+  scrollbar-width: none;
 }
+.composer-input::-webkit-scrollbar { display: none; }
 .composer-input:focus { border-color: var(--accent); }
 .composer-send {
-  flex-shrink: 0;
+  flex: 0 0 auto;
   border-radius: 50%;
-  width: 38px;
-  height: 38px;
+  width: 40px;
+  height: 40px;
+  align-self: center;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2726,9 +2733,9 @@ html {
   border-color: var(--fg);
 }
 .composer-send.is-stop:hover:not(:disabled) {
-  background: #e07070;
-  border-color: #e07070;
-  color: white;
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--accent-contrast, #fff);
 }
 
 .chat-placeholder {
@@ -4785,33 +4792,35 @@ html {
 .snapshot-multiselect {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  font-size: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 8px;
-  padding: 6px;
-  background: rgba(255, 255, 255, 0.02);
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2);
+  background: var(--surface);
 }
 .snapshot-multiselect-source { display: flex; flex-direction: column; }
 .snapshot-multiselect-source-row {
-  display: flex; align-items: center; gap: 6px;
-  padding: 6px 4px; border-radius: 6px;
+  display: flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-2) var(--space-1);
+  border-radius: var(--radius-xs);
 }
-.snapshot-multiselect-source-row.is-expanded {
-  background: rgba(255, 255, 255, 0.03);
+.snapshot-multiselect-source-row.is-expanded,
+.snapshot-multiselect-source-row:hover {
+  background: var(--surface-hover);
 }
 .snapshot-multiselect-disclosure {
-  background: none; border: none; color: var(--fg-muted, #aaa);
+  background: none; border: none; color: var(--fg-muted);
   cursor: pointer; padding: 2px; display: inline-flex; align-items: center;
 }
-.snapshot-multiselect-disclosure:hover { color: var(--fg, #fff); }
+.snapshot-multiselect-disclosure:hover { color: var(--fg); }
 .snapshot-multiselect-checkbox {
   display: inline-flex; align-items: center; justify-content: center;
   width: 16px; height: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  border-radius: 3px; background: transparent;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-xs); background: transparent;
   cursor: pointer; padding: 0; flex-shrink: 0;
-  color: var(--fg, #fff);
+  color: var(--fg);
 }
 .snapshot-multiselect-checkbox:disabled {
   cursor: not-allowed; opacity: 0.4;
@@ -4821,40 +4830,45 @@ html {
 }
 .snapshot-multiselect-checkbox-all,
 .snapshot-multiselect-checkbox-checked {
-  background: var(--accent, #5ab4ff);
-  border-color: var(--accent, #5ab4ff);
-  color: #000;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
 }
 .snapshot-multiselect-checkbox-partial {
-  background: color-mix(in srgb, var(--accent, #5ab4ff) 35%, transparent);
-  border-color: var(--accent, #5ab4ff);
-  color: var(--fg, #fff);
+  background: var(--accent-tint);
+  border-color: var(--accent);
+  color: var(--fg);
 }
 .snapshot-multiselect-source-label {
-  flex: 1; display: flex; align-items: center; gap: 8px;
+  flex: 1; display: flex; align-items: center; gap: var(--space-2);
   background: none; border: none; color: inherit;
   text-align: left; cursor: pointer; padding: 0; font: inherit;
 }
-.snapshot-multiselect-source-name { font-weight: 600; }
+.snapshot-multiselect-source-name {
+  font-weight: var(--fw-medium);
+  color: var(--fg);
+}
 .snapshot-multiselect-source-count {
-  margin-left: auto; opacity: 0.55; font-size: 11px;
+  margin-left: auto; color: var(--fg-muted);
+  font-size: var(--text-xs);
 }
 .snapshot-multiselect-snapshots {
   display: flex; flex-direction: column;
-  margin: 2px 0 4px 22px;
-  padding-left: 8px;
-  border-left: 1px solid rgba(255, 255, 255, 0.06);
+  margin: 2px 0 var(--space-1) 22px;
+  padding-left: var(--space-2);
+  border-left: 1px solid var(--border);
 }
 .snapshot-multiselect-snapshot {
-  display: flex; align-items: center; gap: 8px;
-  padding: 4px 4px; border-radius: 4px;
+  display: flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-1);
+  border-radius: var(--radius-xs);
 }
 .snapshot-multiselect-snapshot:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--surface-hover);
 }
 .snapshot-multiselect-snapshot.is-disabled { opacity: 0.45; }
 .snapshot-multiselect-snapshot.is-selected {
-  background: color-mix(in srgb, var(--accent, #5ab4ff) 8%, transparent);
+  background: var(--accent-tint);
 }
 .snapshot-multiselect-snapshot-body {
   flex: 1; display: flex; align-items: center; gap: 12px;
@@ -4871,28 +4885,34 @@ html {
   opacity: 0.85; font-size: 11px;
 }
 .snapshot-multiselect-snapshot-status {
-  margin-left: auto; padding: 1px 6px; border-radius: 3px;
-  font-size: 10px; letter-spacing: 0.04em; text-transform: uppercase;
+  margin-left: auto;
+  padding: 1px 6px;
+  border-radius: var(--radius-xs);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 .snapshot-multiselect-status-completed {
-  background: color-mix(in srgb, var(--success, #5cffa1) 18%, transparent);
-  color: var(--success, #a0f0c0);
+  background: var(--accent-tint);
+  color: var(--accent);
 }
 .snapshot-multiselect-status-running {
-  background: color-mix(in srgb, var(--info, #5ab4ff) 18%, transparent);
-  color: var(--info, #a8d8ff);
+  background: var(--accent-tint);
+  color: var(--accent);
 }
 .snapshot-multiselect-status-failed {
-  background: color-mix(in srgb, var(--danger, #ff6464) 18%, transparent);
-  color: var(--danger, #ffaaaa);
+  background: color-mix(in srgb, var(--danger) 18%, transparent);
+  color: var(--danger);
 }
 .snapshot-multiselect-status-cancelled,
 .snapshot-multiselect-status-cleaned,
 .snapshot-multiselect-status-pending {
-  background: rgba(180, 180, 180, 0.12); color: #ccc;
+  background: var(--surface-hover);
+  color: var(--fg-muted);
 }
 .snapshot-multiselect-empty {
-  padding: 8px 4px; opacity: 0.6;
+  padding: var(--space-2) var(--space-1);
+  color: var(--fg-muted);
 }
 .snapshot-multiselect-load-more {
   background: none; border: none; color: var(--accent, #5ab4ff);

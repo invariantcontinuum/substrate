@@ -25,6 +25,13 @@ export function ContextViewModal({
   context: MessageContext;
 }) {
   if (!open) return null;
+  // The JSONB ``history`` column can come back as `null`, `{}`, or an
+  // array depending on which migration version produced the row. Coerce
+  // to an array up-front so the renderer never crashes; same for
+  // ``files`` since the backend recently widened the wire shape and old
+  // rows may carry the empty-object default.
+  const history = Array.isArray(context.history) ? context.history : [];
+  const files = Array.isArray(context.files) ? context.files : [];
   return (
     <Modal
       open={open}
@@ -37,11 +44,11 @@ export function ContextViewModal({
         <pre className="context-pre">{context.system_prompt || "(empty)"}</pre>
       </details>
       <details className="context-section">
-        <summary>History ({context.history.length} messages)</summary>
-        {context.history.length === 0 && (
+        <summary>History ({history.length} messages)</summary>
+        {history.length === 0 && (
           <p className="muted">No prior messages.</p>
         )}
-        {context.history.map((h, i) => (
+        {history.map((h, i) => (
           // Order is stable for the lifetime of this snapshot — the
           // chat_message_context row is immutable once persisted — so
           // the index makes a safe key without needing a synthetic id.
@@ -54,12 +61,12 @@ export function ContextViewModal({
         ))}
       </details>
       <details className="context-section">
-        <summary>Files in scope ({context.files.length})</summary>
-        {context.files.length === 0 ? (
+        <summary>Files in scope ({files.length})</summary>
+        {files.length === 0 ? (
           <p className="muted">No files attached to this turn.</p>
         ) : (
           <ul className="context-files">
-            {context.files.map((f, idx) => (
+            {files.map((f, idx) => (
               <li key={f.file_id ?? `${idx}-${f.filepath ?? ""}`}>
                 <strong>{f.filepath || "(unknown path)"}</strong>
                 <span className="muted">
