@@ -12,6 +12,8 @@ export function ChatPlaceholder() {
   const setDraft = useChatStore((s) => s.setComposerDraft);
   const active = useChatContextStore((s) => s.active);
   const snapCount = active?.sync_ids?.length ?? 0;
+  const srcCount = active?.source_ids?.length ?? 0;
+  const hasScope = snapCount + srcCount > 0;
 
   return (
     <div className="chat-placeholder">
@@ -26,12 +28,19 @@ export function ChatPlaceholder() {
           ))}
         </ul>
         <p className="chat-placeholder-context muted">
-          {snapCount > 0
-            ? <>This thread will use the active context: <strong>{snapCount} snapshot{snapCount === 1 ? "" : "s"}</strong>.</>
+          {hasScope
+            ? <>This thread will use the active context: <strong>{describeScope(snapCount, srcCount)}</strong>.</>
             : <>No chat context applied. <Link to="/account/chat-context">Set one up</Link>.</>
           }
         </p>
       </div>
     </div>
   );
+}
+
+function describeScope(snap: number, src: number): string {
+  const parts: string[] = [];
+  if (snap > 0) parts.push(`${snap} snapshot${snap === 1 ? "" : "s"}`);
+  if (src > 0) parts.push(`${src} source${src === 1 ? "" : "s"}`);
+  return parts.join(" · ");
 }

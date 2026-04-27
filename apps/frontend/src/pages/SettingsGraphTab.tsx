@@ -131,8 +131,9 @@ function GraphSettingsEditor({ seed }: EditorProps) {
         aux={`${selectedSyncIds.length} snapshot${selectedSyncIds.length === 1 ? "" : "s"} selected`}
       />
       <SourceSnapshotMultiSelect
-        value={selectedSyncIds}
-        onChange={setSelectedSyncIds}
+        syncIds={selectedSyncIds}
+        sourceIds={[]}
+        onChange={(next) => setSelectedSyncIds(next.sync_ids)}
         completedOnly
       />
       <div className="config-actions">

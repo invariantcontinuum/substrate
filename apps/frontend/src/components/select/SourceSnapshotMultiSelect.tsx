@@ -1,32 +1,40 @@
 /**
  * SourceSnapshotMultiSelect — tree-shaped picker that lets the user select
- * any combination of (source, snapshot) pairs in a single control.
+ * a mix of (whole-source) and (specific snapshot) entries in a single
+ * control.
  *
  * Layout
  * ------
- *  ▸ owner/name          [□ all] (loaded counter)
+ *  ▸ owner/name          [□ Whole source]
  *      ▾ ▢ 2d ago — 2026-04-25 10:34   master @ abc1234   [completed]
  *        ▢ 5h ago — 2026-04-26 18:01   feature/x @ def…   [running]
  *
  * Selection model
  * ---------------
- *  - `value`/`onChange` carry sync_ids (snapshots) only — the parent never
- *    has to track sources separately.
- *  - The source-row checkbox is purely a select-all-in-source helper:
- *    clicking it toggles every snapshot of that source between selected
- *    and unselected. The visual is `none | partial | all` based on what's
- *    in `value`.
+ *  Two parallel arrays travel through ``onChange``:
+ *  - ``sync_ids``   — individual snapshots the user pinned. Server uses
+ *    these verbatim at thread creation.
+ *  - ``source_ids`` — sources the user wants "the latest snapshot of"
+ *    on every new chat thread. Server resolves each id to its current
+ *    ``last_sync_id`` at thread-creation time, so re-syncing a source
+ *    silently advances the chat scope.
+ *
+ *  The source-row checkbox toggles membership in ``source_ids`` only.
+ *  The snapshot checkboxes toggle membership in ``sync_ids`` only. The
+ *  visual tri-state on the parent reflects: ``all`` if the source is in
+ *  ``source_ids``; ``partial`` if any of its snapshots are in
+ *  ``sync_ids``; ``none`` otherwise.
  *
  * Data
  * ----
- *  - `useSources()` provides the source list (fast, cached at 5min).
- *  - `useSourceSyncs(sourceId)` paginates per-source sync_runs. We render
- *    the first 25-page; expanding further is "Load more". This matches the
- *    existing snapshot-list UX in SourcesSnapshotsTab.
+ *  - ``useSources()`` provides the source list (fast, cached at 5min).
+ *  - ``useSourceSyncs(sourceId)`` paginates per-source sync_runs. We
+ *    render the first 25-page; expanding further is "Load more". This
+ *    matches the existing snapshot-list UX in SourcesSnapshotsTab.
  *
- * Styling — every class is namespaced `snapshot-multiselect-*` so it does
- * not collide with the existing snapshot-card / snapshot-row rules. CSS
- * lives in styles/globals.css under "SourceSnapshotMultiSelect".
+ * Styling — every class is namespaced ``snapshot-multiselect-*`` so it
+ * does not collide with the existing snapshot-card / snapshot-row
+ * rules. CSS lives in styles/globals.css under "SourceSnapshotMultiSelect".
  */
 import { useMemo, useState, type CSSProperties } from "react";
 import { ChevronDown, ChevronRight, RefreshCw } from "lucide-react";
@@ -41,26 +49,43 @@ export interface SnapshotEntry {
   status: string;
 }
 
+export interface SourceSnapshotSelection {
+  sync_ids:   string[];
+  source_ids: string[];
+}
+
 export interface SourceSnapshotMultiSelectProps {
-  /** Selected snapshot ids; controlled. */
-  value: string[];
-  onChange: (ids: string[]) => void;
+  /** Controlled snapshot ids (specific snapshots the user pinned). */
+  syncIds: string[];
+  /** Controlled source ids ("always use the latest snapshot"). */
+  sourceIds: string[];
+  /** Fires whenever either array changes. Always returns both. */
+  onChange: (next: SourceSnapshotSelection) => void;
   /** When true, disable rows whose status != 'completed'. */
   completedOnly?: boolean;
-  /** Optional: limit to these source ids. Default: all sources. */
-  sourceIds?: string[];
+  /** Optional: restrict to these source ids. Default: all sources. */
+  visibleSourceIds?: string[];
   /** Optional className for the root. */
   className?: string;
 }
 
 type TriState = "none" | "partial" | "all";
 
-function classifySource(snapshotIds: string[], selected: Set<string>): TriState {
+function classifySource(
+  sourceId: string,
+  snapshotIds: string[],
+  selectedSyncs: Set<string>,
+  selectedSources: Set<string>,
+): TriState {
+  // "Whole source" is the strongest selector: when the source itself is
+  // pinned the row reads "all" regardless of which snapshots are in
+  // sync_ids — picking a specific snapshot in addition would just be
+  // redundant on the wire.
+  if (selectedSources.has(sourceId)) return "all";
   if (snapshotIds.length === 0) return "none";
   let hits = 0;
-  for (const id of snapshotIds) if (selected.has(id)) hits += 1;
+  for (const id of snapshotIds) if (selectedSyncs.has(id)) hits += 1;
   if (hits === 0) return "none";
-  if (hits === snapshotIds.length) return "all";
   return "partial";
 }
 
@@ -135,16 +160,20 @@ function TriCheckbox({ state, disabled, onClick, ariaLabel }: CheckboxProps) {
 
 interface SourceNodeProps {
   source: Source;
-  selected: Set<string>;
-  onSelectionChange: (next: Set<string>) => void;
+  selectedSyncs: Set<string>;
+  selectedSources: Set<string>;
+  onToggleSnapshot: (id: string) => void;
+  onToggleWholeSource: (sourceId: string) => void;
   completedOnly: boolean;
   expandedDefault?: boolean;
 }
 
 function SourceNode({
   source,
-  selected,
-  onSelectionChange,
+  selectedSyncs,
+  selectedSources,
+  onToggleSnapshot,
+  onToggleWholeSource,
   completedOnly,
   expandedDefault = false,
 }: SourceNodeProps) {
@@ -164,30 +193,20 @@ function SourceNode({
     [items, completedOnly],
   );
 
-  const triState = classifySource(eligibleIds, selected);
-  const selectedCountInSource = items.filter((r) => selected.has(r.id)).length;
+  const triState = classifySource(
+    source.id,
+    eligibleIds,
+    selectedSyncs,
+    selectedSources,
+  );
+  const wholeSourcePinned = selectedSources.has(source.id);
+  const selectedCountInSource = items.filter(
+    (r) => selectedSyncs.has(r.id),
+  ).length;
 
   const toggleExpand = () => setExpanded((v) => !v);
 
-  const toggleSourceAll = () => {
-    if (eligibleIds.length === 0) return;
-    const next = new Set(selected);
-    if (triState === "all") {
-      for (const id of eligibleIds) next.delete(id);
-    } else {
-      for (const id of eligibleIds) next.add(id);
-    }
-    onSelectionChange(next);
-  };
-
-  const toggleOne = (id: string) => {
-    const next = new Set(selected);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    onSelectionChange(next);
-  };
-
-  const ariaLabelSource = `Toggle all snapshots in ${source.owner}/${source.name}`;
+  const ariaLabelSource = `Toggle whole source ${source.owner}/${source.name}`;
 
   return (
     <div className="snapshot-multiselect-source">
@@ -209,10 +228,8 @@ function SourceNode({
         </button>
         <TriCheckbox
           state={triState}
-          disabled={
-            sourceSyncs.isLoading || (expanded && eligibleIds.length === 0)
-          }
-          onClick={toggleSourceAll}
+          disabled={sourceSyncs.isLoading}
+          onClick={() => onToggleWholeSource(source.id)}
           ariaLabel={ariaLabelSource}
         />
         <button
@@ -223,11 +240,15 @@ function SourceNode({
           <span className="snapshot-multiselect-source-name">
             {source.owner}/{source.name}
           </span>
-          {selectedCountInSource > 0 && (
+          {wholeSourcePinned ? (
+            <span className="snapshot-multiselect-source-count">
+              whole source
+            </span>
+          ) : selectedCountInSource > 0 ? (
             <span className="snapshot-multiselect-source-count">
               {selectedCountInSource} selected
             </span>
-          )}
+          ) : null}
         </button>
       </div>
 
@@ -243,8 +264,9 @@ function SourceNode({
             <>
               {items.map((run) => {
                 const disabled =
-                  completedOnly && run.status !== "completed";
-                const isSelected = selected.has(run.id);
+                  (completedOnly && run.status !== "completed") ||
+                  wholeSourcePinned;
+                const isSelected = wholeSourcePinned || selectedSyncs.has(run.id);
                 return (
                   <div
                     key={run.id}
@@ -255,14 +277,14 @@ function SourceNode({
                     <TriCheckbox
                       state={isSelected ? "checked" : "unchecked"}
                       disabled={disabled}
-                      onClick={() => toggleOne(run.id)}
+                      onClick={() => onToggleSnapshot(run.id)}
                       ariaLabel={`Toggle snapshot ${run.id.slice(0, 8)}`}
                     />
                     <button
                       type="button"
                       className="snapshot-multiselect-snapshot-body"
                       disabled={disabled}
-                      onClick={() => !disabled && toggleOne(run.id)}
+                      onClick={() => !disabled && onToggleSnapshot(run.id)}
                     >
                       <span
                         className="snapshot-multiselect-snapshot-time"
@@ -327,20 +349,55 @@ function SnapshotSkeleton({ rows, style }: { rows: number; style?: CSSProperties
 export function SourceSnapshotMultiSelect(
   props: SourceSnapshotMultiSelectProps,
 ) {
-  const { value, onChange, completedOnly = false, sourceIds, className } = props;
+  const {
+    syncIds,
+    sourceIds,
+    onChange,
+    completedOnly = false,
+    visibleSourceIds,
+    className,
+  } = props;
   const { sources, isLoading } = useSources();
 
   const visibleSources = useMemo(() => {
     if (!sources) return [];
-    if (!sourceIds || sourceIds.length === 0) return sources;
-    const allowed = new Set(sourceIds);
+    if (!visibleSourceIds || visibleSourceIds.length === 0) return sources;
+    const allowed = new Set(visibleSourceIds);
     return sources.filter((s) => allowed.has(s.id));
-  }, [sources, sourceIds]);
+  }, [sources, visibleSourceIds]);
 
-  const selected = useMemo(() => new Set(value), [value]);
+  const selectedSyncs = useMemo(() => new Set(syncIds), [syncIds]);
+  const selectedSources = useMemo(() => new Set(sourceIds), [sourceIds]);
 
-  const setSelection = (next: Set<string>) => {
-    onChange(Array.from(next));
+  const toggleSnapshot = (id: string) => {
+    const next = new Set(selectedSyncs);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    onChange({
+      sync_ids: Array.from(next),
+      source_ids: Array.from(selectedSources),
+    });
+  };
+
+  const toggleWholeSource = (sourceId: string) => {
+    const nextSources = new Set(selectedSources);
+    const nextSyncs = new Set(selectedSyncs);
+    if (nextSources.has(sourceId)) {
+      nextSources.delete(sourceId);
+    } else {
+      // Pinning a whole source supersedes any specific snapshots from
+      // the same source — drop them so the wire payload stays minimal
+      // and the UI reads as "this source is all-pinned, no fragments".
+      nextSources.add(sourceId);
+      const src = sources?.find((s) => s.id === sourceId);
+      if (src?.last_sync_id && nextSyncs.has(src.last_sync_id)) {
+        nextSyncs.delete(src.last_sync_id);
+      }
+    }
+    onChange({
+      sync_ids: Array.from(nextSyncs),
+      source_ids: Array.from(nextSources),
+    });
   };
 
   const rootClass = `snapshot-multiselect${className ? ` ${className}` : ""}`;
@@ -369,8 +426,10 @@ export function SourceSnapshotMultiSelect(
         <SourceNode
           key={src.id}
           source={src}
-          selected={selected}
-          onSelectionChange={setSelection}
+          selectedSyncs={selectedSyncs}
+          selectedSources={selectedSources}
+          onToggleSnapshot={toggleSnapshot}
+          onToggleWholeSource={toggleWholeSource}
           completedOnly={completedOnly}
         />
       ))}

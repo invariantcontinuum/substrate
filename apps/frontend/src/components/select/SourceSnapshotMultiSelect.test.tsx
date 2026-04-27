@@ -122,7 +122,11 @@ function renderWithProviders(ui: React.ReactElement) {
 describe("SourceSnapshotMultiSelect", () => {
   it("renders a row per source", () => {
     renderWithProviders(
-      <SourceSnapshotMultiSelect value={[]} onChange={vi.fn()} />,
+      <SourceSnapshotMultiSelect
+        syncIds={[]}
+        sourceIds={[]}
+        onChange={vi.fn()}
+      />,
     );
     expect(screen.getByText("alpha/alpha-repo")).toBeInTheDocument();
     expect(screen.getByText("beta/beta-repo")).toBeInTheDocument();
@@ -130,30 +134,45 @@ describe("SourceSnapshotMultiSelect", () => {
 
   it("expanding a source reveals its snapshots", () => {
     renderWithProviders(
-      <SourceSnapshotMultiSelect value={[]} onChange={vi.fn()} />,
+      <SourceSnapshotMultiSelect
+        syncIds={[]}
+        sourceIds={[]}
+        onChange={vi.fn()}
+      />,
     );
     fireEvent.click(screen.getByText("alpha/alpha-repo"));
     expect(screen.getByText(/main @ abcdef1/)).toBeInTheDocument();
     expect(screen.getByText(/feature\/x @ 1234567/)).toBeInTheDocument();
   });
 
-  it("clicking a snapshot toggles single id via onChange", () => {
+  it("clicking a snapshot toggles it in sync_ids only", () => {
     const onChange = vi.fn();
     renderWithProviders(
-      <SourceSnapshotMultiSelect value={[]} onChange={onChange} />,
+      <SourceSnapshotMultiSelect
+        syncIds={[]}
+        sourceIds={[]}
+        onChange={onChange}
+      />,
     );
     fireEvent.click(screen.getByText("alpha/alpha-repo"));
     const row = screen.getByText(/main @ abcdef1/).closest(
       ".snapshot-multiselect-snapshot",
     ) as HTMLElement;
     fireEvent.click(within(row).getByRole("checkbox"));
-    expect(onChange).toHaveBeenCalledWith(["a-1"]);
+    expect(onChange).toHaveBeenCalledWith({
+      sync_ids: ["a-1"],
+      source_ids: [],
+    });
   });
 
-  it("clicking a source row toggles select-all-in-source", () => {
+  it("clicking a source row pins the whole source via source_ids", () => {
     const onChange = vi.fn();
     renderWithProviders(
-      <SourceSnapshotMultiSelect value={[]} onChange={onChange} />,
+      <SourceSnapshotMultiSelect
+        syncIds={[]}
+        sourceIds={[]}
+        onChange={onChange}
+      />,
     );
     fireEvent.click(screen.getByText("alpha/alpha-repo"));
     const sourceRow = screen
@@ -162,13 +181,19 @@ describe("SourceSnapshotMultiSelect", () => {
     const sourceCheckbox = within(sourceRow).getAllByRole("checkbox")[0];
     fireEvent.click(sourceCheckbox);
     expect(onChange).toHaveBeenCalledTimes(1);
-    const ids = onChange.mock.calls[0][0] as string[];
-    expect(new Set(ids)).toEqual(new Set(["a-1", "a-2"]));
+    expect(onChange).toHaveBeenCalledWith({
+      sync_ids: [],
+      source_ids: ["src-a"],
+    });
   });
 
-  it("source row checkbox is in 'partial' state when only some snapshots are selected", () => {
+  it("source row checkbox is in 'partial' state when only some snapshots are pinned", () => {
     renderWithProviders(
-      <SourceSnapshotMultiSelect value={["a-1"]} onChange={vi.fn()} />,
+      <SourceSnapshotMultiSelect
+        syncIds={["a-1"]}
+        sourceIds={[]}
+        onChange={vi.fn()}
+      />,
     );
     fireEvent.click(screen.getByText("alpha/alpha-repo"));
     const sourceRow = screen
@@ -178,9 +203,29 @@ describe("SourceSnapshotMultiSelect", () => {
     expect(sourceCheckbox).toHaveAttribute("aria-checked", "mixed");
   });
 
+  it("source row reads 'all' when its id is in sourceIds", () => {
+    renderWithProviders(
+      <SourceSnapshotMultiSelect
+        syncIds={[]}
+        sourceIds={["src-a"]}
+        onChange={vi.fn()}
+      />,
+    );
+    const sourceRow = screen
+      .getByText("alpha/alpha-repo")
+      .closest(".snapshot-multiselect-source-row") as HTMLElement;
+    const sourceCheckbox = within(sourceRow).getAllByRole("checkbox")[0];
+    expect(sourceCheckbox).toHaveAttribute("aria-checked", "true");
+  });
+
   it("disables non-completed snapshots when completedOnly is true", () => {
     renderWithProviders(
-      <SourceSnapshotMultiSelect value={[]} onChange={vi.fn()} completedOnly />,
+      <SourceSnapshotMultiSelect
+        syncIds={[]}
+        sourceIds={[]}
+        onChange={vi.fn()}
+        completedOnly
+      />,
     );
     fireEvent.click(screen.getByText("beta/beta-repo"));
     // The lone snapshot for beta is 'running' → row gets is-disabled.
@@ -190,12 +235,13 @@ describe("SourceSnapshotMultiSelect", () => {
     expect(row.className).toMatch(/is-disabled/);
   });
 
-  it("filters by sourceIds when provided", () => {
+  it("filters by visibleSourceIds when provided", () => {
     renderWithProviders(
       <SourceSnapshotMultiSelect
-        value={[]}
+        syncIds={[]}
+        sourceIds={[]}
         onChange={vi.fn()}
-        sourceIds={["src-b"]}
+        visibleSourceIds={["src-b"]}
       />,
     );
     expect(screen.queryByText("alpha/alpha-repo")).toBeNull();

@@ -3164,6 +3164,42 @@ html {
 }
 .context-budget-pill.is-over:hover { background: rgba(255, 120, 120, 0.4); }
 
+/* Context picker — three-tab modal (All files / Communities / Directories)
+ * driven by ContextFilesModal. The .ctx-tabs strip sits at the top, the
+ * .ctx-search box just below filters the active tab's list. */
+.ctx-tabs {
+  display: flex;
+  gap: var(--space-1);
+  margin-bottom: var(--space-2);
+}
+.ctx-tabs button {
+  background: transparent;
+  border: 1px solid var(--border);
+  padding: 4px 12px;
+  border-radius: var(--radius-sm);
+  color: var(--fg-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-sm);
+}
+.ctx-tabs button:hover { background: var(--surface-hover); color: var(--fg); }
+.ctx-tabs button.is-active {
+  background: var(--accent-tint);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.ctx-search {
+  width: 100%;
+  padding: 6px 10px;
+  margin-bottom: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  font-size: var(--text-sm);
+}
+
 /* Context-files modal — list of files attached to the active thread,
  * each with a checkbox to include/exclude + filename / language /
  * token count metadata. Compact two-line row so long paths stay
@@ -3208,12 +3244,16 @@ html {
 }
 .ctx-files-actions {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
   gap: var(--space-3);
   margin-top: var(--space-3);
   padding-top: var(--space-3);
   border-top: 1px solid var(--border);
 }
+/* The tabbed picker prepends a muted summary count before the buttons —
+ * push it to the left so the action buttons stay flush right. */
+.ctx-files-actions > .muted:first-child { margin-right: auto; }
 .ctx-files-list {
   list-style: none;
   margin: 0;
