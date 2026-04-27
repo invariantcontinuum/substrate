@@ -2209,7 +2209,7 @@ html {
 .page-header {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   padding: 8px 16px;
   border-bottom: 1px solid var(--border);
   height: 44px;
@@ -2226,7 +2226,7 @@ html {
   justify-content: center;
   width: 32px;
   height: 32px;
-  flex-shrink: 0;
+  flex: 0 0 auto;
 }
 .page-header-hamburger:hover {
   color: var(--accent);
@@ -2234,7 +2234,8 @@ html {
   background: var(--surface-hover);
 }
 .page-header-title {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
   margin: 0;
   font-size: var(--text-base);
   font-weight: 500;
@@ -2243,7 +2244,7 @@ html {
   white-space: nowrap;
 }
 .page-header-right {
-  flex-shrink: 0;
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   gap: 6px;
