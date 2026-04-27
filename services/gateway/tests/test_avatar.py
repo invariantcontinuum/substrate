@@ -93,9 +93,10 @@ async def gateway_app(monkeypatch):
 async def test_upload_serves_png_then_delete(gateway_app):
     client, _ = gateway_app
 
-    # 404 before any upload.
+    # No avatar yet — expect 200 + null (not 404; see DSG-2026-04-27-A §1.4).
     r = await client.get("/api/users/me/avatar")
-    assert r.status_code == 404
+    assert r.status_code == 200
+    assert r.json() == {"avatar": None}
 
     # Upload a 400x300 PNG (non-square — exercises centre-crop).
     payload = _png_bytes(400, 300)
@@ -117,24 +118,26 @@ async def test_upload_serves_png_then_delete(gateway_app):
     img = Image.open(io.BytesIO(r.content))
     assert img.size == (256, 256)
 
-    # DELETE clears the row and the next GET 404s.
+    # DELETE clears the row; the next GET returns 200 + null (no 404).
     r = await client.delete("/api/users/me/avatar")
     assert r.status_code == 200
     r = await client.get("/api/users/me/avatar")
-    assert r.status_code == 404
+    assert r.status_code == 200
+    assert r.json() == {"avatar": None}
 
 
 @pytest.mark.asyncio
 async def test_rejects_oversized_upload(gateway_app):
     client, _ = gateway_app
 
-    # 1 MiB of zero bytes — exceeds the default 512 KiB cap.
-    bogus = b"\x00" * (1024 * 1024)
+    # 5 MiB of zero bytes — exceeds the 4 MiB cap.
+    bogus = b"\x00" * (5 * 1024 * 1024)
     r = await client.post(
         "/api/users/me/avatar",
         files={"file": ("oversize.png", bogus, "image/png")},
     )
-    assert r.status_code == 422, r.text
+    # Gateway maps ValidationError to 400 (not 422).
+    assert r.status_code == 400, r.text
 
 
 @pytest.mark.asyncio
@@ -145,4 +148,57 @@ async def test_rejects_unsupported_mime(gateway_app):
         "/api/users/me/avatar",
         files={"file": ("a.gif", b"GIF89a...", "image/gif")},
     )
-    assert r.status_code == 422, r.text
+    # Gateway maps ValidationError to 400 (not 422).
+    assert r.status_code == 400, r.text
+
+
+@pytest.mark.asyncio
+async def test_avatar_upload_accepts_2mb_png(gateway_app):
+    """4 MiB cap allows a large PNG well above the old 512 KiB limit.
+
+    Generates a valid PNG whose uncompressed size sits between 512 KiB
+    (old cap) and 4 MiB (new cap). We use a 600x500 noisy image saved at
+    compress_level=0; random pixels don't compress well, so the output
+    is ~900 KiB — larger than the old 512 KiB limit but smaller than 4 MiB
+    (DSG-2026-04-27-A §1.3).
+    """
+    client, _ = gateway_app
+    import random as _random
+    pixels = bytes([_random.randint(0, 255) for _ in range(600 * 500 * 3)])
+    img = Image.frombytes("RGB", (600, 500), pixels)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG", compress_level=0)
+    png_bytes_large = buf.getvalue()
+    # Must be over 512 KiB (old cap) and under 4 MiB (new cap).
+    assert len(png_bytes_large) > 512 * 1024, (
+        f"Expected >512 KiB, got {len(png_bytes_large)} bytes"
+    )
+    assert len(png_bytes_large) < 4 * 1024 * 1024, (
+        f"Expected <4 MiB, got {len(png_bytes_large)} bytes"
+    )
+
+    resp = await client.post(
+        "/api/users/me/avatar",
+        files={"file": ("camera.png", png_bytes_large, "image/png")},
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["mime"] == "image/png"
+    assert body["edge_px"] == 256
+    assert body["size_bytes"] > 0
+
+
+@pytest.mark.asyncio
+async def test_avatar_get_returns_200_with_null_when_absent(gateway_app):
+    """GET /api/users/me/avatar returns 200 + {avatar:null} when row absent.
+
+    Regression for DSG-2026-04-27-A §1.4 — the old 404 caused console
+    error noise on every fresh-user dashboard load.
+    """
+    client, _ = gateway_app
+    await client.delete("/api/users/me/avatar")
+    resp = await client.get("/api/users/me/avatar")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body == {"avatar": None}
+    assert "max-age=0" in resp.headers.get("Cache-Control", "")

@@ -64,10 +64,14 @@ class _GatewaySettings(LayeredSettings):
 
     # ── Avatar upload ─────────────────────────────────────────────────
     # Hard cap on raw upload size before Pillow ever opens the bytes.
-    # Trade-off: higher = users can submit higher-resolution sources;
-    # lower = mobile snapshots may overshoot. 512 KiB matches every
-    # mainstream avatar service.
-    avatar_max_upload_bytes: int = 512 * 1024
+    # Trade-off: higher = users can submit higher-resolution sources
+    # (phone-camera PNGs commonly land between 1 and 3 MiB); lower =
+    # less buffering memory per concurrent upload. 4 MiB matches the
+    # reverse-proxy upstream cap; raising further would land bytes the
+    # proxy will silently drop. Surfaced as AVATAR_MAX_UPLOAD_BYTES so
+    # a deployer with a tighter ingress can shrink it without a code
+    # change (CLAUDE.md hard rule — env-driven tunables).
+    avatar_max_upload_bytes: int = 4 * 1024 * 1024
     # Final stored avatar edge length after centre-crop + resize.
     # Trade-off: larger = sharper avatars at retina sizes, more BYTEA
     # per row; smaller = visible blur at retina header sizes.

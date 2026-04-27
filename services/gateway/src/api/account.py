@@ -45,7 +45,7 @@ import pyotp
 import qrcode
 import structlog
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 from PIL import Image
 from pydantic import BaseModel, Field
 
@@ -686,7 +686,15 @@ async def get_avatar(request: Request):
             user_sub,
         )
     if row is None or row["avatar_image"] is None:
-        raise HTTPException(404, {"error": "no_avatar"})
+        # "No avatar yet" is a normal state for new users; returning
+        # 404 here causes browser-side console error noise on every
+        # fresh dashboard load. Return 200 with an explicit null so
+        # the frontend can branch without treating it as a transport
+        # error. max-age=0 because an upload may land seconds later.
+        return JSONResponse(
+            content={"avatar": None},
+            headers={"Cache-Control": "public, max-age=0"},
+        )
     return Response(
         content=bytes(row["avatar_image"]),
         media_type=row["avatar_mime"] or "image/png",
