@@ -91,21 +91,24 @@ function SourceSettingsCard({ source }: { source: Source }) {
       </button>
       {open && (
         <div className="per-source-settings-body">
-          <label>Label
+          <label className="conn-field">
+            <span>Label</span>
             <input value={label} onChange={(e) => setLabel(e.target.value)} />
           </label>
-          <label>URL
+          <label className="conn-field">
+            <span>URL</span>
             <input value={source.url} readOnly disabled />
           </label>
-          <label className="toggle">
+          <label className="conn-field conn-field--toggle">
+            <span>Enabled</span>
             <input
               type="checkbox"
               checked={enabled}
               onChange={(e) => setEnabled(e.target.checked)}
             />
-            Enabled
           </label>
-          <label>Age (days)
+          <label className="conn-field">
+            <span>Age (days)</span>
             <input
               type="number"
               min={1}
@@ -115,7 +118,8 @@ function SourceSettingsCard({ source }: { source: Source }) {
               disabled={neverPrune}
             />
           </label>
-          <label>Per-source cap
+          <label className="conn-field">
+            <span>Per-source cap</span>
             <input
               type="number"
               min={1}
@@ -125,13 +129,13 @@ function SourceSettingsCard({ source }: { source: Source }) {
               disabled={neverPrune}
             />
           </label>
-          <label className="toggle">
+          <label className="conn-field conn-field--toggle">
+            <span>Never prune</span>
             <input
               type="checkbox"
               checked={neverPrune}
               onChange={(e) => setNeverPrune(e.target.checked)}
             />
-            Never prune
           </label>
           {error && <p className="config-error">{error}</p>}
           <div className="config-actions">

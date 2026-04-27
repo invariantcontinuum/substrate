@@ -3531,8 +3531,50 @@ html {
   border-bottom: 1px solid var(--border);
 }
 .per-source-settings-body {
-  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
   font-size: var(--text-sm);
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+}
+.per-source-settings-body input[type="text"],
+.per-source-settings-body input[type="number"],
+.per-source-settings-body input:not([type]) {
+  height: 36px;
+  padding: 0 12px;
+  background: var(--surface-input, var(--surface));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  color: var(--fg);
+  font: inherit;
+  font-size: var(--text-sm);
+}
+.per-source-settings-body input:focus-visible {
+  outline: 2px solid var(--accent-tint);
+  border-color: var(--accent);
+}
+.per-source-settings-body input[disabled],
+.per-source-settings-body input[readonly] {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+/* Toggle variant of `.conn-field` — checkbox sits in the right column,
+ * left-aligned, instead of the wide input chrome. */
+.conn-field--toggle input[type="checkbox"] {
+  justify-self: start;
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+.per-source-settings-body .config-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+  margin-top: var(--space-2);
+  border-top: 1px solid var(--border);
 }
 
 /* Info button at the top of the existing graph toolbar — pulses for
