@@ -6,14 +6,39 @@ keeps the ingestion-local `file_summary_text` helper.
 """
 from __future__ import annotations
 
+from typing import Literal, overload
+
 import structlog
 
 from src.config import settings
 from substrate_graph_builder.chunker import Chunk, chunk_content, estimate_tokens
+from substrate_graph_builder.chunker.dispatch import ChunkMetadata
 
 logger = structlog.get_logger()
 
 __all__ = ["Chunk", "chunk_file", "estimate_tokens", "file_summary_text"]
+
+
+@overload
+def chunk_file(
+    path: str,
+    content: str,
+    chunk_size: int | None = ...,
+    overlap: int | None = ...,
+    *,
+    return_metadata: Literal[False] = ...,
+) -> list[Chunk]: ...
+
+
+@overload
+def chunk_file(
+    path: str,
+    content: str,
+    chunk_size: int | None = ...,
+    overlap: int | None = ...,
+    *,
+    return_metadata: Literal[True],
+) -> ChunkMetadata: ...
 
 
 def chunk_file(
@@ -23,17 +48,24 @@ def chunk_file(
     overlap: int | None = None,
     *,
     return_metadata: bool = False,
-) -> list[Chunk] | dict:
+) -> list[Chunk] | ChunkMetadata:
     budget = chunk_size if chunk_size is not None else settings.chunk_size
     over = overlap if overlap is not None else settings.chunk_overlap
-    result = chunk_content(
+    if return_metadata:
+        meta: ChunkMetadata = chunk_content(
+            path=path, content=content, budget=budget, overlap=over,
+            return_metadata=True,
+        )
+        logger.debug("file_chunked", path=path, chunks_produced=len(meta["chunks"]),
+                     input_bytes=len(content))
+        return meta
+    plain: list[Chunk] = chunk_content(
         path=path, content=content, budget=budget, overlap=over,
-        return_metadata=return_metadata,
+        return_metadata=False,
     )
-    chunks = result["chunks"] if return_metadata else result
-    logger.debug("file_chunked", path=path, chunks_produced=len(chunks),
+    logger.debug("file_chunked", path=path, chunks_produced=len(plain),
                  input_bytes=len(content))
-    return result
+    return plain
 
 
 def file_summary_text(

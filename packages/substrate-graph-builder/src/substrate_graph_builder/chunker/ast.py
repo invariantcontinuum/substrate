@@ -153,7 +153,7 @@ def _merge_small_adjacent(chunks: list[Chunk], budget: int) -> list[Chunk]:
 
 
 def chunk_ast(
-    parser: "Parser",
+    parser: Parser,
     content: str,
     budget: int,
 ) -> list[Chunk]:

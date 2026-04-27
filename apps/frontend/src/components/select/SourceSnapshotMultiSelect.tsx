@@ -42,13 +42,6 @@ import { useSources, type Source } from "@/hooks/useSources";
 import { useSourceSyncs } from "@/hooks/useSourceSyncs";
 import type { SyncRun } from "@/hooks/useSyncs";
 
-export interface SnapshotEntry {
-  id: string;
-  completed_at: string | null;
-  ref: string | null;
-  status: string;
-}
-
 export interface SourceSnapshotSelection {
   sync_ids:   string[];
   source_ids: string[];

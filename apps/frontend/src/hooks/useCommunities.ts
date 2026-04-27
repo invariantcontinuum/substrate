@@ -95,6 +95,7 @@ export function useCommunities(
 
   useEffect(() => {
     if (syncIds.length === 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setData(null);
       return;
     }

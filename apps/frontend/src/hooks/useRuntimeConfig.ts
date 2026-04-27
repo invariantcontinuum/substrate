@@ -67,13 +67,6 @@ export interface ApplyConfigResponse {
   scope: string;
 }
 
-export interface ApplyConfigOptions {
-  /** Extra request headers — required for risk-gated sections such as
-   *  `postgres`, which the gateway rejects with 428 unless the caller
-   *  attaches the matching ``X-Substrate-Confirm-Risk`` header. */
-  headers?: Record<string, string>;
-}
-
 /**
  * Mutate a single config section. Body is a *partial* patch — only the
  * keys you supply are upserted; existing values for omitted keys are

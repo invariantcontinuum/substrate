@@ -3,6 +3,7 @@ post-processes the result (breadcrumbs, chunk_index, language)."""
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal, TypedDict, overload
 
 from substrate_graph_builder.chunker.ast import chunk_ast
 from substrate_graph_builder.chunker.fallback import chunk_lines
@@ -95,6 +96,35 @@ def _dispatch_and_collect(
     return chunks, language
 
 
+class ChunkMetadata(TypedDict):
+    chunks: list[Chunk]
+    total_lines: int
+
+
+@overload
+def chunk_content(
+    path: str,
+    content: str,
+    budget: int = ...,
+    overlap: int = ...,
+    add_breadcrumb: bool = ...,
+    *,
+    return_metadata: Literal[False] = ...,
+) -> list[Chunk]: ...
+
+
+@overload
+def chunk_content(
+    path: str,
+    content: str,
+    budget: int = ...,
+    overlap: int = ...,
+    add_breadcrumb: bool = ...,
+    *,
+    return_metadata: Literal[True],
+) -> ChunkMetadata: ...
+
+
 def chunk_content(
     path: str,
     content: str,
@@ -103,7 +133,7 @@ def chunk_content(
     add_breadcrumb: bool = True,
     *,
     return_metadata: bool = False,
-) -> list[Chunk] | dict:
+) -> list[Chunk] | ChunkMetadata:
     """Dispatch a file to the right chunker and return annotated chunks.
 
     The returned chunks carry:

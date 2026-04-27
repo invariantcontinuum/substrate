@@ -27,7 +27,6 @@ import yaml
 from pydantic.fields import FieldInfo
 from pydantic_settings.sources import PydanticBaseSettingsSource
 
-
 _SEARCH_PATHS = (Path("config.yaml"), Path("/etc/substrate/config.yaml"))
 
 

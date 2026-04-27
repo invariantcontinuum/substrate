@@ -5,6 +5,8 @@ Markdown/text/fallback paths need no external grammar.
 """
 from __future__ import annotations
 
+import itertools
+
 from substrate_graph_builder.chunker import Chunk, chunk_content
 from substrate_graph_builder.chunker.fallback import chunk_lines
 from substrate_graph_builder.chunker.markdown import chunk_markdown
@@ -101,7 +103,7 @@ def test_fallback_line_greedy_respects_budget():
     chunks = chunk_lines(src, budget=20, overlap=4)
     assert len(chunks) >= 3
     # Overlap means consecutive start_line should be lower than previous end_line.
-    for a, b in zip(chunks, chunks[1:]):
+    for a, b in itertools.pairwise(chunks):
         assert b.start_line <= a.end_line + 1
 
 

@@ -1,4 +1,5 @@
 import pytest
+
 from substrate_graph_builder.denylist import is_denied
 
 

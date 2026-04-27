@@ -43,7 +43,7 @@ def _stub_chunk(start: int, end: int, content: str) -> Chunk:
 
 def test_ensure_eof_coverage_appends_tail_when_chunks_stop_short():
     src = "line1\nline2\nline3\ntrailing comment past last construct\n"
-    # Pretend the AST chunker only produced lines 1–3 and missed line 4.
+    # Pretend the AST chunker only produced lines 1-3 and missed line 4.
     chunks = [_stub_chunk(1, 3, "line1\nline2\nline3")]
     out = _ensure_eof_coverage(chunks, src, total_lines=4)
     assert len(out) == 2

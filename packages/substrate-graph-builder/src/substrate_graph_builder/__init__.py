@@ -18,8 +18,8 @@ from substrate_graph_builder.plugins import REGISTRY
 from substrate_graph_builder.plugins._base import LanguagePlugin, TreeSitterPlugin
 
 __all__ = [
-    "Chunk",
     "REGISTRY",
+    "Chunk",
     "FileAnalysis",
     "GraphDocument",
     "LanguagePlugin",

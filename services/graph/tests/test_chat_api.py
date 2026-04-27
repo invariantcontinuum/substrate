@@ -4,7 +4,6 @@ the delete-cascades-to-messages guarantee. Runs against a real Postgres
 tests so we stub ``chat_pipeline.run_turn`` at the module level."""
 from __future__ import annotations
 
-import uuid
 
 import pytest
 import pytest_asyncio

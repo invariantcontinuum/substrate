@@ -6,7 +6,6 @@ fixture from ``conftest.py``."""
 from __future__ import annotations
 
 import pytest
-import pytest_asyncio
 
 from src.config import settings
 from src.graph import chat_pipeline

@@ -308,7 +308,6 @@ async def test_modularity_handles_isolated_nodes(app_pool):
     graspologic does not assign. _modularity must compute on the
     subgraph induced by the actually-clustered nodes, not on the
     full graph — otherwise networkx rejects the partition."""
-    import uuid
 
     import networkx as nx
     from src.graph.community import _modularity

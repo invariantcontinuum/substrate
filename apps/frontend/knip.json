@@ -2,9 +2,7 @@
   "$schema": "https://unpkg.com/knip@5/schema.json",
   "entry": [
     "src/App.tsx",
-    "src/env.d.ts",
-    "src/test-setup.ts",
-    "vite.config.ts"
+    "src/env.d.ts"
   ],
   "project": ["src/**/*.{ts,tsx}"],
   "ignore": [

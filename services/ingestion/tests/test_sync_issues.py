@@ -2,8 +2,7 @@ import json
 import pytest
 import pytest_asyncio
 from src import graph_writer, sync_runs, sync_issues
-
-ISSUE_CAP = 1000
+from src.config import settings
 
 pytestmark = pytest.mark.asyncio(loop_scope="session")
 
@@ -44,11 +43,11 @@ async def test_issue_cap_emits_truncation_marker():
     async with graph_writer._pool.acquire() as conn:
         await conn.execute("DELETE FROM sync_runs WHERE source_id = $1::uuid", src_id)
     sid = await sync_runs.create_sync_run(src_id, {}, "user")
-    for i in range(ISSUE_CAP + 5):
+    for i in range(settings.sync_issue_cap + 5):
         await sync_issues.record_issue(sid, "warning", "parsing", "noise", f"msg {i}", {})
     async with graph_writer._pool.acquire() as conn:
         cnt = await conn.fetchval("SELECT count(*) FROM sync_issues WHERE sync_id=$1::uuid", sid)
-        assert cnt == ISSUE_CAP + 1, f"expected {ISSUE_CAP+1} rows (cap + 1 marker), got {cnt}"
+        assert cnt == settings.sync_issue_cap + 1, f"expected {settings.sync_issue_cap+1} rows (cap + 1 marker), got {cnt}"
         markers = await conn.fetchval(
             "SELECT count(*) FROM sync_issues WHERE sync_id=$1::uuid AND code='truncation_marker'",
             sid,

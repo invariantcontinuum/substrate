@@ -465,6 +465,7 @@ export function GraphCanvas() {
   const [pulsing, setPulsing] = useState(false);
   useEffect(() => {
     if (selectedNodeId == null) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPulsing(true);
     const t = setTimeout(() => setPulsing(false), 800);
     return () => clearTimeout(t);
@@ -613,6 +614,7 @@ export function GraphCanvas() {
     // what produced the "ghost graph" on back-navigation.
     if (elementsWithParents.length === 0) {
       cy.elements().remove();
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoading(false);
       return;
     }

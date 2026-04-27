@@ -4,6 +4,7 @@ parent's resume_cursor, then ingestion's pending-sync runner picks it up
 via the existing job loop)."""
 import base64
 import binascii
+import json as _json
 from typing import Any
 from uuid import UUID
 
@@ -136,10 +137,6 @@ async def list_issues(
             *args,
         )
     return [normalize_row_json_fields(r, "context") for r in rows]
-
-
-import json as _json  # used only inside get_sync_delta — keep local to avoid
-                      # re-ordering the existing imports block.
 
 
 @router.get("/{sync_id}/delta")

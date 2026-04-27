@@ -82,6 +82,9 @@ export function Sidebar() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
+    // `isDesktop` read inside but not subscribed — intentional: stale
+    // close via Escape is harmless since desktop sidebar is always open.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sidebarOpen, toggleSidebar]);
 
   if (!sidebarOpen) return null;

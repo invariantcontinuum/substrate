@@ -6,7 +6,13 @@
 # accumulated into a `FAILED_NAMES` array — the script always reports every
 # linter that failed, not just the first, so a developer fixing one issue
 # doesn't have to re-run to discover the next.
+#
+# UV_PROJECT_ENVIRONMENT: point uv at a user-writable venv so `uv run` never
+# tries to recreate a workspace-root .venv that may be owned by root (can
+# happen after a `make up` that bootstraps uv inside the build container).
 set -uo pipefail
+
+export UV_PROJECT_ENVIRONMENT="${UV_PROJECT_ENVIRONMENT:-/tmp/substrate-lint-venv}"
 
 FAILED_NAMES=()
 
@@ -46,11 +52,12 @@ fi
 
 # Banned tokens: WebSocket / /ws / refetchInterval / redis are forbidden in
 # app code (the architecture mandates SSE + pg_notify; no WebSocket, no
-# Redis). Migrations and node_modules are excluded.
+# Redis). node_modules and migrations are excluded.
 echo "==> banned-token grep"
 if grep -rnE '(WebSocket|/ws|refetchInterval|\bRedis\b|\bredis\b)' \
       --include='*.py' --include='*.ts' --include='*.tsx' \
       --include='*.yaml' --include='*.yml' --include='*.conf' \
+      --exclude-dir=node_modules --exclude-dir=migrations \
       services/ apps/ compose.yaml 2>/dev/null; then
   echo "  banned token found"
   FAILED_NAMES+=("banned-token grep")

@@ -16,7 +16,7 @@ class LeidenConfig(BaseModel):
     min_cluster_size: int = Field(ge=1, le=1000)
     seed: int = 42
 
-    def canonical_hash(self, sync_ids: list[UUID]) -> str:
+    def canonical_hash(self, sync_ids: list[str] | list[UUID]) -> str:
         """sha256 over (sorted sync_ids + canonical config JSON).
         Identical logical inputs must produce identical hashes across
         Python restarts and dict-ordering variations. This is the single

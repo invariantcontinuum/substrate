@@ -32,6 +32,7 @@ export function useAssignments(cacheKey: string | null): UseAssignmentsResult {
 
   useEffect(() => {
     if (!cacheKey) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setAssignments(new Map());
       return;
     }

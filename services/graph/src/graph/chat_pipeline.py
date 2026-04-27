@@ -878,7 +878,6 @@ async def _hydrate_citations(node_ids: list[str]) -> list[dict]:
                 "WHERE fe.id::text = ANY($1::text[])",
                 list(resolved.keys()),
             )
-            _CHUNK_MAX = 1200
             for fr in file_rows:
                 entry = resolved.get(fr["id"])
                 if not entry:
@@ -886,8 +885,8 @@ async def _hydrate_citations(node_ids: list[str]) -> list[dict]:
                 entry["file_path"] = fr["file_path"] or ""
                 entry["language"] = fr["language"] or ""
                 excerpt = fr["excerpt"] or ""
-                if len(excerpt) > _CHUNK_MAX:
-                    excerpt = excerpt[:_CHUNK_MAX] + "…"
+                if len(excerpt) > settings.chat_excerpt_max_chars:
+                    excerpt = excerpt[:settings.chat_excerpt_max_chars] + "…"
                 entry["excerpt"] = excerpt
 
     # Return in the LLM-supplied order; drop unresolved ids.

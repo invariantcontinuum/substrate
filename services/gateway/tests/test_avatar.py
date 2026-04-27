@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import io
 import os
+import random
 
 import asyncpg
 import pytest
@@ -153,7 +154,7 @@ async def test_rejects_unsupported_mime(gateway_app):
 
 
 @pytest.mark.asyncio
-async def test_avatar_upload_accepts_2mb_png(gateway_app):
+async def test_avatar_upload_accepts_large_png(gateway_app):
     """4 MiB cap allows a large PNG well above the old 512 KiB limit.
 
     Generates a valid PNG whose uncompressed size sits between 512 KiB
@@ -163,8 +164,8 @@ async def test_avatar_upload_accepts_2mb_png(gateway_app):
     (DSG-2026-04-27-A §1.3).
     """
     client, _ = gateway_app
-    import random as _random
-    pixels = bytes([_random.randint(0, 255) for _ in range(600 * 500 * 3)])
+    random.seed(42)
+    pixels = bytes([random.randint(0, 255) for _ in range(600 * 500 * 3)])
     img = Image.frombytes("RGB", (600, 500), pixels)
     buf = io.BytesIO()
     img.save(buf, format="PNG", compress_level=0)
