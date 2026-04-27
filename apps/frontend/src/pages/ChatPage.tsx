@@ -1,5 +1,4 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { useChatThreads } from "@/hooks/useChatThreads";
 import { useChatMessages, type ChatMessage } from "@/hooks/useChatMessages";
 import { useChatStore } from "@/stores/chat";
@@ -12,7 +11,6 @@ import { ContextFilesModal } from "@/components/chat/ContextFilesModal";
 import { PageHeader } from "@/components/layout/PageHeader";
 
 export function ChatPage() {
-  const navigate = useNavigate();
   const activeId = useChatStore((s) => s.activeThreadId);
   const streamingTurn = useChatStore((s) => s.streamingTurn);
   const { data: threads } = useChatThreads();
@@ -20,6 +18,13 @@ export function ChatPage() {
   const thread = threads?.find((t) => t.id === activeId) ?? null;
   const [ctxOpen, setCtxOpen] = useState(false);
   const endRef = useRef<HTMLDivElement | null>(null);
+
+  // Reset modal state when the thread identity changes, so a stale
+  // open flag from a previous thread (or the brief no-thread window)
+  // never causes the modal to auto-open after Send.
+  useEffect(() => {
+    setCtxOpen(false);
+  }, [activeId]);
 
   useChatStream(activeId);
 
@@ -98,18 +103,14 @@ export function ChatPage() {
       </main>
       <ContextBudgetPill
         threadId={activeId}
-        onOpenModal={() => {
-          // No active thread yet → route to Settings → Chat Context so
-          // the user can change the planned scope before sending. Once
-          // a thread exists, open the in-modal file picker.
-          if (activeId) setCtxOpen(true);
-          else navigate("/account/chat-context");
-        }}
+        onOpenModal={() => setCtxOpen(true)}
       />
       <Composer threadId={activeId} />
-      {activeId && (
-        <ContextFilesModal threadId={activeId} isOpen={ctxOpen} onClose={() => setCtxOpen(false)} />
-      )}
+      <ContextFilesModal
+        threadId={activeId}
+        isOpen={ctxOpen}
+        onClose={() => setCtxOpen(false)}
+      />
     </div>
   );
 }

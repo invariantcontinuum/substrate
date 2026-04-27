@@ -75,10 +75,11 @@ const TYPE_SIZE: Record<string, { w: number; h: number }> = {
 
 export function buildGraphTheme(themeMode: "light" | "dark"): GraphTheme {
   const isDark = themeMode === "dark";
-  // Node body matches GraphCanvas: solid navy on light, solid slate on
-  // dark. The label color flips so the body stays high-contrast.
-  const nodeBodyColor = isDark ? "#e6e9f0" : "#1c2c4e";
-  const labelColor    = isDark ? "#0f172a" : "#ffffff";
+  // Dark theme: light body (#f3f5f8), pure black label per user spec.
+  // Light theme: navy body, white label — keeps the high-contrast
+  // pattern symmetrical across modes.
+  const nodeBodyColor = isDark ? "#f3f5f8" : "#1c2c4e";
+  const labelColor    = isDark ? "#000000" : "#ffffff";
 
   const nodeTypes: Record<string, Partial<NodeTypeStyle>> = {};
   for (const [type, accent] of Object.entries(NODE_ACCENT)) {
