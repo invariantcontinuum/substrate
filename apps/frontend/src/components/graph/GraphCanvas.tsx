@@ -905,12 +905,20 @@ export function GraphCanvas() {
     return () => window.removeEventListener("keydown", onKey);
   }, [layoutName, setLayoutName, setSelectedNodeId, runRelayout]);
 
-  // Overlay stays up until BOTH the graph engine has finished mounting
-  // its first batch AND the carousel slides (i.e. the Leiden cache that
-  // drives community visibility) have resolved. Without the second
-  // gate, the user briefly sees the entire graph before
-  // ``setVisibleSubset`` filters it down to the active community.
-  const showOverlay = loading || communitiesLoading;
+  // Overlay stays up until ALL of:
+  //   1. graph engine finished mounting its first chunked-add batch,
+  //   2. communities query resolved (Leiden cache present),
+  //   3. CarouselEngine's effect has actually called
+  //      ``setVisibleSubset`` for the active slide.
+  //
+  // The third gate is the one the user reported missing — without it
+  // there's a render cycle between (2) finishing and (3) running where
+  // the canvas paints every node unfiltered ("entire graph"). When
+  // slides exist but ``visibleSubset`` is still null, we're in that
+  // window — keep the spinner up. Skip the third gate when there are
+  // no slides (no Leiden run yet) so the overlay doesn't get stuck.
+  const filterPending = slides.length > 0 && !visibleSubset;
+  const showOverlay = loading || communitiesLoading || filterPending;
   return (
     <div className="graph-canvas">
       <div className="graph-canvas-inner">
