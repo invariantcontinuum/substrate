@@ -94,3 +94,25 @@ async def test_resolve_unknown_kind_returns_empty(
 
     out = await chat_pipeline._resolve_thread_selection(tid, sub)
     assert out == []
+
+
+async def test_resolve_kind_directories_nonmatching_prefix_returns_empty(
+    app_pool, two_files_in_one_sync_with_paths,
+):
+    """kind=directories with no matching prefix returns [], not all-files.
+
+    Pre-MVP rule #1: no fallback to all-files when the user explicitly
+    selected directories that don't match. The resolver respects the
+    user's selection and stream_turn proceeds with an empty file list.
+    """
+    sub, sync_id, _paths = two_files_in_one_sync_with_paths
+    thread = await chat_store.create_thread(sub, "t")
+    tid = UUID(thread["id"])
+    await chat_context_store.set_thread_context_scope(tid, [sync_id], [])
+    await chat_context_store.set_thread_context_selection(tid, {
+        "kind": "directories",
+        "dir_prefixes": ["no/such/prefix/"],
+    })
+
+    out = await chat_pipeline._resolve_thread_selection(tid, sub)
+    assert out == []

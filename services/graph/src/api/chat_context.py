@@ -14,7 +14,7 @@ from uuid import UUID
 
 import structlog
 from fastapi import APIRouter, Body, Header
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from substrate_common import NotFoundError
 
@@ -39,20 +39,24 @@ class CommunityRef(BaseModel):
 
 
 class SelectionAll(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     kind: Literal["all"] = "all"
 
 
 class SelectionFiles(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     kind: Literal["files"] = "files"
     file_ids: list[str] = Field(default_factory=list)
 
 
 class SelectionCommunities(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     kind: Literal["communities"] = "communities"
     communities: list[CommunityRef] = Field(default_factory=list)
 
 
 class SelectionDirectories(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     kind: Literal["directories"] = "directories"
     dir_prefixes: list[str] = Field(default_factory=list)
 

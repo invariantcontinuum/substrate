@@ -201,3 +201,26 @@ async def test_thread_create_freezes_active_seed_scope(
     assert body["context"]["selection"]["kind"] == "all"
     # Scope file enumeration includes the seeded file.
     assert any(f["file_id"] == seed_one_file["file_id"] for f in body["files"])
+
+
+async def test_put_thread_selection_rejects_cross_mode_extras(async_client):
+    """Cross-mode payloads are rejected — D-4 mode-based selection.
+
+    Posting `{kind: "files", communities: [...]}` must NOT silently
+    drop `communities`; the API should 422.
+    """
+    user = "u-cross-mode-reject"
+    r = await async_client.post(
+        "/api/chat/threads",
+        json={"title": "cross-mode test"},
+        headers={"X-User-Sub": user},
+    )
+    assert r.status_code == 200, r.text
+    thread_id = r.json()["id"]
+
+    r = await async_client.put(
+        f"/api/chat/threads/{thread_id}/context/selection",
+        json={"kind": "files", "file_ids": [], "communities": []},
+        headers={"X-User-Sub": user},
+    )
+    assert r.status_code == 422, r.text

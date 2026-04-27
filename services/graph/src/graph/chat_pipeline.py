@@ -604,13 +604,11 @@ async def stream_turn(
         # so the client is never left hanging after the 202 response.
         sync_ids_str = [str(s) for s in (sync_ids or [])]
         # Single source of truth: per-thread frozen scope + selection.
-        # Fallback: if the resolver returns empty (e.g. directories
-        # mode with no matches, or empty scope), retrieval still runs
-        # against the snapshot scope so the LLM gets *something* to
-        # work with rather than failing the turn.
+        # An empty result (e.g. directories mode with no matching prefix,
+        # or kind=files with zero file_ids) is intentional — retrieval
+        # receives an empty list and returns no files; the LLM proceeds
+        # on chat history alone.
         selected_ids = await _resolve_thread_selection(thread_id, user_sub)
-        if not selected_ids:
-            selected_ids = await _all_files_for_snapshots(sync_ids_str)
         chat_files = await retrieve_context_files(
             query=user_content,
             selected_file_ids=selected_ids,
