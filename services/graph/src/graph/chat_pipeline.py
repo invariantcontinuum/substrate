@@ -243,18 +243,6 @@ async def _hydrate_descriptions(items: list[dict]) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 
-def _format_history_section(history: list[dict]) -> str:
-    """Render the visible-only history as a markdown block.
-
-    Returns "" when there are no prior turns so the prompt builder
-    drops the section entirely — no "History (0 messages)" literal.
-    """
-    if not history:
-        return ""
-    lines = [f"### {m['role']}: {m['content']}" for m in history]
-    return "## History\n\n" + "\n\n".join(lines)
-
-
 def _build_prompt(
     *, user_content: str, prior_turns: list[dict],
     files_section: str = "",
