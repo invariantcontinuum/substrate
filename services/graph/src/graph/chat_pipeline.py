@@ -122,49 +122,119 @@ def extract_citation_markers(text: str) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
-async def _thread_context_file_ids(thread_id: UUID) -> list[str]:
-    """Read the per-thread file selection from ``chat_threads.context_files``.
-
-    V8 added the JSONB column as the canonical per-thread file picker. An
-    empty array (or NULL row) means "no explicit selection" — the caller
-    falls back to the full sync scope so existing threads still work.
-    """
-    pool = store.get_pool()
-    async with pool.acquire() as conn:
-        row = await conn.fetchrow(
-            "SELECT context_files FROM chat_threads WHERE id = $1::uuid",
-            thread_id,
-        )
-    if not row or row["context_files"] is None:
-        return []
-    raw = row["context_files"]
-    items = raw if isinstance(raw, list) else json.loads(raw)
-    out: list[str] = []
-    for it in items:
-        if isinstance(it, str):
-            out.append(it)
-        elif isinstance(it, dict):
-            fid = it.get("file_id") or it.get("id")
-            if fid:
-                out.append(str(fid))
-    return out
-
-
-async def _all_files_for_snapshots(snapshot_ids: list[str]) -> list[str]:
+async def _all_files_for_snapshots(sync_ids: list[str]) -> list[str]:
     """Return every ``file_embeddings.id`` for the given sync_ids.
 
-    Used as the fall-back when ``chat_threads.context_files`` is empty.
+    Used both as the "kind=all" resolution path and as the fallback
+    when a more selective resolution returns nothing.
     """
-    if not snapshot_ids:
+    if not sync_ids:
         return []
     pool = store.get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            "SELECT id::text AS id FROM file_embeddings "
-            "WHERE sync_id = ANY($1::uuid[])",
-            snapshot_ids,
+            """
+            SELECT id::text AS file_id
+            FROM file_embeddings
+            WHERE sync_id = ANY($1::uuid[])
+            """,
+            sync_ids,
         )
-    return [r["id"] for r in rows]
+    return [r["file_id"] for r in rows]
+
+
+async def _files_in_communities(
+    user_sub: str, community_refs: list[dict],
+) -> set[str]:
+    """Intersect leiden_cache.assignments with wanted (cache_key, community_index)."""
+    if not community_refs:
+        return set()
+    cache_keys = list({c["cache_key"] for c in community_refs})
+    wanted = {
+        (c["cache_key"], int(c["community_index"]))
+        for c in community_refs
+    }
+    pool = store.get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT cache_key, assignments
+            FROM leiden_cache
+            WHERE user_sub = $1 AND cache_key = ANY($2::text[])
+              AND expires_at > now()
+            """,
+            user_sub, cache_keys,
+        )
+    out: set[str] = set()
+    for r in rows:
+        ck = r["cache_key"]
+        blob = r["assignments"]
+        if isinstance(blob, str):
+            blob = json.loads(blob)
+        if not isinstance(blob, dict):
+            continue
+        for node_id, idx in blob.items():
+            try:
+                idx_int = int(idx)
+            except (TypeError, ValueError):
+                continue
+            if (ck, idx_int) in wanted:
+                out.add(str(node_id))
+    return out
+
+
+async def _resolve_thread_selection(
+    thread_id: UUID, user_sub: str,
+) -> list[str]:
+    """Resolve a thread's frozen scope+selection to a flat file_id list.
+
+    Branches on `selection.kind`:
+      - "all"         -> every file under scope.sync_ids
+      - "files"       -> selection.file_ids ∩ scope files
+      - "communities" -> files whose node_id appears in any of the
+                         selected (cache_key, community_index) pairs
+      - "directories" -> files under scope whose path starts with any
+                         of selection.dir_prefixes
+    """
+    from src.graph import chat_context_store
+
+    ctx = await chat_context_store.get_thread_context(thread_id)
+    sync_ids = list(ctx.get("scope", {}).get("sync_ids", []))
+    selection = ctx.get("selection") or {"kind": "all"}
+    kind = selection.get("kind", "all")
+
+    scope_files = set(await _all_files_for_snapshots(sync_ids))
+    if not scope_files or kind == "all":
+        return sorted(scope_files)
+    if kind == "files":
+        wanted = set(selection.get("file_ids") or [])
+        return sorted(scope_files & wanted)
+    if kind == "communities":
+        community_files = await _files_in_communities(
+            user_sub, selection.get("communities") or [],
+        )
+        return sorted(scope_files & community_files)
+    if kind == "directories":
+        prefixes = list(selection.get("dir_prefixes") or [])
+        if not prefixes:
+            return []
+        # Pull paths for the scope files once; filter in Python.
+        pool = store.get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT id::text AS file_id, file_path
+                FROM file_embeddings
+                WHERE id = ANY($1::uuid[])
+                """,
+                list(scope_files),
+            )
+        return sorted(
+            r["file_id"] for r in rows
+            if any(r["file_path"].startswith(p) for p in prefixes)
+        )
+    # Unknown kind = empty — caller falls back to "no retrieval".
+    return []
 
 
 async def retrieve_context_files(
@@ -533,11 +603,12 @@ async def stream_turn(
         # embed failure, …) is caught below and published as CHAT_TURN_FAILED
         # so the client is never left hanging after the 202 response.
         sync_ids_str = [str(s) for s in (sync_ids or [])]
-        selected_ids = await _thread_context_file_ids(thread_id)
-        # When the per-thread context_files JSONB is empty (legacy threads,
-        # or threads created before the user opened the picker), fall back
-        # to every file in the resolved snapshot scope so retrieval still
-        # has candidates to score.
+        # Single source of truth: per-thread frozen scope + selection.
+        # Fallback: if the resolver returns empty (e.g. directories
+        # mode with no matches, or empty scope), retrieval still runs
+        # against the snapshot scope so the LLM gets *something* to
+        # work with rather than failing the turn.
+        selected_ids = await _resolve_thread_selection(thread_id, user_sub)
         if not selected_ids:
             selected_ids = await _all_files_for_snapshots(sync_ids_str)
         chat_files = await retrieve_context_files(

@@ -273,15 +273,15 @@ async def test_stream_turn_event_order_and_persistence(
     async def _fake_retrieve(**kwargs) -> list[dict]:
         return []
 
-    async def _no_ctx_ids(thread_id) -> list[str]:
+    async def _no_resolved(thread_id, user_sub) -> list[str]:
         return []
 
-    async def _no_snapshot_files(snapshot_ids) -> list[str]:
+    async def _no_snapshot_files(sync_ids) -> list[str]:
         return []
 
     monkeypatch.setattr(chat_pipeline, "_embed_query", _fake_embed)
     monkeypatch.setattr(chat_pipeline, "retrieve_context_files", _fake_retrieve)
-    monkeypatch.setattr(chat_pipeline, "_thread_context_file_ids", _no_ctx_ids)
+    monkeypatch.setattr(chat_pipeline, "_resolve_thread_selection", _no_resolved)
     monkeypatch.setattr(chat_pipeline, "_all_files_for_snapshots", _no_snapshot_files)
 
     # Set up a subscriber BEFORE running stream_turn.
@@ -401,10 +401,10 @@ def _patch_no_db_helpers(monkeypatch):
     async def _fake_retrieve(**kwargs) -> list[dict]:
         return []
 
-    async def _no_ctx_ids(thread_id) -> list[str]:
+    async def _no_resolved(thread_id, user_sub) -> list[str]:
         return []
 
-    async def _no_snapshot_files(snapshot_ids) -> list[str]:
+    async def _no_snapshot_files(sync_ids) -> list[str]:
         return []
 
     async def _fake_hydrate(node_ids: list[str]) -> list[dict]:
@@ -412,7 +412,7 @@ def _patch_no_db_helpers(monkeypatch):
 
     monkeypatch.setattr(chat_pipeline, "_embed_query", _fake_embed)
     monkeypatch.setattr(chat_pipeline, "retrieve_context_files", _fake_retrieve)
-    monkeypatch.setattr(chat_pipeline, "_thread_context_file_ids", _no_ctx_ids)
+    monkeypatch.setattr(chat_pipeline, "_resolve_thread_selection", _no_resolved)
     monkeypatch.setattr(chat_pipeline, "_all_files_for_snapshots", _no_snapshot_files)
     monkeypatch.setattr(chat_pipeline, "_hydrate_citations", _fake_hydrate)
 

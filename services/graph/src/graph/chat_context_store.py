@@ -1,16 +1,32 @@
-"""Asyncpg queries for the chat-context tables.
+"""Chat-context store — single shape per thread.
 
-Schema lives in V3 (`user_profiles.active_chat_context`,
-`chat_threads.context_summary`, `chat_thread_context_files`)."""
+Schema (V11): per-thread context lives in `chat_threads.context` JSONB
+with the form
+
+    {
+      "scope":     {"sync_ids": [...], "source_ids": [...]},
+      "selection": {"kind": "all" | "files" | "communities" | "directories", ...}
+    }
+
+User-level seed (used at thread create only) lives in
+`user_profiles.active_chat_context` JSONB with the form
+
+    {"sync_ids": [...], "source_ids": [...]}.
+"""
 from __future__ import annotations
 
 import json
+from typing import Any
 from uuid import UUID
 
 from src.graph import store
 
 
-async def get_active(user_sub: str) -> dict | None:
+# ── User-level seed ────────────────────────────────────────────────
+
+
+async def get_active_seed(user_sub: str) -> dict | None:
+    """Return the user's active chat-context seed, or None."""
     pool = store.get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
@@ -23,100 +39,92 @@ async def get_active(user_sub: str) -> dict | None:
     return val if isinstance(val, dict) else json.loads(val)
 
 
-async def set_active(user_sub: str, ctx: dict | None) -> None:
-    """Upsert the per-user active chat context. Pre-MVP user_profiles
-    rows may not exist for users who never visited the account page;
-    this UPSERT creates a minimal row in that case."""
+async def set_active_seed(user_sub: str, seed: dict | None) -> None:
+    """Upsert the user's active chat-context seed.
+
+    `seed` is `{sync_ids, source_ids}` or None to clear. The row is
+    created if absent — pre-MVP user_profiles rows may be missing for
+    users who have never visited the account page.
+    """
     pool = store.get_pool()
-    payload = json.dumps(ctx) if ctx is not None else None
     async with pool.acquire() as conn:
         await conn.execute(
             """
             INSERT INTO user_profiles (user_sub, active_chat_context)
-            VALUES ($1, $2::jsonb)
+            VALUES ($1, $2)
             ON CONFLICT (user_sub) DO UPDATE
               SET active_chat_context = EXCLUDED.active_chat_context,
                   updated_at = now()
             """,
-            user_sub, payload,
+            user_sub, seed,
         )
 
 
-async def insert_thread_context_files(
-    thread_id: UUID, files: list[dict],
-) -> None:
-    """Bulk-insert resolved file rows for a freshly-created thread."""
-    if not files:
-        return
-    pool = store.get_pool()
-    async with pool.acquire() as conn:
-        await conn.executemany(
-            """
-            INSERT INTO chat_thread_context_files
-              (thread_id, file_id, path, language, total_tokens)
-            VALUES ($1, $2::uuid, $3, $4, $5)
-            ON CONFLICT (thread_id, file_id) DO NOTHING
-            """,
-            [
-                (
-                    thread_id, f["file_id"], f["path"],
-                    f.get("language"), int(f["total_tokens"]),
-                )
-                for f in files
-            ],
-        )
+# ── Per-thread context ─────────────────────────────────────────────
 
 
-async def list_thread_context_files(thread_id: UUID) -> list[dict]:
-    pool = store.get_pool()
-    async with pool.acquire() as conn:
-        rows = await conn.fetch(
-            """
-            SELECT file_id::text AS file_id, path, language,
-                   total_tokens, included
-            FROM chat_thread_context_files
-            WHERE thread_id = $1
-            ORDER BY total_tokens DESC, path
-            """,
-            thread_id,
-        )
-    return [dict(r) for r in rows]
+_DEFAULT_CONTEXT: dict[str, Any] = {
+    "scope": {"sync_ids": [], "source_ids": []},
+    "selection": {"kind": "all"},
+}
 
 
-async def patch_thread_context_files(
-    thread_id: UUID, updates: list[dict],
-) -> None:
-    if not updates:
-        return
-    pool = store.get_pool()
-    async with pool.acquire() as conn:
-        await conn.executemany(
-            """
-            UPDATE chat_thread_context_files
-            SET included = $3
-            WHERE thread_id = $1 AND file_id = $2::uuid
-            """,
-            [(thread_id, u["file_id"], bool(u["included"])) for u in updates],
-        )
+async def get_thread_context(thread_id: UUID) -> dict:
+    """Return `chat_threads.context` JSONB for `thread_id`.
 
-
-async def write_context_summary(thread_id: UUID, summary: dict) -> None:
-    pool = store.get_pool()
-    async with pool.acquire() as conn:
-        await conn.execute(
-            "UPDATE chat_threads SET context_summary = $2::jsonb WHERE id = $1",
-            thread_id, json.dumps(summary),
-        )
-
-
-async def get_thread_context_summary(thread_id: UUID) -> dict | None:
+    Falls back to the schema default if the row is missing or the
+    column is somehow null (the column has a NOT NULL DEFAULT, so
+    null only happens on a brand-new row in the same txn that is
+    setting it).
+    """
     pool = store.get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT context_summary FROM chat_threads WHERE id = $1",
+            "SELECT context FROM chat_threads WHERE id = $1",
             thread_id,
         )
-    if not row or row["context_summary"] is None:
-        return None
-    val = row["context_summary"]
+    if not row or row["context"] is None:
+        return dict(_DEFAULT_CONTEXT)
+    val = row["context"]
     return val if isinstance(val, dict) else json.loads(val)
+
+
+async def set_thread_context_scope(
+    thread_id: UUID, sync_ids: list[str], source_ids: list[str],
+) -> None:
+    """Freeze a thread's scope at create-time.
+
+    Replaces only the `scope` sub-object; selection stays at the
+    schema default (`{"kind":"all"}`).
+    """
+    pool = store.get_pool()
+    payload = {
+        "scope": {"sync_ids": list(sync_ids), "source_ids": list(source_ids)},
+        "selection": {"kind": "all"},
+    }
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE chat_threads SET context = $2 WHERE id = $1",
+            thread_id, payload,
+        )
+
+
+async def set_thread_context_selection(
+    thread_id: UUID, selection: dict[str, Any],
+) -> None:
+    """Replace the selection sub-object for a thread.
+
+    Validation is the caller's responsibility (the route layer
+    rejects unknown kinds and missing per-kind keys before reaching
+    here).
+    """
+    pool = store.get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            UPDATE chat_threads
+            SET context = jsonb_set(context, '{selection}', $2, true)
+            WHERE id = $1
+            """,
+            thread_id, selection,
+        )

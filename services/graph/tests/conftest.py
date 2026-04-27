@@ -326,6 +326,102 @@ async def seed_one_file(app_pool):
 
 
 @pytest_asyncio.fixture(loop_scope="session")
+async def two_files_in_one_sync(app_pool):
+    """Seed one source + sync_run + 2 file_embeddings rows under it.
+    Returns ``(user_sub, sync_id, [file_id_a, file_id_b])`` so pipeline
+    selection tests can verify scope/files/directories resolution."""
+    pool = store.get_pool()
+    dim = settings.embedding_dim
+    zero_vec = "[" + ",".join("0" for _ in range(dim)) + "]"
+    user_sub = "u-resolve-twofiles"
+
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "DELETE FROM sources WHERE user_sub=$1 AND source_type='github' "
+            "AND owner='resolve' AND name='twofiles'",
+            user_sub,
+        )
+        source_id = await conn.fetchval(
+            "INSERT INTO sources (user_sub, source_type, owner, name, url) "
+            "VALUES ($1, 'github', 'resolve', 'twofiles', 'u') RETURNING id",
+            user_sub,
+        )
+        sync_id = await conn.fetchval(
+            "INSERT INTO sync_runs (source_id, status, completed_at) "
+            "VALUES ($1, 'completed', now()) RETURNING id",
+            source_id,
+        )
+        file_a = await conn.fetchval(
+            """INSERT INTO file_embeddings
+                  (source_id, sync_id, file_path, name, type, language,
+                   description, embedding)
+               VALUES ($1, $2, 'a.py', 'a.py', 'file', 'python',
+                       'a', $3::vector)
+               RETURNING id::text""",
+            source_id, sync_id, zero_vec,
+        )
+        file_b = await conn.fetchval(
+            """INSERT INTO file_embeddings
+                  (source_id, sync_id, file_path, name, type, language,
+                   description, embedding)
+               VALUES ($1, $2, 'b.py', 'b.py', 'file', 'python',
+                       'b', $3::vector)
+               RETURNING id::text""",
+            source_id, sync_id, zero_vec,
+        )
+
+    yield (user_sub, str(sync_id), [file_a, file_b])
+
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM sources WHERE id=$1", source_id)
+
+
+@pytest_asyncio.fixture(loop_scope="session")
+async def two_files_in_one_sync_with_paths(app_pool):
+    """Seed one source + sync_run + 2 file_embeddings rows with distinct
+    path prefixes. Returns ``(user_sub, sync_id, {path: file_id})`` so
+    directories-mode selection tests can verify prefix filtering."""
+    pool = store.get_pool()
+    dim = settings.embedding_dim
+    zero_vec = "[" + ",".join("0" for _ in range(dim)) + "]"
+    user_sub = "u-resolve-paths"
+
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "DELETE FROM sources WHERE user_sub=$1 AND source_type='github' "
+            "AND owner='resolve' AND name='paths'",
+            user_sub,
+        )
+        source_id = await conn.fetchval(
+            "INSERT INTO sources (user_sub, source_type, owner, name, url) "
+            "VALUES ($1, 'github', 'resolve', 'paths', 'u') RETURNING id",
+            user_sub,
+        )
+        sync_id = await conn.fetchval(
+            "INSERT INTO sync_runs (source_id, status, completed_at) "
+            "VALUES ($1, 'completed', now()) RETURNING id",
+            source_id,
+        )
+        paths: dict[str, str] = {}
+        for path in ("src/api/foo.py", "tests/test_foo.py"):
+            fid = await conn.fetchval(
+                """INSERT INTO file_embeddings
+                      (source_id, sync_id, file_path, name, type, language,
+                       description, embedding)
+                   VALUES ($1, $2, $3, $3, 'file', 'python',
+                           'd', $4::vector)
+                   RETURNING id::text""",
+                source_id, sync_id, path, zero_vec,
+            )
+            paths[path] = fid
+
+    yield (user_sub, str(sync_id), paths)
+
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM sources WHERE id=$1", source_id)
+
+
+@pytest_asyncio.fixture(loop_scope="session")
 async def seeded_assistant_turn(async_client, monkeypatch):
     """Stub ``chat_pipeline.stream_turn`` so no LLM calls are made, create
     a fresh thread for ``user-cascade``, POST one user message (returns 202),

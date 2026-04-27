@@ -4,7 +4,6 @@ thread.user_sub does not match, to avoid leaking existence."""
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -15,7 +14,7 @@ from pydantic import BaseModel, Field
 from substrate_common import NotFoundError, ValidationError
 
 from src.api.auth import require_user_sub_strict
-from src.graph import chat_pipeline, chat_store, chat_context_resolver, chat_context_store
+from src.graph import chat_context_store, chat_pipeline, chat_store, store
 
 logger = structlog.get_logger()
 router = APIRouter(prefix="/api/chat")
@@ -55,28 +54,31 @@ async def create_thread(
     title = (body.title or "New thread").strip()[:200] or "New thread"
     thread = await chat_store.create_thread(sub, title)
 
-    # If this user has applied a chat context in Sources Config, resolve it
-    # to the per-file list NOW and freeze a context_summary on the thread.
-    # Per spec §4.1: existing threads never retroactively change context;
-    # the snapshot is taken once at create-time.
-    active = await chat_context_store.get_active(sub)
-    if active is not None:
-        files = await chat_context_resolver.resolve(active, sub)
-        if files:
-            thread_uuid = UUID(thread["id"])
-            await chat_context_store.insert_thread_context_files(
-                thread_uuid, files,
+    # Freeze the user's active seed onto this thread. Per spec D-1,
+    # threads are independent of settings after creation.
+    seed = await chat_context_store.get_active_seed(sub)
+    if seed is not None:
+        sync_ids = list(seed.get("sync_ids") or [])
+        source_ids = list(seed.get("source_ids") or [])
+        # Expand source_ids to their child sync_ids at create-time so
+        # the frozen scope is the resolved set, not a soft reference.
+        if source_ids:
+            pool = store.get_pool()
+            async with pool.acquire() as conn:
+                rows = await conn.fetch(
+                    """
+                    SELECT id::text AS sync_id
+                    FROM sync_runs
+                    WHERE source_id = ANY($1::uuid[])
+                    """,
+                    source_ids,
+                )
+            extra = [r["sync_id"] for r in rows]
+            sync_ids = sorted(set(sync_ids).union(extra))
+        if sync_ids or source_ids:
+            await chat_context_store.set_thread_context_scope(
+                UUID(thread["id"]), sync_ids, source_ids,
             )
-            created_at = thread.get("created_at")
-            await chat_context_store.write_context_summary(thread_uuid, {
-                **active,
-                "resolved_token_total": sum(f["total_tokens"] for f in files),
-                "file_count": len(files),
-                "created_at": (
-                    created_at.isoformat()
-                    if isinstance(created_at, datetime) else created_at
-                ),
-            })
     return thread
 
 

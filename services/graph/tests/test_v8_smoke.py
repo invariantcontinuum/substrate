@@ -50,12 +50,29 @@ async def test_chat_message_context_table_exists(db):
     } <= names
 
 
-async def test_chat_threads_context_files_column(db):
+async def test_chat_threads_context_column(db):
+    """V11 collapsed `context_files` (Layer A) and the
+    `chat_thread_context_files` table (Layer B) into a single JSONB
+    column `context` with `{scope, selection}` shape."""
     col = await db.fetchrow(
         "SELECT data_type FROM information_schema.columns "
-        "WHERE table_name = 'chat_threads' AND column_name = 'context_files'"
+        "WHERE table_name = 'chat_threads' AND column_name = 'context'"
     )
     assert col is not None and col["data_type"] == "jsonb"
+    # The V11-superseded columns are gone.
+    gone = await db.fetch(
+        "SELECT column_name FROM information_schema.columns "
+        "WHERE table_name = 'chat_threads' "
+        "AND column_name = ANY($1::text[])",
+        ["context_files", "context_summary"],
+    )
+    assert gone == []
+    # The relic join table is gone.
+    rel = await db.fetchrow(
+        "SELECT 1 FROM information_schema.tables "
+        "WHERE table_name = 'chat_thread_context_files'"
+    )
+    assert rel is None
 
 
 async def test_chat_messages_supersession_columns(db):

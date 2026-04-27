@@ -14,7 +14,10 @@ from substrate_common import (
 
 from src.api.activity import router as activity_router
 from src.api.chat import router as chat_router
-from src.api.chat_context import router as chat_context_router
+from src.api.chat_context import (
+    thread_router as chat_context_thread_router,
+    user_router as chat_context_user_router,
+)
 from src.api.chat_edit import router as chat_edit_router
 from src.api.communities import router as communities_router
 from src.api.deletion import router as deletion_router
@@ -88,7 +91,8 @@ app.include_router(usage_router)
 app.include_router(deletion_router)
 app.include_router(files_router)
 app.include_router(graph_search_router)
-app.include_router(chat_context_router)
+app.include_router(chat_context_user_router)
+app.include_router(chat_context_thread_router)
 app.include_router(export_router)
 app.include_router(internal_config_router)
 

@@ -114,8 +114,8 @@ async def _resolve_scope(
         )
     elif kind == "community":
         # Filter by leiden_cache.assignments JSONB intersection (same
-        # pattern as chat_context_resolver). Cache key + community
-        # index pair selects the file_ids.
+        # pattern as chat_pipeline._files_in_communities). Cache key +
+        # community index pair selects the file_ids.
         cache_key = scope["cache_key"]
         community_index = int(scope["community_index"])
         cache_row = await conn.fetchrow(
