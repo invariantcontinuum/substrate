@@ -166,9 +166,9 @@ class _GraphSettings(LayeredSettings):
     # ── File reconstruction ─────────────────────────────────────────
     # Hard cap on the bytes returned from reconstruct_chunks().
     # Larger = more memory per request; smaller = more files get
-    # returned with truncated=True. 5 MiB accommodates >99 % of source
+    # returned with truncated=True. 16 MiB accommodates >99.9 % of source
     # files in practice.
-    file_reconstruct_max_bytes: int = 5 * 1024 * 1024
+    file_reconstruct_max_bytes: int = 16 * 1024 * 1024
 
     # ── AGE reads ────────────────────────────────────────────────────
     # Wall-clock cap for merged-graph Cypher queries — protects the
