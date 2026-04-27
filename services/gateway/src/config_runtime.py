@@ -105,31 +105,35 @@ async def reset_runtime_section(
 
 
 def _internal_base_url(owner: str) -> str:
-    """Resolve ``owner`` (compose hostname) to the in-cluster base URL.
-
-    The gateway already knows the graph and ingestion service URLs from
-    its own settings; we look them up by name so the registry can grow
-    new owners without code changes here.
-    """
+    """Resolve a *remote* owner (compose hostname) to the in-cluster
+    base URL. Self-owned sections (owner == 'gateway') do NOT go
+    through this helper — they short-circuit to an in-process call
+    in fetch_effective_section() because we already have the resolver
+    on the same coroutine."""
     if owner == "graph":
         return settings.graph_service_url
     if owner == "ingestion":
         return settings.ingestion_service_url
-    if owner == "gateway":
-        # Self-owned sections are read out of process via the same
-        # /internal/config/{section} contract; bind to localhost to
-        # short-circuit the network hop.
-        return "http://127.0.0.1:8000"
-    raise ValueError(f"unknown config owner {owner!r}")
+    raise ValueError(f"unknown remote config owner {owner!r}")
 
 
 async def fetch_effective_section(*, section: str, owner: str) -> dict[str, Any]:
-    """Proxy to the owning service's ``GET /internal/config/{section}``.
+    """Return the merged effective settings for ``section``.
 
-    The owning service exposes its merged effective settings via that
-    internal-only route. This helper hides the hop from the public API
-    handler and surfaces upstream errors as ``httpx.HTTPStatusError``.
+    Owner ``gateway`` short-circuits to an in-process call against the
+    same resolver the /internal/config/{section} HTTP route uses. This
+    avoids an httpx hop to 127.0.0.1 — which previously failed because
+    the gateway listens on APP_PORT (8080), not the hardcoded 8000 the
+    old loopback URL pointed at — and removes a redundant network
+    round-trip from a hot UI path.
     """
+    if owner == "gateway":
+        # Late import keeps src.api.internal_config out of this
+        # module's import graph; src.api modules import config_runtime
+        # transitively for the proxy routes, so an eager import here
+        # would create a cycle.
+        from src.api.internal_config import get_internal_section
+        return await get_internal_section(section)
     base = _internal_base_url(owner)
     url = f"{base}/internal/config/{section}"
     async with httpx.AsyncClient(timeout=10.0) as client:

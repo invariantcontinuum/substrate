@@ -44,3 +44,41 @@ async def test_unknown_section_returns_404() -> None:
     async with AsyncClient(transport=transport, base_url="http://t") as c:
         r = await c.get("/internal/config/nope")
     assert r.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_fetch_effective_section_uses_inprocess_call_for_gateway_owner(
+    monkeypatch,
+):
+    """Self-owned sections must NOT make an HTTP loopback call.
+
+    Regression for DSG-2026-04-27-A §1.2 — the previous code resolved
+    owner=='gateway' to http://127.0.0.1:8000, but the gateway listens
+    on APP_PORT (8080 in compose). Any GET /api/config/auth call ended
+    up as httpx.ConnectError → 500.
+    """
+    import httpx
+
+    from src.config_runtime import fetch_effective_section
+
+    calls: list[str] = []
+
+    class _RecordingClient:
+        def __init__(self, *args, **kwargs):
+            pass
+        async def __aenter__(self):
+            return self
+        async def __aexit__(self, *args):
+            return False
+        async def get(self, url, *args, **kwargs):
+            calls.append(url)
+            raise AssertionError(
+                f"in-process path regressed: HTTP GET attempted for {url}",
+            )
+
+    monkeypatch.setattr(httpx, "AsyncClient", _RecordingClient)
+
+    payload = await fetch_effective_section(section="auth", owner="gateway")
+    assert calls == [], f"unexpected HTTP calls: {calls}"
+    assert "keycloak_url" in payload
+    assert "keycloak_realm" in payload
