@@ -3715,47 +3715,35 @@ html {
   gap: 10px;
 }
 .llm-conn-panel__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 12px;
-}
-.llm-conn-panel__field {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  font-size: 12px;
+  gap: var(--space-3);
+}
+/* Adopt the `.conn-field` shape: two-column grid with a muted label
+ * on the left and the input on the right. Input chrome defers to the
+ * canonical `.settings-modal__content input` rule so every field
+ * across Settings looks identical. */
+.llm-conn-panel__field,
+.llm-conn-panel__toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+  align-items: center;
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
 }
 .llm-conn-panel__field-label {
+  font-size: var(--text-sm);
   color: var(--fg-muted);
-  font-size: 11px;
-  letter-spacing: 0.02em;
-}
-.llm-conn-panel__field input[type="text"],
-.llm-conn-panel__field input[type="url"],
-.llm-conn-panel__field input[type="password"],
-.llm-conn-panel__field input[type="number"] {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
-  color: inherit;
-  padding: 6px 8px;
-  font: inherit;
-  font-size: 12px;
 }
 .llm-conn-panel__field-error {
-  color: #f87171;
-  font-size: 11px;
-}
-.llm-conn-panel__toggle {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--fg-muted);
-  align-self: end;
-  padding-bottom: 4px;
+  grid-column: 2 / 3;
+  color: var(--danger);
+  font-size: var(--text-xs);
+  margin-top: 2px;
 }
 .llm-conn-panel__toggle input[type="checkbox"] {
+  justify-self: start;
   cursor: pointer;
 }
 .llm-conn-panel__probe {
