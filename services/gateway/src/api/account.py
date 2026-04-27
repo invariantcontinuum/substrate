@@ -465,6 +465,38 @@ async def totp_disable(request: Request):
     return {"ok": True, "removed": len(otp_ids)}
 
 
+# ─────────────────────────────────────────────────────────────────────
+# Active sessions — sign out from all devices
+# ─────────────────────────────────────────────────────────────────────
+
+
+class SessionsRevokeAllResponse(BaseModel):
+    ok: bool
+
+
+@router.post("/sessions/revoke-all", response_model=SessionsRevokeAllResponse)
+async def sessions_revoke_all(request: Request):
+    """Invalidate every Keycloak session belonging to the current user.
+
+    Hits ``DELETE /admin/realms/{realm}/users/{id}/logout`` on the admin
+    API, which terminates all browser/SSO sessions for the user across
+    every client. The current bearer JWT continues to verify until its
+    ``exp`` ticks past — the frontend follows up by calling
+    ``signoutRedirect()`` so the local OIDC session is also cleared.
+    """
+    user_sub = _user_sub_from_request(request)
+    base = settings.keycloak_admin_url.rstrip("/")
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        admin = await _admin_token(client)
+        resp = await client.post(
+            f"{base}/users/{user_sub}/logout",
+            headers={"Authorization": f"Bearer {admin}"},
+        )
+    if resp.status_code not in (200, 204):
+        raise HTTPException(resp.status_code, resp.text[:200])
+    return SessionsRevokeAllResponse(ok=True)
+
+
 class ProfilePatchRequest(BaseModel):
     first_name: str | None = Field(default=None, max_length=120)
     last_name: str | None = Field(default=None, max_length=120)
