@@ -60,6 +60,21 @@ class _GatewaySettings(LayeredSettings):
     # app shows next to the account name. Keep short.
     totp_issuer: str = "Substrate"
 
+    # ── Avatar upload ─────────────────────────────────────────────────
+    # Hard cap on raw upload size before Pillow ever opens the bytes.
+    # Trade-off: higher = users can submit higher-resolution sources;
+    # lower = mobile snapshots may overshoot. 512 KiB matches every
+    # mainstream avatar service.
+    avatar_max_upload_bytes: int = 512 * 1024
+    # Final stored avatar edge length after centre-crop + resize.
+    # Trade-off: larger = sharper avatars at retina sizes, more BYTEA
+    # per row; smaller = visible blur at retina header sizes.
+    avatar_target_size_px: int = 256
+    # Cache lifetime hint for ``GET /api/users/me/avatar``. Trade-off:
+    # short = upload propagates quickly to other open tabs; long = the
+    # browser doesn't re-request on every page nav.
+    avatar_cache_max_age_s: int = 60
+
     auth_disabled: bool = False
     cors_origins: list[str] = []
     service_name: str = "gateway"

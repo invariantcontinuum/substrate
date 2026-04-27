@@ -1,5 +1,5 @@
 """User-facing account API: API tokens, password change, 2FA, profile
-PATCH (and, in a follow-up commit, avatar upload).
+PATCH, and avatar upload/serve/delete.
 
 This module is the single place where the gateway holds *direct* domain
 logic instead of proxying to ``graph``/``ingestion``. The reason is that
@@ -21,6 +21,10 @@ every route here is tied to *authentication itself*:
 * ``PATCH /api/users/me`` updates first/last/email/phone via the
   Keycloak admin API (the realm is the source of truth for those
   fields; the local ``user_profiles`` row is just a cache).
+* ``POST/GET/DELETE /api/users/me/avatar`` upload, serve, and delete
+  user avatars stored as PNG bytes in ``user_profiles.avatar_image``.
+  The upload path validates content-type + size, then centre-crops +
+  resizes to a square via Pillow before persisting.
 
 All routes require a valid bearer (JWT or PAT) — the authentication
 dependency lives below in ``_account_auth``. Routes that touch the
@@ -40,7 +44,9 @@ import httpx
 import pyotp
 import qrcode
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi.responses import Response
+from PIL import Image
 from pydantic import BaseModel, Field
 
 from substrate_common import UnauthorizedError, ValidationError
@@ -517,6 +523,129 @@ async def patch_profile(body: ProfilePatchRequest, request: Request):
         "email": kc_user.get("email") or "",
         "phone": phone_arr[0] if phone_arr else "",
     }
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Avatar upload / serve / delete
+# ─────────────────────────────────────────────────────────────────────
+
+
+_AVATAR_ALLOWED_MIMES = {"image/png", "image/jpeg", "image/webp"}
+
+
+def _square_centre_crop_to_png(image_bytes: bytes, target: int) -> bytes:
+    """Centre-crop the largest square from ``image_bytes`` and resize to
+    ``target x target``. Returns PNG bytes. Raises ``ValidationError`` if
+    Pillow can't open the input or it isn't a recognised image."""
+    try:
+        with Image.open(io.BytesIO(image_bytes)) as img:
+            img.load()
+            # Avatars are sRGB. Drop palette/alpha so the PNG re-encode
+            # is consistent regardless of the source format.
+            normalized = (
+                img.convert("RGBA") if img.mode == "P" else img.convert("RGB")
+            )
+            w, h = normalized.size
+            edge = min(w, h)
+            left = (w - edge) // 2
+            top = (h - edge) // 2
+            cropped = normalized.crop((left, top, left + edge, top + edge))
+            resized = cropped.resize((target, target), Image.Resampling.LANCZOS)
+            out = io.BytesIO()
+            resized.save(out, format="PNG", optimize=True)
+            return out.getvalue()
+    except (OSError, ValueError) as exc:
+        raise ValidationError(
+            f"avatar image could not be processed: {exc}"
+        ) from exc
+
+
+@router.post("/avatar")
+async def upload_avatar(request: Request, file: UploadFile = File(...)):
+    user_sub = _user_sub_from_request(request)
+    if file.content_type not in _AVATAR_ALLOWED_MIMES:
+        raise ValidationError(
+            f"unsupported avatar content-type: {file.content_type!r}; "
+            f"allowed: {sorted(_AVATAR_ALLOWED_MIMES)}"
+        )
+    raw = await file.read(settings.avatar_max_upload_bytes + 1)
+    if len(raw) > settings.avatar_max_upload_bytes:
+        raise ValidationError(
+            f"avatar exceeds {settings.avatar_max_upload_bytes} bytes"
+        )
+    png = _square_centre_crop_to_png(raw, settings.avatar_target_size_px)
+    pool = _pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO user_profiles (user_sub) VALUES ($1)
+            ON CONFLICT (user_sub) DO NOTHING
+            """,
+            user_sub,
+        )
+        await conn.execute(
+            """
+            UPDATE user_profiles
+            SET avatar_image      = $2,
+                avatar_mime       = 'image/png',
+                avatar_updated_at = now(),
+                updated_at        = now()
+            WHERE user_sub = $1
+            """,
+            user_sub,
+            png,
+        )
+    return {
+        "ok": True,
+        "size_bytes": len(png),
+        "mime": "image/png",
+        "edge_px": settings.avatar_target_size_px,
+    }
+
+
+@router.get("/avatar")
+async def get_avatar(request: Request):
+    user_sub = _user_sub_from_request(request)
+    pool = _pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT avatar_image, avatar_mime
+            FROM user_profiles
+            WHERE user_sub = $1
+            """,
+            user_sub,
+        )
+    if row is None or row["avatar_image"] is None:
+        raise HTTPException(404, {"error": "no_avatar"})
+    return Response(
+        content=bytes(row["avatar_image"]),
+        media_type=row["avatar_mime"] or "image/png",
+        headers={
+            "Cache-Control": (
+                f"public, max-age={settings.avatar_cache_max_age_s}"
+            ),
+        },
+    )
+
+
+@router.delete("/avatar")
+async def delete_avatar(request: Request):
+    user_sub = _user_sub_from_request(request)
+    pool = _pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            UPDATE user_profiles
+            SET avatar_image      = NULL,
+                avatar_mime       = NULL,
+                avatar_updated_at = NULL,
+                updated_at        = now()
+            WHERE user_sub = $1
+            """,
+            user_sub,
+        )
+    return {"ok": True}
 
 
 __all__ = ["router", "hash_token"]
