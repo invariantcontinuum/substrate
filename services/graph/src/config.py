@@ -26,7 +26,7 @@ class _GraphSettings(LayeredSettings):
     pg_database: str = "substrate_graph"
     pg_user: str = "substrate_graph"
     pg_password: str = "change-me"
-    pg_ssl_verify: bool = True
+    pg_ssl_verify: bool = False
 
     # Connection-pool tunables. Trade-off: higher max sizes absorb
     # request bursts but eat connections at the database; recycle
@@ -51,7 +51,7 @@ class _GraphSettings(LayeredSettings):
     # lazy-lamacpp exposes models by systemd-unit name, not HF path.
     embedding_model: str = "embeddings"
     embedding_api_key: str = "test"
-    embedding_ssl_verify: bool = True
+    embedding_ssl_verify: bool = False
     # Read budget (seconds) for the embedding HTTP call. Must fit one
     # query-time embedding round-trip on the host LLM stack.
     embedding_timeout_s: float = 30.0
@@ -78,7 +78,7 @@ class _GraphSettings(LayeredSettings):
     dense_llm_url: str = "http://host.docker.internal:8102/v1/chat/completions"
     dense_llm_model: str = "dense"
     dense_llm_api_key: str = "test"
-    dense_llm_ssl_verify: bool = True
+    dense_llm_ssl_verify: bool = False
     # ≤ <llm-stack>/config/models/dense.env CONTEXT_SIZE.
     dense_llm_context_size: int = 60000
     # HTTP read timeout (seconds) for the dense LLM call. Must stay ≤
@@ -91,7 +91,7 @@ class _GraphSettings(LayeredSettings):
     sparse_llm_url: str = "http://host.docker.internal:8103/v1/chat/completions"
     sparse_llm_model: str = "sparse"
     sparse_llm_api_key: str = "test"
-    sparse_llm_ssl_verify: bool = True
+    sparse_llm_ssl_verify: bool = False
     # ≤ <llm-stack>/config/models/sparse.env CONTEXT_SIZE.
     sparse_llm_context_size: int = 16384
     sparse_llm_timeout_s: float = 20.0
@@ -103,7 +103,7 @@ class _GraphSettings(LayeredSettings):
     reranker_url: str = "http://host.docker.internal:8104/reranking"
     reranker_model: str = "reranker"
     reranker_api_key: str = "test"
-    reranker_ssl_verify: bool = True
+    reranker_ssl_verify: bool = False
     reranker_context_window_tokens: int = 8192
     reranker_top_n: int = 5
     reranker_timeout_s: float = 30.0

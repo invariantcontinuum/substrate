@@ -21,7 +21,7 @@ github_token: ""
 embedding_url: "http://host.docker.internal:8101/v1/embeddings"
 embedding_model: "embeddings"
 embedding_api_key: "test"
-embedding_ssl_verify: true
+embedding_ssl_verify: false
 embedding_timeout_s: 30.0
 embedding_context_window_tokens: 8192
 # Must match the served model's vector dimension.

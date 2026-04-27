@@ -24,7 +24,7 @@ pg_port: 5432
 pg_database: "substrate_graph"
 pg_user: "substrate_graph"
 pg_password: "change-me"
-pg_ssl_verify: true
+pg_ssl_verify: false
 pg_pool_min_size: 2
 pg_pool_max_size: 25
 pg_pool_recycle_seconds: 1800
@@ -35,7 +35,7 @@ pg_lock_timeout_ms: 5000
 embedding_url: "http://host.docker.internal:8101/v1/embeddings"
 embedding_model: "embeddings"
 embedding_api_key: "test"
-embedding_ssl_verify: true
+embedding_ssl_verify: false
 embedding_timeout_s: 30.0
 embedding_context_window_tokens: 8192
 embedding_dim: 768
@@ -46,7 +46,7 @@ embedding_max_input_chars: 1400
 dense_llm_url: "http://host.docker.internal:8102/v1/chat/completions"
 dense_llm_model: "dense"
 dense_llm_api_key: "test"
-dense_llm_ssl_verify: true
+dense_llm_ssl_verify: false
 dense_llm_context_size: 60000
 dense_llm_timeout_s: 110.0
 
@@ -54,7 +54,7 @@ dense_llm_timeout_s: 110.0
 sparse_llm_url: "http://host.docker.internal:8103/v1/chat/completions"
 sparse_llm_model: "sparse"
 sparse_llm_api_key: "test"
-sparse_llm_ssl_verify: true
+sparse_llm_ssl_verify: false
 sparse_llm_context_size: 16384
 sparse_llm_timeout_s: 20.0
 sparse_keyword_top_k: 20
@@ -63,7 +63,7 @@ sparse_keyword_top_k: 20
 reranker_url: "http://host.docker.internal:8104/reranking"
 reranker_model: "reranker"
 reranker_api_key: "test"
-reranker_ssl_verify: true
+reranker_ssl_verify: false
 reranker_context_window_tokens: 8192
 reranker_top_n: 5
 reranker_timeout_s: 30.0

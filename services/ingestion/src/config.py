@@ -26,7 +26,7 @@ class _IngestionSettings(LayeredSettings):
     # (nomic-embed-text-v2-moe → 768).
     embedding_model: str = "embeddings"
     embedding_api_key: str = "test"
-    embedding_ssl_verify: bool = True
+    embedding_ssl_verify: bool = False
     # Read budget (seconds) for the embedding HTTP call. Independently
     # tunable from `embedding_http_timeout_read_s` below — that knob is
     # the per-batch ingestion-side budget; this one is the panel-facing
