@@ -1137,13 +1137,18 @@ html {
 
 /* Body container injected by Modal wrapper. Owns the modal's inner
  * padding/spacing so every modal looks identical regardless of which
- * SourcesModal/SearchModal/etc renders inside. */
+ * SourcesModal/SearchModal/etc renders inside. Modals that need to
+ * own padding themselves (file viewer, settings tabs, fullscreen
+ * sidebar layouts) opt out via `.modal-body--flush`. */
 .modal-body {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
   overflow-y: auto;
-  padding-right: var(--space-1);
+  padding: var(--space-4) var(--space-5);
+}
+.modal-body--flush {
+  padding: 0;
 }
 
 /* The trailing close button rendered by DialogContent sits below the
@@ -1211,7 +1216,6 @@ html {
   padding: 0;
 }
 .settings-modal .modal-body {
-  padding: 0;
   display: flex;
   flex: 1;
   min-height: 0;
@@ -2466,7 +2470,6 @@ html {
 /* FileModal — read-only file content viewer with optional line-range
  * highlighting for the chat-evidence flow. The grid template puts a
  * narrow gutter for line numbers next to a flexible code column. */
-.file-modal-dialog .modal-body { padding: 0; }
 .file-modal-pre {
   background: var(--surface-sunken);
   padding: 0;
@@ -3305,7 +3308,6 @@ html {
   padding: 0;
 }
 .node-detail-modal .modal-body {
-  padding: 0;
   display: flex;
   flex-direction: column;
   flex: 1 1 auto;
@@ -3646,11 +3648,64 @@ html {
 .profile-head { display: flex; align-items: center; gap: 14px; margin-bottom: 10px; }
 .profile-name { font-weight: 600; }
 .profile-email { opacity: 0.55; font-size: 11px; }
+.profile-avatar-wrap {
+  width: 44px; height: 44px;
+  flex-shrink: 0;
+}
+.profile-avatar-actions {
+  margin-left: auto;
+  display: inline-flex;
+  gap: 6px;
+}
 .avatar {
   display: flex; align-items: center; justify-content: center;
+  width: 44px; height: 44px;
   border-radius: 50%;
   background: linear-gradient(135deg, #5cf, #2a7ac9);
   color: #0a0a0a; font-weight: 700;
+}
+.avatar-image {
+  display: block;
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* Inline avatar crop modal — overlays the settings tab body, not the
+ * app shell. The settings modal already supplies the outer scrim; this
+ * second-level overlay just dims the tab content while the crop is in
+ * progress, so the user can still see the rest of the modal chrome. */
+.avatar-crop-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  padding: 16px;
+}
+.avatar-crop-card {
+  background: var(--glass-bg-strong, rgba(15, 17, 22, 0.95));
+  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.08));
+  border-radius: 12px;
+  padding: 16px;
+  max-width: 480px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.avatar-crop-card__title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.avatar-crop-card__actions {
+  display: inline-flex;
+  gap: 8px;
+  justify-content: flex-end;
 }
 .device-cell { flex: 1; min-width: 0; }
 .device-name { font-weight: 500; display: flex; align-items: center; gap: 6px; }

@@ -60,7 +60,7 @@ function ChatContextEditor({ seed, seedCommunities }: EditorProps) {
       <div className="ctx-actions">
         <button
           type="button"
-          className="cta-primary"
+          className="btn-primary"
           disabled={apply.isPending || !dirty}
           onClick={() =>
             apply.mutate(
@@ -77,7 +77,7 @@ function ChatContextEditor({ seed, seedCommunities }: EditorProps) {
         </button>
         <button
           type="button"
-          className="cta-ghost"
+          className="btn-ghost"
           disabled={apply.isPending}
           onClick={() => {
             setSelectedIds([]);

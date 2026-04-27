@@ -65,7 +65,7 @@ export function SettingsGitHubTab() {
               autoComplete="off"
             />
             <button
-              className="cta-primary"
+              className="btn-secondary"
               onClick={validate}
               disabled={!pat || probing}
             >

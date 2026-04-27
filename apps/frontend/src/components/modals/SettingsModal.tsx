@@ -43,6 +43,7 @@ export function SettingsModal() {
       title="Settings"
       size="lg"
       contentClassName="settings-modal"
+      bodyFlush
     >
       <div className="settings-modal-shell">
         <nav className="settings-modal-tabs" aria-label="Settings sections">

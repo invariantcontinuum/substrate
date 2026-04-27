@@ -115,8 +115,19 @@ export function SettingsPostgresTab() {
       </label>
 
       <div className="actions">
-        <button onClick={save} disabled={!canApply}>
+        <button className="btn-primary" onClick={save} disabled={!canApply}>
           Apply
+        </button>
+        <button
+          className="btn-ghost"
+          type="button"
+          disabled={!dirty || apply.isPending}
+          onClick={() => {
+            setDraft({});
+            setConfirmText("");
+          }}
+        >
+          Reset
         </button>
       </div>
     </section>

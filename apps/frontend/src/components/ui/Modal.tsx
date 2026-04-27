@@ -20,6 +20,10 @@ interface ModalProps {
    *  or background overrides (e.g. the file viewer wants more opacity
    *  than a search dialog). */
   contentClassName?: string;
+  /** Drop the default `.modal-body` padding. Use when the modal renders
+   *  its own layout chrome (e.g. settings sidebar/content split, file
+   *  viewer scroller). */
+  bodyFlush?: boolean;
 }
 
 export function Modal({
@@ -30,8 +34,10 @@ export function Modal({
   size = "md",
   maxWidth,
   contentClassName,
+  bodyFlush = false,
 }: ModalProps) {
   const width = maxWidth ?? SIZE_PX[size];
+  const bodyClass = `modal-body${bodyFlush ? " modal-body--flush" : ""}`;
 
   return (
     <Dialog
@@ -53,7 +59,7 @@ export function Modal({
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
-        <div className="modal-body">{children}</div>
+        <div className={bodyClass}>{children}</div>
       </DialogContent>
     </Dialog>
   );

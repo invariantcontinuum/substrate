@@ -146,7 +146,7 @@ function GraphSettingsEditor({ seed }: EditorProps) {
       <div className="config-actions">
         <button
           type="button"
-          className="cta-ghost"
+          className="btn-secondary"
           onClick={onApplySelection}
           disabled={!selectionDirty}
         >
@@ -249,7 +249,7 @@ function GraphSettingsEditor({ seed }: EditorProps) {
       />
       <div className="config-actions">
         <button
-          className="cta-primary"
+          className="btn-primary"
           onClick={onRecompute}
           disabled={selectedSyncIds.length === 0}
         >
@@ -257,10 +257,10 @@ function GraphSettingsEditor({ seed }: EditorProps) {
             ? `Recompute (${driftCount} knob${driftCount === 1 ? "" : "s"} changed)`
             : "Recompute"}
         </button>
-        <button className="cta-ghost" onClick={discard} disabled={!drift}>
+        <button className="btn-ghost" onClick={discard} disabled={!drift}>
           Discard changes
         </button>
-        <button className="cta-ghost" onClick={useDefaults}>
+        <button className="btn-ghost" onClick={useDefaults}>
           Use my defaults
         </button>
       </div>

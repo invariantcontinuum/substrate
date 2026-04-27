@@ -60,6 +60,7 @@ export function FileModal({
       title={filepath}
       size="lg"
       contentClassName="file-modal-dialog"
+      bodyFlush
     >
       {isLoading && <p className="muted">Loading…</p>}
       {isError && <p className="muted">Failed to load file content.</p>}

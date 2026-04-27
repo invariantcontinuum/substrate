@@ -34,6 +34,7 @@ export function GraphPage() {
         title=""
         size="lg"
         contentClassName="node-detail-modal"
+        bodyFlush
       >
         <NodeDetailPanel />
       </Modal>
