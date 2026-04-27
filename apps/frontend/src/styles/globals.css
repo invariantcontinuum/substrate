@@ -1693,25 +1693,25 @@ html {
 .source-list-item-chevron { opacity: 0.4; }
 
 /* Per-source `…` overflow menu (SourceActionMenu, mounted inside
- * SourceListItem). Uses native <details>/<summary> so the menu closes
- * on outside click without us managing a global handler. */
+ * SourceListItem). Controlled component — outside-click + Escape
+ * dismissal lives in the React component, not the markup. */
 .source-action-menu {
   position: relative;
   flex-shrink: 0;
 }
 .source-action-menu-summary {
-  list-style: none;
   cursor: pointer;
   padding: 2px 4px;
   border-radius: var(--radius-xs);
   display: inline-flex;
   align-items: center;
+  background: transparent;
+  border: 0;
   color: var(--fg-muted);
   opacity: 0.6;
 }
-.source-action-menu-summary::-webkit-details-marker { display: none; }
 .source-action-menu-summary:hover { opacity: 1; background: var(--surface-hover); }
-.source-action-menu[open] .source-action-menu-summary { opacity: 1; }
+.source-action-menu-summary[aria-expanded="true"] { opacity: 1; }
 .source-action-menu-list {
   position: absolute;
   right: 0;
@@ -1724,7 +1724,7 @@ html {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  box-shadow: var(--shadow-md, 0 8px 24px rgba(0, 0, 0, 0.18));
 }
 .source-action-menu-list li > button {
   display: flex;
@@ -1748,10 +1748,10 @@ html {
   cursor: not-allowed;
 }
 .source-action-menu-list li > button.is-destructive {
-  color: #e07070;
+  color: var(--danger);
 }
 .source-action-menu-list li > button.is-destructive:hover:not(:disabled) {
-  background: rgba(224, 112, 112, 0.12);
+  background: var(--danger-tint, rgba(224, 112, 112, 0.12));
 }
 
 /* Delete-source modal (typed-name confirm) */
