@@ -22,6 +22,12 @@ def configure_logging(service: str, pretty: bool = False) -> None:
         structlog.processors.TimeStamper(fmt="iso", utc=True, key="ts"),
         _inject_service(service),
         structlog.processors.EventRenamer("event"),
+        # Render exc_info attached by `log.exception(...)` into a string
+        # under the "exception" key. Without this, the JSON renderer
+        # drops the traceback entirely and "X_failed" entries carry no
+        # diagnostic — the source of the silent failures observed in
+        # chat_pipeline.stream_turn and elsewhere (DSG-2026-04-27-A §1.5).
+        structlog.processors.format_exc_info,
     ]
     renderer = (
         structlog.dev.ConsoleRenderer(colors=True)
