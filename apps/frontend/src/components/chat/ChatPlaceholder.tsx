@@ -11,7 +11,7 @@ const EXAMPLE_PROMPTS = [
 export function ChatPlaceholder() {
   const setDraft = useChatStore((s) => s.setComposerDraft);
   const active = useChatContextStore((s) => s.active);
-  const snapCount = active?.sync_ids.length ?? 0;
+  const snapCount = active?.sync_ids?.length ?? 0;
 
   return (
     <div className="chat-placeholder">

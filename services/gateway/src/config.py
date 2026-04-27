@@ -26,14 +26,16 @@ class _GatewaySettings(LayeredSettings):
     kc_gateway_client_secret: str = ""
     # Service-account wiring used by the account API for admin-level
     # operations (PATCH /api/users/me, 2FA credential write/delete).
-    # Empty client_secret => any endpoint that needs admin access
-    # returns 501 so a misconfigured deploy fails loudly.
+    # The substrate-gateway client doubles as the admin caller — its
+    # service account is granted realm-management roles in
+    # ops/infra/keycloak/substrate-realm.template.json. An empty
+    # ``kc_gateway_client_secret`` makes admin endpoints return 501
+    # so a misconfigured deploy fails loudly.
     keycloak_admin_url: str = "http://keycloak:8080/admin/realms/substrate"
     keycloak_token_url: str = (
         "http://keycloak:8080/realms/substrate/protocol/openid-connect/token"
     )
-    keycloak_admin_client_id: str = "substrate-admin"
-    keycloak_admin_client_secret: str = ""
+    keycloak_admin_client_id: str = "substrate-gateway"
     graph_service_url: str = "http://graph:8082"
     ingestion_service_url: str = "http://ingestion:8081"
     database_url: str = "postgresql+asyncpg://substrate_graph:change-me@postgres:5432/substrate_graph"

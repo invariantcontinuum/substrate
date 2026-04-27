@@ -5,7 +5,9 @@ export function ChatContextSummaryPill() {
   const active = useChatContextStore((s) => s.active);
   const navigate = useNavigate();
   const goToConfig = () => navigate("/account/chat-context");
-  if (!active || active.sync_ids.length === 0) {
+  const syncIds = active?.sync_ids ?? [];
+  const communityIds = active?.community_ids ?? [];
+  if (!active || syncIds.length === 0) {
     return (
       <button
         type="button"
@@ -17,8 +19,8 @@ export function ChatContextSummaryPill() {
       </button>
     );
   }
-  const snapCount = active.sync_ids.length;
-  const commCount = active.community_ids.length;
+  const snapCount = syncIds.length;
+  const commCount = communityIds.length;
   return (
     <button
       type="button"

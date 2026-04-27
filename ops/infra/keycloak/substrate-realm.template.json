@@ -94,6 +94,22 @@
       "webOrigins": __GATEWAY_WEB_ORIGINS__
     }
   ],
+  "users": [
+    {
+      "username": "service-account-substrate-gateway",
+      "enabled": true,
+      "serviceAccountClientId": "substrate-gateway",
+      "clientRoles": {
+        "realm-management": [
+          "manage-users",
+          "view-users",
+          "view-realm",
+          "query-users",
+          "manage-realm"
+        ]
+      }
+    }
+  ],
   "scopeMappings": [],
   "clientScopes": [
     {

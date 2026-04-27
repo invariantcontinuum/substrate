@@ -126,8 +126,8 @@ leiden_community_sample_size: 20
 # ── Keycloak admin ───────────────────────────────────────────────────
 keycloak_admin_url: "http://keycloak:8080/admin/realms/substrate"
 keycloak_token_url: "http://keycloak:8080/realms/substrate/protocol/openid-connect/token"
-keycloak_admin_client_id: "substrate-admin"
-keycloak_admin_client_secret: ""
+keycloak_admin_client_id: "substrate-gateway"
+kc_gateway_client_secret: ""
 
 # ── GitHub integration validation ────────────────────────────────────
 github_validate_timeout_s: 10

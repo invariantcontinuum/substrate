@@ -272,15 +272,23 @@ def _user_jwt_from_request(request: Request) -> str:
 
 
 async def _admin_token(client: httpx.AsyncClient) -> str:
-    """Mint a Keycloak service-account token for admin API calls."""
-    if not settings.keycloak_admin_client_secret:
+    """Mint a Keycloak service-account token for admin API calls.
+
+    Reuses the ``substrate-gateway`` confidential client — its service
+    account is granted realm-management roles in
+    ``ops/infra/keycloak/substrate-realm.template.json``.
+    ``kc_gateway_client_secret`` empty => 501 so a misconfigured deploy
+    fails loudly.
+    """
+    if not settings.kc_gateway_client_secret:
         raise HTTPException(
             501,
             {
                 "error": "keycloak_admin_not_configured",
                 "hint": (
-                    "Set KEYCLOAK_ADMIN_CLIENT_ID and "
-                    "KEYCLOAK_ADMIN_CLIENT_SECRET in the gateway env."
+                    "Set KC_GATEWAY_CLIENT_SECRET in the gateway env "
+                    "(matches the substrate-gateway client secret in "
+                    "the realm)."
                 ),
             },
         )
@@ -289,7 +297,7 @@ async def _admin_token(client: httpx.AsyncClient) -> str:
         data={
             "grant_type": "client_credentials",
             "client_id": settings.keycloak_admin_client_id,
-            "client_secret": settings.keycloak_admin_client_secret,
+            "client_secret": settings.kc_gateway_client_secret,
         },
         headers={"Content-Type": "application/x-www-form-urlencoded"},
     )

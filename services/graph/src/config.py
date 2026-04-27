@@ -312,8 +312,11 @@ class _GraphSettings(LayeredSettings):
     keycloak_token_url: str = (
         "http://keycloak:8080/realms/substrate/protocol/openid-connect/token"
     )
-    keycloak_admin_client_id: str = "substrate-admin"
-    keycloak_admin_client_secret: str = ""
+    # Reuses the substrate-gateway confidential client — its service
+    # account is granted realm-management roles in the realm template.
+    # Empty ``kc_gateway_client_secret`` => /revoke-all returns 501.
+    keycloak_admin_client_id: str = "substrate-gateway"
+    kc_gateway_client_secret: str = ""
 
     # ── GitHub integration validation (spec §9.9, P4) ───────────────
     # Account · Integrations uses this timeout when hitting GitHub's

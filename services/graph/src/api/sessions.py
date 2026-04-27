@@ -23,7 +23,7 @@ async def _service_token(client: httpx.AsyncClient) -> str:
         data={
             "grant_type": "client_credentials",
             "client_id": settings.keycloak_admin_client_id,
-            "client_secret": settings.keycloak_admin_client_secret,
+            "client_secret": settings.kc_gateway_client_secret,
         },
         headers={"Content-Type": "application/x-www-form-urlencoded"},
     )
@@ -72,11 +72,12 @@ async def _keycloak_logout_all(user_sub: str) -> None:
 async def revoke_all(
     user_sub: str = Depends(require_user_sub),
 ) -> dict[str, bool]:
-    if not settings.keycloak_admin_client_secret:
+    if not settings.kc_gateway_client_secret:
         raise HTTPException(
             501, {"error": "keycloak_admin_not_configured",
-                  "hint": ("Set KEYCLOAK_ADMIN_CLIENT_ID and "
-                           "KEYCLOAK_ADMIN_CLIENT_SECRET in the graph env.")},
+                  "hint": ("Set KC_GATEWAY_CLIENT_SECRET in the graph env "
+                           "(matches the substrate-gateway client secret in "
+                           "the realm).")},
         )
     await _keycloak_logout_all(user_sub)
     logger.info("user_sessions_revoked", user_sub=user_sub)

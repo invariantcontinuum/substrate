@@ -22,14 +22,14 @@ async def _preserve_kc_settings():
         settings.keycloak_admin_url,
         settings.keycloak_token_url,
         settings.keycloak_admin_client_id,
-        settings.keycloak_admin_client_secret,
+        settings.kc_gateway_client_secret,
     )
     yield
     (
         settings.keycloak_admin_url,
         settings.keycloak_token_url,
         settings.keycloak_admin_client_id,
-        settings.keycloak_admin_client_secret,
+        settings.kc_gateway_client_secret,
     ) = saved
 
 
@@ -37,7 +37,7 @@ async def test_revoke_all_unconfigured_returns_501(
     async_client, app_pool, _preserve_kc_settings,
 ):
     from src.config import settings
-    settings.keycloak_admin_client_secret = ""
+    settings.kc_gateway_client_secret = ""
     r = await async_client.post(
         "/api/users/me/sessions/revoke-all", headers=HDR,
     )
@@ -51,7 +51,7 @@ async def test_revoke_all_happy_path(
     from src.api import sessions
     from src.config import settings
 
-    settings.keycloak_admin_client_secret = "secret"
+    settings.kc_gateway_client_secret = "secret"
 
     called: dict[str, int] = {"n": 0}
 
