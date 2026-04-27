@@ -24,6 +24,7 @@ import httpx
 import structlog
 
 from src.config import settings
+from src.graph.chat_context_resolver import _fetch_edge_neighbors  # noqa: F401
 from src.graph.file_reconstruct import FileTooLargeForReconstruct, reconstruct_chunks
 
 logger = structlog.get_logger()
@@ -219,72 +220,6 @@ async def _post_llm(*, url: str, payload: dict) -> dict:
         r.raise_for_status()
         return r.json()
 
-
-async def _fetch_edge_neighbors(conn, file_id: str) -> list[dict]:
-    """Fetch (neighbor_id, edge_type, direction) triples for the node via AGE.
-
-    Uses the inline-quoted ``MATCH (a:File {file_id: '...'})`` pattern
-    established in ``snapshot_query.py``. A btree expression index on
-    ``properties -> '"file_id"'::agtype`` (migration V5) keeps this
-    lookup logarithmic against the ~190k File vertex table.
-
-    Wrapped in a short ``SET LOCAL statement_timeout`` so a runaway
-    plan (e.g. missing index after a fresh clone) fails fast — without
-    it, a single stuck query can pile up across the asyncpg pool and
-    starve every other endpoint, including ``/file`` and ``/stats``.
-
-    Falls back to an empty list on any error — AGE may legitimately be
-    empty or the ``substrate`` graph may not yet hold edges for this
-    node's sync.
-    """
-    try:
-        # `SET LOCAL` only applies inside a transaction, so we must
-        # wrap the AGE call explicitly; without the wrapper the
-        # timeout is silently ignored and a bad plan can hang for
-        # hours.
-        async with conn.transaction():
-            await conn.execute("SET LOCAL statement_timeout = '10000ms'")
-            # NB: f-string inlining matches snapshot_query.py. file_id
-            # came from our own DB row (UUID string) and is therefore
-            # safe to inline — no external/user input path reaches
-            # this quoting.
-            rows = await conn.fetch(
-                f"""
-                SELECT * FROM cypher('substrate', $$
-                    MATCH (a:File {{file_id: '{file_id}'}})-[r]-(b:File)
-                    RETURN b.file_id AS neighbor_file_id,
-                           label(r)  AS edge_type,
-                           CASE WHEN startNode(r).file_id = '{file_id}' THEN 'out'
-                                WHEN endNode(r).file_id   = '{file_id}' THEN 'in'
-                                ELSE 'undirected' END AS direction
-                $$) AS (neighbor_file_id agtype, edge_type agtype, direction agtype)
-                """
-            )
-    except Exception as exc:  # noqa: BLE001 — summary edge fetch failures fall back to empty
-        logger.warning("enriched_summary_edge_fetch_failed", error=str(exc))
-        return []
-
-    out: list[dict] = []
-    seen: set[str] = set()
-    for r in rows:
-        raw_nid = r["neighbor_file_id"]
-        raw_etype = r["edge_type"]
-        raw_dir = r["direction"]
-        try:
-            nid = json.loads(str(raw_nid)) if raw_nid is not None else None
-            etype = json.loads(str(raw_etype)) if raw_etype is not None else ""
-            direction = json.loads(str(raw_dir)) if raw_dir is not None else "undirected"
-        except ValueError:
-            continue
-        if not nid or nid in seen:
-            continue
-        seen.add(nid)
-        out.append({
-            "neighbor_id": str(nid),
-            "edge_type": str(etype) or "depends_on",
-            "direction": str(direction) or "undirected",
-        })
-    return out
 
 
 async def generate_enriched_summary(
