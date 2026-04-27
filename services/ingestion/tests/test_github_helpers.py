@@ -67,7 +67,7 @@ async def test_fetch_commit_date_handles_missing_field():
 
 
 @pytest.mark.asyncio
-async def test_fetch_commit_date_returns_none_on_401(caplog):
+async def test_fetch_commit_date_returns_none_on_401():
     fake_response = httpx.Response(
         401, text="Bad credentials",
         request=httpx.Request("GET", "https://api.github.com/x"),

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Search } from "lucide-react";
 import { useUIStore } from "@/stores/ui";
 import { GraphSearchDropdown } from "./GraphSearchDropdown";
@@ -15,13 +15,15 @@ export function GraphSearchAnchor() {
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const [open, setOpen] = useState(false);
   const seq = useUIStore((s) => s.graphSearchOpenSeq);
+  const [prevSeq, setPrevSeq] = useState(seq);
 
   // Bump-driven open: every Ctrl+K press increments the sequence so we
   // open even if the user just closed the dropdown a moment ago.
-  useEffect(() => {
-    if (seq === 0) return;
-    setOpen(true);
-  }, [seq]);
+  // Uses the "prev-prop in state" pattern to avoid setState-in-effect.
+  if (prevSeq !== seq) {
+    setPrevSeq(seq);
+    if (seq > 0 && !open) setOpen(true);
+  }
 
   return (
     <>
@@ -38,7 +40,7 @@ export function GraphSearchAnchor() {
         <Search size={14} /> Search
       </button>
       <GraphSearchDropdown
-        anchor={buttonRef.current}
+        anchor={buttonRef}
         open={open}
         onClose={() => setOpen(false)}
       />

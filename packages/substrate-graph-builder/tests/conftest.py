@@ -13,7 +13,7 @@ BuildTreeFn = Callable[[Path, dict[str, str]], tuple[str, list[dict[str, Any]]]]
 LoadFixtureFn = Callable[[str], tuple[str, list[dict[str, Any]]]]
 
 
-@pytest.fixture
+@pytest.fixture  # type: ignore[untyped-decorator]
 def build_tree() -> BuildTreeFn:
     """Build a filesystem under tmp_path; return (root_dir, tree_list)."""
     def _build(tmp_path: Path, files: dict[str, str]) -> tuple[str, list[dict[str, Any]]]:
@@ -26,7 +26,7 @@ def build_tree() -> BuildTreeFn:
     return _build
 
 
-@pytest.fixture
+@pytest.fixture  # type: ignore[untyped-decorator]
 def load_fixture() -> LoadFixtureFn:
     """Walk tests/fixtures/<name>/ and build a tree from it."""
     def _load(name: str) -> tuple[str, list[dict[str, Any]]]:

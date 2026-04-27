@@ -155,6 +155,98 @@ SSE replay buffer — backs `GET /api/events`.
 
 Writers call `NOTIFY substrate_sse, <id>::text`; the gateway `LISTEN`s on the same channel and fans out to every open EventSource client, replaying past rows greater than the client's `Last-Event-ID` header on reconnect.
 
+### `user_profiles`
+
+App-level identity mirror — upserted on every authenticated request.
+
+| Column | Type | Notes |
+|---|---|---|
+| `user_sub` | text PK | Keycloak `sub` claim |
+| `preferred_username` | text | |
+| `email` | text | |
+| `display_name` | text | |
+| `role` | text | `viewer` \| `admin` |
+| `active_chat_context` | JSONB | `{sync_ids: string[], source_ids: string[]}` — active scope for new chat threads |
+| `avatar` | bytea | PNG avatar blob (nullable) |
+| `avatar_mime` | text | MIME type of avatar blob |
+| `preferences` | JSONB | Persisted Leiden / layout / theme prefs |
+| `created_at` | timestamptz | |
+| `updated_at` | timestamptz | |
+| `last_seen_at` | timestamptz | |
+
+### `chat_threads`
+
+One row per ChatGPT-style conversation.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | UUID PK | |
+| `user_sub` | text FK → `user_profiles` | ON DELETE CASCADE |
+| `title` | text | Auto-generated or user-renamed |
+| `context` | JSONB | `{scope: {sync_ids, source_ids}, selection: {kind: "all"\|"pick", file_ids?: string[]}}` |
+| `created_at` | timestamptz | |
+| `updated_at` | timestamptz | |
+
+The `context` JSONB is the consolidated per-thread context model introduced in V11. `scope` mirrors the user's active set at thread creation; `selection` further narrows it to specific files when `kind="pick"`. Prior schema (V8 `context_files JSONB` + the `chat_thread_context_files` join table) was dropped in V11.
+
+### `chat_messages`
+
+One row per turn (user prompt or assistant reply).
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | UUID PK | |
+| `thread_id` | UUID FK → `chat_threads` | ON DELETE CASCADE |
+| `role` | text | `user` \| `assistant` |
+| `content` | text | Full message text |
+| `citations` | JSONB | `[{node_id, name, type, file_path, excerpt}]` resolved refs |
+| `superseded_by` | UUID FK → `chat_messages` | Set when this turn is replaced by regenerate |
+| `supersedes` | UUID FK → `chat_messages` | Back-pointer on the replacement turn |
+| `created_at` | timestamptz | |
+
+### `chat_message_evidence`
+
+Per-turn `cite_evidence` tool calls — collapsible "Evidence" affordance in the UI.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | UUID PK | |
+| `message_id` | UUID FK → `chat_messages` | ON DELETE CASCADE |
+| `filepath` | text | |
+| `start_line` | int | |
+| `end_line` | int | |
+| `reason` | text | LLM-provided justification string |
+| `created_at` | timestamptz | |
+
+### `chat_message_context`
+
+Persisted prompt snapshot for every assistant turn — enables reproducible audit.
+
+| Column | Type | Notes |
+|---|---|---|
+| `message_id` | UUID PK FK → `chat_messages` | |
+| `system_prompt` | text | |
+| `history` | JSONB | Prior turns included in the prompt |
+| `files` | JSONB | Context-file node entries included |
+| `tokens_in` | int | Estimated prompt tokens |
+| `tokens_out` | int | Tokens in the reply |
+| `duration_ms` | int | Wall-clock LLM call time |
+| `created_at` | timestamptz | |
+
+### `runtime_config`
+
+UI-tunable overrides written by the Settings panel — keys override the service's Pydantic defaults.
+
+| Column | Type | Notes |
+|---|---|---|
+| `scope` | text | Service scope (e.g. `graph`, `ingestion`) |
+| `key` | text | Setting name (snake_case) |
+| `value` | JSONB | Serialised value |
+| `updated_by` | text | `user_sub` of the user who last wrote this |
+| `updated_at` | timestamptz | |
+
+Primary key: `(scope, key)`.
+
 ---
 
 ## Apache AGE graph schema

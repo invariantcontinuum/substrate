@@ -17,21 +17,28 @@ export function ChatPage() {
   const { data: messages } = useChatMessages(activeId);
   const thread = threads?.find((t) => t.id === activeId) ?? null;
   const [ctxOpen, setCtxOpen] = useState(false);
+  const [prevActiveId, setPrevActiveId] = useState(activeId);
   const endRef = useRef<HTMLDivElement | null>(null);
 
   // Reset modal state when the thread identity changes, so a stale
   // open flag from a previous thread (or the brief no-thread window)
   // never causes the modal to auto-open after Send.
-  useEffect(() => {
-    setCtxOpen(false);
-  }, [activeId]);
+  // Uses the "prev-prop in state" pattern recommended by React docs to
+  // avoid setState-in-effect (which can trigger cascading renders).
+  if (prevActiveId !== activeId) {
+    setPrevActiveId(activeId);
+    if (ctxOpen) setCtxOpen(false);
+  }
 
   useChatStream(activeId);
 
+  // `streamingTurn` presence governs instant vs smooth scroll but we only
+  // re-fire when content actually changes — intentional dep omission.
   useEffect(() => {
     endRef.current?.scrollIntoView({
       behavior: streamingTurn ? "instant" : "smooth",
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages?.length, streamingTurn?.content]);
 
   // ── Visible-vs-superseded grouping ──────────────────────────────────

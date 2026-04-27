@@ -49,7 +49,6 @@ export function useAuthedMutation<TData, TVars>(
       if (body !== undefined) init.body = JSON.stringify(body(vars));
       return apiFetch<TData>(path(vars), token, init);
     },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- forward whatever shape the installed @tanstack/react-query expects
     onSuccess: ((...args: unknown[]) => {
       if (invalidateKeys) {
         for (const key of invalidateKeys) {

@@ -15,9 +15,6 @@ from src.config import settings
 logger = structlog.get_logger()
 
 
-_DOC_TEXT_MAX = 2000
-
-
 async def rerank(
     *, query: str, candidates: list[dict], top_n: int,
 ) -> list[dict]:
@@ -32,7 +29,7 @@ async def rerank(
     if not candidates:
         return []
     documents = [
-        ((c.get("description") or c.get("file_path") or "")[:_DOC_TEXT_MAX])
+        ((c.get("description") or c.get("file_path") or "")[:settings.reranker_doc_text_max_chars])
         for c in candidates
     ]
     payload: dict[str, Any]

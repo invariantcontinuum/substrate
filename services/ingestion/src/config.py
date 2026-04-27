@@ -104,6 +104,13 @@ class _IngestionSettings(LayeredSettings):
     github_api_timeout_write_s: float = 10.0
     github_api_timeout_pool_s: float = 10.0
 
+    # ── Sync issue recording ─────────────────────────────────────────
+    # Hard cap on issues stored per sync run. Exceeding it increments
+    # stats.issues_suppressed and inserts a single truncation_marker row.
+    # Trade-off: larger = more debug detail, more DB rows; smaller = leaner
+    # table but early truncation on noisy connectors.
+    sync_issue_cap: int = 1000
+
     # ── Retention ────────────────────────────────────────────────────
     retention_enabled: bool = True
     retention_age_days: int = 30

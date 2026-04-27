@@ -1,7 +1,6 @@
 """Per-sync issue recorder with hard cap to prevent table blowup on chatty failures."""
 from src import graph_writer
-
-ISSUE_CAP = 1000
+from src.config import settings
 
 
 async def record_issue(sync_id: str, level: str, phase: str, code: str | None,
@@ -18,7 +17,7 @@ async def record_issue(sync_id: str, level: str, phase: str, code: str | None,
                  FROM cap_check WHERE n < $7
                RETURNING 1""",
             sync_id, level, phase, code, message, context or {},
-            ISSUE_CAP,
+            settings.sync_issue_cap,
         )
         if inserted is not None:
             return

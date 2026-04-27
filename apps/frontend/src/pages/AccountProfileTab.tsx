@@ -286,6 +286,7 @@ export function AccountProfileTab() {
   const [seedKey, setSeedKey] = useState<string>(initialKey);
   useEffect(() => {
     if (seedKey !== initialKey) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setForm(initialForm);
       setSeedKey(initialKey);
     }

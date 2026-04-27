@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Search, Loader2 } from "lucide-react";
 import { useGraphStore } from "@/stores/graph";
@@ -6,8 +6,8 @@ import { useSearch, type SearchHit } from "@/hooks/useSearch";
 import { useCarouselSlides } from "@/hooks/useCarouselSlides";
 
 interface Props {
-  /** Element the dropdown anchors below (the trigger button). */
-  anchor: HTMLElement | null;
+  /** Ref to the element the dropdown anchors below (the trigger button). */
+  anchor: RefObject<HTMLElement | null>;
   /** Whether the dropdown is open. */
   open: boolean;
   /** Close the dropdown. */
@@ -34,11 +34,25 @@ export function GraphSearchDropdown({ anchor, open, onClose }: Props) {
 
   const [query, setQuery] = useState("");
   const [highlight, setHighlight] = useState(0);
+  const [prevOpen, setPrevOpen] = useState(open);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const popoverRef = useRef<HTMLDivElement | null>(null);
 
   const { data, isFetching } = useSearch(query);
   const hits: SearchHit[] = data?.hits ?? [];
+
+  // Reset state when the dropdown opens — prev-prop pattern avoids
+  // setState-in-effect (which triggers an extra render cycle).
+  if (prevOpen !== open) {
+    setPrevOpen(open);
+    if (open) {
+      setQuery("");
+      setHighlight(0);
+    }
+  }
+
+  // Clamp highlight to valid hit range (derived, no effect needed).
+  const clampedHighlight = highlight < hits.length ? highlight : 0;
 
   // Build a community-index → slot-index map once so search routing
   // is O(1) per click. The "Other" slide reaches via -1.
@@ -51,21 +65,12 @@ export function GraphSearchDropdown({ anchor, open, onClose }: Props) {
     return m;
   }, [slides]);
 
-  // Reset state on open and autofocus the input.
+  // Autofocus the input after the popover mounts and layout settles.
   useEffect(() => {
     if (!open) return;
-    setQuery("");
-    setHighlight(0);
-    // requestAnimationFrame so focus happens after the popover mounts
-    // and the layout has settled.
     const id = requestAnimationFrame(() => inputRef.current?.focus());
     return () => cancelAnimationFrame(id);
   }, [open]);
-
-  // Clamp highlight as hits change.
-  useEffect(() => {
-    if (highlight >= hits.length) setHighlight(0);
-  }, [hits.length, highlight]);
 
   // Click-away — close when a click lands outside both the popover
   // and the anchor button (so clicks on the trigger don't fight the
@@ -76,7 +81,7 @@ export function GraphSearchDropdown({ anchor, open, onClose }: Props) {
       const target = e.target as Node | null;
       if (!target) return;
       if (popoverRef.current?.contains(target)) return;
-      if (anchor?.contains(target)) return;
+      if (anchor.current?.contains(target)) return;
       onClose();
     };
     window.addEventListener("mousedown", handler);
@@ -101,12 +106,13 @@ export function GraphSearchDropdown({ anchor, open, onClose }: Props) {
   // the button if the layout shifts (responsive header, sidebar toggle).
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   useEffect(() => {
-    if (!open || !anchor) {
+    if (!open || !anchor.current) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPos(null);
       return;
     }
     const measure = () => {
-      const r = anchor.getBoundingClientRect();
+      const r = anchor.current!.getBoundingClientRect();
       const popWidth = 360;
       // Prefer right-aligning the popover with the trigger so it
       // doesn't overflow the right edge of the page on narrow widths.
@@ -166,7 +172,7 @@ export function GraphSearchDropdown({ anchor, open, onClose }: Props) {
               setHighlight((h) => Math.max(0, h - 1));
             } else if (e.key === "Enter") {
               e.preventDefault();
-              const target = hits[highlight] ?? hits[0];
+              const target = hits[clampedHighlight] ?? hits[0];
               if (target) handleSelect(target);
             }
           }}
@@ -180,9 +186,9 @@ export function GraphSearchDropdown({ anchor, open, onClose }: Props) {
               key={hit.node_id}
               type="button"
               role="option"
-              aria-selected={i === highlight}
+              aria-selected={i === clampedHighlight}
               className={`graph-search-dropdown__item${
-                i === highlight ? " is-highlighted" : ""
+                i === clampedHighlight ? " is-highlighted" : ""
               }`}
               onMouseEnter={() => setHighlight(i)}
               onClick={() => handleSelect(hit)}

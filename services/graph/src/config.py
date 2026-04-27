@@ -109,6 +109,11 @@ class _GraphSettings(LayeredSettings):
     reranker_timeout_s: float = 30.0
     # Reciprocal rank fusion constant; higher = flatter score curve.
     reranker_rrf_k: int = 60
+    # Max chars of document text (description or file_path) sent to the
+    # reranker per candidate. Trade-off: larger = better ranking signal,
+    # more tokens consumed per candidate; smaller = faster, lower quality.
+    # Should be ≤ reranker_context_window_tokens × 3 chars/token.
+    reranker_doc_text_max_chars: int = 2000
 
     # ── Retrieval pipeline ───────────────────────────────────────────
     # Dense pgvector candidate count fed into the optional sparse fuse + reranker.
@@ -253,6 +258,12 @@ class _GraphSettings(LayeredSettings):
     # when the LLM ignores the tools request body. Caps the worst-case
     # write storm if a hallucinating model emits hundreds of markers.
     chat_evidence_max_per_turn: int = 25
+
+    # Max chars of the first-chunk excerpt included per resolved node in
+    # the tool-call file-detail expansion. Trade-off: larger = richer
+    # context per cited node, more prompt tokens; smaller = more nodes
+    # fit in the same budget. Should be ≤ chat_total_budget_chars / chat_top_k.
+    chat_excerpt_max_chars: int = 1200
 
     # Bound on the regenerate background polling loop that links a
     # superseded assistant row to its replacement once stream_turn has

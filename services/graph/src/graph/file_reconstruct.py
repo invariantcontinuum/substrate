@@ -19,12 +19,11 @@ gaps are left as empty lines so downstream line numbers match the
 original file, and `total_lines` pads the tail when known. This is what
 keeps a 410-line source from rendering as 404 lines in the viewer.
 
-Response size is capped at `DEFAULT_CAP_BYTES` (5 MB); when the cap is
-reached the result is returned with `truncated=True`.
+Response size is capped at the ``cap_bytes`` argument (default 5 MiB via
+``settings.file_reconstruct_max_bytes``); when the cap is reached the result
+is returned with ``truncated=True``.
 """
 from __future__ import annotations
-
-DEFAULT_CAP_BYTES = 5 * 1024 * 1024   # 5 MB
 
 
 def _chunk_lines(content: str) -> list[str]:
@@ -42,7 +41,7 @@ def _chunk_lines(content: str) -> list[str]:
 
 def reconstruct_chunks(
     chunks: list[dict],
-    cap_bytes: int = DEFAULT_CAP_BYTES,
+    cap_bytes: int,
     total_lines: int | None = None,
 ) -> dict:
     """Reconstruct file text from `content_chunks` rows.
