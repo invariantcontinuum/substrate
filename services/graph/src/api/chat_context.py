@@ -32,9 +32,16 @@ class CommunityRef(BaseModel):
 class ActiveContext(BaseModel):
     """Pre-MVP shape: sync_ids is the canonical scope. Each sync row carries
     its own source_id, so the UI no longer pins to a single source — a chat
-    context may span snapshots from multiple sources."""
+    context may span snapshots from multiple sources.
+
+    ``file_ids`` is an OPTIONAL whitelist of ``file_embeddings.id`` values
+    that the chat-context budget pill curates. ``None`` / missing means
+    "use every file in the active sync set"; a non-empty list restricts
+    retrieval to that subset. The empty list means "no files" (the user
+    explicitly unchecked everything)."""
     sync_ids: list[str] = Field(default_factory=list)
     community_ids: list[CommunityRef] = Field(default_factory=list)
+    file_ids: list[str] | None = None
 
 
 class ContextFilePatch(BaseModel):

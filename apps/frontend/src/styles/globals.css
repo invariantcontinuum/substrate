@@ -3179,6 +3179,41 @@ html {
   font-size: var(--text-sm);
   line-height: 1.45;
 }
+.ctx-files-empty {
+  padding: var(--space-3) 0;
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  line-height: 1.55;
+}
+.ctx-files-empty p { margin: 0 0 var(--space-2); }
+.ctx-files-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+}
+.ctx-files-toolbar-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+  color: var(--fg);
+}
+.ctx-files-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
 .ctx-files-list {
   list-style: none;
   margin: 0;
