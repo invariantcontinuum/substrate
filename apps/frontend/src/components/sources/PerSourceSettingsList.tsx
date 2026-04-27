@@ -7,17 +7,35 @@ function SourceSettingsCard({ source }: { source: Source }) {
   const { updateSource } = useSources();
 
   const ret = (source.config?.retention ?? {}) as Record<string, unknown>;
+  const initialAgeDays =
+    typeof ret.age_days === "number" ? String(ret.age_days) : "";
+  const initialPerCap =
+    typeof ret.per_source_cap === "number" ? String(ret.per_source_cap) : "";
+  const initialNeverPrune = ret.never_prune === true;
+
   const [label, setLabel] = useState(source.name);
   const [enabled, setEnabled] = useState(source.enabled);
-  const [ageDays, setAgeDays] = useState<string>(
-    typeof ret.age_days === "number" ? String(ret.age_days) : "",
-  );
-  const [perCap, setPerCap] = useState<string>(
-    typeof ret.per_source_cap === "number" ? String(ret.per_source_cap) : "",
-  );
-  const [neverPrune, setNeverPrune] = useState<boolean>(ret.never_prune === true);
+  const [ageDays, setAgeDays] = useState<string>(initialAgeDays);
+  const [perCap, setPerCap] = useState<string>(initialPerCap);
+  const [neverPrune, setNeverPrune] = useState<boolean>(initialNeverPrune);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  const dirty =
+    label !== source.name ||
+    enabled !== source.enabled ||
+    ageDays !== initialAgeDays ||
+    perCap !== initialPerCap ||
+    neverPrune !== initialNeverPrune;
+
+  function reset() {
+    setLabel(source.name);
+    setEnabled(source.enabled);
+    setAgeDays(initialAgeDays);
+    setPerCap(initialPerCap);
+    setNeverPrune(initialNeverPrune);
+    setError(null);
+  }
 
   async function save() {
     setError(null);
@@ -117,8 +135,21 @@ function SourceSettingsCard({ source }: { source: Source }) {
           </label>
           {error && <p className="config-error">{error}</p>}
           <div className="config-actions">
-            <button onClick={() => void save()} disabled={saving}>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => void save()}
+              disabled={saving || !dirty}
+            >
               {saving ? "Saving…" : "Save"}
+            </button>
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={reset}
+              disabled={saving || !dirty}
+            >
+              Reset
             </button>
           </div>
         </div>
