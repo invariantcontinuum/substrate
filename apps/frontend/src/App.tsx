@@ -147,7 +147,7 @@ function App() {
       <Routes>
       <Route path="/callback" element={<CallbackPage />} />
       <Route
-        path="/"
+        path="/*"
         element={
           <RequireAuth>
             <DashboardLayout />

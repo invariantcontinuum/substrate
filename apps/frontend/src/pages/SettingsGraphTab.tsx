@@ -11,6 +11,7 @@ import {
   useEffectiveConfig,
   useApplyConfig,
 } from "@/hooks/useRuntimeConfig";
+import { useAuthToken } from "@/hooks/useAuthToken";
 import { apiFetch } from "@/lib/api";
 import { logger } from "@/lib/logger";
 
@@ -32,10 +33,6 @@ interface RecomputeResponse {
   config_used: LeidenConfig | null;
 }
 
-function authToken(): string | undefined {
-  return (window as Window & { __authToken?: string }).__authToken;
-}
-
 export function SettingsGraphTab() {
   const storeSyncIds = useSyncSetStore((s) => s.syncIds);
   // Re-mount the inner editor when the global active set identity changes
@@ -51,6 +48,7 @@ interface EditorProps {
 function GraphSettingsEditor({ seed }: EditorProps) {
   const { config: graphCfg } = useEffectiveConfig<GraphConfig>("graph");
   const apply = useApplyConfig("graph");
+  const token = useAuthToken();
 
   const setActiveSet = useSyncSetStore((s) => s.setActiveSet);
   const staged = useCarouselStore((s) => s.stagedConfig);
@@ -85,7 +83,6 @@ function GraphSettingsEditor({ seed }: EditorProps) {
   };
 
   const onRecompute = async () => {
-    const token = authToken();
     if (!token || selectedSyncIds.length === 0) return;
     try {
       const data = await apiFetch<RecomputeResponse>(
