@@ -39,7 +39,19 @@ export function useApplyChatContext() {
         },
       ),
     onSuccess: (data) => {
+      // Write through to BOTH the React Query cache AND the persisted
+      // Zustand store. The query cache hydrates components mounting via
+      // ``useChatContext``; the store serves components that read the
+      // active selection directly (ChatPlaceholder, ContextBudgetPill,
+      // ChatContextSummaryPill) without subscribing to the query —
+      // critical when the Settings modal closes and the chat page
+      // re-mounts before the next query refresh would fire.
       qc.setQueryData(QK, data);
+      useChatContextStore.getState().setActive(data.active);
+      // Invalidate so any future consumer of `useChatContext()`
+      // revalidates against the server (defence against optimistic vs
+      // server drift if the backend canonicalises the payload).
+      qc.invalidateQueries({ queryKey: QK });
     },
   });
 }
