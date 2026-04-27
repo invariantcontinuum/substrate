@@ -3909,60 +3909,88 @@ html {
   gap: var(--space-5);
 }
 
-.settings-auth__subhead {
-  margin-top: var(--space-3);
+/* ── Settings-card surface ──────────────────────────────────────
+ * Card chrome used by the Authentication tab and the Profile tab to
+ * group related controls (password, 2FA, API tokens, devices,
+ * danger zone). Each card owns its own padding + section header,
+ * so the surrounding `.settings-modal__content` only needs gap.
+ * Inputs inside automatically pick up the canonical 36px field
+ * chrome from the `.settings-modal__content` rules. */
+.settings-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.settings-card > .section-header {
   margin-bottom: var(--space-2);
-  font-size: var(--text-sm);
-  font-weight: 600;
-  color: var(--fg-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+}
+.settings-card > .modal-actions,
+.settings-card > .auth-form-actions {
+  margin-top: 0;
 }
 
-/* ---- Authentication tab — D3 rebuild ---- */
+/* ── Authentication tab forms ────────────────────────────────────
+ * Stacked label + control with the canonical input chrome inherited
+ * from `.settings-modal__content input`. The `.auth-form-actions` row
+ * sits below every form with consistent right-alignment + top border. */
 .auth-form {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-bottom: 4px;
+  gap: var(--space-3);
 }
 .auth-form-field {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
   font-size: var(--text-sm);
 }
 .auth-form-field > span {
   color: var(--fg-muted);
   font-size: var(--text-xs);
-}
-.auth-form-field input {
-  padding: 6px 10px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xs);
-  font: inherit;
-  font-size: var(--text-sm);
-  color: var(--fg);
-}
-.auth-form-field input:focus {
-  border-color: var(--accent);
-  outline: none;
+  font-weight: var(--fw-medium);
 }
 .auth-form-actions {
   display: flex;
   justify-content: flex-end;
-  margin-top: 6px;
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-soft);
+  margin-top: var(--space-2);
 }
-.auth-inline-ok {
+
+/* Inline status banner — replaces ad-hoc `.auth-inline-ok|error` divs.
+ * Two tones (success / error) using the shared status palette tokens
+ * so light + dark themes stay coherent. */
+.status-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-xs);
   font-size: var(--text-xs);
-  color: #4ade80;
-  margin-top: 4px;
+  border: 1px solid transparent;
 }
-.auth-inline-error {
-  font-size: var(--text-xs);
-  color: #f87171;
-  margin-top: 4px;
+.status-banner.is-ok {
+  color: var(--success);
+  background: rgba(74, 122, 90, 0.10);
+  border-color: rgba(74, 122, 90, 0.35);
+}
+.status-banner.is-error {
+  color: var(--danger);
+  background: rgba(161, 59, 59, 0.10);
+  border-color: rgba(161, 59, 59, 0.35);
+}
+:root[data-theme="dark"] .status-banner.is-ok {
+  background: rgba(138, 174, 147, 0.12);
+  border-color: rgba(138, 174, 147, 0.30);
+}
+:root[data-theme="dark"] .status-banner.is-error {
+  background: rgba(217, 122, 118, 0.12);
+  border-color: rgba(217, 122, 118, 0.30);
 }
 .auth-2fa-disabled {
   color: var(--fg-muted);
@@ -4028,8 +4056,9 @@ html {
 .auth-tokens-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-top: 4px;
+  gap: var(--space-1);
+  max-height: 360px;
+  overflow-y: auto;
 }
 .auth-token-cell {
   display: flex;
@@ -4110,32 +4139,76 @@ html {
 
 /* ---- Account page ---- */
 .account-page { height: 100%; overflow-y: auto; }
-.account-tab-body { padding: 12px; max-width: 720px; margin: 0 auto; }
-.profile-head { display: flex; align-items: center; gap: 14px; margin-bottom: 10px; }
-.profile-name { font-weight: 600; }
-.profile-email { opacity: 0.55; font-size: 11px; }
+.profile-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+.profile-head-meta { flex: 1 1 auto; min-width: 0; }
+.profile-name {
+  font-weight: var(--fw-semibold);
+  font-size: var(--text-md);
+  color: var(--fg);
+}
+.profile-email {
+  color: var(--fg-muted);
+  font-size: var(--text-xs);
+  margin-top: 2px;
+  word-break: break-all;
+}
 .profile-avatar-wrap {
-  width: 44px; height: 44px;
+  width: 56px;
+  height: 56px;
   flex-shrink: 0;
 }
 .profile-avatar-actions {
-  margin-left: auto;
   display: inline-flex;
-  gap: 6px;
+  gap: var(--space-2);
+  align-items: center;
+  flex-shrink: 0;
+}
+.profile-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  color: var(--fg);
+}
+.profile-toggle input[type="checkbox"] {
+  width: auto;
+  height: auto;
+  margin: 0;
+  accent-color: var(--accent);
 }
 .avatar {
-  display: flex; align-items: center; justify-content: center;
-  width: 44px; height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #5cf, #2a7ac9);
-  color: #0a0a0a; font-weight: 700;
+  background: linear-gradient(135deg, var(--accent-soft), var(--accent));
+  color: var(--accent-contrast);
+  font-weight: var(--fw-bold);
+  font-size: var(--text-lg);
 }
 .avatar-image {
   display: block;
-  width: 44px; height: 44px;
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
   object-fit: cover;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--surface-sunken);
+}
+
+/* Danger zone variant — same card chrome, border tinted with the
+ * status danger token so it reads as a separated commit zone. */
+.settings-card.is-danger-card {
+  border-color: rgba(161, 59, 59, 0.35);
+}
+:root[data-theme="dark"] .settings-card.is-danger-card {
+  border-color: rgba(217, 122, 118, 0.30);
 }
 
 /* Inline avatar crop modal — overlays the settings tab body, not the
@@ -4191,19 +4264,19 @@ html {
   letter-spacing: 0.02em;
 }
 .devices-list {
-  max-height: 400px;
+  max-height: 360px;
   overflow-y: auto;
-  border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
-  border-radius: 8px;
-  padding: 4px;
+  display: flex;
+  flex-direction: column;
 }
-.devices-list .ui-row { padding: 8px 10px; }
-.devices-list .ui-row + .ui-row {
-  border-top: 1px solid var(--border, rgba(255, 255, 255, 0.06));
-}
+.devices-list .ui-row { padding: var(--space-2) 0; }
 .billing-placeholder {
-  padding: 18px; border: 1px dashed rgba(255,255,255,0.12);
-  border-radius: 10px; text-align: center;
+  padding: var(--space-5);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-md);
+  text-align: center;
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
 }
 
 /* ---- Carousel (P2) ---- */

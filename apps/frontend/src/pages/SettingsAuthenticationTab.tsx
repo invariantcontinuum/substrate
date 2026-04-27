@@ -100,11 +100,21 @@ type InlineStatus =
 export function SettingsAuthenticationTab() {
   return (
     <div className="settings-auth">
-      <CurrentSessionSection />
-      <PasswordSection />
-      <TwoFactorSection />
-      <ApiTokensSection />
-      <DevicesSection />
+      <section className="settings-card">
+        <CurrentSessionSection />
+      </section>
+      <section className="settings-card">
+        <PasswordSection />
+      </section>
+      <section className="settings-card">
+        <TwoFactorSection />
+      </section>
+      <section className="settings-card">
+        <ApiTokensSection />
+      </section>
+      <section className="settings-card">
+        <DevicesSection />
+      </section>
     </div>
   );
 }
@@ -166,7 +176,7 @@ function CurrentSessionSection() {
         </ConfirmButton>
       </Row>
       {status.kind !== "idle" && (
-        <div className={`auth-inline-${status.kind}`}>{status.message}</div>
+        <div className={`status-banner is-${status.kind}`}>{status.message}</div>
       )}
     </>
   );
@@ -266,7 +276,7 @@ function PasswordSection() {
           </button>
         </div>
         {status.kind !== "idle" && (
-          <div className={`auth-inline-${status.kind}`}>{status.message}</div>
+          <div className={`status-banner is-${status.kind}`}>{status.message}</div>
         )}
       </form>
     </>
@@ -394,7 +404,7 @@ function TwoFactorSection() {
               {startSetup.isPending ? "Starting…" : "Set up 2FA"}
             </button>
           </Row>
-          {topError && <div className="auth-inline-error">{topError}</div>}
+          {topError && <div className="status-banner is-error">{topError}</div>}
         </>
       )}
 
@@ -433,7 +443,7 @@ function TwoFactorSection() {
               onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
             />
             {setupError && (
-              <div className="auth-inline-error">{setupError}</div>
+              <div className="status-banner is-error">{setupError}</div>
             )}
             <div className="modal-actions">
               <button
@@ -616,7 +626,7 @@ function ApiTokensSection() {
               />
             </label>
             {createError && (
-              <div className="auth-inline-error">{createError}</div>
+              <div className="status-banner is-error">{createError}</div>
             )}
             <div className="modal-actions">
               <button

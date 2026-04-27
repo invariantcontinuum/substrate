@@ -357,46 +357,56 @@ export function AccountProfileTab() {
 
   return (
     <>
-      <div className="profile-head">
-        <div className="profile-avatar-wrap">
-          {hasAvatar ? (
-            // Bearer auth on the avatar endpoint forces us to render
-            // through fetch+blob rather than the native <img src> path,
-            // since the browser doesn't attach the JWT automatically.
-            // We fall back to the initial-letter Avatar on any error.
-            <AvatarImage
-              token={token}
-              bust={avatarBust}
-              fallbackName={displayName ?? null}
-              fallbackEmail={email ?? null}
-              onMissing={() => setHasAvatar(false)}
-            />
-          ) : (
-            <Avatar name={displayName} email={email} />
-          )}
-        </div>
-        <div>
-          <div className="profile-name">{displayName ?? "—"}</div>
-          <div className="profile-email">{email ?? "—"}</div>
-        </div>
-        <div className="profile-avatar-actions">
-          <button type="button" className="btn-secondary" onClick={openFilePicker}>
-            Upload
-          </button>
-          {hasAvatar && (
-            <button type="button" className="btn-ghost" onClick={deleteAvatar}>
-              Remove
+      <section className="settings-card profile-head-card">
+        <div className="profile-head">
+          <div className="profile-avatar-wrap">
+            {hasAvatar ? (
+              // Bearer auth on the avatar endpoint forces us to render
+              // through fetch+blob rather than the native <img src> path,
+              // since the browser doesn't attach the JWT automatically.
+              // We fall back to the initial-letter Avatar on any error.
+              <AvatarImage
+                token={token}
+                bust={avatarBust}
+                fallbackName={displayName ?? null}
+                fallbackEmail={email ?? null}
+                onMissing={() => setHasAvatar(false)}
+              />
+            ) : (
+              <Avatar name={displayName} email={email} />
+            )}
+          </div>
+          <div className="profile-head-meta">
+            <div className="profile-name">{displayName ?? "—"}</div>
+            <div className="profile-email">{email ?? "—"}</div>
+          </div>
+          <div className="profile-avatar-actions">
+            <button
+              type="button"
+              className="btn-ghost is-sm"
+              onClick={openFilePicker}
+            >
+              Upload
             </button>
-          )}
+            {hasAvatar && (
+              <button
+                type="button"
+                className="btn-ghost is-sm"
+                onClick={deleteAvatar}
+              >
+                Remove
+              </button>
+            )}
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept={ACCEPT_AVATAR_MIME}
+            style={{ display: "none" }}
+            onChange={onFileSelected}
+          />
         </div>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept={ACCEPT_AVATAR_MIME}
-          style={{ display: "none" }}
-          onChange={onFileSelected}
-        />
-      </div>
+      </section>
 
       {pickedSrc && (
         <div className="avatar-crop-overlay">
@@ -421,155 +431,163 @@ export function AccountProfileTab() {
             <div className="avatar-crop-card__actions">
               <button
                 type="button"
-                className="btn-primary"
-                onClick={uploadAvatar}
-                disabled={uploading || !completedCrop}
-              >
-                {uploading ? "Saving…" : "Save avatar"}
-              </button>
-              <button
-                type="button"
                 className="btn-ghost"
                 onClick={cancelCrop}
                 disabled={uploading}
               >
                 Cancel
               </button>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={uploadAvatar}
+                disabled={uploading || !completedCrop}
+              >
+                {uploading ? "Saving…" : "Save avatar"}
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      <SectionHeader title="Account" />
-      <Row
-        k="First name"
-        v={
-          <input
-            type="text"
-            value={form.first_name}
-            onChange={(e) => updateField("first_name", e.target.value)}
-          />
-        }
-      />
-      <Row
-        k="Last name"
-        v={
-          <input
-            type="text"
-            value={form.last_name}
-            onChange={(e) => updateField("last_name", e.target.value)}
-          />
-        }
-      />
-      <Row
-        k="Email"
-        v={
-          <input
-            type="email"
-            value={form.email}
-            onChange={(e) => updateField("email", e.target.value)}
-          />
-        }
-      />
-      <Row
-        k="Phone"
-        v={
-          <input
-            type="tel"
-            value={form.phone}
-            onChange={(e) => updateField("phone", e.target.value)}
-          />
-        }
-      />
-      <Row align="end">
-        <button
-          type="button"
-          className="btn-primary"
-          onClick={saveProfile}
-          disabled={!dirty || savingProfile}
-        >
-          {savingProfile ? "Saving…" : "Save"}
-        </button>
-        <button
-          type="button"
-          className="btn-ghost"
-          onClick={resetProfile}
-          disabled={!dirty || savingProfile}
-        >
-          Reset
-        </button>
-      </Row>
-
-      {idps.length > 0 && (
+      <section className="settings-card">
+        <SectionHeader title="Account" />
         <Row
-          k="Signed in via"
+          k="First name"
           v={
-            <span className="idp-chip-row">
-              {idps.map((p) => (
-                <span key={p} className="idp-chip">
-                  {prettifyIdp(p)}
-                </span>
-              ))}
-            </span>
-          }
-        />
-      )}
-      {accountConsoleUrl && (
-        <Row
-          k="Manage account"
-          v={
-            <a
-              href={accountConsoleUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="btn-ghost"
-            >
-              Open Keycloak ↗
-            </a>
-          }
-        />
-      )}
-
-      <SectionHeader title="Appearance" />
-      <Row
-        k="Theme"
-        v={
-          <select
-            value={theme}
-            onChange={(e) => setTheme(e.target.value as ThemePref)}
-          >
-            <option value="system">System</option>
-            <option value="light">Light</option>
-            <option value="dark">Dark</option>
-          </select>
-        }
-      />
-
-      <SectionHeader title="Telemetry" />
-      <Row
-        k="Send anonymous render times"
-        v={
-          <label>
             <input
-              type="checkbox"
-              checked={telemetry}
-              onChange={(e) => setTelemetry(e.target.checked)}
-            />{" "}
-            {telemetry ? "on" : "off"}
-          </label>
-        }
-      />
+              type="text"
+              value={form.first_name}
+              onChange={(e) => updateField("first_name", e.target.value)}
+            />
+          }
+        />
+        <Row
+          k="Last name"
+          v={
+            <input
+              type="text"
+              value={form.last_name}
+              onChange={(e) => updateField("last_name", e.target.value)}
+            />
+          }
+        />
+        <Row
+          k="Email"
+          v={
+            <input
+              type="email"
+              value={form.email}
+              onChange={(e) => updateField("email", e.target.value)}
+            />
+          }
+        />
+        <Row
+          k="Phone"
+          v={
+            <input
+              type="tel"
+              value={form.phone}
+              onChange={(e) => updateField("phone", e.target.value)}
+            />
+          }
+        />
+        <Row align="end">
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={resetProfile}
+            disabled={!dirty || savingProfile}
+          >
+            Reset
+          </button>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={saveProfile}
+            disabled={!dirty || savingProfile}
+          >
+            {savingProfile ? "Saving…" : "Save"}
+          </button>
+        </Row>
 
-      <SectionHeader title="Danger zone" />
-      <Row danger align="end">
-        <ConfirmButton
-          onConfirm={requestDelete}
-          className="btn-ghost"
-          confirmLabel="Request account deletion?"
-        >
-          Delete account data
-        </ConfirmButton>
-      </Row>
+        {idps.length > 0 && (
+          <Row
+            k="Signed in via"
+            v={
+              <span className="idp-chip-row">
+                {idps.map((p) => (
+                  <span key={p} className="idp-chip">
+                    {prettifyIdp(p)}
+                  </span>
+                ))}
+              </span>
+            }
+          />
+        )}
+        {accountConsoleUrl && (
+          <Row
+            k="Manage account"
+            v={
+              <a
+                href={accountConsoleUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="btn-ghost is-sm"
+              >
+                Open Keycloak
+              </a>
+            }
+          />
+        )}
+      </section>
+
+      <section className="settings-card">
+        <SectionHeader title="Appearance" />
+        <Row
+          k="Theme"
+          v={
+            <select
+              value={theme}
+              onChange={(e) => setTheme(e.target.value as ThemePref)}
+            >
+              <option value="system">System</option>
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+            </select>
+          }
+        />
+      </section>
+
+      <section className="settings-card">
+        <SectionHeader title="Telemetry" />
+        <Row
+          k="Send anonymous render times"
+          v={
+            <label className="profile-toggle">
+              <input
+                type="checkbox"
+                checked={telemetry}
+                onChange={(e) => setTelemetry(e.target.checked)}
+              />
+              <span>{telemetry ? "On" : "Off"}</span>
+            </label>
+          }
+        />
+      </section>
+
+      <section className="settings-card is-danger-card">
+        <SectionHeader title="Danger zone" />
+        <Row align="end">
+          <ConfirmButton
+            onConfirm={requestDelete}
+            className="btn-ghost"
+            confirmLabel="Request account deletion?"
+          >
+            Delete account data
+          </ConfirmButton>
+        </Row>
+      </section>
     </>
   );
 }
