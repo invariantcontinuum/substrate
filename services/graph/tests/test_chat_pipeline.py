@@ -25,15 +25,11 @@ def test_build_prompt_respects_char_budget(monkeypatch):
     # Ensure the history trim logic has plenty of prior turns to drop first.
     monkeypatch.setattr(settings, "chat_history_turns_default", 10)
 
-    retrieved = [
-        {
-            "id": f"node-{i}",
-            "name": f"name-{i}",
-            "type": "file",
-            "description": "x" * 400,  # trimmed to 200 in _node_block
-        }
+    # Build a large files_section and many prior turns to trigger budget trimming.
+    files_section = "\n".join(
+        f"### file-{i}.py  [ref:node-{i}]\n```python\n" + "x" * 400 + "\n```"
         for i in range(12)
-    ]
+    )
     prior_turns = [
         {"role": "user" if i % 2 == 0 else "assistant", "content": "y" * 300}
         for i in range(10)
@@ -42,16 +38,14 @@ def test_build_prompt_respects_char_budget(monkeypatch):
     messages = chat_pipeline._build_prompt(
         user_content="the question",
         prior_turns=prior_turns,
-        retrieved=retrieved,
+        files_section=files_section,
     )
 
     # System prompt is immutable; body + history must fit under budget.
-    # The loop trims prior turns first, then per-node entries, so the
-    # total (including system) should land within a small overshoot.
+    # The loop trims files/history so the total lands within the budget.
     total = chat_pipeline._char_cost(messages)
     system_len = len(settings.chat_system_instruction)
-    # Budget applies to non-system portion; system_len is the unavoidable
-    # overhead, everything else is shrinkable.
+    # Budget applies to non-system portion; system_len is the unavoidable overhead.
     assert total - system_len <= settings.chat_total_budget_chars
     # The last message is the user turn and must still contain the question.
     assert messages[-1]["role"] == "user"

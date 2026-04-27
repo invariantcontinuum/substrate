@@ -273,16 +273,30 @@ async def test_stream_turn_event_order_and_persistence(
     async def _fake_retrieve(**kwargs) -> list[dict]:
         return []
 
-    async def _no_resolved(thread_id, user_sub) -> list[str]:
+    from src.graph.chat_context_resolver import ResolvedScope
+
+    async def _fake_resolve(entries, pool, user_sub_) -> ResolvedScope:
+        return ResolvedScope()
+
+    async def _fake_full_files(pool, file_ids) -> str:
+        return ""
+
+    async def _fake_graph_ctx(neighbors, pool) -> str:
+        return ""
+
+    async def _fake_visible(thread_id_) -> list[dict]:
         return []
 
-    async def _no_snapshot_files(sync_ids) -> list[str]:
-        return []
+    async def _fake_history_turns(pool, user_sub_) -> int:
+        return 12
 
     monkeypatch.setattr(chat_pipeline, "_embed_query", _fake_embed)
     monkeypatch.setattr(chat_pipeline, "retrieve_context_files", _fake_retrieve)
-    monkeypatch.setattr(chat_pipeline, "_resolve_thread_selection", _no_resolved)
-    monkeypatch.setattr(chat_pipeline, "_all_files_for_snapshots", _no_snapshot_files)
+    monkeypatch.setattr(chat_pipeline, "resolve_entries", _fake_resolve)
+    monkeypatch.setattr(chat_pipeline, "_format_full_files_section", _fake_full_files)
+    monkeypatch.setattr(chat_pipeline, "_format_graph_context_section", _fake_graph_ctx)
+    monkeypatch.setattr(chat_pipeline, "list_visible_messages", _fake_visible)
+    monkeypatch.setattr(chat_pipeline, "_effective_history_turns", _fake_history_turns)
 
     # Set up a subscriber BEFORE running stream_turn.
     bus = SseBus(store.get_pool())
@@ -392,8 +406,17 @@ def _patch_no_db_helpers(monkeypatch):
     running Postgres instance.
     """
     from src.graph import store as _store
+    from src.graph.chat_context_resolver import ResolvedScope
 
-    monkeypatch.setattr(_store, "get_pool", lambda: None)
+    # Return a minimal fake pool that handles the fetchrow call in stream_turn.
+    class _FakePool:
+        async def fetchrow(self, *args, **kwargs):
+            return None
+
+        async def fetch(self, *args, **kwargs):
+            return []
+
+    monkeypatch.setattr(_store, "get_pool", lambda: _FakePool())
 
     async def _fake_embed(text: str) -> list[float]:
         return [0.0] * 768
@@ -401,19 +424,31 @@ def _patch_no_db_helpers(monkeypatch):
     async def _fake_retrieve(**kwargs) -> list[dict]:
         return []
 
-    async def _no_resolved(thread_id, user_sub) -> list[str]:
+    async def _fake_resolve(entries, pool, user_sub) -> ResolvedScope:
+        return ResolvedScope()
+
+    async def _fake_full_files(pool, file_ids) -> str:
+        return ""
+
+    async def _fake_graph_ctx(neighbors, pool) -> str:
+        return ""
+
+    async def _fake_visible(thread_id) -> list[dict]:
         return []
 
-    async def _no_snapshot_files(sync_ids) -> list[str]:
-        return []
+    async def _fake_history_turns(pool, user_sub) -> int:
+        return 12
 
     async def _fake_hydrate(node_ids: list[str]) -> list[dict]:
         return []
 
     monkeypatch.setattr(chat_pipeline, "_embed_query", _fake_embed)
     monkeypatch.setattr(chat_pipeline, "retrieve_context_files", _fake_retrieve)
-    monkeypatch.setattr(chat_pipeline, "_resolve_thread_selection", _no_resolved)
-    monkeypatch.setattr(chat_pipeline, "_all_files_for_snapshots", _no_snapshot_files)
+    monkeypatch.setattr(chat_pipeline, "resolve_entries", _fake_resolve)
+    monkeypatch.setattr(chat_pipeline, "_format_full_files_section", _fake_full_files)
+    monkeypatch.setattr(chat_pipeline, "_format_graph_context_section", _fake_graph_ctx)
+    monkeypatch.setattr(chat_pipeline, "list_visible_messages", _fake_visible)
+    monkeypatch.setattr(chat_pipeline, "_effective_history_turns", _fake_history_turns)
     monkeypatch.setattr(chat_pipeline, "_hydrate_citations", _fake_hydrate)
 
 
@@ -463,13 +498,12 @@ async def test_stream_turn_prompt_build_error_emits_failed_no_raise(monkeypatch,
     The client must never hang after receiving 202."""
     _patch_no_db_helpers(monkeypatch)
 
-    # The Phase-6 retrieval pipeline runs first; failing it surfaces as the
-    # prompt-build error path because nothing downstream of CHAT_TURN_STARTED
-    # has fired yet.
-    async def _exploding_retrieve(**kwargs) -> list[dict]:
+    # Failing the full-file section builder surfaces as the prompt-build error
+    # path because nothing downstream of CHAT_TURN_STARTED has fired yet.
+    async def _exploding_files(pool, file_ids) -> str:
         raise RuntimeError("embed service unavailable")
 
-    monkeypatch.setattr(chat_pipeline, "retrieve_context_files", _exploding_retrieve)
+    monkeypatch.setattr(chat_pipeline, "_format_full_files_section", _exploding_files)
 
     # stream_turn must NOT raise
     await chat_pipeline.stream_turn(

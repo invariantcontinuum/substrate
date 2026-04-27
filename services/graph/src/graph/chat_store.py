@@ -97,6 +97,21 @@ async def list_messages(thread_id: UUID) -> list[dict]:
     return [_row_to_message(r) for r in rows]
 
 
+async def list_visible_messages(thread_id: UUID) -> list[dict]:
+    """Visible to the user = not superseded."""
+    msgs = await list_messages(thread_id)
+    return [m for m in msgs if m.get("superseded_by") is None]
+
+
+async def set_supersedes(pool, message_id: UUID, *, by: UUID) -> None:
+    """Mark message_id as superseded by the given message id."""
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE chat_messages SET superseded_by = $1 WHERE id = $2",
+            by, message_id,
+        )
+
+
 async def list_active_messages_before(
     thread_id: UUID, before_created_at: Any,
 ) -> list[dict]:

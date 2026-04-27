@@ -19,10 +19,11 @@ Phase 7 additions:
   falls back to parsing ``[CITE filepath:start-end "reason"]`` markers
   out of the assistant text via regex so evidence still lands.
 
-The full-content reconstruction path that previously fed entire file
-bodies into the prompt has been removed (pre-MVP "no back-compat" rule).
-The pipeline now hands the LLM ranked file *descriptions + metadata*
-only; the LLM cites by node id and the UI hydrates excerpts on demand.
+Phase 8 additions:
+- Full file content is injected into the prompt via ``_format_full_files_section``.
+- Thread context is resolved via ``resolve_entries`` from ``chat_context_resolver``.
+- History uses ``list_visible_messages`` (non-superseded only).
+- A Graph Context section is emitted for ``node_neighborhood`` entries.
 """
 from __future__ import annotations
 
@@ -42,6 +43,11 @@ from substrate_common.sse import Event, safe_publish
 from src.api.routes import _embed_query
 from src.config import settings
 from src.graph import store
+from src.graph.chat_context_resolver import (
+    Entry, Neighbor, _parse_entry, resolve_entries,
+)
+from src.graph.chat_store import list_visible_messages
+from src.graph.file_full_content import IncompleteReconstruction, load_full
 from src.graph.reranker import rerank
 from src.graph.rrf import rrf_fuse
 from src.graph.sparse_retrieval import sparse_top_k
@@ -120,121 +126,6 @@ def extract_citation_markers(text: str) -> list[str]:
 # ---------------------------------------------------------------------------
 # Phase-6 retrieval pipeline
 # ---------------------------------------------------------------------------
-
-
-async def _all_files_for_snapshots(sync_ids: list[str]) -> list[str]:
-    """Return every ``file_embeddings.id`` for the given sync_ids.
-
-    Used both as the "kind=all" resolution path and as the fallback
-    when a more selective resolution returns nothing.
-    """
-    if not sync_ids:
-        return []
-    pool = store.get_pool()
-    async with pool.acquire() as conn:
-        rows = await conn.fetch(
-            """
-            SELECT id::text AS file_id
-            FROM file_embeddings
-            WHERE sync_id = ANY($1::uuid[])
-            """,
-            sync_ids,
-        )
-    return [r["file_id"] for r in rows]
-
-
-async def _files_in_communities(
-    user_sub: str, community_refs: list[dict],
-) -> set[str]:
-    """Intersect leiden_cache.assignments with wanted (cache_key, community_index)."""
-    if not community_refs:
-        return set()
-    cache_keys = list({c["cache_key"] for c in community_refs})
-    wanted = {
-        (c["cache_key"], int(c["community_index"]))
-        for c in community_refs
-    }
-    pool = store.get_pool()
-    async with pool.acquire() as conn:
-        rows = await conn.fetch(
-            """
-            SELECT cache_key, assignments
-            FROM leiden_cache
-            WHERE user_sub = $1 AND cache_key = ANY($2::text[])
-              AND expires_at > now()
-            """,
-            user_sub, cache_keys,
-        )
-    out: set[str] = set()
-    for r in rows:
-        ck = r["cache_key"]
-        blob = r["assignments"]
-        if isinstance(blob, str):
-            blob = json.loads(blob)
-        if not isinstance(blob, dict):
-            continue
-        for node_id, idx in blob.items():
-            try:
-                idx_int = int(idx)
-            except (TypeError, ValueError):
-                continue
-            if (ck, idx_int) in wanted:
-                out.add(str(node_id))
-    return out
-
-
-async def _resolve_thread_selection(
-    thread_id: UUID, user_sub: str,
-) -> list[str]:
-    """Resolve a thread's frozen scope+selection to a flat file_id list.
-
-    Branches on `selection.kind`:
-      - "all"         -> every file under scope.sync_ids
-      - "files"       -> selection.file_ids ∩ scope files
-      - "communities" -> files whose node_id appears in any of the
-                         selected (cache_key, community_index) pairs
-      - "directories" -> files under scope whose path starts with any
-                         of selection.dir_prefixes
-    """
-    from src.graph import chat_context_store
-
-    ctx = await chat_context_store.get_thread_context(thread_id)
-    sync_ids = list(ctx.get("scope", {}).get("sync_ids", []))
-    selection = ctx.get("selection") or {"kind": "all"}
-    kind = selection.get("kind", "all")
-
-    scope_files = set(await _all_files_for_snapshots(sync_ids))
-    if not scope_files or kind == "all":
-        return sorted(scope_files)
-    if kind == "files":
-        wanted = set(selection.get("file_ids") or [])
-        return sorted(scope_files & wanted)
-    if kind == "communities":
-        community_files = await _files_in_communities(
-            user_sub, selection.get("communities") or [],
-        )
-        return sorted(scope_files & community_files)
-    if kind == "directories":
-        prefixes = list(selection.get("dir_prefixes") or [])
-        if not prefixes:
-            return []
-        # Pull paths for the scope files once; filter in Python.
-        pool = store.get_pool()
-        async with pool.acquire() as conn:
-            rows = await conn.fetch(
-                """
-                SELECT id::text AS file_id, file_path
-                FROM file_embeddings
-                WHERE id = ANY($1::uuid[])
-                """,
-                list(scope_files),
-            )
-        return sorted(
-            r["file_id"] for r in rows
-            if any(r["file_path"].startswith(p) for p in prefixes)
-        )
-    # Unknown kind = empty — caller falls back to "no retrieval".
-    return []
 
 
 async def retrieve_context_files(
@@ -347,128 +238,63 @@ async def _hydrate_descriptions(items: list[dict]) -> list[dict]:
     return out
 
 
-def _format_files_section(files: list[dict]) -> str:
-    """Render the ranked file list as a markdown bullet section.
-
-    Empty input collapses to "" so the prompt builder can drop the
-    section header without leaving an awkward "Files in scope:" with
-    nothing under it.
-    """
-    if not files:
-        return ""
-    lines = ["### Files in scope (ranked by relevance):"]
-    for f in files:
-        size_kb = (f.get("size_bytes") or 0) / 1024
-        desc = (f.get("description") or "").strip() or "(no description)"
-        lang = f.get("language") or "plain"
-        path = f.get("file_path") or f.get("name") or f.get("file_id") or ""
-        lines.append(
-            f"- **{path}** ({lang}, {size_kb:.1f} KB) — node_id={f.get('file_id')} — {desc}"
-        )
-    return "\n".join(lines)
-
-
 # ---------------------------------------------------------------------------
 # Prompt assembly
 # ---------------------------------------------------------------------------
 
 
+def _format_history_section(history: list[dict]) -> str:
+    """Render the visible-only history as a markdown block.
+
+    Returns "" when there are no prior turns so the prompt builder
+    drops the section entirely — no "History (0 messages)" literal.
+    """
+    if not history:
+        return ""
+    lines = [f"### {m['role']}: {m['content']}" for m in history]
+    return "## History\n\n" + "\n\n".join(lines)
+
+
 def _build_prompt(
-    *, user_content: str, prior_turns: list[dict], retrieved: list[dict] | None = None,
-    graph_context: dict[str, Any] | None = None,
-    sync_ids: list | None = None,
-    files_section: str | None = None,
+    *, user_content: str, prior_turns: list[dict],
+    files_section: str = "",
+    graph_section: str = "",
 ) -> list[dict]:
     """Assemble the system + history + user prompt under ``chat_total_budget_chars``.
 
-    ``files_section`` (Phase 6) is a pre-rendered markdown block summarising
-    the ranked context files; when present it replaces the legacy
-    "Node context" header. The file list still trims oldest history /
-    lowest-ranked items if the budget is exceeded.
+    ``files_section`` is a pre-rendered full-content block for the context
+    files. ``graph_section`` is a pre-rendered edge-list block for
+    node_neighborhood entries. Both collapse to "" when empty so no
+    placeholder headers bleed into the prompt.
     """
     budget = settings.chat_total_budget_chars
-    retrieved = retrieved or []
 
-    # Per-node block — embeds the full file summary (description column)
-    # up to the per-node cap. The previous 200-char truncation lost the
-    # bulk of the embedded summary; the LLM was effectively reasoning
-    # from filenames + types alone. The outer budget guard below still
-    # trims oldest history / lowest-ranked nodes if the prompt grows
-    # past `chat_total_budget_chars`, so a generous per-node cap is
-    # safe — it only loosens the worst-case where we *had* room.
-    def _node_block(n: dict) -> str:
-        desc = (n.get("description") or "").strip().replace("\n", " ")
-        # Phase 6 candidates carry `file_id`; legacy callers carry `id`.
-        node_id = n.get("file_id") or n.get("id") or ""
-        return (
-            f"- node_id={node_id} name={n.get('name') or ''} "
-            f"type={n.get('type') or ''} desc={desc[:1500]}"
-        )
-
-    if files_section is not None:
-        nodes_section = files_section
-        header = ""
-    else:
-        nodes_section = "\n".join(_node_block(n) for n in retrieved)
-        header = "### Node context (from the user's active sync set):\n"
     system = settings.chat_system_instruction
     if settings.chat_tools_enabled:
         evidence_addendum = (settings.chat_evidence_instruction or "").strip()
         if evidence_addendum:
             system = f"{system}\n\n{evidence_addendum}"
-    graph_section = ""
-    if graph_context:
-        gc_nodes = graph_context.get("nodes") or []
-        gc_edges = graph_context.get("edges") or []
-        if gc_nodes:
-            graph_nodes_lines = "\n".join(
-                f"- node_id={n.get('id')} name={n.get('name') or ''} type={n.get('type') or ''}"
-                for n in gc_nodes
-            )
-            graph_edges_lines = "\n".join(
-                f"- {e.get('source')} -> {e.get('type') or 'rel'} -> {e.get('target')}"
-                for e in gc_edges
-            )
-            graph_section = (
-                "\n\n### Currently rendered graph topology:\n"
-                f"Nodes:\n{graph_nodes_lines}\n"
-            )
-            if graph_edges_lines:
-                graph_section += f"Relationships:\n{graph_edges_lines}\n"
-    user_prefix = "\n\n### Question:\n"
+
+    user_section = f"## Question\n\n{user_content}"
 
     messages: list[dict] = [{"role": "system", "content": system}]
-    history = prior_turns[-settings.chat_history_turns_default * 2:]
-    messages.extend([{"role": t["role"], "content": t["content"]} for t in history])
+    messages.extend([{"role": t["role"], "content": t["content"]} for t in prior_turns])
 
-    prompt_body = header + nodes_section + graph_section + user_prefix + user_content
+    nodes_section = files_section
+    # History is in the messages list already; don't duplicate it in the body.
+    prompt_parts = [p for p in (nodes_section, graph_section, user_section) if p]
+    prompt_body = "\n\n".join(prompt_parts)
+
+    # Trim files section line-by-line if over budget.
     while _char_cost(messages) + len(prompt_body) > budget and nodes_section:
         lines = nodes_section.splitlines()
         if len(lines) <= 1:
             break
         nodes_section = "\n".join(lines[:-1])
-        prompt_body = header + nodes_section + graph_section + user_prefix + user_content
-    # If still over budget, trim graph context
-    while _char_cost(messages) + len(prompt_body) > budget and graph_section:
-        # Drop edges first, then halve nodes
-        if "Relationships:" in graph_section:
-            graph_section = graph_section.split("Relationships:")[0]
-            prompt_body = header + nodes_section + graph_section + user_prefix + user_content
-            continue
-        gc_nodes = graph_context.get("nodes") or [] if graph_context else []
-        if len(gc_nodes) > 5:
-            half = len(gc_nodes) // 2
-            graph_nodes_lines = "\n".join(
-                f"- node_id={n.get('id')} name={n.get('name') or ''} type={n.get('type') or ''}"
-                for n in gc_nodes[:half]
-            )
-            graph_section = (
-                "\n\n### Currently rendered graph topology:\n"
-                f"Nodes:\n{graph_nodes_lines}\n"
-            )
-            prompt_body = header + nodes_section + graph_section + user_prefix + user_content
-            continue
-        break
+        prompt_parts = [p for p in (nodes_section, graph_section, user_section) if p]
+        prompt_body = "\n\n".join(prompt_parts)
+
+    # Trim oldest history messages if still over budget.
     while _char_cost(messages) + len(prompt_body) > budget and len(messages) > 1:
         messages.pop(1)
 
@@ -478,6 +304,82 @@ def _build_prompt(
 
 def _char_cost(messages: list[dict]) -> int:
     return sum(len(m.get("content", "")) for m in messages)
+
+
+# ---------------------------------------------------------------------------
+# Phase-8 prompt section builders
+# ---------------------------------------------------------------------------
+
+
+async def _format_full_files_section(pool, file_ids: list) -> str:
+    """Emit one fenced block per file with the FULL source content."""
+    if not file_ids:
+        return ""
+    blocks: list[str] = []
+    for fid in file_ids:
+        meta = await pool.fetchrow(
+            "SELECT file_path, language FROM file_embeddings WHERE id = $1", fid,
+        )
+        if meta is None:
+            continue
+        try:
+            text = await load_full(pool, fid)
+        except IncompleteReconstruction as exc:
+            logger.warning(
+                "file_full_content_incomplete",
+                file_id=str(exc.file_id),
+                covered_lines=exc.covered_lines,
+                total_lines=exc.total_lines,
+            )
+            text = await _load_partial(pool, fid)
+        numbered = "\n".join(
+            f"{i+1:>5}| {line}" for i, line in enumerate(text.splitlines())
+        )
+        lang = (meta["language"] or "").lower()
+        blocks.append(
+            f"### {meta['file_path']}  [ref:{fid}]\n```{lang}\n{numbered}\n```"
+        )
+    return "\n\n".join(blocks)
+
+
+async def _load_partial(pool, file_id) -> str:
+    """Best-effort fallback when chunks under-cover the file."""
+    rows = await pool.fetch(
+        "SELECT content FROM content_chunks WHERE file_id = $1 ORDER BY chunk_index",
+        file_id,
+    )
+    return "\n".join(r["content"] for r in rows)
+
+
+async def _format_graph_context_section(neighbors: list[Neighbor], pool) -> str:
+    """Emit a 'Graph context' block for node_neighborhood entries."""
+    if not neighbors:
+        return ""
+    lines: list[str] = []
+    for n in neighbors:
+        seed = await _path_for(pool, n.seed_id)
+        nbr  = await _path_for(pool, n.neighbor_id)
+        arrow = {"out": "→", "in": "←", "undirected": "—"}[n.direction]
+        lines.append(f"- {seed}  ─[{n.edge_type}]{arrow}  {nbr}")
+    return f"## Graph context ({len(neighbors)} edges)\n\n" + "\n".join(lines)
+
+
+async def _path_for(pool, file_id) -> str:
+    row = await pool.fetchrow(
+        "SELECT file_path FROM file_embeddings WHERE id = $1", file_id,
+    )
+    return row["file_path"] if row else f"<unknown:{file_id}>"
+
+
+async def _effective_history_turns(pool, user_sub: str) -> int:
+    row = await pool.fetchrow(
+        "SELECT chat_settings FROM user_profiles WHERE sub = $1", user_sub,
+    )
+    if row is not None and isinstance(row["chat_settings"], dict):
+        v = row["chat_settings"].get("history_turns")
+        if isinstance(v, int) and v >= 0:
+            return v
+    return settings.chat_history_turns_default
 
 
 # ---------------------------------------------------------------------------
@@ -602,26 +504,38 @@ async def stream_turn(
         # Build the context-aware prompt. Any exception here (DB timeout,
         # embed failure, …) is caught below and published as CHAT_TURN_FAILED
         # so the client is never left hanging after the 202 response.
-        sync_ids_str = [str(s) for s in (sync_ids or [])]
-        # Single source of truth: per-thread frozen scope + selection.
-        # An empty result (e.g. directories mode with no matching prefix,
-        # or kind=files with zero file_ids) is intentional — retrieval
-        # receives an empty list and returns no files; the LLM proceeds
-        # on chat history alone.
-        selected_ids = await _resolve_thread_selection(thread_id, user_sub)
-        chat_files = await retrieve_context_files(
-            query=user_content,
-            selected_file_ids=selected_ids,
-            snapshot_ids=sync_ids_str,
+        pool = store.get_pool()
+
+        # Resolve thread context entries to file_ids + neighbors.
+        ctx_row = await pool.fetchrow(
+            "SELECT context FROM chat_threads WHERE id = $1", thread_id,
         )
-        files_section = _format_files_section(chat_files)
+        entries_raw = (ctx_row["context"] or {}).get("entries", []) if ctx_row else []
+        entries = [_parse_entry(e) for e in entries_raw]
+
+        scope = await resolve_entries(entries, pool, user_sub)
+        files_section = await _format_full_files_section(pool, scope.file_ids)
+        graph_section = await _format_graph_context_section(scope.neighbors, pool)
+
+        # Load visible (non-superseded) history and slice to the turn window.
+        # The current user message is already in chat_messages; exclude it
+        # so the history passed to the LLM contains only completed turns.
+        turns = await _effective_history_turns(pool, user_sub)
+        prior_all = await list_visible_messages(thread_id)
+        # Exclude the most-recent message if it is the in-flight user turn
+        # (role=user, no assistant reply yet). The caller still supplies
+        # prior_turns for context; we use the fresh DB-loaded list instead.
+        sliced_turns = prior_all[-turns * 2:]
+        # Drop the tail if it is the current (user) in-flight message.
+        if sliced_turns and sliced_turns[-1].get("role") == "user":
+            sliced_turns = sliced_turns[:-1]
+
+        chat_files: list[dict] = []
         messages = _build_prompt(
             user_content=user_content,
-            prior_turns=prior_turns,
-            retrieved=chat_files,
-            graph_context=graph_context,
-            sync_ids=sync_ids,
+            prior_turns=sliced_turns,
             files_section=files_section,
+            graph_section=graph_section,
         )
 
         await safe_publish(Event(
@@ -691,19 +605,8 @@ async def stream_turn(
                 for m in messages
                 if m.get("role") in ("user", "assistant")
             ]
-            files_for_storage = [
-                {
-                    "file_id": f.get("file_id") or f.get("id"),
-                    "filepath": f.get("file_path"),
-                    "language": f.get("language"),
-                    "type": f.get("type"),
-                    "size_bytes": f.get("size_bytes"),
-                    # Cap descriptions so a single long block can't blow
-                    # the JSONB row size if a description ever grows wild.
-                    "description": (f.get("description") or "")[:2000],
-                }
-                for f in (chat_files or [])
-            ]
+            # Store the resolved file_ids as a flat list for the context panel.
+            files_for_storage = [{"file_id": str(fid)} for fid in scope.file_ids]
             # Naive 4-char ≈ 1-token estimate matches the rest of the
             # pipeline's char-budgeting heuristic; swapping in tiktoken
             # later only affects the displayed numbers.
