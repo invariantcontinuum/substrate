@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useThreadContextFiles } from "@/hooks/useThreadContextFiles";
 import { useChatMessages } from "@/hooks/useChatMessages";
+import { useChatContextStore } from "@/stores/chatContext";
 
 const BUDGET = 24000;
 /**
@@ -37,6 +38,13 @@ export function ContextBudgetPill({
 }) {
   const { data } = useThreadContextFiles(threadId);
   const { data: messages } = useChatMessages(threadId);
+  // When threadId is null (brand-new chat with no first turn yet) or the
+  // thread has no per-thread context files (retrieval hasn't fired yet),
+  // fall back to the user's active chat-context so the pill reflects
+  // the *planned* scope. Subscribing to the Zustand store gets us
+  // realtime updates the moment the user applies a new selection in
+  // Settings → Chat Context — no remount needed.
+  const activeContext = useChatContextStore((s) => s.active);
 
   const used = useMemo(() => {
     if (!data) return 0;
@@ -59,7 +67,22 @@ export function ContextBudgetPill({
   // even on a brand-new thread (threadId still null) or when no files
   // have been attached yet (file_count = 0). The pill is the single
   // affordance into the context-files modal.
-  const fileCount = data?.totals.file_count ?? 0;
+  const threadFileCount = data?.totals.file_count ?? 0;
+  const snapshotCount = activeContext?.sync_ids?.length ?? 0;
+  const communityCount = activeContext?.community_ids?.length ?? 0;
+  // Choose the label that best describes the scope the next turn will
+  // pull from. Prefer the thread's actual attached files (concrete);
+  // fall back to the live chat-context summary (planned).
+  const useThreadShape = threadFileCount > 0;
+  const tail = useThreadShape
+    ? `${threadFileCount} file${threadFileCount === 1 ? "" : "s"}`
+    : snapshotCount > 0
+      ? `${snapshotCount} snapshot${snapshotCount === 1 ? "" : "s"}${
+          communityCount > 0
+            ? ` · ${communityCount} comm${communityCount === 1 ? "" : "s"}`
+            : ""
+        }`
+      : "no context";
   const ratio = used / BUDGET;
   const cls = ratio > 1 ? "is-over" : ratio > 0.8 ? "is-warn" : "";
   return (
@@ -70,11 +93,10 @@ export function ContextBudgetPill({
       title={
         threadId
           ? "Open context files"
-          : "Start a chat to attach files; the budget below is the ceiling."
+          : "Open Settings → Chat Context to change the scope of new chats."
       }
     >
-      {used.toLocaleString()} / {BUDGET.toLocaleString()} tokens ·{" "}
-      {fileCount} file{fileCount === 1 ? "" : "s"}
+      {used.toLocaleString()} / {BUDGET.toLocaleString()} tokens · {tail}
     </button>
   );
 }

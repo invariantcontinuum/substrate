@@ -103,11 +103,17 @@ export function useCarouselSlides(): {
           }
         }
       }
+      // Display the *renderable* count — i.e. the size of the synthetic
+      // id set that the canvas can actually filter to. Some UUIDs from
+      // the Leiden cache may not have a corresponding cytoscape node
+      // (e.g., trimmed by /api/graph weight cutoff), so falling back to
+      // ``entry.size`` would over-promise: the label "23 nodes" while
+      // the canvas shows 18 is a bug.
       out.push({
         kind: "community",
         index: entry.index,
         label: entry.label,
-        size: entry.size,
+        size: ids.size,
         nodeIds: ids,
       });
     }
