@@ -196,6 +196,25 @@ async def get_or_compute(
         modularity=summary.modularity,
         compute_ms=compute_ms,
     )
+    # Emit the terminal "completed" frame so the frontend carousel /
+    # community list can react and re-fetch the cache row without
+    # polling. ``community_count`` lets a subscriber render the new
+    # number of slides immediately; ``cache_key`` confirms which run
+    # this completion belongs to (a user re-tweaking knobs may have
+    # several in-flight). Non-fatal: a publish failure is logged and
+    # the API still returns the result.
+    await safe_publish(Event(
+        type="leiden.compute",
+        sync_id=uuid.UUID(sync_ids[0]) if sync_ids else None,
+        user_sub=user_sub,
+        payload={
+            "phase": "completed",
+            "cache_key": cache_key,
+            "community_count": summary.community_count,
+            "user_sub": user_sub,
+            "sync_ids": sync_ids,
+        },
+    ))
     return CommunityResult(
         cache_key=cache_key,
         cached=False,

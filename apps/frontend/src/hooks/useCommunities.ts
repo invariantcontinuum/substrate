@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { logger } from "@/lib/logger";
+import { openSseClient } from "@/lib/sse";
 import type { LeidenConfig } from "@/lib/leidenCache";
 
 export interface CommunitySummary {
@@ -102,6 +103,24 @@ export function useCommunities(
     // array/object identity change even when contents are unchanged.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [syncIds.join(","), JSON.stringify(config)]);
+
+  // Listen for the terminal `leiden.compute` event. The graph service
+  // emits `phase=completed` after writing the cache row; that's our
+  // signal to re-fetch without polling. Earlier compute phases
+  // (`building_graph`, `running_leiden`, `labeling`, `writing_cache`)
+  // are progress-only and ignored here.
+  useEffect(() => {
+    if (syncIds.length === 0) return;
+    const tok = authToken();
+    if (!tok) return;
+    const client = openSseClient("/api/events", { token: tok });
+    client.on("leiden.compute", (ev) => {
+      if (ev.payload?.phase !== "completed") return;
+      void run(false);
+    });
+    return () => client.close();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [syncIds.join(",")]);
 
   return {
     data,
