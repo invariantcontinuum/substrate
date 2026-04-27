@@ -1,7 +1,6 @@
 import { Menu } from "lucide-react";
 import type { ReactNode } from "react";
 import { useUIStore } from "@/stores/ui";
-import { useResponsive } from "@/hooks/useResponsive";
 
 interface Props {
   title: ReactNode;
@@ -9,12 +8,11 @@ interface Props {
 }
 
 export function PageHeader({ title, right }: Props) {
-  const { isDesktop } = useResponsive();
   const sidebarOpen = useUIStore((s) => s.sidebarOpen);
   const toggleSidebar = useUIStore((s) => s.toggleSidebar);
   return (
     <header className="page-header">
-      {!isDesktop && !sidebarOpen && (
+      {!sidebarOpen && (
         <button
           type="button"
           className="page-header-hamburger"

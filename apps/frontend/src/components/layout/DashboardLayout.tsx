@@ -105,7 +105,6 @@ export function DashboardLayout() {
 
   const location = useLocation();
   const sidebarOpen = useUIStore((s) => s.sidebarOpen);
-  const setSidebarOpen = useUIStore((s) => s.setSidebarOpen);
   const toggleSidebar = useUIStore((s) => s.toggleSidebar);
   const setActiveView = useUIStore((s) => s.setActiveView);
   const { isDesktop } = useResponsive();
@@ -122,17 +121,6 @@ export function DashboardLayout() {
     <div className="dashboard">
       <div className="dashboard-body">
         <Sidebar />
-        {!sidebarOpen && isDesktop && (
-          <button
-            type="button"
-            className="dashboard-reopen"
-            onClick={() => setSidebarOpen(true)}
-            title="Show sidebar"
-            aria-label="Show sidebar"
-          >
-            ☰
-          </button>
-        )}
         {!isDesktop && sidebarOpen && (
           <button
             type="button"
