@@ -94,8 +94,8 @@ async def get_node_file(
         (emitted by GET /api/graph?projection=minimal).
       - Direct ``file_embeddings.id`` UUID.
 
-    Chunks are dedup-concatenated in `chunk_index` order; content is
-    capped at 5 MB with `truncated` set when the cap is hit. Missing
+    Chunks are dedup-concatenated in `chunk_index` order. Raises 413
+    with details when the configured cap is exceeded. Missing
     node -> 404 {"error":"node_not_found"}. Ingested-but-empty file ->
     200 with content="".
     """
@@ -185,7 +185,6 @@ async def get_node_file(
             **base_payload,
             "chunk_count": 0,
             "content": "",
-            "truncated": False,
         }
 
     try:
@@ -210,7 +209,6 @@ async def get_node_file(
         **base_payload,
         "chunk_count": rec["chunk_count"],
         "content": rec["content"],
-        "truncated": False,
     }
 
 

@@ -23,7 +23,7 @@ def test_build_prompt_respects_char_budget(monkeypatch):
     # Small budget forces the trimming loop to actually execute.
     monkeypatch.setattr(settings, "chat_total_budget_chars", 2_000)
     # Ensure the history trim logic has plenty of prior turns to drop first.
-    monkeypatch.setattr(settings, "chat_history_turns", 10)
+    monkeypatch.setattr(settings, "chat_history_turns_default", 10)
 
     retrieved = [
         {

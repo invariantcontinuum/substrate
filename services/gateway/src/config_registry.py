@@ -37,7 +37,7 @@ class _GraphConfigSchema(BaseModel):
 
 class _ChatConfigSchema(BaseModel):
     chat_top_k: int | None = None
-    chat_history_turns: int | None = None
+    chat_history_turns_default: int | None = None
     chat_total_budget_chars: int | None = None
     chat_context_token_budget: int | None = None
 

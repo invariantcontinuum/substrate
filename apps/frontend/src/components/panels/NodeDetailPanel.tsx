@@ -104,7 +104,7 @@ export function NodeDetailPanel() {
     file_path: string; language: string; line_count?: number | null;
     size_bytes?: number | null; sync_id: string; last_commit_sha: string;
     last_commit_at: string; exports: string[];
-    chunk_count: number; content: string; truncated: boolean;
+    chunk_count: number; content: string;
   }>({
     queryKey: ["node-file", selectedNodeId, selectedSnapshotId],
     queryFn: () => {
@@ -481,7 +481,7 @@ export function NodeDetailPanel() {
                   {fileQuery.data.exports.length} export{fileQuery.data.exports.length === 1 ? "" : "s"}
                 </span>
               )}
-              {fileQuery.data.truncated && <span className="node-file-truncated">truncated at 5 MB</span>}
+
               <button
                 type="button"
                 className="node-file-copy-btn"

@@ -438,7 +438,7 @@ def _build_prompt(
     user_prefix = "\n\n### Question:\n"
 
     messages: list[dict] = [{"role": "system", "content": system}]
-    history = prior_turns[-settings.chat_history_turns * 2:]
+    history = prior_turns[-settings.chat_history_turns_default * 2:]
     messages.extend([{"role": t["role"], "content": t["content"]} for t in history])
 
     prompt_body = header + nodes_section + graph_section + user_prefix + user_content

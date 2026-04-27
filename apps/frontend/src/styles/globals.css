@@ -561,8 +561,6 @@ html {
   margin-bottom: var(--space-2);
 }
 
-.node-file-truncated { color: var(--warn); }
-
 .node-file-copy-btn {
   display: inline-flex;
   align-items: center;

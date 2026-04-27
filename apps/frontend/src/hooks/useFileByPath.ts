@@ -39,7 +39,6 @@ export interface FileContentResponse {
   language: string | null;
   content: string;
   total_lines: number | null;
-  truncated: boolean;
 }
 
 export function useFileByPath(filepath: string | null) {

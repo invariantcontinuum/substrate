@@ -43,7 +43,7 @@ _SECTIONS: dict[str, list[str]] = {
     ],
     "chat": [
         "chat_top_k",
-        "chat_history_turns",
+        "chat_history_turns_default",
         "chat_total_budget_chars",
         "chat_context_token_budget",
     ],

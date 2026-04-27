@@ -98,7 +98,7 @@ sse_retention_batch_size: 5000
 
 # ── Chat (RAG) ───────────────────────────────────────────────────────
 chat_top_k: 10
-chat_history_turns: 6
+chat_history_turns_default: 12
 chat_total_budget_chars: 40000
 chat_max_tokens: 800
 chat_context_retry_scales: "1.0,0.5,0.25"

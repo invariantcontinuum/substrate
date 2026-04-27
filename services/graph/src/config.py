@@ -194,9 +194,6 @@ class _GraphSettings(LayeredSettings):
     # longer prefill time. Retrieval scope is always the user-supplied
     # sync_ids (the client passes the active sync set at turn time).
     chat_top_k: int = 10
-    # Number of prior user+assistant turns to include in the prompt.
-    # Higher = better conversational continuity, larger prompt cost.
-    chat_history_turns: int = 6
     # System default for sliding-window chat history (turns).
     # 1 turn = 1 user message + 1 assistant message = 2 messages.
     # Per-user override stored in user_profiles.chat_settings.history_turns.
