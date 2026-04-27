@@ -174,6 +174,9 @@ class _GraphSettings(LayeredSettings):
     # Wall-clock cap for merged-graph Cypher queries — protects the
     # asyncpg pool against a stuck AGE plan (e.g. missing index).
     graph_query_timeout_s: int = Field(default=60, alias="GRAPH_QUERY_TIMEOUT_SECONDS")
+    # Cap on AGE neighborhood traversal depth-N expansion used by the
+    # chat context resolver. Trade-off: prompt size vs graph reach.
+    chat_node_neighborhood_max_nodes: int = 200
 
     # ── SSE event retention ──────────────────────────────────────────
     # Toggle periodic pruning of old rows from public.sse_events.
@@ -194,6 +197,11 @@ class _GraphSettings(LayeredSettings):
     # Number of prior user+assistant turns to include in the prompt.
     # Higher = better conversational continuity, larger prompt cost.
     chat_history_turns: int = 6
+    # System default for sliding-window chat history (turns).
+    # 1 turn = 1 user message + 1 assistant message = 2 messages.
+    # Per-user override stored in user_profiles.chat_settings.history_turns.
+    # Trade-off: prompt size vs context recall.
+    chat_history_turns_default: int = 12
     # Total prompt char budget. Keep ≤ ~3× dense LLM CONTEXT_SIZE (set in
     # <llm-stack>/config/models/dense.env). If the budget would
     # be exceeded the pipeline drops the oldest prior turns first, then

@@ -20,10 +20,29 @@ original file, and `total_lines` pads the tail when known. This is what
 keeps a 410-line source from rendering as 404 lines in the viewer.
 
 Response size is capped at the ``cap_bytes`` argument (default 5 MiB via
-``settings.file_reconstruct_max_bytes``); when the cap is reached the result
-is returned with ``truncated=True``.
+``settings.file_reconstruct_max_bytes``); when the cap is reached
+``FileTooLargeForReconstruct`` is raised with context about the file_id,
+covered lines, total lines, and the cap.
 """
 from __future__ import annotations
+
+from dataclasses import dataclass
+from uuid import UUID
+
+
+@dataclass
+class FileTooLargeForReconstruct(Exception):
+    file_id:       UUID
+    covered_lines: int
+    total_lines:   int
+    cap_bytes:     int
+
+    def __str__(self) -> str:
+        return (
+            f"file {self.file_id}: reconstruction stopped at "
+            f"{self.covered_lines}/{self.total_lines} lines "
+            f"(cap {self.cap_bytes} bytes)"
+        )
 
 
 def _chunk_lines(content: str) -> list[str]:
@@ -43,6 +62,7 @@ def reconstruct_chunks(
     chunks: list[dict],
     cap_bytes: int,
     total_lines: int | None = None,
+    file_id: UUID | None = None,
 ) -> dict:
     """Reconstruct file text from `content_chunks` rows.
 
@@ -52,21 +72,31 @@ def reconstruct_chunks(
         ``start_line``, ``end_line``. Input is re-sorted defensively; the
         caller does not need to pre-sort.
     cap_bytes : maximum UTF-8 byte size of the reconstructed ``content``.
-        When exceeded, emission stops and ``truncated`` is ``True``.
+        When exceeded, ``FileTooLargeForReconstruct`` is raised.
     total_lines : original file line count, if known. When supplied and
         greater than the highest chunk line, the tail is padded with
         blank lines so the rendered viewer shows every original line.
+    file_id : UUID identifying the file (used in the exception). If None,
+        a zero UUID is substituted.
 
     Returns
     -------
-    dict with keys ``content`` (str), ``chunk_count`` (int, total chunks
-    consumed), and ``truncated`` (bool).
+    dict with keys ``content`` (str) and ``chunk_count`` (int, total chunks
+    consumed).
+
+    Raises
+    ------
+    FileTooLargeForReconstruct
+        When the accumulated byte size exceeds ``cap_bytes`` before all
+        lines have been emitted.
     """
+    _file_id: UUID = file_id if file_id is not None else UUID(int=0)
+    _total_lines: int = total_lines if total_lines is not None else 0
+
     if not chunks:
         return {
             "content": "" if not total_lines else "\n" * max(0, total_lines - 1),
             "chunk_count": 0,
-            "truncated": False,
         }
 
     sorted_chunks = sorted(chunks, key=lambda c: c["chunk_index"])
@@ -94,21 +124,24 @@ def reconstruct_chunks(
     # reconstructed length must still match file_embeddings.line_count).
     if total_lines is not None:
         max_pos = total_lines
+        _total_lines = total_lines
 
     out_lines: list[str] = []
     byte_total = 0
-    truncated = False
     for pos in range(1, max_pos + 1):
         line = lines_by_pos.get(pos, "")
         enc = (line + "\n").encode("utf-8")
         if byte_total + len(enc) > cap_bytes:
-            truncated = True
-            break
+            raise FileTooLargeForReconstruct(
+                file_id=_file_id,
+                covered_lines=len(out_lines),
+                total_lines=_total_lines or max_pos,
+                cap_bytes=cap_bytes,
+            )
         out_lines.append(line)
         byte_total += len(enc)
 
     return {
         "content": "\n".join(out_lines),
         "chunk_count": len(sorted_chunks),
-        "truncated": truncated,
     }

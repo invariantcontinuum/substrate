@@ -59,9 +59,12 @@ def test_ensure_eof_coverage_no_op_when_already_covering_eof():
     assert out is chunks  # same object, no copy
 
 
-def test_ensure_eof_coverage_skips_blank_only_tail():
+def test_ensure_eof_coverage_emits_blank_only_tail():
     src = "line1\nline2\n\n\n\n"
     chunks = [_stub_chunk(1, 2, "line1\nline2")]
     out = _ensure_eof_coverage(chunks, src, total_lines=5)
-    # All trailing lines are blank; helper should not invent a chunk.
-    assert len(out) == 1
+    # Blank-only tail MUST produce a chunk so line_count stays accurate
+    # for file reconstruction and the viewer shows the right total lines.
+    assert len(out) == 2
+    assert out[1].start_line == 3
+    assert out[1].end_line == 5

@@ -19,13 +19,14 @@ from uuid import UUID
 
 import structlog
 from fastapi import APIRouter, Header, Query
+from fastapi.responses import JSONResponse
 
 from substrate_common import NotFoundError
 
 from src.api.auth import require_user_sub_strict
 from src.config import settings
 from src.graph import store
-from src.graph.file_reconstruct import reconstruct_chunks
+from src.graph.file_reconstruct import FileTooLargeForReconstruct, reconstruct_chunks
 
 logger = structlog.get_logger()
 router = APIRouter(prefix="/api/files")
@@ -104,16 +105,28 @@ async def get_file_content(
             """,
             file_id,
         )
-    rebuilt = reconstruct_chunks(
-        [dict(c) for c in chunks],
-        cap_bytes=settings.file_reconstruct_max_bytes,
-        total_lines=owner_row["line_count"],
-    )
+    try:
+        rebuilt = reconstruct_chunks(
+            [dict(c) for c in chunks],
+            cap_bytes=settings.file_reconstruct_max_bytes,
+            total_lines=owner_row["line_count"],
+            file_id=file_id,
+        )
+    except FileTooLargeForReconstruct as exc:
+        return JSONResponse(
+            status_code=413,
+            content={
+                "error": "file_too_large",
+                "file_id": str(exc.file_id),
+                "covered_lines": exc.covered_lines,
+                "total_lines": exc.total_lines,
+                "cap_bytes": exc.cap_bytes,
+            },
+        )
     return {
         "file_id": str(file_id),
         "path": owner_row["file_path"],
         "language": owner_row["language"],
         "content": rebuilt["content"],
         "total_lines": owner_row["line_count"],
-        "truncated": rebuilt["truncated"],
     }

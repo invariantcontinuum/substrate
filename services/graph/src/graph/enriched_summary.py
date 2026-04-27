@@ -24,7 +24,7 @@ import httpx
 import structlog
 
 from src.config import settings
-from src.graph.file_reconstruct import reconstruct_chunks
+from src.graph.file_reconstruct import FileTooLargeForReconstruct, reconstruct_chunks
 
 logger = structlog.get_logger()
 
@@ -335,11 +335,29 @@ async def generate_enriched_summary(
                 "neighbor_count": 0,
                 "truncated_file": False,
             }
-        rec = reconstruct_chunks(
-            [dict(c) for c in chunk_rows],
-            cap_bytes=settings.file_reconstruct_max_bytes,
-            total_lines=row["line_count"] or None,
-        )
+        try:
+            rec = reconstruct_chunks(
+                [dict(c) for c in chunk_rows],
+                cap_bytes=settings.file_reconstruct_max_bytes,
+                total_lines=row["line_count"] or None,
+                file_id=row["id"],
+            )
+        except FileTooLargeForReconstruct as exc:
+            logger.warning(
+                "enriched_summary_file_too_large",
+                node_id=node_id,
+                covered_lines=exc.covered_lines,
+                total_lines=exc.total_lines,
+                cap_bytes=exc.cap_bytes,
+            )
+            return {
+                "summary": "",
+                "cached": False,
+                "source": "file_too_large",
+                "chunk_count": 0,
+                "neighbor_count": 0,
+                "truncated_file": True,
+            }
 
         edge_triples = await _fetch_edge_neighbors(conn, row["id"])
         neighbor_ids = [t["neighbor_id"] for t in edge_triples]
@@ -446,7 +464,7 @@ async def generate_enriched_summary(
                 "source": "llm_failed",
                 "chunk_count": rec["chunk_count"],
                 "neighbor_count": len(ranked),
-                "truncated_file": rec["truncated"],
+                "truncated_file": False,
             }
 
     if llm_resp is None:
@@ -457,7 +475,7 @@ async def generate_enriched_summary(
             "source": "llm_failed",
             "chunk_count": rec["chunk_count"],
             "neighbor_count": len(ranked),
-            "truncated_file": rec["truncated"],
+            "truncated_file": False,
         }
 
     message = (llm_resp.get("choices") or [{}])[0].get("message", {}) or {}
@@ -477,7 +495,7 @@ async def generate_enriched_summary(
             "source": "llm_failed",
             "chunk_count": rec["chunk_count"],
             "neighbor_count": len(ranked),
-            "truncated_file": rec["truncated"],
+            "truncated_file": False,
         }
 
     async with pool.acquire() as conn:
@@ -502,5 +520,5 @@ async def generate_enriched_summary(
         "source": "llm_enriched",
         "chunk_count": rec["chunk_count"],
         "neighbor_count": len(ranked),
-        "truncated_file": rec["truncated"],
+        "truncated_file": False,
     }

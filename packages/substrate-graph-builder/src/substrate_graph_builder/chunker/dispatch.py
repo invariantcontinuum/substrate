@@ -46,8 +46,6 @@ def _ensure_eof_coverage(
     if lines and lines[-1] == "":
         lines.pop()
     tail = "\n".join(lines[last_end:total_lines])
-    if not tail.strip():
-        return chunks
     chunks = list(chunks)
     chunks.append(Chunk(
         content=tail,

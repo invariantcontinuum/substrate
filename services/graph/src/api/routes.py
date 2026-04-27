@@ -7,7 +7,9 @@ from substrate_common import NotFoundError, UpstreamError, ValidationError
 from src.api.auth import require_user_sub
 from src.config import settings
 from src.graph import store
-from src.graph.file_reconstruct import reconstruct_chunks
+from fastapi.responses import JSONResponse
+
+from src.graph.file_reconstruct import FileTooLargeForReconstruct, reconstruct_chunks
 from src.graph.snapshot_query import GraphQueryTimeout, get_merged_graph, get_node_detail
 from src.graph.store import ensure_node_summary, get_stats
 
@@ -186,16 +188,29 @@ async def get_node_file(
             "truncated": False,
         }
 
-    rec = reconstruct_chunks(
-        [dict(c) for c in chunk_rows],
-        cap_bytes=settings.file_reconstruct_max_bytes,
-        total_lines=row["line_count"],
-    )
+    try:
+        rec = reconstruct_chunks(
+            [dict(c) for c in chunk_rows],
+            cap_bytes=settings.file_reconstruct_max_bytes,
+            total_lines=row["line_count"],
+            file_id=row["id"],
+        )
+    except FileTooLargeForReconstruct as exc:
+        return JSONResponse(
+            status_code=413,
+            content={
+                "error": "file_too_large",
+                "file_id": str(exc.file_id),
+                "covered_lines": exc.covered_lines,
+                "total_lines": exc.total_lines,
+                "cap_bytes": exc.cap_bytes,
+            },
+        )
     return {
         **base_payload,
         "chunk_count": rec["chunk_count"],
         "content": rec["content"],
-        "truncated": rec["truncated"],
+        "truncated": False,
     }
 
 

@@ -41,12 +41,11 @@ def chunk_lines(content: str, budget: int, overlap: int) -> list[Chunk]:
 
     if current_lines:
         rest = "\n".join(current_lines)
-        if rest.strip():
-            chunks.append(Chunk(
-                content=rest,
-                start_line=start_line,
-                end_line=len(lines),
-                token_count=current_tokens,
-                chunk_type="line",
-            ))
+        chunks.append(Chunk(
+            content=rest,
+            start_line=start_line,
+            end_line=len(lines),
+            token_count=current_tokens,
+            chunk_type="line",
+        ))
     return chunks

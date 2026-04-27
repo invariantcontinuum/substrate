@@ -6,10 +6,11 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 from typing import AsyncIterator
+from uuid import UUID
 
 from src.config import settings
 from src.graph import store
-from src.graph.file_reconstruct import reconstruct_chunks
+from src.graph.file_reconstruct import FileTooLargeForReconstruct, reconstruct_chunks
 
 
 async def stream_export(
@@ -67,18 +68,30 @@ async def stream_export(
                 "FROM file_embeddings WHERE id = $1::uuid",
                 file_id,
             )
-            rebuilt = reconstruct_chunks(
-                [dict(c) for c in chunks],
-                cap_bytes=settings.file_reconstruct_max_bytes,
-                total_lines=(meta_row["line_count"] if meta_row else None),
-            )
+            fid: UUID | None = None
+            try:
+                fid = UUID(file_id) if isinstance(file_id, str) else file_id
+            except (ValueError, AttributeError):
+                pass
+            try:
+                rebuilt = reconstruct_chunks(
+                    [dict(c) for c in chunks],
+                    cap_bytes=settings.file_reconstruct_max_bytes,
+                    total_lines=(meta_row["line_count"] if meta_row else None),
+                    file_id=fid,
+                )
+                file_content = rebuilt["content"]
+                truncated = False
+            except FileTooLargeForReconstruct:
+                file_content = ""
+                truncated = True
             yield json.dumps({
                 "file_id": file_id,
                 "path": meta_row["file_path"] if meta_row else None,
                 "language": meta_row["language"] if meta_row else None,
-                "content": rebuilt["content"],
+                "content": file_content,
                 "total_lines": meta_row["line_count"] if meta_row else 0,
-                "truncated": rebuilt["truncated"],
+                "truncated": truncated,
             }).encode()
     yield b"]}"
 

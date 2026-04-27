@@ -10,7 +10,7 @@ import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
 from src.graph import store
-from src.graph.file_reconstruct import reconstruct_chunks
+from src.graph.file_reconstruct import reconstruct_chunks, FileTooLargeForReconstruct
 from src.main import app
 
 
@@ -31,20 +31,19 @@ def test_reconstruct_chunks_dedups_line_overlap():
         {"chunk_index": 1, "content": "\n".join(f"L{i}" for i in range(9, 19)),  "start_line": 9, "end_line": 18},
     ]
     out = reconstruct_chunks(chunks, cap_bytes=10_000)
-    assert out["truncated"] is False
     assert out["content"].split("\n") == [f"L{i}" for i in range(1, 19)]
     assert out["chunk_count"] == 2
 
 
-def test_reconstruct_chunks_truncates_at_cap():
+def test_reconstruct_chunks_raises_at_cap():
     big = "x" * 2_000
     chunks = [
         {"chunk_index": i, "content": big, "start_line": 1 + i * 100, "end_line": 100 + i * 100}
         for i in range(10)
     ]
-    out = reconstruct_chunks(chunks, cap_bytes=5_000)
-    assert out["truncated"] is True
-    assert len(out["content"].encode("utf-8")) <= 5_000
+    with pytest.raises(FileTooLargeForReconstruct) as exc_info:
+        reconstruct_chunks(chunks, cap_bytes=5_000)
+    assert exc_info.value.cap_bytes == 5_000
 
 
 def test_reconstruct_chunks_preserves_inter_chunk_gaps():
@@ -199,7 +198,6 @@ async def test_file_endpoint_returns_reconstructed_file(seeded_file_node_id):
     assert body["line_count"] > 0
     assert isinstance(body["content"], str)
     assert body["chunk_count"] >= 1
-    assert "truncated" in body
     # Deduped reconstruction of L1..L18 (no repeated L9/L10).
     assert body["content"].split("\n") == [f"L{i}" for i in range(1, 19)]
     assert body["chunk_count"] == 2
