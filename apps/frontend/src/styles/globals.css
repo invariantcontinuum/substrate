@@ -2195,7 +2195,7 @@ html {
 .config-field-row { display: flex; gap: 8px; }
 .config-field-row .config-field { flex: 1; }
 .config-toggle { display: flex; gap: 6px; align-items: center; font-size: 11px; }
-.config-error { color: var(--danger, #c06060); font-size: 11px; }
+.config-error { color: var(--danger); font-size: var(--text-xs); }
 .config-actions { display: flex; justify-content: flex-end; gap: 6px; }
 
 /* ── Chat page layout ──────────────────────────────────────────────── */
@@ -3632,6 +3632,187 @@ html {
   color: var(--fg-muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+/* ---- Authentication tab — D3 rebuild ---- */
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.auth-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: var(--text-sm);
+}
+.auth-form-field > span {
+  color: var(--fg-muted);
+  font-size: var(--text-xs);
+}
+.auth-form-field input {
+  padding: 6px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--fg);
+}
+.auth-form-field input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+.auth-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+.auth-inline-ok {
+  font-size: var(--text-xs);
+  color: #4ade80;
+  margin-top: 4px;
+}
+.auth-inline-error {
+  font-size: var(--text-xs);
+  color: #f87171;
+  margin-top: 4px;
+}
+.auth-2fa-disabled {
+  color: var(--fg-muted);
+}
+.auth-2fa-setup {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.auth-2fa-step {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+}
+.auth-2fa-qr {
+  display: flex;
+  justify-content: center;
+  padding: 12px;
+  background: white;
+  border-radius: var(--radius-md);
+  align-self: center;
+}
+.auth-2fa-secret {
+  align-self: stretch;
+  display: block;
+  padding: 8px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  font-family: var(--font-mono, monospace);
+  font-size: var(--text-sm);
+  word-break: break-all;
+}
+.auth-2fa-code-input {
+  align-self: stretch;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  font: inherit;
+  font-family: var(--font-mono, monospace);
+  font-size: 18px;
+  letter-spacing: 0.3em;
+  text-align: center;
+}
+.auth-2fa-code-input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.auth-tokens-aux {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.auth-tokens-toggle {
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.auth-tokens-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+}
+.auth-token-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.auth-token-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+  font-size: var(--text-sm);
+}
+.auth-token-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--fg-muted);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.auth-token-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+}
+.auth-token-prefix {
+  font-family: var(--font-mono, monospace);
+}
+.auth-token-revoke {
+  color: #f87171;
+}
+.auth-token-create-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.auth-token-created {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.auth-token-warning {
+  padding: 10px 12px;
+  background: rgba(248, 113, 113, 0.08);
+  border: 1px solid rgba(248, 113, 113, 0.3);
+  border-radius: var(--radius-xs);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--fg);
+}
+.auth-token-plaintext {
+  display: block;
+  padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  font-family: var(--font-mono, monospace);
+  font-size: var(--text-sm);
+  word-break: break-all;
+  user-select: all;
 }
 
 /* ---- SourcesActivityTab ---- */
