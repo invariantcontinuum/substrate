@@ -2716,7 +2716,7 @@ html {
 .composer-send {
   flex: 0 0 auto;
   align-self: flex-end;
-  margin-bottom: 4px;
+  margin-bottom: var(--space-1);
   border-radius: var(--radius-md);
   height: 36px;
   width: auto;
