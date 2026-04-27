@@ -1204,12 +1204,18 @@ html {
   gap: var(--space-4);
 }
 
-/* SettingsModal — left rail tabs + scrollable body. Shares chrome
- * with the open-webui-style sidebar visual language. Fullscreen on
- * mobile so each tab's form fields breathe. */
+/* ── SettingsModal ─────────────────────────────────────────────────
+ * Wide two-column dialog: left rail tab list, right scroll body. Tab
+ * items match the .sidebar-new-chat hover language so the action
+ * vocabulary is consistent across the chrome. Each tab's content sits
+ * in a 720px max-width column with consistent vertical rhythm; form
+ * fields, buttons, and section headings share fixed heights and tokens
+ * so the patched-together feel is gone. */
 .settings-modal {
-  max-width: min(800px, 95vw);
-  max-height: min(80vh, 720px);
+  width: min(960px, 95vw);
+  max-width: 95vw;
+  height: min(720px, 80vh);
+  max-height: 90vh;
   display: flex;
   flex-direction: column;
   padding: 0;
@@ -1225,36 +1231,63 @@ html {
   height: 100%;
   min-height: 0;
 }
+
+/* ── Left rail ── */
 .settings-modal-tabs {
   display: flex;
   flex-direction: column;
-  width: 180px;
+  width: 200px;
   flex-shrink: 0;
   border-right: 1px solid var(--border);
-  padding: 8px 4px;
+  padding: var(--space-3) var(--space-2);
   gap: 2px;
   background: var(--surface-sunken);
   min-height: 100%;
 }
 .settings-modal-tab {
-  display: block;
-  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  height: 34px;
+  padding: 0 var(--space-3);
+  border: 1px solid transparent;
   border-radius: var(--radius-xs);
+  font: inherit;
   font-size: var(--text-sm);
-  color: inherit;
+  color: var(--fg);
   text-decoration: none;
+  cursor: pointer;
+  background: transparent;
+  text-align: left;
 }
-.settings-modal-tab:hover { background: var(--surface-hover); }
-.settings-modal-tab.is-active { background: var(--accent-tint); font-weight: 500; }
+.settings-modal-tab:hover {
+  background: var(--surface-hover);
+  color: var(--fg);
+}
+.settings-modal-tab.is-active {
+  background: var(--accent-tint);
+  color: var(--accent);
+  font-weight: var(--fw-semibold);
+  border-color: var(--accent-tint);
+  box-shadow: inset 3px 0 0 0 var(--accent);
+}
 .settings-modal__signout {
   margin-top: auto;
+  margin-inline: 0;
+  width: 100%;
   border-top: 1px solid var(--border);
-  text-align: left;
-  width: calc(100% - 8px);
-  margin-inline: 4px;
-  padding: 10px 12px;
-  cursor: pointer;
+  border-radius: 0;
+  padding: var(--space-3);
+  height: auto;
+  color: var(--fg-muted);
+  background: transparent;
 }
+.settings-modal__signout:hover {
+  background: var(--surface-hover);
+  color: var(--fg);
+  box-shadow: none;
+}
+
+/* ── Right body ── */
 .settings-modal-body {
   flex: 1;
   min-width: 0;
@@ -1262,14 +1295,18 @@ html {
   overflow-y: auto;
 }
 .settings-modal__content {
-  padding: 1.5rem 2rem;
+  padding: var(--space-6) var(--space-6);
   box-sizing: border-box;
-  max-height: calc(100vh - 8rem);
-  overflow-y: auto;
+  max-width: 720px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
 }
+/* Override the older sibling-margin reset; rhythm is now driven by
+ * column gap, not per-element margins. */
 .settings-modal__content > section,
 .settings-modal__content > h3 {
-  margin-block: 0.75rem 0.5rem;
+  margin: 0;
 }
 .settings-tab-placeholder .muted {
   color: var(--fg-muted);
@@ -1278,10 +1315,10 @@ html {
 
 @media (max-width: 640px) {
   .settings-modal {
-    max-width: 100vw;
-    max-height: 100dvh;
     width: 100vw;
     height: 100dvh;
+    max-width: 100vw;
+    max-height: 100dvh;
     border-radius: 0;
     padding-bottom: max(var(--space-6), env(safe-area-inset-bottom));
   }
@@ -1294,10 +1331,23 @@ html {
     overflow-x: auto;
     border-right: 0;
     border-bottom: 1px solid var(--border);
-    padding: 6px 4px;
+    padding: var(--space-2);
+    min-height: 0;
+  }
+  .settings-modal-tab {
+    flex: 0 0 auto;
+  }
+  .settings-modal-tab.is-active {
+    box-shadow: inset 0 -2px 0 0 var(--accent);
+  }
+  .settings-modal__signout {
+    width: auto;
+    border-top: 0;
+    border-left: 1px solid var(--border);
   }
   .settings-modal__content {
-    padding-bottom: max(16px, env(safe-area-inset-bottom));
+    padding: var(--space-4);
+    padding-bottom: max(var(--space-4), env(safe-area-inset-bottom));
   }
 }
 
@@ -1857,10 +1907,16 @@ html {
   font: inherit;
   font-family: var(--font-mono, monospace);
 }
+/* Standard action row at the bottom of every modal/tab. Uses 12px gap
+ * and a top border so it reads as a separated commit zone. Buttons
+ * inside align consistently because every .btn-* variant is 36px. */
 .modal-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
+  gap: var(--space-3);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+  margin-top: var(--space-2);
 }
 .ui-button.is-destructive {
   background: #e07070;
@@ -2757,13 +2813,46 @@ html {
 .tab-strip-tab:hover { background: var(--surface-hover); color: var(--fg); }
 .tab-strip-tab.active { background: var(--accent-tint); color: var(--accent); }
 
-/* ---- Row ---- */
-.ui-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: rgba(255,255,255,0.04); border-radius: 8px; margin-bottom: 6px; font-size: 12px; }
-.ui-row-k { opacity: 0.55; font-size: 11px; }
-.ui-row-v { font-weight: 600; }
+/* ── Row (settings tabs) ────────────────────────────────────────
+ * Key/value row used inside every settings tab. Aligns label on the
+ * left, value control on the right. Inputs and selects rendered into
+ * `.ui-row-v` get the canonical 36px input chrome. */
+.ui-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  font-size: var(--text-sm);
+  min-height: 36px;
+}
+.ui-row + .ui-row { border-top: 1px solid var(--border-soft); }
+.ui-row-k {
+  color: var(--fg-muted);
+  font-size: var(--text-xs);
+  font-weight: var(--fw-medium);
+  flex: 0 0 auto;
+}
+.ui-row-v {
+  font-weight: var(--fw-medium);
+  color: var(--fg);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
 .ui-row-grow { flex: 1; }
-.ui-row.is-end { justify-content: flex-end; }
-.ui-row.is-danger { border: 1px solid rgba(255,120,120,0.2); }
+.ui-row.is-end {
+  justify-content: flex-end;
+  border-top: 0;
+  padding-top: var(--space-3);
+  margin-top: var(--space-2);
+}
+.ui-row.is-end + .ui-row { border-top: 0; }
+.ui-row.is-danger {
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-xs);
+  padding: var(--space-2) var(--space-3);
+  background: rgba(220, 80, 80, 0.04);
+}
 
 /* ---- StatPill ---- */
 .stat-pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 5px; background: rgba(255,255,255,0.05); font-size: 11px; }
@@ -2775,10 +2864,32 @@ html {
 .stat-box-value { font-weight: 700; font-size: 13px; }
 .stat-box-label { opacity: 0.6; font-size: 10px; }
 
-/* ---- SectionHeader ---- */
-.section-header { display: flex; align-items: center; gap: 8px; padding: 10px 0 4px; font-size: 12px; font-weight: 600; border-top: 1px solid rgba(255,255,255,0.06); margin-top: 6px; }
-.section-header:first-of-type { border-top: none; margin-top: 0; }
-.section-header-aux { opacity: 0.55; font-weight: 400; font-size: 11px; margin-left: auto; }
+/* ── SectionHeader (settings tabs) ──────────────────────────────
+ * Tab section divider. Treated as an h3-equivalent rhythm marker —
+ * baseline 12px font-weight 600, generous bottom margin handled by
+ * the parent `.settings-modal__content` gap. */
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 0 var(--space-2);
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--tracking-tight);
+  color: var(--fg);
+  border-bottom: 1px solid var(--border-soft);
+}
+.section-header-title { flex: 1 1 auto; }
+.section-header-aux {
+  margin-left: auto;
+  color: var(--fg-muted);
+  font-weight: var(--fw-regular);
+  font-size: var(--text-xs);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
 
 /* ---- CommunitySparkline ---- */
 .community-sparkline { display: flex; align-items: flex-end; gap: 2px; height: 24px; }
@@ -3139,24 +3250,100 @@ html {
 .github-status-err { color: var(--danger, #ffaaaa); }
 .github-coming-soon { font-size: 12px; line-height: 1.5; max-width: 60ch; }
 
-/* Account-tab dropdowns (selects inside Settings tabs) —
- * inherit the input chrome for visual parity. */
+/* Canonical form-field chrome inside settings tabs. Every text input
+ * and select rendered into `.settings-modal__content` (or `.ui-row-v`)
+ * adopts the same 36px height, padding, border, radius, and focus
+ * treatment so "the form" feels like one consistent surface. */
+.settings-modal__content input[type="text"],
+.settings-modal__content input[type="email"],
+.settings-modal__content input[type="tel"],
+.settings-modal__content input[type="password"],
+.settings-modal__content input[type="number"],
+.settings-modal__content input[type="search"],
+.settings-modal__content input[type="url"],
+.settings-modal__content input[type="date"],
+.settings-modal__content select,
+.settings-modal__content textarea,
+.account-page input[type="text"],
+.account-page input[type="email"],
+.account-page input[type="tel"],
+.account-page input[type="password"],
+.account-page input[type="number"],
+.account-page input[type="search"],
+.account-page input[type="url"],
+.account-page input[type="date"],
 .account-page select,
-.settings-modal-body select {
-  padding: 6px 10px;
-  background: var(--surface);
+.account-page textarea {
+  display: inline-flex;
+  height: 36px;
+  padding: 0 12px;
+  background: var(--surface-input);
   border: 1px solid var(--border);
   border-radius: var(--radius-xs);
   font: inherit;
   font-size: var(--text-sm);
   color: var(--fg);
-  cursor: pointer;
-  min-width: 160px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
 }
+.settings-modal__content textarea,
+.account-page textarea {
+  height: auto;
+  min-height: 80px;
+  padding: 8px 12px;
+  resize: vertical;
+}
+.settings-modal__content input::placeholder,
+.account-page input::placeholder,
+.settings-modal__content textarea::placeholder,
+.account-page textarea::placeholder {
+  color: var(--fg-subtle);
+}
+.settings-modal__content input:hover:not(:disabled):not(:focus),
+.settings-modal__content select:hover:not(:disabled):not(:focus),
+.settings-modal__content textarea:hover:not(:disabled):not(:focus),
+.account-page input:hover:not(:disabled):not(:focus),
+.account-page select:hover:not(:disabled):not(:focus),
+.account-page textarea:hover:not(:disabled):not(:focus) {
+  border-color: var(--border-strong);
+}
+.settings-modal__content input:focus,
+.settings-modal__content select:focus,
+.settings-modal__content textarea:focus,
+.account-page input:focus,
 .account-page select:focus,
-.settings-modal-body select:focus {
+.account-page textarea:focus {
   border-color: var(--accent);
-  outline: none;
+  outline: 2px solid var(--accent-tint);
+  outline-offset: 0;
+}
+.settings-modal__content input:disabled,
+.settings-modal__content select:disabled,
+.settings-modal__content textarea:disabled,
+.account-page input:disabled,
+.account-page select:disabled,
+.account-page textarea:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Stand-alone label/control pair (used by AccountProfileTab and the
+ * Authentication tab's password form). Stack the caption above the
+ * control with consistent 6px gap. */
+.settings-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: var(--text-sm);
+}
+.settings-form-field > span {
+  color: var(--fg-muted);
+  font-size: var(--text-xs);
+  font-weight: var(--fw-medium);
 }
 
 /* Chat context block (Sources Config tab). Source picker → snapshot
@@ -3476,41 +3663,20 @@ html {
  * RECONNECT confirmation gate). The LLM Connections tab uses
  * `.llm-role-tabs` (sub-tab strip) + `.llm-conn-panel` (one-role
  * editor) instead of the old grid-of-cards layout. */
-.conn-field {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.5rem;
-  align-items: center;
-  margin-block: 0.25rem;
-  font-size: 12px;
-}
-.conn-field input {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
-  color: inherit;
-  padding: 4px 8px;
-  font: inherit;
-}
-.conn-field input[readonly] {
-  opacity: 0.7;
-  cursor: not-allowed;
-}
+.conn-field,
 .num-knob {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 0.5rem;
+  gap: var(--space-3);
   align-items: center;
-  margin-block: 0.25rem;
-  font-size: 12px;
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
 }
-.num-knob input {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
-  color: inherit;
-  padding: 4px 8px;
-  font: inherit;
+/* Defer to the canonical input chrome defined for
+ * `.settings-modal__content input` — only nudge the readonly state. */
+.conn-field input[readonly] {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 
 /* LLM role sub-tab strip (Dense / Sparse / Embedding / Reranker). */
@@ -3671,12 +3837,18 @@ html {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 7px 14px;
+  height: 36px;
+  padding: 0 16px;
   border-radius: var(--radius-xs);
   font: inherit;
   font-size: var(--text-sm);
+  font-weight: var(--fw-medium);
   cursor: pointer;
   border: 1px solid transparent;
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out);
 }
 .btn-primary {
   background: var(--accent-tint);
@@ -3688,19 +3860,20 @@ html {
   color: var(--accent-contrast);
 }
 .btn-secondary {
-  background: rgba(255, 255, 255, 0.06);
-  color: inherit;
-  border-color: rgba(255, 255, 255, 0.1);
+  background: var(--surface-elevated);
+  color: var(--fg);
+  border-color: var(--border-strong);
 }
 .btn-secondary:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--surface-hover);
+  border-color: var(--accent);
 }
 .btn-ghost {
   background: transparent;
   color: var(--fg-muted);
 }
 .btn-ghost:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--surface-hover);
   color: var(--fg);
 }
 .btn-primary:disabled,
@@ -3710,24 +3883,21 @@ html {
   cursor: not-allowed;
 }
 
+/* Compact ghost variant for inline rows (avatar Upload/Remove,
+ * device Forget, etc.). Same chrome, tighter padding so they sit
+ * comfortably alongside body copy. */
+.btn-primary.is-sm,
+.btn-secondary.is-sm,
+.btn-ghost.is-sm {
+  height: 28px;
+  padding: 0 10px;
+  font-size: var(--text-xs);
+}
+
 .settings-postgres .actions {
   display: flex;
-  gap: 8px;
-  margin-top: 8px;
+  gap: var(--space-3);
   flex-wrap: wrap;
-}
-.settings-postgres .actions button {
-  padding: 6px 12px;
-  border-radius: 7px;
-  background: rgba(255, 255, 255, 0.05);
-  font-size: 12px;
-  border: none;
-  cursor: pointer;
-  color: inherit;
-}
-.settings-postgres .actions button:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
 }
 .settings-graph,
 .settings-chat-context,
@@ -3736,7 +3906,7 @@ html {
 .settings-auth {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-5);
 }
 
 .settings-auth__subhead {
