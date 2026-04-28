@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, type KeyboardEvent } from "react";
 import { Send, Square } from "lucide-react";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ContextChipRow } from "./ContextChipRow";
 import { ContextPickerModal } from "./ContextPickerModal";
@@ -105,8 +106,8 @@ export function Composer({ threadId }: { threadId: string | null }) {
     <div className="composer">
       {overBudget && (
         <div className="composer-warning" role="status">
-          Context exceeds {cap.toLocaleString()} token limit. Remove entries to
-          continue.
+          Context exceeds {cap.toLocaleString()} token limit. Remove entries or raise the limit in{" "}
+          <Link to="/account/llm">Settings → LLM Connections</Link>.
         </div>
       )}
       <ContextChipRow
