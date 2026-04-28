@@ -4028,12 +4028,17 @@ html {
 .settings-graph,
 .settings-chat-context,
 .settings-llm,
+.settings-chat,
 .settings-postgres,
 .settings-auth {
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
 }
+
+.settings-chat section { display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-1); border-bottom: 1px solid var(--border-soft); }
+.settings-chat .danger { color: var(--accent-danger, #b00); }
+.settings-chat .confirm-pane { display: flex; gap: var(--space-1); align-items: center; }
 
 /* ── Settings-card surface ──────────────────────────────────────
  * Card chrome used by the Authentication tab and the Profile tab to
