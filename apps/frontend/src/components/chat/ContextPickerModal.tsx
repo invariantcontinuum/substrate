@@ -164,7 +164,7 @@ function FilesTab(props: {
   const files = usePickerFiles(props.syncId, props.dirPrefix, props.search);
   const toggle = (id: string) => {
     const next = new Set(props.picked);
-    next.has(id) ? next.delete(id) : next.add(id);
+    if (next.has(id)) { next.delete(id); } else { next.add(id); }
     props.setPicked(next);
   };
   return (

@@ -81,7 +81,7 @@ async def list_files(
 async def get_file_content(
     file_id: UUID,
     x_user_sub: str | None = Header(default=None),
-) -> dict:
+) -> dict | JSONResponse:
     sub = require_user_sub_strict(x_user_sub)
     pool = store.get_pool()
     async with pool.acquire() as conn:

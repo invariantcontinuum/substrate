@@ -10,10 +10,10 @@ class LeidenConfig(BaseModel):
     """Active-set Leiden knobs. Range validation matches the spec defaults'
     safe operating envelope; wider ranges would require a graspologic
     benchmark before being exposed."""
-    resolution: float = Field(ge=0.1, le=10.0)
-    beta: float       = Field(ge=0.0, le=0.1)
-    iterations: int   = Field(ge=1, le=50)
-    min_cluster_size: int = Field(ge=1, le=1000)
+    resolution: float = Field(default=1.0, ge=0.1, le=10.0)
+    beta: float       = Field(default=0.01, ge=0.0, le=0.1)
+    iterations: int   = Field(default=10, ge=1, le=50)
+    min_cluster_size: int = Field(default=4, ge=1, le=1000)
     seed: int = 42
 
     def canonical_hash(self, sync_ids: list[str] | list[UUID]) -> str:

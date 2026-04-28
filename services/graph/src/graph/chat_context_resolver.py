@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Literal, Type
 from uuid import UUID
 
 import asyncpg
@@ -75,15 +75,16 @@ class ResolvedScope:
 
 
 def _parse_entry(raw: dict) -> Entry:
-    cls = {
+    _cls_map: dict[str, Type[_Base]] = {
         "source": SourceEntry,
         "snapshot": SnapshotEntry,
         "directory": DirectoryEntry,
         "file": FileEntry,
         "community": CommunityEntry,
         "node_neighborhood": NodeNeighborhoodEntry,
-    }[raw["type"]]
-    return cls.model_validate(raw)
+    }
+    cls = _cls_map[raw["type"]]
+    return cls.model_validate(raw)  # type: ignore[return-value]
 
 
 # ---------------------------------------------------------------------------

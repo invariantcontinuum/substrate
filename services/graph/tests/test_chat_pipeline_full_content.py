@@ -2,10 +2,10 @@
 import pytest
 from uuid import UUID, uuid4
 
-pytestmark = pytest.mark.asyncio(loop_scope="session")
-
 from src.graph import store
 from src.graph.chat_pipeline import _format_full_files_section
+
+pytestmark = pytest.mark.asyncio(loop_scope="session")
 
 
 async def test_full_files_section_includes_all_lines(app_pool):

@@ -1,18 +1,16 @@
 """Tests for list_visible_messages — filters out superseded messages."""
 import pytest
-from uuid import uuid4
+from uuid import UUID, uuid4
 
-pytestmark = pytest.mark.asyncio(loop_scope="session")
-
-from uuid import UUID
-
+from src.graph import store
 from src.graph.chat_store import (
     insert_message,
     list_messages,
     list_visible_messages,
     set_supersedes,
 )
-from src.graph import store
+
+pytestmark = pytest.mark.asyncio(loop_scope="session")
 
 
 async def test_visible_filters_superseded(app_pool):

@@ -44,7 +44,7 @@ from src.api.routes import _embed_query
 from src.config import settings
 from src.graph import store
 from src.graph.chat_context_resolver import (
-    Entry, Neighbor, _parse_entry, resolve_entries,
+    Neighbor, _parse_entry, resolve_entries,
 )
 from src.graph.chat_store import list_visible_messages
 from src.graph.file_full_content import IncompleteReconstruction, load_full
@@ -518,7 +518,6 @@ async def stream_turn(
         if sliced_turns and sliced_turns[-1].get("role") == "user":
             sliced_turns = sliced_turns[:-1]
 
-        chat_files: list[dict] = []
         messages = _build_prompt(
             user_content=user_content,
             prior_turns=sliced_turns,

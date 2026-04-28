@@ -12,7 +12,6 @@ from __future__ import annotations
 import json
 from importlib import reload
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from httpx import ASGITransport, AsyncClient, Response, Request

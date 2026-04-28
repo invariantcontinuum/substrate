@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   useChatSettings,
   usePatchChatSettings,
@@ -14,12 +14,11 @@ export function SettingsChatTab() {
   const archiveAll = useArchiveAllThreads();
   const token      = useAuthToken();
 
-  const [turns, setTurns] = useState<number>(12);
+  // Local edit override — undefined means "use server value"
+  const [turnsOverride, setTurnsOverride] = useState<number | undefined>(undefined);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  useEffect(() => {
-    if (settings.data) setTurns(settings.data.history_turns);
-  }, [settings.data]);
+  const turns = turnsOverride ?? settings.data?.history_turns ?? 12;
 
   const handleExport = async () => {
     const response = await fetch("/api/chat/threads/export", {
@@ -45,7 +44,7 @@ export function SettingsChatTab() {
           min={0}
           max={50}
           value={turns}
-          onChange={e => setTurns(Number(e.target.value))}
+          onChange={e => setTurnsOverride(Number(e.target.value))}
         />
         <button onClick={() => patch.mutate({ history_turns: turns })}>Save</button>
       </section>
