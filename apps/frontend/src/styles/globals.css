@@ -5035,3 +5035,24 @@ html {
 .ctx-files-inner { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; padding: var(--space-2); gap: var(--space-2); }
 .ctx-node-popover { display: grid; gap: 4px; padding: var(--space-2); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; margin-top: 4px; }
 
+/* Composer — chip row + textarea + footer with budget pill and send button */
+.composer { display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-2); border-top: 1px solid var(--border-soft); }
+.composer-warning { background: var(--surface); color: var(--fg); border: 1px solid var(--border-soft); padding: 6px 10px; border-radius: 6px; font-size: 12px; }
+.composer-footer { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-2); }
+.composer-send:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ChatPage — sidebar with Active/Archived thread groups */
+.chat-page { display: grid; grid-template-columns: 240px 1fr; height: 100%; overflow: hidden; }
+.chat-sidebar { display: flex; flex-direction: column; overflow-y: auto; border-right: 1px solid var(--border-soft); padding: var(--space-2); gap: var(--space-1); }
+.chat-main { display: flex; flex-direction: column; overflow: hidden; }
+.chat-sidebar-heading { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-muted); padding: var(--space-1) 0; }
+.chat-thread-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 2px; }
+.chat-thread-item { display: flex; align-items: center; gap: 4px; border-radius: var(--radius-sm); }
+.chat-thread-item.is-active { background: var(--surface-hover); }
+.chat-thread-btn { flex: 1; background: none; border: none; cursor: pointer; text-align: left; padding: 5px 6px; font-size: 13px; color: var(--fg); border-radius: var(--radius-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-thread-btn:hover { background: var(--surface-hover); }
+.chat-thread-action { background: none; border: none; cursor: pointer; color: var(--fg-muted); padding: 4px; font-size: 14px; flex-shrink: 0; }
+.chat-thread-action:hover { color: var(--fg); }
+.chat-archived-section { margin-top: var(--space-2); }
+.chat-archived-section summary { cursor: pointer; list-style: none; }
+
