@@ -5,7 +5,6 @@ import { useUIStore } from "@/stores/ui";
 import { AccountProfileTab } from "@/pages/AccountProfileTab";
 import { AccountBillingTab } from "@/pages/AccountBillingTab";
 import { SettingsGraphTab } from "@/pages/SettingsGraphTab";
-import { SettingsChatContextTab } from "@/pages/SettingsChatContextTab";
 import { SettingsLLMTab } from "@/pages/SettingsLLMTab";
 import { SettingsPostgresTab } from "@/pages/SettingsPostgresTab";
 import { SettingsAuthenticationTab } from "@/pages/SettingsAuthenticationTab";
@@ -14,7 +13,6 @@ import { SettingsGitHubTab } from "@/pages/SettingsGitHubTab";
 const TABS: { path: string; label: string; end?: boolean }[] = [
   { path: "/account", label: "Profile", end: true },
   { path: "/account/graph", label: "Graph" },
-  { path: "/account/chat-context", label: "Chat Context" },
   { path: "/account/llm", label: "LLM Connections" },
   { path: "/account/postgres", label: "Postgres" },
   { path: "/account/authentication", label: "Authentication" },
@@ -72,7 +70,6 @@ export function SettingsModal() {
             <Routes>
               <Route path="/account" element={<AccountProfileTab />} />
               <Route path="/account/graph" element={<SettingsGraphTab />} />
-              <Route path="/account/chat-context" element={<SettingsChatContextTab />} />
               <Route path="/account/llm" element={<SettingsLLMTab />} />
               <Route path="/account/postgres" element={<SettingsPostgresTab />} />
               <Route path="/account/authentication" element={<SettingsAuthenticationTab />} />

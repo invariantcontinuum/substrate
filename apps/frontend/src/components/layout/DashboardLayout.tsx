@@ -7,7 +7,6 @@ import { SwapToast } from "@/components/SwapToast";
 import { useUIStore } from "@/stores/ui";
 import { useResponsive } from "@/hooks/useResponsive";
 import { useSyncs } from "@/hooks/useSyncs";
-import { useChatContext } from "@/hooks/useChatContext";
 import { useSyncSetStore } from "@/stores/syncSet";
 import { apiFetch } from "@/lib/api";
 
@@ -18,13 +17,6 @@ export function DashboardLayout() {
   // polling — the `running → completed` detector then couldn't fire a
   // fetchGraph after a background sync finished.
   useSyncs();
-  // Hydrate the chat-context store from the server on every layout mount
-  // so the chat page (ChatPlaceholder, ContextBudgetPill,
-  // ChatContextSummaryPill) sees the latest selection without first
-  // having to open Settings → Chat Context. The mutation in
-  // ``useApplyChatContext`` write-throughs to the same store, so the
-  // chat page reacts in real time when the user applies from Settings.
-  useChatContext();
 
   const auth = useAuth();
   const token = auth.user?.access_token;
