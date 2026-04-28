@@ -273,3 +273,139 @@ async def unarchive_thread(
             thread_id, sub,
         )
     return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# Context picker endpoints — read from ingested data only
+# ---------------------------------------------------------------------------
+
+
+@router.get("/picker/sources")
+async def list_picker_sources(
+    x_user_sub: str | None = Header(default=None),
+) -> list[dict[str, Any]]:
+    user_sub = require_user_sub_strict(x_user_sub)
+    pool = store.get_pool()
+    rows = await pool.fetch(
+        """
+        SELECT DISTINCT s.id, s.name
+          FROM sources s
+          JOIN sync_runs sr ON sr.source_id = s.id
+          JOIN file_embeddings fe ON fe.sync_id = sr.id
+         WHERE s.user_sub = $1
+         ORDER BY s.name
+        """,
+        user_sub,
+    )
+    return [{"source_id": str(r["id"]), "name": r["name"]} for r in rows]
+
+
+@router.get("/picker/snapshots")
+async def list_picker_snapshots(
+    source_id: UUID,
+    x_user_sub: str | None = Header(default=None),
+) -> list[dict[str, Any]]:
+    user_sub = require_user_sub_strict(x_user_sub)
+    pool = store.get_pool()
+    rows = await pool.fetch(
+        """
+        SELECT DISTINCT sr.id, sr.created_at
+          FROM sync_runs sr
+          JOIN sources s ON s.id = sr.source_id
+         WHERE sr.source_id = $1 AND s.user_sub = $2
+         ORDER BY sr.created_at DESC
+        """,
+        source_id, user_sub,
+    )
+    return [{"sync_id": str(r["id"]), "created_at": r["created_at"].isoformat()} for r in rows]
+
+
+@router.get("/picker/directories")
+async def list_picker_directories(
+    sync_id: UUID,
+    parent: str = "",
+    x_user_sub: str | None = Header(default=None),
+) -> list[str]:
+    require_user_sub_strict(x_user_sub)
+    pool = store.get_pool()
+    depth = (parent.count("/") + 1) if parent else 1
+    rows = await pool.fetch(
+        f"""
+        SELECT DISTINCT split_part(file_path, '/', {depth}) AS segment
+          FROM file_embeddings
+         WHERE sync_id = $1 AND file_path LIKE $2 || '%'
+           AND split_part(file_path, '/', {depth}) <> ''
+         ORDER BY segment
+        """,
+        sync_id, parent,
+    )
+    return [r["segment"] for r in rows]
+
+
+@router.get("/picker/files")
+async def list_picker_files(
+    sync_id: UUID,
+    prefix: str = "",
+    q: str = "",
+    x_user_sub: str | None = Header(default=None),
+) -> list[dict[str, Any]]:
+    require_user_sub_strict(x_user_sub)
+    pool = store.get_pool()
+    rows = await pool.fetch(
+        """
+        SELECT id, file_path, language, size_bytes
+          FROM file_embeddings
+         WHERE sync_id = $1
+           AND file_path LIKE $2 || '%'
+           AND file_path ILIKE '%' || $3 || '%'
+         ORDER BY file_path
+         LIMIT 1000
+        """,
+        sync_id, prefix, q,
+    )
+    return [
+        {"file_id": str(r["id"]), "path": r["file_path"],
+         "language": r["language"], "size_bytes": r["size_bytes"]}
+        for r in rows
+    ]
+
+
+@router.get("/picker/communities")
+async def list_picker_communities(
+    sync_id: UUID,
+    x_user_sub: str | None = Header(default=None),
+) -> list[dict[str, Any]]:
+    user_sub = require_user_sub_strict(x_user_sub)
+    from src.graph import community as community_mod
+    from src.graph.leiden_config import LeidenConfig
+    result = await community_mod.get_or_compute(
+        [str(sync_id)], LeidenConfig(), user_sub=user_sub,
+    )
+    return [
+        {
+            "cache_key": result.cache_key,
+            "community_index": c.index,
+            "label": c.label or f"c-{c.index}",
+            "size": c.size,
+        }
+        for c in result.communities
+    ]
+
+
+@router.get("/picker/nodes")
+async def list_picker_nodes(
+    sync_id: UUID,
+    q: str = "",
+    x_user_sub: str | None = Header(default=None),
+) -> list[dict[str, Any]]:
+    require_user_sub_strict(x_user_sub)
+    pool = store.get_pool()
+    rows = await pool.fetch(
+        """
+        SELECT id, file_path FROM file_embeddings
+         WHERE sync_id = $1 AND file_path ILIKE '%' || $2 || '%'
+         ORDER BY file_path LIMIT 200
+        """,
+        sync_id, q,
+    )
+    return [{"node_id": str(r["id"]), "path": r["file_path"]} for r in rows]

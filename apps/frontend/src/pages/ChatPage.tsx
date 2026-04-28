@@ -7,7 +7,8 @@ import { Message } from "@/components/chat/Message";
 import { Composer } from "@/components/chat/Composer";
 import { ChatPlaceholder } from "@/components/chat/ChatPlaceholder";
 import { ContextBudgetPill } from "@/components/chat/ContextBudgetPill";
-import { ContextFilesModal } from "@/components/chat/ContextFilesModal";
+import { ContextPickerModal } from "@/components/chat/ContextPickerModal";
+import { useApplyThreadEntries, useThreadEntries } from "@/hooks/useThreadEntries";
 import { PageHeader } from "@/components/layout/PageHeader";
 
 export function ChatPage() {
@@ -16,6 +17,8 @@ export function ChatPage() {
   const { data: threads } = useChatThreads();
   const { data: messages } = useChatMessages(activeId);
   const thread = threads?.find((t) => t.id === activeId) ?? null;
+  const { data: threadCtx } = useThreadEntries(activeId);
+  const applyEntries = useApplyThreadEntries(activeId ?? "");
   const [ctxOpen, setCtxOpen] = useState(false);
   const [prevActiveId, setPrevActiveId] = useState(activeId);
   const endRef = useRef<HTMLDivElement | null>(null);
@@ -113,10 +116,14 @@ export function ChatPage() {
         onOpenModal={() => setCtxOpen(true)}
       />
       <Composer threadId={activeId} />
-      <ContextFilesModal
-        threadId={activeId}
-        isOpen={ctxOpen}
+      <ContextPickerModal
+        open={ctxOpen}
         onClose={() => setCtxOpen(false)}
+        onAddEntries={(newEntries) => {
+          if (!activeId || threadCtx?.frozen_at) return;
+          const existing = threadCtx?.entries ?? [];
+          applyEntries.mutate([...existing, ...newEntries]);
+        }}
       />
     </div>
   );
