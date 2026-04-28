@@ -35,7 +35,7 @@ export function useDeleteAllThreads() {
       apiFetch<{ deleted: number }>("/api/chat/threads/delete-all", token, {
         method: "POST",
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["threads"] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["chat", "threads"] }),
   });
 }
 
@@ -47,7 +47,7 @@ export function useArchiveAllThreads() {
       apiFetch<{ archived: number }>("/api/chat/threads/archive-all", token, {
         method: "POST",
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["threads"] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["chat", "threads"] }),
   });
 }
 
@@ -57,7 +57,7 @@ export function useArchiveThread() {
   return useMutation({
     mutationFn: (id: string) =>
       apiFetch(`/api/chat/threads/${id}/archive`, token, { method: "POST" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["threads"] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["chat", "threads"] }),
   });
 }
 
@@ -67,6 +67,6 @@ export function useUnarchiveThread() {
   return useMutation({
     mutationFn: (id: string) =>
       apiFetch(`/api/chat/threads/${id}/unarchive`, token, { method: "POST" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["threads"] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["chat", "threads"] }),
   });
 }
