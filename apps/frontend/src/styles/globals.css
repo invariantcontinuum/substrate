@@ -5007,3 +5007,15 @@ html {
   50% { opacity: 0.95; }
 }
 
+/* ContextChipRow — removable chips showing active context entries above the
+ * composer. Each chip carries a per-type emoji icon and a truncated label.
+ * Remove (×) and add (+) controls are hidden when frozenAt !== null. */
+.context-chip-row { display: flex; flex-wrap: wrap; gap: var(--space-1); list-style: none; padding: 0; margin: 0 0 var(--space-1) 0; }
+.context-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; background: var(--surface); border: 1px solid var(--border-soft); border-radius: 14px; font-size: 12px; }
+.context-chip-label { font-family: var(--font-mono); }
+.context-chip-remove,
+.context-chip-add { background: transparent; border: 0; cursor: pointer; color: var(--fg-muted); }
+.context-chip-remove:hover,
+.context-chip-add:hover { color: var(--fg); }
+.context-chip-add { padding: 2px 10px; border: 1px dashed var(--border-soft); border-radius: 14px; }
+
