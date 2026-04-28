@@ -361,7 +361,7 @@ async def _path_for(pool, file_id) -> str:
 
 async def _effective_history_turns(pool, user_sub: str) -> int:
     row = await pool.fetchrow(
-        "SELECT chat_settings FROM user_profiles WHERE sub = $1", user_sub,
+        "SELECT chat_settings FROM user_profiles WHERE user_sub = $1", user_sub,
     )
     if row is not None and isinstance(row["chat_settings"], dict):
         v = row["chat_settings"].get("history_turns")

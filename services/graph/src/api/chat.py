@@ -115,18 +115,19 @@ async def post_message(
         raise ValidationError("sync_ids required")
 
     # Freeze thread context on first message send so context entries are
-    # immutable for the lifetime of the conversation.
+    # immutable for the lifetime of the conversation. Single atomic UPDATE
+    # guards against TOCTOU race when two requests arrive concurrently.
     pool = store.get_pool()
     async with pool.acquire() as conn:
-        ctx_row = await conn.fetchrow(
-            "SELECT context FROM chat_threads WHERE id = $1", thread_id,
+        await conn.execute(
+            """
+            UPDATE chat_threads
+               SET context = jsonb_set(context, '{frozen_at}', to_jsonb(now()::text))
+             WHERE id = $1
+               AND (context->>'frozen_at') IS NULL
+            """,
+            thread_id,
         )
-        if ctx_row and not (ctx_row["context"] or {}).get("frozen_at"):
-            await conn.execute(
-                "UPDATE chat_threads SET context = jsonb_set(context, '{frozen_at}', "
-                "to_jsonb(now()::text)) WHERE id = $1",
-                thread_id,
-            )
 
     user_msg = await chat_store.insert_message(
         thread_id=thread_id, role="user",
