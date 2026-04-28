@@ -81,6 +81,18 @@ vi.mock("../ContextBudgetPill", () => ({
   ContextBudgetPill: () => <div data-testid="budget-pill" />,
 }));
 
+vi.mock("react-router-dom", async () => {
+  const actual = await vi.importActual<typeof import("react-router-dom")>(
+    "react-router-dom"
+  );
+  return {
+    ...actual,
+    Link: ({ to, children }: { to: string; children: unknown }) => (
+      <a href={to}>{children}</a>
+    ),
+  };
+});
+
 import { Composer } from "../Composer";
 
 function withQc(node: ReactNode) {

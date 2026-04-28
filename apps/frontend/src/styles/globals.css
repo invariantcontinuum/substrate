@@ -3133,31 +3133,26 @@ html {
  * border-top — without it the pill butts against the composer chrome. */
 .context-budget-pill {
   align-self: center;
-  margin: 6px auto 12px;
-  padding: 4px 12px;
-  background: var(--accent-tint);
-  border: 1px solid var(--accent);
-  border-radius: 999px;
-  font: inherit;
-  font-size: var(--text-xs);
-  color: var(--accent);
-  cursor: pointer;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--fg);
+  border: 1px solid var(--border-soft);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-.context-budget-pill:hover { background: var(--accent); color: var(--accent-contrast); }
-.context-budget-pill.is-warn {
-  background: rgba(255, 193, 130, 0.18);
-  border-color: rgba(255, 193, 130, 0.6);
-  color: rgba(255, 193, 130, 1);
+.context-budget-pill.state-amber {
+  background: var(--surface);
+  color: var(--fg);
+  border-color: var(--accent-warn, var(--border-soft));
 }
-.context-budget-pill.is-warn:hover { background: rgba(255, 193, 130, 0.4); }
-.context-budget-pill.is-over {
-  background: rgba(255, 120, 120, 0.18);
-  border-color: rgba(255, 120, 120, 0.6);
-  color: rgba(255, 120, 120, 1);
+.context-budget-pill.state-over {
+  background: var(--surface);
+  color: var(--fg);
+  border-color: var(--accent-danger, var(--border-soft));
 }
-.context-budget-pill.is-over:hover { background: rgba(255, 120, 120, 0.4); }
+.estimate-badge { font-style: italic; opacity: 0.7; }
 
 /* Context picker — three-tab modal (All files / Communities / Directories)
  * driven by ContextPickerModal. The .ctx-tabs strip sits at the top, the

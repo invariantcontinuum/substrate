@@ -132,8 +132,9 @@ export function Composer({ threadId }: { threadId: string | null }) {
       />
       <div className="composer-footer">
         <ContextBudgetPill
-          threadId={threadId}
-          onOpenModal={() => setPickerOpen(true)}
+          tokens={tokens}
+          cap={cap}
+          isEstimate={rawTokens == null}
         />
         {isStreaming ? (
           <Button
