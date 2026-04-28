@@ -5042,9 +5042,15 @@ html {
 .composer-send:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* ChatPage — sidebar with Active/Archived thread groups */
-.chat-page { display: grid; grid-template-columns: 240px 1fr; height: 100%; overflow: hidden; }
+.chat-page { display: grid; grid-template-columns: 240px 1fr; height: 100%; overflow: hidden; position: relative; }
 .chat-sidebar { display: flex; flex-direction: column; overflow-y: auto; border-right: 1px solid var(--border-soft); padding: var(--space-2); gap: var(--space-1); }
-.chat-main { display: flex; flex-direction: column; overflow: hidden; }
+.chat-main { display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+.chat-sidebar-header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.chat-sidebar-close { background: none; border: none; cursor: pointer; color: var(--fg-muted); padding: 4px; display: inline-flex; align-items: center; border-radius: var(--radius-xs); }
+.chat-sidebar-close:hover { color: var(--fg); background: var(--surface-hover); }
+.chat-sidebar-scrim { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.4); border: 0; padding: 0; cursor: pointer; z-index: calc(var(--z-sidebar, 50) + 1); }
+.chat-nav-toggle { background: transparent; border: 1px solid var(--border); border-radius: var(--radius-xs); color: var(--fg); cursor: pointer; padding: 4px 6px; display: inline-flex; align-items: center; }
+.chat-nav-toggle:hover { background: var(--surface-hover); }
 .chat-sidebar-heading { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-muted); padding: var(--space-1) 0; }
 .chat-thread-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 2px; }
 .chat-thread-item { display: flex; align-items: center; gap: 4px; border-radius: var(--radius-sm); }
@@ -5055,4 +5061,20 @@ html {
 .chat-thread-action:hover { color: var(--fg); }
 .chat-archived-section { margin-top: var(--space-2); }
 .chat-archived-section summary { cursor: pointer; list-style: none; }
+
+@media (max-width: 1023px) {
+  .chat-page { grid-template-columns: 1fr; }
+  .chat-sidebar {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: min(280px, 80vw);
+    z-index: calc(var(--z-sidebar, 50) + 2);
+    background: var(--surface);
+    transform: translateX(-100%);
+    transition: transform 180ms ease-out;
+    box-shadow: var(--glass-shadow);
+  }
+  .chat-page.chat-nav-open .chat-sidebar { transform: translateX(0); }
+  .chat-page:not(.chat-nav-open) .chat-sidebar-scrim { display: none; }
+}
 

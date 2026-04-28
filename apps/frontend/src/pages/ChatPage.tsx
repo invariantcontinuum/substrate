@@ -1,9 +1,11 @@
-import { Fragment, useEffect, useMemo, useRef } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { ListTree, X } from "lucide-react";
 import { useChatThreads } from "@/hooks/useChatThreads";
 import { useChatMessages, type ChatMessage } from "@/hooks/useChatMessages";
 import { useChatStore } from "@/stores/chat";
 import { useChatStream } from "@/hooks/useChatStream";
 import { useArchiveThread, useUnarchiveThread } from "@/hooks/useChatSettings";
+import { useResponsive } from "@/hooks/useResponsive";
 import { Message } from "@/components/chat/Message";
 import { Composer } from "@/components/chat/Composer";
 import { ChatPlaceholder } from "@/components/chat/ChatPlaceholder";
@@ -19,6 +21,20 @@ export function ChatPage() {
   const archive = useArchiveThread();
   const unarchive = useUnarchiveThread();
   const endRef = useRef<HTMLDivElement | null>(null);
+  const { isDesktop } = useResponsive();
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const chatNavOpen = isDesktop || mobileNavOpen;
+
+  const setChatNavOpen = (open: boolean) => {
+    if (!isDesktop) setMobileNavOpen(open);
+  };
+
+  const closeNavOnMobile = () => setChatNavOpen(false);
+
+  const onSelectThread = (id: string) => {
+    setActiveThreadId(id);
+    closeNavOnMobile();
+  };
 
   useChatStream(activeId);
 
@@ -51,9 +67,30 @@ export function ChatPage() {
   const archived = (threads ?? []).filter((t) => !!t.archived_at);
 
   return (
-    <div className="chat-page">
-      <aside className="chat-sidebar">
-        <h3 className="chat-sidebar-heading">Active</h3>
+    <div className={`chat-page${chatNavOpen ? " chat-nav-open" : ""}`}>
+      {!isDesktop && chatNavOpen && (
+        <button
+          type="button"
+          className="chat-sidebar-scrim"
+          onClick={() => setChatNavOpen(false)}
+          aria-label="Close thread list"
+        />
+      )}
+      <aside className="chat-sidebar" aria-hidden={!chatNavOpen}>
+        <div className="chat-sidebar-header">
+          <h3 className="chat-sidebar-heading">Active</h3>
+          {!isDesktop && (
+            <button
+              type="button"
+              className="chat-sidebar-close"
+              onClick={() => setChatNavOpen(false)}
+              aria-label="Close thread list"
+              title="Close"
+            >
+              <X size={16} />
+            </button>
+          )}
+        </div>
         <ul className="chat-thread-list">
           {active.map((t) => (
             <li
@@ -62,7 +99,7 @@ export function ChatPage() {
             >
               <button
                 className="chat-thread-btn"
-                onClick={() => setActiveThreadId(t.id)}
+                onClick={() => onSelectThread(t.id)}
               >
                 {t.title}
               </button>
@@ -90,7 +127,7 @@ export function ChatPage() {
                 >
                   <button
                     className="chat-thread-btn"
-                    onClick={() => setActiveThreadId(t.id)}
+                    onClick={() => onSelectThread(t.id)}
                   >
                     {t.title}
                   </button>
@@ -109,7 +146,22 @@ export function ChatPage() {
         )}
       </aside>
       <div className="chat-main">
-        <PageHeader title={thread?.title ?? "New chat"} />
+        <PageHeader
+          title={thread?.title ?? "New chat"}
+          right={
+            !isDesktop && !chatNavOpen ? (
+              <button
+                type="button"
+                className="chat-nav-toggle"
+                onClick={() => setChatNavOpen(true)}
+                aria-label="Open thread list"
+                title="Threads"
+              >
+                <ListTree size={16} />
+              </button>
+            ) : null
+          }
+        />
         <main className="chat-scroll">
           {showPlaceholder ? (
             <ChatPlaceholder />
